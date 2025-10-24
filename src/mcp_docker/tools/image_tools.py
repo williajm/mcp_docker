@@ -427,16 +427,16 @@ class PushImageTool:
             last_status = None
             error_message = None
 
-            for line in push_stream.split('\n') if isinstance(push_stream, str) else [push_stream]:
+            for line in push_stream.split("\n") if isinstance(push_stream, str) else [push_stream]:
                 if not line.strip():
                     continue
                 try:
                     status_obj = json.loads(line)
-                    if 'error' in status_obj:
-                        error_message = status_obj['error']
+                    if "error" in status_obj:
+                        error_message = status_obj["error"]
                         break
-                    if 'status' in status_obj:
-                        last_status = status_obj['status']
+                    if "status" in status_obj:
+                        last_status = status_obj["status"]
                 except json.JSONDecodeError:
                     continue
 

@@ -44,11 +44,7 @@ async def handle_list_tools() -> list[Tool]:
     tools = docker_server.list_tools()
     # Convert to MCP Tool types
     return [
-        Tool(
-            name=tool["name"],
-            description=tool["description"],
-            inputSchema=tool["inputSchema"]
-        )
+        Tool(name=tool["name"], description=tool["description"], inputSchema=tool["inputSchema"])
         for tool in tools
     ]
 
@@ -115,9 +111,7 @@ async def run_server() -> None:
         # Run server with stdio transport
         async with stdio_server() as (read_stream, write_stream):
             await mcp_server.run(
-                read_stream,
-                write_stream,
-                mcp_server.create_initialization_options()
+                read_stream, write_stream, mcp_server.create_initialization_options()
             )
     finally:
         await docker_server.stop()
