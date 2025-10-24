@@ -482,7 +482,8 @@ class TestContainerStatsTool:
             "cpu_stats": {"cpu_usage": {"total_usage": 1000000}},
             "memory_stats": {"usage": 52428800},
         }
-        mock_container.stats.return_value = iter([stats_data])
+        # When stream=False, Docker returns dict directly (not an iterator)
+        mock_container.stats.return_value = stats_data
         mock_docker_client.client.containers.get.return_value = mock_container
 
         tool = ContainerStatsTool(mock_docker_client)
@@ -492,7 +493,7 @@ class TestContainerStatsTool:
         assert result.container_id == "abc123def456"
         assert "cpu_stats" in result.stats
         assert "memory_stats" in result.stats
-        mock_container.stats.assert_called_once_with(stream=False)
+        mock_container.stats.assert_called_once_with(stream=False, decode=True)
 
     @pytest.mark.asyncio
     async def test_get_stats_container_not_found(self, mock_docker_client):
