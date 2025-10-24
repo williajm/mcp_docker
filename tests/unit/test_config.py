@@ -11,11 +11,19 @@ class TestDockerConfig:
 
     def test_default_values(self) -> None:
         """Test default configuration values."""
-        config = DockerConfig()
-        assert config.base_url == "unix:///var/run/docker.sock"
-        assert config.timeout == 60
-        assert config.tls_verify is False
-        assert config.tls_ca_cert is None
+        import os
+        # Clear DOCKER_BASE_URL env var if set
+        old_base_url = os.environ.pop("DOCKER_BASE_URL", None)
+        try:
+            config = DockerConfig()
+            assert config.base_url == "unix:///var/run/docker.sock"
+            assert config.timeout == 60
+            assert config.tls_verify is False
+            assert config.tls_ca_cert is None
+        finally:
+            # Restore original value
+            if old_base_url:
+                os.environ["DOCKER_BASE_URL"] = old_base_url
 
     def test_custom_values(self) -> None:
         """Test custom configuration values."""
