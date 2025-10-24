@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-A powerful [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, well-documented API with built-in safety controls.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
 ## Features
 
@@ -148,7 +148,7 @@ The server provides 37 tools organized into 5 categories:
 
 ## Prompts
 
-Three intelligent prompts help AI assistants work with Docker:
+Three prompts help AI assistants work with Docker:
 
 - **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
 - **optimize_container** - Get optimization suggestions for resource usage and security
@@ -253,19 +253,6 @@ mcp_docker/
   - `pydantic>=2.0.0` - Data validation
   - `loguru>=0.7.0` - Logging
 
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes with tests
-4. Run the test suite (`uv run pytest`)
-5. Ensure linting passes (`uv run ruff check src tests`)
-6. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
-
 ### Code Standards
 
 - Follow PEP 8 style guidelines
@@ -284,11 +271,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Uses the official [Docker SDK for Python](https://docker-py.readthedocs.io/)
 - Powered by modern Python tooling: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
 
-## Support
-
-- [GitHub Issues](https://github.com/williajm/mcp_docker/issues) - Bug reports and feature requests
-- [GitHub Discussions](https://github.com/williajm/mcp_docker/discussions) - Questions and community support
-
 ## Roadmap
 
 - [ ] Docker Compose full support
@@ -298,6 +280,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] WebSocket transport option
 - [ ] Docker Scout integration
 
----
 
-Made with ❤️ for the MCP community
