@@ -44,17 +44,13 @@ class SystemDfOutput(BaseModel):
     images: dict[str, Any] = Field(description="Images disk usage")
     containers: dict[str, Any] = Field(description="Containers disk usage")
     volumes: dict[str, Any] = Field(description="Volumes disk usage")
-    build_cache: dict[str, Any] | None = Field(
-        default=None, description="Build cache disk usage"
-    )
+    build_cache: dict[str, Any] | None = Field(default=None, description="Build cache disk usage")
 
 
 class SystemPruneInput(BaseModel):
     """Input for pruning all unused resources."""
 
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters to apply"
-    )
+    filters: dict[str, str | list[str]] | None = Field(default=None, description="Filters to apply")
 
 
 class SystemPruneOutput(BaseModel):
@@ -84,9 +80,7 @@ class EventsInput(BaseModel):
 
     since: str | None = Field(default=None, description="Show events since timestamp")
     until: str | None = Field(default=None, description="Show events until timestamp")
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Event filters"
-    )
+    filters: dict[str, str | list[str]] | None = Field(default=None, description="Event filters")
     decode: bool = Field(default=True, description="Decode JSON events")
 
 
@@ -256,9 +250,7 @@ class SystemPruneTool:
             # Only prune volumes if explicitly requested
             volumes_deleted: list[str] = []
             if input_data.filters and input_data.filters.get("volumes"):
-                result_volumes = self.docker_client.client.volumes.prune(
-                    filters=input_data.filters
-                )
+                result_volumes = self.docker_client.client.volumes.prune(filters=input_data.filters)
                 volumes_deleted = result_volumes.get("VolumesDeleted", []) or []
 
             # Calculate total space reclaimed

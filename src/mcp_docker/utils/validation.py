@@ -205,7 +205,7 @@ def validate_command(command: str | list[str]) -> str | list[str]:
         if not command.strip():
             raise ValidationError("Command cannot be empty")
         # Check for potentially dangerous patterns
-        dangerous_patterns = [";", "&&", "||", "|", "`", "$(",  "$("]
+        dangerous_patterns = [";", "&&", "||", "|", "`", "$(", "$("]
         if any(pattern in command for pattern in dangerous_patterns):
             raise ValidationError(
                 "Command contains potentially dangerous patterns. "
