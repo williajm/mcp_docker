@@ -4,7 +4,7 @@ import re
 from enum import Enum
 from typing import Any
 
-from mcp_docker.utils.errors import UnsafeOperation, ValidationError
+from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
 
 
 class OperationSafety(str, Enum):
@@ -121,19 +121,19 @@ def validate_operation_allowed(
         allow_privileged: Whether privileged operations are allowed
 
     Raises:
-        UnsafeOperation: If operation is not allowed
+        UnsafeOperationError: If operation is not allowed
 
     """
     # Check destructive operations
     if is_destructive_operation(operation_name) and not allow_destructive:
-        raise UnsafeOperation(
+        raise UnsafeOperationError(
             f"Destructive operation '{operation_name}' is not allowed. "
             "Enable destructive operations in configuration to proceed."
         )
 
     # Check privileged operations
     if is_privileged_operation(operation_name) and not allow_privileged:
-        raise UnsafeOperation(
+        raise UnsafeOperationError(
             f"Privileged operation '{operation_name}' is not allowed. "
             "Enable privileged operations in configuration to proceed."
         )
@@ -150,7 +150,7 @@ def sanitize_command(command: str | list[str]) -> list[str]:
 
     Raises:
         ValidationError: If command is invalid
-        UnsafeOperation: If command contains dangerous patterns
+        UnsafeOperationError: If command contains dangerous patterns
 
     """
     # Convert to list format
@@ -171,7 +171,7 @@ def sanitize_command(command: str | list[str]) -> list[str]:
     command_str = " ".join(cmd_list)
     for pattern in DANGEROUS_COMMAND_PATTERNS:
         if re.search(pattern, command_str, re.IGNORECASE):
-            raise UnsafeOperation(
+            raise UnsafeOperationError(
                 f"Command contains dangerous pattern: {pattern}. "
                 "This command has been blocked for safety reasons."
             )
@@ -186,14 +186,14 @@ def validate_command_safety(command: str | list[str]) -> None:
         command: Command string or list to validate
 
     Raises:
-        UnsafeOperation: If command contains dangerous patterns
+        UnsafeOperationError: If command contains dangerous patterns
 
     """
     command_str = " ".join(command) if isinstance(command, list) else command
 
     for pattern in DANGEROUS_COMMAND_PATTERNS:
         if re.search(pattern, command_str, re.IGNORECASE):
-            raise UnsafeOperation(
+            raise UnsafeOperationError(
                 f"Command contains dangerous pattern matching '{pattern}'. "
                 "This command has been blocked for safety reasons."
             )
@@ -210,11 +210,11 @@ def check_privileged_mode(
         allow_privileged: Whether privileged mode is allowed in config
 
     Raises:
-        UnsafeOperation: If privileged mode is requested but not allowed
+        UnsafeOperationError: If privileged mode is requested but not allowed
 
     """
     if privileged and not allow_privileged:
-        raise UnsafeOperation(
+        raise UnsafeOperationError(
             "Privileged mode is not allowed. "
             "Enable privileged operations in configuration to use privileged containers."
         )
@@ -228,7 +228,7 @@ def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> No
         allowed_paths: List of allowed path prefixes (None = allow all)
 
     Raises:
-        UnsafeOperation: If path is not allowed
+        UnsafeOperationError: If path is not allowed
 
     """
     # Block sensitive system paths
@@ -242,7 +242,7 @@ def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> No
 
     for dangerous_path in dangerous_paths:
         if path.startswith(dangerous_path):
-            raise UnsafeOperation(
+            raise UnsafeOperationError(
                 f"Mount path '{path}' is not allowed. "
                 f"Mounting sensitive system paths like '{dangerous_path}' is blocked."
             )
@@ -251,7 +251,7 @@ def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> No
     if allowed_paths is not None and not any(
         path.startswith(allowed) for allowed in allowed_paths
     ):
-        raise UnsafeOperation(
+        raise UnsafeOperationError(
             f"Mount path '{path}' is not in the allowed paths list: {allowed_paths}"
         )
 
@@ -267,11 +267,11 @@ def validate_port_binding(
         allow_privileged_ports: Whether to allow privileged ports (<1024)
 
     Raises:
-        UnsafeOperation: If port is privileged but not allowed
+        UnsafeOperationError: If port is privileged but not allowed
 
     """
     if host_port < 1024 and not allow_privileged_ports:
-        raise UnsafeOperation(
+        raise UnsafeOperationError(
             f"Privileged port {host_port} (<1024) is not allowed. "
             "Enable privileged ports in configuration or use a port >= 1024."
         )

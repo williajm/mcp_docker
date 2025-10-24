@@ -25,7 +25,7 @@ class SafetyError(MCPDockerError):
     """Raised when a safety check fails."""
 
 
-class UnsafeOperation(SafetyError):
+class UnsafeOperationError(SafetyError):
     """Raised when an unsafe operation is attempted."""
 
 
