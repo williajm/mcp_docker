@@ -321,8 +321,7 @@ class MCPDockerServer:
             result = await self.prompt_provider.get_prompt(name, arguments)
 
             messages = [
-                {"role": message.role, "content": message.content}
-                for message in result.messages
+                {"role": message.role, "content": message.content} for message in result.messages
             ]
 
             logger.info(f"Generated prompt: {name}")
@@ -337,7 +336,4 @@ class MCPDockerServer:
 
     def __repr__(self) -> str:
         """Return string representation."""
-        return (
-            f"MCPDockerServer(tools={len(self.tools)}, "
-            f"resources=enabled, prompts=enabled)"
-        )
+        return f"MCPDockerServer(tools={len(self.tools)}, resources=enabled, prompts=enabled)"

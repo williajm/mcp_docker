@@ -248,9 +248,7 @@ def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> No
             )
 
     # Check against allowed paths if specified
-    if allowed_paths is not None and not any(
-        path.startswith(allowed) for allowed in allowed_paths
-    ):
+    if allowed_paths is not None and not any(path.startswith(allowed) for allowed in allowed_paths):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not in the allowed paths list: {allowed_paths}"
         )

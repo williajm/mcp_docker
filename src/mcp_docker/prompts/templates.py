@@ -21,9 +21,7 @@ class PromptMetadata(BaseModel):
 
     name: str = Field(description="Prompt name")
     description: str = Field(description="Prompt description")
-    arguments: list[dict[str, Any]] = Field(
-        default_factory=list, description="Prompt arguments"
-    )
+    arguments: list[dict[str, Any]] = Field(default_factory=list, description="Prompt arguments")
 
 
 class PromptMessage(BaseModel):
@@ -103,16 +101,16 @@ class TroubleshootContainerPrompt:
 - ID: {container.short_id}
 - Name: {container.name}
 - Status: {status}
-- Image: {config.get('Image', 'unknown')}
-- Running: {state.get('Running', False)}
-- Exit Code: {state.get('ExitCode', 'N/A')}
-- Error: {state.get('Error', 'None')}
+- Image: {config.get("Image", "unknown")}
+- Running: {state.get("Running", False)}
+- Exit Code: {state.get("ExitCode", "N/A")}
+- Error: {state.get("Error", "None")}
 
 Configuration:
-- Command: {config.get('Cmd', 'default')}
-- Entrypoint: {config.get('Entrypoint', 'default')}
-- Environment: {len(config.get('Env', []))} variables
-- Restart Policy: {host_config.get('RestartPolicy', {}).get('Name', 'no')}
+- Command: {config.get("Cmd", "default")}
+- Entrypoint: {config.get("Entrypoint", "default")}
+- Environment: {len(config.get("Env", []))} variables
+- Restart Policy: {host_config.get("RestartPolicy", {}).get("Name", "no")}
 
 Recent Logs (last 50 lines):
 {logs}
@@ -218,15 +216,13 @@ class OptimizeContainerPrompt:
                 stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
                 memory_usage = stats.get("memory_stats", {}).get("usage", 0)
                 memory_limit = stats.get("memory_stats", {}).get("limit", 0)
-                memory_percent = (
-                    (memory_usage / memory_limit * 100) if memory_limit > 0 else 0
-                )
+                memory_percent = (memory_usage / memory_limit * 100) if memory_limit > 0 else 0
 
                 memory_mb = memory_usage / 1024 / 1024
                 limit_mb = memory_limit / 1024 / 1024
                 stats_info = f"""Current Resource Usage:
 - Memory: {memory_mb:.2f} MB / {limit_mb:.2f} MB ({memory_percent:.1f}%)
-- CPU Stats: {stats.get('cpu_stats', {}).get('online_cpus', 'unknown')} CPUs"""
+- CPU Stats: {stats.get("cpu_stats", {}).get("online_cpus", "unknown")} CPUs"""
 
             # Extract configuration
             config = container_attrs.get("Config", {})
@@ -235,14 +231,14 @@ class OptimizeContainerPrompt:
             context = f"""Container Configuration:
 - ID: {container.short_id}
 - Name: {container.name}
-- Image: {config.get('Image', 'unknown')}
-- Restart Policy: {host_config.get('RestartPolicy', {}).get('Name', 'no')}
-- Memory Limit: {host_config.get('Memory', 'unlimited')}
-- CPU Shares: {host_config.get('CpuShares', 'default')}
-- Privileged: {host_config.get('Privileged', False)}
-- Network Mode: {host_config.get('NetworkMode', 'default')}
-- Port Bindings: {len(host_config.get('PortBindings', {}))} ports
-- Volume Bindings: {len(host_config.get('Binds', []))} volumes
+- Image: {config.get("Image", "unknown")}
+- Restart Policy: {host_config.get("RestartPolicy", {}).get("Name", "no")}
+- Memory Limit: {host_config.get("Memory", "unlimited")}
+- CPU Shares: {host_config.get("CpuShares", "default")}
+- Privileged: {host_config.get("Privileged", False)}
+- Network Mode: {host_config.get("NetworkMode", "default")}
+- Port Bindings: {len(host_config.get("PortBindings", {}))} ports
+- Volume Bindings: {len(host_config.get("Binds", []))} volumes
 
 {stats_info}
 """

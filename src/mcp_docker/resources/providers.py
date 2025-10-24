@@ -230,7 +230,7 @@ Memory:
 Network:{network_text if network_text else " No network interfaces"}
 
 Block I/O:
-  {stats.get('blkio_stats', 'No block I/O stats available')}
+  {stats.get("blkio_stats", "No block I/O stats available")}
 """
 
             logger.debug(f"Retrieved stats for container {container_id}")

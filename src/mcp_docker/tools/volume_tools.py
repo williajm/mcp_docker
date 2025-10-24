@@ -80,9 +80,7 @@ class RemoveVolumeOutput(BaseModel):
 class PruneVolumesInput(BaseModel):
     """Input for pruning unused volumes."""
 
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters to apply"
-    )
+    filters: dict[str, str | list[str]] | None = Field(default=None, description="Filters to apply")
 
 
 class PruneVolumesOutput(BaseModel):

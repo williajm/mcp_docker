@@ -306,9 +306,7 @@ class PullImageTool:
             image = self.docker_client.client.images.pull(**kwargs)
 
             logger.info(f"Successfully pulled image: {input_data.image}")
-            return PullImageOutput(
-                image=input_data.image, id=str(image.id), tags=image.tags
-            )
+            return PullImageOutput(image=input_data.image, id=str(image.id), tags=image.tags)
 
         except APIError as e:
             logger.error(f"Failed to pull image: {e}")
@@ -374,9 +372,7 @@ class BuildImageTool:
                         log_messages.append(stream_val.strip())
 
             logger.info(f"Successfully built image: {image.id}")
-            return BuildImageOutput(
-                image_id=str(image.id), tags=image.tags, logs=log_messages
-            )
+            return BuildImageOutput(image_id=str(image.id), tags=image.tags, logs=log_messages)
 
         except APIError as e:
             logger.error(f"Failed to build image: {e}")
@@ -581,8 +577,7 @@ class PruneImagesTool:
             space_reclaimed = result.get("SpaceReclaimed", 0)
 
             logger.info(
-                f"Successfully pruned {len(deleted)} images, "
-                f"reclaimed {space_reclaimed} bytes"
+                f"Successfully pruned {len(deleted)} images, reclaimed {space_reclaimed} bytes"
             )
             return PruneImagesOutput(deleted=deleted, space_reclaimed=space_reclaimed)
 
