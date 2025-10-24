@@ -62,9 +62,9 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     # Return result in MCP format (list of content items)
     if result.get("success"):
         return [{"type": "text", "text": str(result.get("result", ""))}]
-    else:
-        error_msg = result.get("error", "Unknown error")
-        return [{"type": "text", "text": f"Error: {error_msg}"}]
+
+    error_msg = result.get("error", "Unknown error")
+    return [{"type": "text", "text": f"Error: {error_msg}"}]
 
 
 # Register list_resources handler
@@ -98,8 +98,7 @@ async def handle_list_prompts() -> list[dict[str, Any]]:
 async def handle_get_prompt(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
     """Get a Docker prompt by name."""
     args = arguments or {}
-    result = await docker_server.get_prompt(name, args)
-    return result
+    return await docker_server.get_prompt(name, args)
 
 
 logger.info("MCP server handlers registered")
