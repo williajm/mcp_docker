@@ -38,7 +38,7 @@ logger.info(f"Docker server initialized with {len(docker_server.tools)} tools")
 
 
 # Register list_tools handler
-@mcp_server.list_tools()
+@mcp_server.list_tools()  # type: ignore[misc, no-untyped-call]
 async def handle_list_tools() -> list[Tool]:
     """List all available Docker tools."""
     tools = docker_server.list_tools()
@@ -50,7 +50,7 @@ async def handle_list_tools() -> list[Tool]:
 
 
 # Register call_tool handler
-@mcp_server.call_tool()
+@mcp_server.call_tool()  # type: ignore[misc]
 async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     """Execute a Docker tool."""
     result = await docker_server.call_tool(name, arguments)
@@ -64,33 +64,33 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
 
 
 # Register list_resources handler
-@mcp_server.list_resources()
+@mcp_server.list_resources()  # type: ignore[misc, no-untyped-call]
 async def handle_list_resources() -> list[dict[str, Any]]:
     """List all available Docker resources."""
     return docker_server.list_resources()
 
 
 # Register read_resource handler
-@mcp_server.read_resource()
+@mcp_server.read_resource()  # type: ignore[misc, no-untyped-call]
 async def handle_read_resource(uri: str) -> str:
     """Read a Docker resource by URI."""
     result = await docker_server.read_resource(uri)
 
     # Return text content if available
     if "text" in result:
-        return result["text"]
+        return result["text"]  # type: ignore[no-any-return]
     return str(result)
 
 
 # Register list_prompts handler
-@mcp_server.list_prompts()
+@mcp_server.list_prompts()  # type: ignore[misc, no-untyped-call]
 async def handle_list_prompts() -> list[dict[str, Any]]:
     """List all available Docker prompts."""
     return docker_server.list_prompts()
 
 
 # Register get_prompt handler
-@mcp_server.get_prompt()
+@mcp_server.get_prompt()  # type: ignore[misc, no-untyped-call]
 async def handle_get_prompt(name: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
     """Get a Docker prompt by name."""
     args = arguments or {}
