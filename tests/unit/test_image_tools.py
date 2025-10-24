@@ -6,7 +6,7 @@ import pytest
 from docker.errors import APIError
 from docker.errors import ImageNotFound as DockerImageNotFound
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.tools.image_tools import (
     BuildImageInput,
     BuildImageTool,

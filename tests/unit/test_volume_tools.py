@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from docker.errors import APIError, NotFound
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.tools.volume_tools import (
     CreateVolumeInput,
     CreateVolumeTool,

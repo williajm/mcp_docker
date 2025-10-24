@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)

@@ -4,13 +4,14 @@ This module provides tools for managing Docker images, including
 listing, inspecting, pulling, building, pushing, and removing images.
 """
 
+import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.tools.base import OperationSafety
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
 from mcp_docker.utils.logger import get_logger
@@ -419,11 +420,33 @@ class PushImageTool:
             if input_data.tag:
                 kwargs["tag"] = input_data.tag
 
-            # Push returns a generator of status updates
-            push_result = self.docker_client.client.images.push(**kwargs)
+            # Push returns a generator of status updates (JSON strings)
+            push_stream = self.docker_client.client.images.push(**kwargs)
 
-            # Get the last status (simplified for now)
-            status = "pushed" if push_result else "unknown"
+            # Parse the stream to check for errors and get final status
+            last_status = None
+            error_message = None
+
+            for line in push_stream.split("\n") if isinstance(push_stream, str) else [push_stream]:
+                if not line.strip():
+                    continue
+                try:
+                    status_obj = json.loads(line)
+                    if "error" in status_obj:
+                        error_message = status_obj["error"]
+                        break
+                    if "status" in status_obj:
+                        last_status = status_obj["status"]
+                except json.JSONDecodeError:
+                    continue
+
+            # If we found an error, raise it
+            if error_message:
+                logger.error(f"Failed to push image: {error_message}")
+                raise DockerOperationError(f"Failed to push image: {error_message}")
+
+            # Use the last status or default to "pushed"
+            status = last_status if last_status else "pushed"
 
             logger.info(f"Successfully pushed image: {input_data.image}")
             return PushImageOutput(image=input_data.image, status=status)

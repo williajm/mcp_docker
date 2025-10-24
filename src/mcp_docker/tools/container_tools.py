@@ -9,7 +9,7 @@ from typing import Any
 from docker.errors import APIError, NotFound
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.tools.base import OperationSafety
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.logger import get_logger
@@ -338,10 +338,9 @@ class CreateContainerTool:
             logger.info(f"Creating container from image: {input_data.image}")
 
             # Prepare kwargs for container creation
+            # Note: containers.create() does not support 'detach' or 'remove' - those are for run()
             kwargs: dict[str, Any] = {
                 "image": input_data.image,
-                "detach": input_data.detach,
-                "remove": input_data.remove,
             }
 
             if input_data.name:
@@ -350,14 +349,20 @@ class CreateContainerTool:
                 kwargs["command"] = input_data.command
             if input_data.environment:
                 kwargs["environment"] = input_data.environment
+
+            # Port mappings for binding to host
             if input_data.ports:
                 kwargs["ports"] = input_data.ports
+
             if input_data.volumes:
                 kwargs["volumes"] = input_data.volumes
             if input_data.mem_limit:
                 kwargs["mem_limit"] = input_data.mem_limit
             if input_data.cpu_shares:
                 kwargs["cpu_shares"] = input_data.cpu_shares
+            # auto_remove parameter replaces 'remove' for create()
+            if input_data.remove:
+                kwargs["auto_remove"] = input_data.remove
 
             container = self.docker_client.client.containers.create(**kwargs)
 
@@ -739,12 +744,16 @@ class ContainerStatsTool:
             logger.info(f"Getting stats for container: {input_data.container_id}")
             container = self.docker_client.client.containers.get(input_data.container_id)
 
-            # Get stats (stream=False to get single snapshot)
-            stats = container.stats(stream=input_data.stream)  # type: ignore[no-untyped-call]
-
-            # If not streaming, get first (and only) result
-            if not input_data.stream:
-                stats = next(stats)
+            # Get stats - behavior differs based on stream parameter
+            # When stream=False, returns a dict directly
+            # When stream=True, returns a generator of dicts
+            if input_data.stream:
+                # Get first stats snapshot from the stream
+                stats_gen = container.stats(stream=True)  # type: ignore[no-untyped-call]
+                stats = next(stats_gen)
+            else:
+                # Returns a dict directly when stream=False
+                stats = container.stats(stream=False, decode=True)  # type: ignore[no-untyped-call]
 
             logger.info(f"Successfully retrieved stats for container: {input_data.container_id}")
             return ContainerStatsOutput(stats=stats, container_id=str(container.id))
