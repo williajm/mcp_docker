@@ -310,8 +310,7 @@ class ConnectContainerTool:
         """
         try:
             logger.info(
-                f"Connecting container {input_data.container_id} "
-                f"to network {input_data.network_id}"
+                f"Connecting container {input_data.container_id} to network {input_data.network_id}"
             )
 
             network = self.docker_client.client.networks.get(input_data.network_id)
@@ -346,9 +345,7 @@ class ConnectContainerTool:
                 logger.error(f"Network not found: {input_data.network_id}")
                 raise NetworkNotFound(f"Network not found: {input_data.network_id}") from e
             logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(
-                f"Container not found: {input_data.container_id}"
-            ) from e
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
         except APIError as e:
             logger.error(f"Failed to connect container: {e}")
             raise DockerOperationError(f"Failed to connect container: {e}") from e
@@ -411,9 +408,7 @@ class DisconnectContainerTool:
                 logger.error(f"Network not found: {input_data.network_id}")
                 raise NetworkNotFound(f"Network not found: {input_data.network_id}") from e
             logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(
-                f"Container not found: {input_data.container_id}"
-            ) from e
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
         except APIError as e:
             logger.error(f"Failed to disconnect container: {e}")
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e

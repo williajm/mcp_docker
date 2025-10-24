@@ -93,3 +93,42 @@ def docker_client_wrapper(
     wrapper = DockerClientWrapper(docker_config)
     yield wrapper
     wrapper.close()
+
+
+# Integration test fixtures
+def pytest_configure(config: pytest.Config) -> None:
+    """Configure pytest with custom markers."""
+    config.addinivalue_line("markers", "integration: Integration tests requiring Docker")
+    config.addinivalue_line("markers", "slow: Slow running tests")
+
+
+@pytest.fixture(scope="session")
+def docker_available() -> bool:
+    """Check if Docker is available for integration tests."""
+    try:
+        import docker
+
+        client = docker.from_env()
+        client.ping()
+        client.close()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def skip_if_no_docker(docker_available: bool) -> None:
+    """Skip test if Docker is not available."""
+    if not docker_available:
+        pytest.skip("Docker is not available")
+
+
+@pytest.fixture
+def integration_test_config() -> Config:
+    """Create configuration for integration tests."""
+    cfg = Config()
+    # Override settings for integration tests
+    cfg.safety.allow_destructive_operations = True
+    cfg.safety.allow_privileged_containers = True
+    cfg.safety.require_confirmation_for_destructive = False
+    return cfg

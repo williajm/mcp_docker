@@ -25,6 +25,10 @@ class SafetyError(MCPDockerError):
     """Raised when a safety check fails."""
 
 
+class UnsafeOperationError(SafetyError):
+    """Raised when an unsafe operation is attempted."""
+
+
 class ContainerNotFound(MCPDockerError):  # noqa: N818
     """Raised when a container is not found."""
 

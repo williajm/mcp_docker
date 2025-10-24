@@ -8,6 +8,8 @@ from mcp_docker.utils.errors import (
     ImageNotFound,
     MCPDockerError,
     NetworkNotFound,
+    UnsafeOperationError,
+    ValidationError,
     VolumeNotFound,
 )
 from mcp_docker.utils.logger import setup_logger
@@ -27,6 +29,8 @@ __all__ = [
     "ImageNotFound",
     "MCPDockerError",
     "NetworkNotFound",
+    "UnsafeOperationError",
+    "ValidationError",
     "VolumeNotFound",
     "setup_logger",
     "validate_command",
