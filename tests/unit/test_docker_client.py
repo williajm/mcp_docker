@@ -49,7 +49,7 @@ class TestDockerClientWrapper:
         assert wrapper.config == docker_config
         assert wrapper._client is None
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_lazy_connection(
         self,
         mock_docker_class: MagicMock,
@@ -69,7 +69,7 @@ class TestDockerClientWrapper:
         mock_docker_class.assert_called_once()
         mock_docker_client.ping.assert_called_once()
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_connection_failure(
         self, mock_docker_class: MagicMock, docker_config: DockerConfig
     ) -> None:
@@ -80,7 +80,7 @@ class TestDockerClientWrapper:
         with pytest.raises(DockerConnectionError, match="Cannot connect to Docker daemon"):
             _ = wrapper.client
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_health_check_success(
         self,
         mock_docker_class: MagicMock,
@@ -99,7 +99,7 @@ class TestDockerClientWrapper:
         assert health["containers"]["total"] == 5
         assert health["containers"]["running"] == 2
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_health_check_failure(
         self,
         mock_docker_class: MagicMock,
@@ -115,7 +115,7 @@ class TestDockerClientWrapper:
         with pytest.raises(DockerHealthCheckError, match="Health check failed"):
             wrapper.health_check()
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_close(
         self,
         mock_docker_class: MagicMock,
@@ -139,7 +139,7 @@ class TestDockerClientWrapper:
         wrapper.close()  # Should not raise
         assert wrapper._client is None
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_context_manager(
         self,
         mock_docker_class: MagicMock,
@@ -155,7 +155,7 @@ class TestDockerClientWrapper:
         # Client should be closed after exiting context
         assert wrapper._client is None
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_acquire_context_manager(
         self,
         mock_docker_class: MagicMock,
@@ -169,7 +169,7 @@ class TestDockerClientWrapper:
         with wrapper.acquire() as client:
             assert client is mock_docker_client
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_acquire_handles_docker_exception(
         self,
         mock_docker_class: MagicMock,
@@ -190,7 +190,7 @@ class TestDockerClientWrapper:
         assert "DockerClientWrapper" in repr_str
         assert "disconnected" in repr_str
 
-    @patch("mcp_docker.docker.client.docker.DockerClient")
+    @patch("mcp_docker.docker_wrapper.client.docker.DockerClient")
     def test_repr_connected(
         self,
         mock_docker_class: MagicMock,
