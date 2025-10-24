@@ -26,7 +26,7 @@ def integration_config() -> Config:
     """Create integration test configuration."""
     cfg = Config()
     cfg.safety.allow_destructive_operations = True
-    cfg.safety.allow_privileged_operations = False
+    cfg.safety.allow_privileged_containers = False
     cfg.safety.require_confirmation_for_destructive = False
     return cfg
 

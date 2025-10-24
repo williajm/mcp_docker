@@ -20,7 +20,7 @@ def test_config() -> Config:
     """Create test configuration."""
     cfg = Config()
     cfg.safety.allow_destructive_operations = True
-    cfg.safety.allow_privileged_operations = True
+    cfg.safety.allow_privileged_containers = True
     cfg.safety.require_confirmation_for_destructive = False
     return cfg
 
@@ -159,13 +159,13 @@ class TestSafetyIntegration:
         validate_operation_allowed(
             "docker_remove_container",
             allow_destructive=test_config.safety.allow_destructive_operations,
-            allow_privileged=test_config.safety.allow_privileged_operations,
+            allow_privileged=test_config.safety.allow_privileged_containers,
         )
 
         # Create restrictive config
         restrictive_config = SafetyConfig(
             allow_destructive_operations=False,
-            allow_privileged_operations=False,
+            allow_privileged_containers=False,
             require_confirmation_for_destructive=True,
         )
 
@@ -174,7 +174,7 @@ class TestSafetyIntegration:
             validate_operation_allowed(
                 "docker_remove_container",
                 allow_destructive=restrictive_config.allow_destructive_operations,
-                allow_privileged=restrictive_config.allow_privileged_operations,
+                allow_privileged=restrictive_config.allow_privileged_containers,
             )
 
     def test_command_sanitization_safe(self) -> None:

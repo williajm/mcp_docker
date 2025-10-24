@@ -21,7 +21,7 @@ def integration_config() -> Config:
         docker=DockerConfig(base_url="unix:///var/run/docker.sock", timeout=30),
         safety=SafetyConfig(
             allow_destructive_operations=True,
-            allow_privileged_operations=False,
+            allow_privileged_containers=False,
             require_confirmation_for_destructive=False,
         ),
     )
