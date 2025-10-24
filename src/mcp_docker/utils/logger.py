@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 
@@ -45,3 +46,16 @@ def setup_logger(config: ServerConfig, log_file: Path | None = None) -> None:
     logger.info(f"Logger initialized with level: {config.log_level}")
     if log_file:
         logger.info(f"Logging to file: {log_file}")
+
+
+def get_logger(name: str | None = None) -> Any:  # noqa: ARG001
+    """Get a logger instance.
+
+    Args:
+        name: Optional module name (for compatibility, not used by loguru)
+
+    Returns:
+        Loguru logger instance
+
+    """
+    return logger

@@ -1,0 +1,772 @@
+"""Container management tools for Docker MCP server.
+
+This module provides tools for managing Docker containers, including
+listing, inspecting, creating, starting, stopping, and executing commands.
+"""
+
+from typing import Any
+
+from docker.errors import APIError, NotFound
+from pydantic import BaseModel, Field
+
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.base import OperationSafety
+from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.validation import (
+    validate_command,
+    validate_container_name,
+    validate_memory,
+    validate_port_mapping,
+)
+
+logger = get_logger(__name__)
+
+
+# Input/Output Models
+
+
+class ListContainersInput(BaseModel):
+    """Input for listing containers."""
+
+    all: bool = Field(default=False, description="Show all containers (default shows just running)")
+    filters: dict[str, str | list[str]] | None = Field(
+        default=None, description="Filters to apply (e.g., {'status': ['running']})"
+    )
+
+
+class ListContainersOutput(BaseModel):
+    """Output for listing containers."""
+
+    containers: list[dict[str, Any]] = Field(description="List of containers with basic info")
+    count: int = Field(description="Total number of containers")
+
+
+class InspectContainerInput(BaseModel):
+    """Input for inspecting a container."""
+
+    container_id: str = Field(description="Container ID or name")
+
+
+class InspectContainerOutput(BaseModel):
+    """Output for inspecting a container."""
+
+    details: dict[str, Any] = Field(description="Detailed container information")
+
+
+class CreateContainerInput(BaseModel):
+    """Input for creating a container."""
+
+    image: str = Field(description="Image name to create container from")
+    name: str | None = Field(default=None, description="Optional container name")
+    command: str | list[str] | None = Field(default=None, description="Command to run")
+    environment: dict[str, str] | None = Field(default=None, description="Environment variables")
+    ports: dict[str, int | tuple[str, int] | None] | None = Field(
+        default=None, description="Port mappings (container_port: host_port)"
+    )
+    volumes: dict[str, dict[str, str]] | None = Field(default=None, description="Volume mappings")
+    detach: bool = Field(default=True, description="Run container in background")
+    remove: bool = Field(default=False, description="Remove container when it exits")
+    mem_limit: str | None = Field(default=None, description="Memory limit (e.g., '512m', '2g')")
+    cpu_shares: int | None = Field(default=None, description="CPU shares (relative weight)")
+
+
+class CreateContainerOutput(BaseModel):
+    """Output for creating a container."""
+
+    container_id: str = Field(description="Created container ID")
+    name: str | None = Field(description="Container name")
+    warnings: list[str] | None = Field(default=None, description="Any warnings from creation")
+
+
+class StartContainerInput(BaseModel):
+    """Input for starting a container."""
+
+    container_id: str = Field(description="Container ID or name")
+
+
+class StartContainerOutput(BaseModel):
+    """Output for starting a container."""
+
+    container_id: str = Field(description="Started container ID")
+    status: str = Field(description="Container status after start")
+
+
+class StopContainerInput(BaseModel):
+    """Input for stopping a container."""
+
+    container_id: str = Field(description="Container ID or name")
+    timeout: int = Field(default=10, description="Timeout in seconds before killing")
+
+
+class StopContainerOutput(BaseModel):
+    """Output for stopping a container."""
+
+    container_id: str = Field(description="Stopped container ID")
+    status: str = Field(description="Container status after stop")
+
+
+class RestartContainerInput(BaseModel):
+    """Input for restarting a container."""
+
+    container_id: str = Field(description="Container ID or name")
+    timeout: int = Field(default=10, description="Timeout in seconds before killing")
+
+
+class RestartContainerOutput(BaseModel):
+    """Output for restarting a container."""
+
+    container_id: str = Field(description="Restarted container ID")
+    status: str = Field(description="Container status after restart")
+
+
+class RemoveContainerInput(BaseModel):
+    """Input for removing a container."""
+
+    container_id: str = Field(description="Container ID or name")
+    force: bool = Field(default=False, description="Force removal of running container")
+    volumes: bool = Field(default=False, description="Remove associated volumes")
+
+
+class RemoveContainerOutput(BaseModel):
+    """Output for removing a container."""
+
+    container_id: str = Field(description="Removed container ID")
+    removed_volumes: bool = Field(description="Whether volumes were removed")
+
+
+class ContainerLogsInput(BaseModel):
+    """Input for getting container logs."""
+
+    container_id: str = Field(description="Container ID or name")
+    tail: int | str = Field(default="all", description="Number of lines to show from end")
+    since: str | None = Field(
+        default=None, description="Show logs since timestamp or relative (e.g., '1h')"
+    )
+    until: str | None = Field(default=None, description="Show logs until timestamp")
+    timestamps: bool = Field(default=False, description="Show timestamps")
+    follow: bool = Field(default=False, description="Follow log output")
+
+
+class ContainerLogsOutput(BaseModel):
+    """Output for getting container logs."""
+
+    logs: str = Field(description="Container logs")
+    container_id: str = Field(description="Container ID")
+
+
+class ExecCommandInput(BaseModel):
+    """Input for executing a command in a container."""
+
+    container_id: str = Field(description="Container ID or name")
+    command: str | list[str] = Field(description="Command to execute")
+    workdir: str | None = Field(default=None, description="Working directory for command")
+    user: str | None = Field(default=None, description="User to run command as")
+    environment: dict[str, str] | None = Field(default=None, description="Environment variables")
+    privileged: bool = Field(default=False, description="Run with elevated privileges")
+
+
+class ExecCommandOutput(BaseModel):
+    """Output for executing a command in a container."""
+
+    exit_code: int = Field(description="Command exit code")
+    output: str = Field(description="Command output (stdout and stderr combined)")
+
+
+class ContainerStatsInput(BaseModel):
+    """Input for getting container stats."""
+
+    container_id: str = Field(description="Container ID or name")
+    stream: bool = Field(default=False, description="Stream stats continuously")
+
+
+class ContainerStatsOutput(BaseModel):
+    """Output for getting container stats."""
+
+    stats: dict[str, Any] = Field(description="Container resource usage statistics")
+    container_id: str = Field(description="Container ID")
+
+
+# Tool Implementations
+
+
+class ListContainersTool:
+    """List Docker containers with optional filters."""
+
+    name = "docker_list_containers"
+    description = "List Docker containers with optional filters"
+    input_model = ListContainersInput
+    output_model = ListContainersOutput
+    safety_level = OperationSafety.SAFE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: ListContainersInput) -> ListContainersOutput:
+        """Execute the list containers operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            List of containers with basic info
+
+        Raises:
+            DockerOperationError: If listing fails
+        """
+        try:
+            logger.info(f"Listing containers (all={input_data.all}, filters={input_data.filters})")
+            containers = self.docker_client.client.containers.list(
+                all=input_data.all, filters=input_data.filters
+            )
+
+            container_list = [
+                {
+                    "id": c.id,
+                    "short_id": c.short_id,
+                    "name": c.name,
+                    "image": c.image.tags[0] if c.image.tags else c.image.id,
+                    "status": c.status,
+                    "labels": c.labels,
+                }
+                for c in containers
+            ]
+
+            logger.info(f"Found {len(container_list)} containers")
+            return ListContainersOutput(containers=container_list, count=len(container_list))
+
+        except APIError as e:
+            logger.error(f"Failed to list containers: {e}")
+            raise DockerOperationError(f"Failed to list containers: {e}") from e
+
+
+class InspectContainerTool:
+    """Inspect a Docker container to get detailed information."""
+
+    name = "docker_inspect_container"
+    description = "Get detailed information about a Docker container"
+    input_model = InspectContainerInput
+    output_model = InspectContainerOutput
+    safety_level = OperationSafety.SAFE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: InspectContainerInput) -> InspectContainerOutput:
+        """Execute the inspect container operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Detailed container information
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If inspection fails
+        """
+        try:
+            logger.info(f"Inspecting container: {input_data.container_id}")
+            container = self.docker_client.client.containers.get(input_data.container_id)
+            details = container.attrs
+
+            logger.info(f"Successfully inspected container: {input_data.container_id}")
+            return InspectContainerOutput(details=details)
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to inspect container: {e}")
+            raise DockerOperationError(f"Failed to inspect container: {e}") from e
+
+
+class CreateContainerTool:
+    """Create a new Docker container."""
+
+    name = "docker_create_container"
+    description = "Create a new Docker container from an image"
+    input_model = CreateContainerInput
+    output_model = CreateContainerOutput
+    safety_level = OperationSafety.MODERATE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(  # noqa: PLR0912
+        self, input_data: CreateContainerInput
+    ) -> CreateContainerOutput:
+        """Execute the create container operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Created container information
+
+        Raises:
+            DockerOperationError: If creation fails
+        """
+        try:
+            # Validate inputs
+            if input_data.name:
+                validate_container_name(input_data.name)
+            if input_data.command and isinstance(input_data.command, str):
+                validate_command(input_data.command)
+            if input_data.mem_limit:
+                validate_memory(input_data.mem_limit)
+            if input_data.ports:
+                for container_port, host_port in input_data.ports.items():
+                    if isinstance(host_port, int):
+                        validate_port_mapping(container_port, host_port)
+
+            logger.info(f"Creating container from image: {input_data.image}")
+
+            # Prepare kwargs for container creation
+            kwargs: dict[str, Any] = {
+                "image": input_data.image,
+                "detach": input_data.detach,
+                "remove": input_data.remove,
+            }
+
+            if input_data.name:
+                kwargs["name"] = input_data.name
+            if input_data.command:
+                kwargs["command"] = input_data.command
+            if input_data.environment:
+                kwargs["environment"] = input_data.environment
+            if input_data.ports:
+                kwargs["ports"] = input_data.ports
+            if input_data.volumes:
+                kwargs["volumes"] = input_data.volumes
+            if input_data.mem_limit:
+                kwargs["mem_limit"] = input_data.mem_limit
+            if input_data.cpu_shares:
+                kwargs["cpu_shares"] = input_data.cpu_shares
+
+            container = self.docker_client.client.containers.create(**kwargs)
+
+            logger.info(f"Successfully created container: {container.id}")
+            # container.id and container.name are always present for created containers
+            return CreateContainerOutput(
+                container_id=str(container.id), name=container.name, warnings=None
+            )
+
+        except APIError as e:
+            logger.error(f"Failed to create container: {e}")
+            raise DockerOperationError(f"Failed to create container: {e}") from e
+
+
+class StartContainerTool:
+    """Start a Docker container."""
+
+    name = "docker_start_container"
+    description = "Start a stopped Docker container"
+    input_model = StartContainerInput
+    output_model = StartContainerOutput
+    safety_level = OperationSafety.SAFE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: StartContainerInput) -> StartContainerOutput:
+        """Execute the start container operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Started container information
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If start fails
+        """
+        try:
+            logger.info(f"Starting container: {input_data.container_id}")
+            container = self.docker_client.client.containers.get(input_data.container_id)
+            container.start()
+            container.reload()
+
+            logger.info(f"Successfully started container: {input_data.container_id}")
+            return StartContainerOutput(container_id=str(container.id), status=container.status)
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to start container: {e}")
+            raise DockerOperationError(f"Failed to start container: {e}") from e
+
+
+class StopContainerTool:
+    """Stop a running Docker container."""
+
+    name = "docker_stop_container"
+    description = "Stop a running Docker container gracefully"
+    input_model = StopContainerInput
+    output_model = StopContainerOutput
+    safety_level = OperationSafety.MODERATE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: StopContainerInput) -> StopContainerOutput:
+        """Execute the stop container operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Stopped container information
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If stop fails
+        """
+        try:
+            logger.info(
+                f"Stopping container: {input_data.container_id} (timeout={input_data.timeout})"
+            )
+            container = self.docker_client.client.containers.get(input_data.container_id)
+            container.stop(timeout=input_data.timeout)
+            container.reload()
+
+            logger.info(f"Successfully stopped container: {input_data.container_id}")
+            return StopContainerOutput(container_id=str(container.id), status=container.status)
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to stop container: {e}")
+            raise DockerOperationError(f"Failed to stop container: {e}") from e
+
+
+class RestartContainerTool:
+    """Restart a Docker container."""
+
+    name = "docker_restart_container"
+    description = "Restart a Docker container"
+    input_model = RestartContainerInput
+    output_model = RestartContainerOutput
+    safety_level = OperationSafety.MODERATE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: RestartContainerInput) -> RestartContainerOutput:
+        """Execute the restart container operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Restarted container information
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If restart fails
+        """
+        try:
+            logger.info(
+                f"Restarting container: {input_data.container_id} (timeout={input_data.timeout})"
+            )
+            container = self.docker_client.client.containers.get(input_data.container_id)
+            container.restart(timeout=input_data.timeout)
+            container.reload()
+
+            logger.info(f"Successfully restarted container: {input_data.container_id}")
+            return RestartContainerOutput(container_id=str(container.id), status=container.status)
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to restart container: {e}")
+            raise DockerOperationError(f"Failed to restart container: {e}") from e
+
+
+class RemoveContainerTool:
+    """Remove a Docker container."""
+
+    name = "docker_remove_container"
+    description = "Remove a Docker container"
+    input_model = RemoveContainerInput
+    output_model = RemoveContainerOutput
+    safety_level = OperationSafety.DESTRUCTIVE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: RemoveContainerInput) -> RemoveContainerOutput:
+        """Execute the remove container operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Removed container information
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If removal fails
+        """
+        try:
+            logger.info(
+                f"Removing container: {input_data.container_id} (force={input_data.force}, "
+                f"volumes={input_data.volumes})"
+            )
+            container = self.docker_client.client.containers.get(input_data.container_id)
+            container_id = container.id
+            container.remove(force=input_data.force, v=input_data.volumes)
+
+            logger.info(f"Successfully removed container: {container_id}")
+            return RemoveContainerOutput(
+                container_id=str(container_id), removed_volumes=input_data.volumes
+            )
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to remove container: {e}")
+            raise DockerOperationError(f"Failed to remove container: {e}") from e
+
+
+class ContainerLogsTool:
+    """Get logs from a Docker container."""
+
+    name = "docker_container_logs"
+    description = "Get logs from a Docker container"
+    input_model = ContainerLogsInput
+    output_model = ContainerLogsOutput
+    safety_level = OperationSafety.SAFE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: ContainerLogsInput) -> ContainerLogsOutput:
+        """Execute the get container logs operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Container logs
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If log retrieval fails
+        """
+        try:
+            logger.info(f"Getting logs for container: {input_data.container_id}")
+            container = self.docker_client.client.containers.get(input_data.container_id)
+
+            # Prepare kwargs for logs
+            kwargs: dict[str, Any] = {
+                "timestamps": input_data.timestamps,
+                "follow": input_data.follow,
+            }
+
+            if input_data.tail != "all":
+                kwargs["tail"] = int(input_data.tail)
+            if input_data.since:
+                kwargs["since"] = input_data.since
+            if input_data.until:
+                kwargs["until"] = input_data.until
+
+            logs = container.logs(**kwargs)
+
+            # Convert bytes to string
+            logs_str = logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
+
+            logger.info(f"Successfully retrieved logs for container: {input_data.container_id}")
+            return ContainerLogsOutput(logs=logs_str, container_id=str(container.id))
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to get container logs: {e}")
+            raise DockerOperationError(f"Failed to get container logs: {e}") from e
+
+
+class ExecCommandTool:
+    """Execute a command in a running Docker container."""
+
+    name = "docker_exec_command"
+    description = "Execute a command in a running Docker container"
+    input_model = ExecCommandInput
+    output_model = ExecCommandOutput
+    safety_level = OperationSafety.MODERATE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: ExecCommandInput) -> ExecCommandOutput:
+        """Execute the exec command operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Command execution results
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If command execution fails
+        """
+        try:
+            # Validate command
+            if isinstance(input_data.command, str):
+                validate_command(input_data.command)
+
+            logger.info(
+                f"Executing command in container: {input_data.container_id}, "
+                f"command: {input_data.command}"
+            )
+            container = self.docker_client.client.containers.get(input_data.container_id)
+
+            # Prepare kwargs for exec
+            kwargs: dict[str, Any] = {
+                "cmd": input_data.command,
+                "privileged": input_data.privileged,
+            }
+
+            if input_data.workdir:
+                kwargs["workdir"] = input_data.workdir
+            if input_data.user:
+                kwargs["user"] = input_data.user
+            if input_data.environment:
+                kwargs["environment"] = input_data.environment
+
+            # Execute command
+            exit_code, output = container.exec_run(**kwargs)
+
+            # Convert bytes to string
+            output_str = output.decode("utf-8") if isinstance(output, bytes) else str(output)
+
+            logger.info(
+                f"Command executed in container: {input_data.container_id}, exit_code: {exit_code}"
+            )
+            return ExecCommandOutput(exit_code=exit_code, output=output_str)
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to execute command: {e}")
+            raise DockerOperationError(f"Failed to execute command: {e}") from e
+
+
+class ContainerStatsTool:
+    """Get resource usage statistics for a Docker container."""
+
+    name = "docker_container_stats"
+    description = "Get resource usage statistics for a Docker container"
+    input_model = ContainerStatsInput
+    output_model = ContainerStatsOutput
+    safety_level = OperationSafety.SAFE
+
+    def __init__(self, docker_client: DockerClientWrapper) -> None:
+        """Initialize the tool.
+
+        Args:
+            docker_client: Docker client wrapper instance
+        """
+        self.docker_client = docker_client
+
+    async def execute(self, input_data: ContainerStatsInput) -> ContainerStatsOutput:
+        """Execute the get container stats operation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            Container resource usage statistics
+
+        Raises:
+            ContainerNotFound: If container doesn't exist
+            DockerOperationError: If stats retrieval fails
+        """
+        try:
+            logger.info(f"Getting stats for container: {input_data.container_id}")
+            container = self.docker_client.client.containers.get(input_data.container_id)
+
+            # Get stats (stream=False to get single snapshot)
+            stats = container.stats(stream=input_data.stream)  # type: ignore[no-untyped-call]
+
+            # If not streaming, get first (and only) result
+            if not input_data.stream:
+                stats = next(stats)
+
+            logger.info(f"Successfully retrieved stats for container: {input_data.container_id}")
+            return ContainerStatsOutput(stats=stats, container_id=str(container.id))
+
+        except NotFound as e:
+            logger.error(f"Container not found: {input_data.container_id}")
+            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+        except APIError as e:
+            logger.error(f"Failed to get container stats: {e}")
+            raise DockerOperationError(f"Failed to get container stats: {e}") from e
+
+
+# Export all tools
+__all__ = [
+    "ListContainersTool",
+    "InspectContainerTool",
+    "CreateContainerTool",
+    "StartContainerTool",
+    "StopContainerTool",
+    "RestartContainerTool",
+    "RemoveContainerTool",
+    "ContainerLogsTool",
+    "ExecCommandTool",
+    "ContainerStatsTool",
+]
