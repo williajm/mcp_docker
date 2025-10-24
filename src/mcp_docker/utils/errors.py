@@ -23,3 +23,19 @@ class ValidationError(MCPDockerError):
 
 class SafetyError(MCPDockerError):
     """Raised when a safety check fails."""
+
+
+class ContainerNotFound(MCPDockerError):  # noqa: N818
+    """Raised when a container is not found."""
+
+
+class ImageNotFound(MCPDockerError):  # noqa: N818
+    """Raised when an image is not found."""
+
+
+class NetworkNotFound(MCPDockerError):  # noqa: N818
+    """Raised when a network is not found."""
+
+
+class VolumeNotFound(MCPDockerError):  # noqa: N818
+    """Raised when a volume is not found."""
