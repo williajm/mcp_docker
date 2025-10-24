@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.tools.base import BaseTool, OperationSafety, ToolInput, ToolResult
 
 

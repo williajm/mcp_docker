@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, Mock
 
 import pytest
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.prompts.templates import (
     GenerateComposePrompt,
     OptimizeContainerPrompt,

@@ -7,7 +7,7 @@ as tools, resources, and prompts through the Model Context Protocol.
 from typing import Any
 
 from mcp_docker.config import Config
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.prompts.templates import PromptProvider
 from mcp_docker.resources.providers import ResourceProvider
 from mcp_docker.tools.container_tools import (

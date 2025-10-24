@@ -7,7 +7,7 @@ This module provides resources that can be accessed through MCP URIs:
 
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.utils.errors import ContainerNotFound, MCPDockerError
 from mcp_docker.utils.logger import get_logger
 
