@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.server import MCPDockerServer
 
 

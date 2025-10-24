@@ -6,7 +6,7 @@ import pytest
 from docker.errors import DockerException
 
 from mcp_docker.config import DockerConfig
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.utils.errors import DockerConnectionError, DockerHealthCheckError
 
 
