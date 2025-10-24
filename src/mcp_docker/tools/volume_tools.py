@@ -9,7 +9,7 @@ from typing import Any
 from docker.errors import APIError, NotFound
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.tools.base import OperationSafety
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
 from mcp_docker.utils.logger import get_logger
