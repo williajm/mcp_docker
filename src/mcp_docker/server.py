@@ -1,13 +1,15 @@
 """MCP Docker Server implementation.
 
 This module provides the main MCP server that exposes Docker functionality
-as tools through the Model Context Protocol.
+as tools, resources, and prompts through the Model Context Protocol.
 """
 
 from typing import Any
 
 from mcp_docker.config import Config
 from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.prompts.templates import PromptProvider
+from mcp_docker.resources.providers import ResourceProvider
 from mcp_docker.tools.container_tools import (
     ContainerLogsTool,
     ContainerStatsTool,
@@ -76,10 +78,13 @@ class MCPDockerServer:
         self.config = config
         self.docker_client = DockerClientWrapper(config.docker)
         self.tools: dict[str, Any] = {}
+        self.resource_provider = ResourceProvider(self.docker_client)
+        self.prompt_provider = PromptProvider(self.docker_client)
 
         logger.info("Initializing MCP Docker server")
         self._register_tools()
         logger.info(f"Registered {len(self.tools)} tools")
+        logger.info("Initialized resource and prompt providers")
 
     def _register_tools(self) -> None:
         """Register all Docker tools."""
@@ -214,6 +219,125 @@ class MCPDockerServer:
         self.docker_client.close()
         logger.info("MCP Docker server stopped")
 
+    def list_resources(self) -> list[dict[str, Any]]:
+        """List all available resources.
+
+        Returns:
+            List of resource definitions for MCP protocol
+
+        """
+        try:
+            resources = self.resource_provider.list_resources()
+            resource_list = [
+                {
+                    "uri": resource.uri,
+                    "name": resource.name,
+                    "description": resource.description,
+                    "mimeType": resource.mime_type,
+                }
+                for resource in resources
+            ]
+
+            logger.debug(f"Listed {len(resource_list)} resources")
+            return resource_list
+
+        except Exception as e:
+            logger.error(f"Failed to list resources: {e}")
+            return []
+
+    async def read_resource(self, uri: str) -> dict[str, Any]:
+        """Read a resource by URI.
+
+        Args:
+            uri: Resource URI
+
+        Returns:
+            Resource content
+
+        """
+        try:
+            content = await self.resource_provider.read_resource(uri)
+
+            result = {
+                "uri": content.uri,
+                "mimeType": content.mime_type,
+            }
+
+            if content.text is not None:
+                result["text"] = content.text
+            if content.blob is not None:
+                # Convert bytes to base64 string for JSON serialization if needed
+                blob_value = (
+                    content.blob.decode("utf-8")
+                    if isinstance(content.blob, bytes)
+                    else content.blob
+                )
+                result["blob"] = blob_value
+
+            logger.info(f"Read resource: {uri}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Failed to read resource {uri}: {e}")
+            raise
+
+    def list_prompts(self) -> list[dict[str, Any]]:
+        """List all available prompts.
+
+        Returns:
+            List of prompt definitions for MCP protocol
+
+        """
+        try:
+            prompts = self.prompt_provider.list_prompts()
+            prompt_list = [
+                {
+                    "name": prompt.name,
+                    "description": prompt.description,
+                    "arguments": prompt.arguments,
+                }
+                for prompt in prompts
+            ]
+
+            logger.debug(f"Listed {len(prompt_list)} prompts")
+            return prompt_list
+
+        except Exception as e:
+            logger.error(f"Failed to list prompts: {e}")
+            return []
+
+    async def get_prompt(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Get a prompt by name with arguments.
+
+        Args:
+            name: Prompt name
+            arguments: Prompt arguments
+
+        Returns:
+            Prompt messages
+
+        """
+        try:
+            result = await self.prompt_provider.get_prompt(name, arguments)
+
+            messages = [
+                {"role": message.role, "content": message.content}
+                for message in result.messages
+            ]
+
+            logger.info(f"Generated prompt: {name}")
+            return {
+                "description": result.description,
+                "messages": messages,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get prompt {name}: {e}")
+            raise
+
     def __repr__(self) -> str:
         """Return string representation."""
-        return f"MCPDockerServer(tools={len(self.tools)})"
+        return (
+            f"MCPDockerServer(tools={len(self.tools)}, "
+            f"resources=enabled, prompts=enabled)"
+        )
