@@ -602,7 +602,7 @@ class PruneImagesTool:
             logger.info(
                 f"Successfully pruned {len(deleted)} images, reclaimed {space_reclaimed} bytes"
             )
-            return PruneImagesOutput(images_deleted=deleted, space_reclaimed=space_reclaimed)
+            return PruneImagesOutput(deleted=deleted, space_reclaimed=space_reclaimed)
 
         except APIError as e:
             logger.error(f"Failed to prune images: {e}")
