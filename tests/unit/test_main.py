@@ -193,6 +193,65 @@ class TestServerRunFunction:
                     # But should still call stop
                     mock_docker_server.stop.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_run_sse(self):
+        """Test run_sse function."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with patch.object(main_module, "mcp_server") as mock_mcp_server:
+                mock_mcp_server.run = AsyncMock()
+                mock_mcp_server.create_initialization_options = Mock(
+                    return_value={"options": "test"}
+                )
+
+                with (
+                    patch("mcp_docker.__main__.SseServerTransport") as mock_sse_transport,
+                    patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                ):
+                    # Mock SSE transport
+                    mock_sse_instance = Mock()
+                    mock_sse_transport.return_value = mock_sse_instance
+
+                    # Mock SSE connection context manager
+                    mock_streams = (AsyncMock(), AsyncMock())
+                    mock_sse_instance.connect_sse = Mock()
+                    mock_sse_instance.connect_sse.return_value.__aenter__ = AsyncMock(
+                        return_value=mock_streams
+                    )
+                    mock_sse_instance.connect_sse.return_value.__aexit__ = AsyncMock()
+
+                    # Mock uvicorn server
+                    mock_server_instance = Mock()
+                    mock_server_instance.serve = AsyncMock()
+                    mock_uvicorn_server.return_value = mock_server_instance
+
+                    # Run the SSE server function
+                    await main_module.run_sse("localhost", 8080)
+
+                    # Verify calls
+                    mock_docker_server.start.assert_called_once()
+                    mock_sse_transport.assert_called_once_with("/messages")
+                    mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_sse_cleanup_on_error(self):
+        """Test run_sse cleans up on error."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with patch("mcp_docker.__main__.SseServerTransport") as mock_sse_transport:
+                mock_sse_transport.side_effect = Exception("SSE error")
+
+                # Should raise the exception
+                with pytest.raises(Exception, match="SSE error"):
+                    await main_module.run_sse("localhost", 8080)
+
+                # But should still call stop
+                mock_docker_server.stop.assert_called_once()
+
 
 class TestMainFunction:
     """Tests for main function."""

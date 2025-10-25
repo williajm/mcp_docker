@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
+from mcp_docker.config import Config
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.server import MCPDockerServer
 
@@ -16,15 +16,13 @@ from mcp_docker.server import MCPDockerServer
 @pytest.fixture
 def integration_config() -> Config:
     """Create integration test configuration."""
-    return Config(
-        server=ServerConfig(name="test-server", version="0.1.0"),
-        docker=DockerConfig(base_url="unix:///var/run/docker.sock", timeout=30),
-        safety=SafetyConfig(
-            allow_destructive_operations=True,
-            allow_privileged_containers=False,
-            require_confirmation_for_destructive=False,
-        ),
-    )
+    config = Config()
+    config.docker.base_url = "unix:///var/run/docker.sock"
+    config.docker.timeout = 30
+    config.safety.allow_destructive_operations = True
+    config.safety.allow_privileged_containers = False
+    config.safety.require_confirmation_for_destructive = False
+    return config
 
 
 @pytest.fixture
