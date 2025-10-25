@@ -78,7 +78,13 @@ pip install -e .
 
 ### Configuration
 
-Add to your MCP client configuration (e.g., Claude Desktop):
+Add to your MCP client configuration (e.g., Claude Desktop).
+
+**IMPORTANT**: Use the correct `DOCKER_BASE_URL` for your platform:
+
+#### Linux / macOS
+
+Configuration file location: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `~/.config/Claude/claude_desktop_config.json` (Linux)
 
 ```json
 {
@@ -87,14 +93,16 @@ Add to your MCP client configuration (e.g., Claude Desktop):
       "command": "uvx",
       "args": ["mcp-docker"],
       "env": {
-        "DOCKER_HOST": "unix:///var/run/docker.sock"
+        "DOCKER_BASE_URL": "unix:///var/run/docker.sock"
       }
     }
   }
 }
 ```
 
-For Windows with named pipes:
+#### Windows
+
+Configuration file location: `%APPDATA%\Claude\claude_desktop_config.json`
 
 ```json
 {
@@ -103,12 +111,14 @@ For Windows with named pipes:
       "command": "uvx",
       "args": ["mcp-docker"],
       "env": {
-        "DOCKER_HOST": "npipe:////./pipe/docker_engine"
+        "DOCKER_BASE_URL": "npipe:////./pipe/docker_engine"
       }
     }
   }
 }
 ```
+
+**Note**: Ensure Docker Desktop is running before starting the MCP server.
 
 ## Safety System
 

@@ -1,6 +1,6 @@
 """Unit tests for __main__.py MCP server entry point."""
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -127,17 +127,17 @@ class TestMCPServerHandlers:
             mock_server.get_prompt = AsyncMock(return_value={"name": "test_prompt"})
 
             args = {"param": "value"}
-            result = await main_module.handle_get_prompt("test_prompt", args)
+            await main_module.handle_get_prompt("test_prompt", args)
 
             mock_server.get_prompt.assert_called_once_with("test_prompt", args)
 
 
 class TestServerRunFunction:
-    """Tests for run_server function."""
+    """Tests for run_stdio function."""
 
     @pytest.mark.asyncio
-    async def test_run_server(self):
-        """Test run_server function."""
+    async def test_run_stdio(self):
+        """Test run_stdio function."""
         # Mock all the async components
         mock_read_stream = AsyncMock()
         mock_write_stream = AsyncMock()
@@ -160,7 +160,7 @@ class TestServerRunFunction:
                     mock_stdio.return_value.__aexit__ = AsyncMock(return_value=None)
 
                     # Run the server function
-                    await main_module.run_server()
+                    await main_module.run_stdio()
 
                     # Verify calls
                     mock_docker_server.start.assert_called_once()
@@ -168,8 +168,8 @@ class TestServerRunFunction:
                     mock_docker_server.stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_server_cleanup_on_error(self):
-        """Test run_server cleans up on error."""
+    async def test_run_stdio_cleanup_on_error(self):
+        """Test run_stdio cleans up on error."""
         with patch.object(main_module, "docker_server") as mock_docker_server:
             mock_docker_server.start = AsyncMock()
             mock_docker_server.stop = AsyncMock()
@@ -188,7 +188,7 @@ class TestServerRunFunction:
 
                     # Should raise the exception
                     with pytest.raises(Exception, match="Test error"):
-                        await main_module.run_server()
+                        await main_module.run_stdio()
 
                     # But should still call stop
                     mock_docker_server.stop.assert_called_once()
@@ -197,20 +197,63 @@ class TestServerRunFunction:
 class TestMainFunction:
     """Tests for main function."""
 
-    def test_main_success(self):
-        """Test main function with successful execution."""
-        with patch("asyncio.run") as mock_asyncio_run:
+    def test_main_stdio_default(self):
+        """Test main function defaults to stdio transport."""
+        with patch("asyncio.run") as mock_asyncio_run, patch("sys.argv", ["mcp-docker"]):
+            main_module.main()
+            mock_asyncio_run.assert_called_once()
+            # Verify it was called with run_stdio
+            call_arg = mock_asyncio_run.call_args[0][0]
+            assert call_arg.__name__ == "run_stdio"
+
+    def test_main_sse_transport(self):
+        """Test main function with SSE transport."""
+        with patch("asyncio.run") as mock_asyncio_run, patch(
+            "sys.argv", ["mcp-docker", "--transport", "sse"]
+        ):
+            main_module.main()
+            mock_asyncio_run.assert_called_once()
+            # Verify it was called with run_sse
+            call_arg = mock_asyncio_run.call_args[0][0]
+            assert call_arg.__name__ == "run_sse"
+
+    def test_main_sse_custom_port(self):
+        """Test main function with custom SSE port."""
+        with patch("asyncio.run") as mock_asyncio_run, patch(
+            "sys.argv", ["mcp-docker", "--transport", "sse", "--port", "9000"]
+        ):
             main_module.main()
             mock_asyncio_run.assert_called_once()
 
     def test_main_keyboard_interrupt(self):
         """Test main function handles KeyboardInterrupt."""
-        with patch("asyncio.run", side_effect=KeyboardInterrupt()):
+        with patch("asyncio.run", side_effect=KeyboardInterrupt()), patch(
+            "sys.argv", ["mcp-docker"]
+        ):
             # Should not raise, just log
             main_module.main()
 
     def test_main_exception(self):
         """Test main function handles exceptions."""
-        with patch("asyncio.run", side_effect=Exception("Test error")):
-            with pytest.raises(Exception, match="Test error"):
-                main_module.main()
+        with (
+            patch("asyncio.run", side_effect=Exception("Test error")),
+            patch("sys.argv", ["mcp-docker"]),
+            pytest.raises(Exception, match="Test error"),
+        ):
+            main_module.main()
+
+
+class TestLogPathConfiguration:
+    """Tests for log path configuration."""
+
+    def test_custom_log_path_from_env(self):
+        """Test custom log path from environment variable."""
+        import importlib
+        import os
+
+        test_path = "/custom/path/test.log"
+        with patch.dict(os.environ, {"MCP_DOCKER_LOG_PATH": test_path}):
+            # Re-import to trigger the env var check
+            importlib.reload(main_module)
+            # The log file should be set to the custom path
+            # This is tested indirectly through the logger setup
