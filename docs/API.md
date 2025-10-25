@@ -1,3 +1,8 @@
+---
+layout: default
+title: API Reference
+---
+
 # Docker MCP Server - API Reference
 
 **Version:** 1.0.0

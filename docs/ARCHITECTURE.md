@@ -1,3 +1,8 @@
+---
+layout: default
+title: Architecture
+---
+
 # MCP Docker Server - Architecture and Design
 
 ## Table of Contents

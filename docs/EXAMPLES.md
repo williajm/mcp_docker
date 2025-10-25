@@ -1,3 +1,8 @@
+---
+layout: default
+title: Examples
+---
+
 # Docker MCP Server - Usage Examples
 
 **Version:** 1.0.0
