@@ -116,8 +116,8 @@ class TestNetworkOperations:
             "docker_inspect_network", {"network_id": network_id}
         )
         assert inspect_result["success"] is True
-        assert inspect_result["result"]["name"] == test_network_name
-        assert "driver" in inspect_result["result"]
+        assert inspect_result["result"]["details"]["Name"] == test_network_name
+        assert "Driver" in inspect_result["result"]["details"]
 
     @pytest.mark.asyncio
     async def test_connect_disconnect_container(
@@ -158,7 +158,7 @@ class TestNetworkOperations:
                 "docker_inspect_network", {"network_id": network_id}
             )
             assert inspect_result["success"] is True
-            assert container_id in str(inspect_result["result"].get("containers", {}))
+            assert container_id in str(inspect_result["result"]["details"].get("Containers", {}))
 
             # Disconnect container from network
             disconnect_result = await mcp_server.call_tool(
@@ -172,7 +172,7 @@ class TestNetworkOperations:
                 "docker_inspect_network", {"network_id": network_id}
             )
             assert inspect_result["success"] is True
-            containers_str = str(inspect_result["result"].get("containers", {}))
+            containers_str = str(inspect_result["result"]["details"].get("Containers", {}))
             # After disconnect, container should not be in network
             assert container_id not in containers_str or len(containers_str) == 2  # Empty dict
 
@@ -210,7 +210,7 @@ class TestNetworkOperations:
                 "docker_inspect_network", {"network_id": network_id}
             )
             assert inspect_result["success"] is True
-            assert inspect_result["result"]["driver"] == "bridge"
+            assert inspect_result["result"]["details"]["Driver"] == "bridge"
 
         finally:
             # Cleanup

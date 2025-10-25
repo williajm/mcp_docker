@@ -5,7 +5,7 @@ These tests verify the complete MCP protocol integration with Docker operations.
 
 import pytest
 
-from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
+from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 
 
@@ -167,7 +167,7 @@ class TestMCPServerE2E:
 
         # Inspect image
         inspect_result = await mcp_server.call_tool(
-            "docker_inspect_image", {"image": "alpine:latest"}
+            "docker_inspect_image", {"image_name": "alpine:latest"}
         )
         assert inspect_result["success"] is True
 
