@@ -12,7 +12,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Features
 
-- **37 Docker Tools**: Complete container, image, network, volume, and system management
+- **36 Docker Tools**: Complete container, image, network, volume, and system management
 - **3 AI Prompts**: Intelligent troubleshooting, optimization suggestions, and compose file generation
 - **2 Resources**: Real-time container logs and resource statistics
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
@@ -63,19 +63,23 @@ The server can be configured via environment variables:
 
 ```bash
 # Docker Configuration
-export DOCKER_BASE_URL="unix:///var/run/docker.sock"  # Default Docker socket
-export DOCKER_TIMEOUT=30  # API timeout in seconds
-export DOCKER_VERSION="auto"  # Docker API version
+export DOCKER_BASE_URL="unix:///var/run/docker.sock"  # Docker daemon socket URL (default)
+export DOCKER_TIMEOUT=60  # API timeout in seconds (default: 60)
+export DOCKER_TLS_VERIFY=false  # Enable TLS verification (default: false)
+export DOCKER_TLS_CA_CERT="/path/to/ca.pem"  # Path to CA certificate (optional)
+export DOCKER_TLS_CLIENT_CERT="/path/to/cert.pem"  # Path to client certificate (optional)
+export DOCKER_TLS_CLIENT_KEY="/path/to/key.pem"  # Path to client key (optional)
 
 # Safety Configuration
-export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # Allow rm, prune operations
-export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false  # Allow privileged containers
-export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true  # Require confirmation
-export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations
+export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # Allow rm, prune operations (default: false)
+export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false  # Allow privileged containers (default: false)
+export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true  # Require confirmation (default: true)
+export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations (default: 10)
 
 # Server Configuration
-export SERVER_NAME="mcp-docker"
-export SERVER_VERSION="0.1.0"
+export MCP_SERVER_NAME="mcp-docker"  # MCP server name (default: mcp-docker)
+export MCP_SERVER_VERSION="0.1.0"  # MCP server version (default: 0.1.0)
+export MCP_LOG_LEVEL="INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
 ```
 
 ### Claude Desktop Setup
@@ -98,7 +102,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 
 ## Tools Overview
 
-The server provides 37 tools organized into 5 categories:
+The server provides 36 tools organized into 5 categories:
 
 ### Container Management (10 tools)
 - `docker_list_containers` - List containers with filters
@@ -138,7 +142,7 @@ The server provides 37 tools organized into 5 categories:
 - `docker_remove_volume` - Remove volume
 - `docker_prune_volumes` - Clean unused volumes
 
-### System Tools (7 tools)
+### System Tools (6 tools)
 - `docker_system_info` - Get Docker system information
 - `docker_system_df` - Disk usage statistics
 - `docker_system_prune` - Clean all unused resources

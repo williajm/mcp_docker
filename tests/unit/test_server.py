@@ -232,3 +232,71 @@ class TestMCPDockerServer:
 
         assert "MCPDockerServer" in repr_str
         assert "tools=36" in repr_str
+
+    @pytest.mark.asyncio
+    async def test_safety_check_destructive_with_confirmation_required(
+        self, mock_config, mock_docker_client
+    ):
+        """Test that confirmation requirement is logged for destructive operations."""
+        from mcp_docker.config import SafetyConfig
+        from mcp_docker.tools.base import OperationSafety
+
+        # Set up config with confirmation required
+        mock_config.safety = SafetyConfig(
+            allow_destructive_operations=True,
+            require_confirmation_for_destructive=True,
+            allow_privileged_containers=True,
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Mock a destructive tool
+        class MockInput(BaseModel):
+            container_id: str = Field(description="Container ID")
+
+        mock_tool = Mock()
+        mock_tool.name = "docker_remove_container"
+        mock_tool.input_model = MockInput
+        mock_tool.safety_level = OperationSafety.DESTRUCTIVE
+        mock_tool.execute = AsyncMock(side_effect=Exception("Container not found"))
+
+        server.tools["docker_remove_container"] = mock_tool
+
+        # Call tool - should log warning about confirmation but proceed
+        result = await server.call_tool("docker_remove_container", {"container_id": "test"})
+
+        # Should execute past safety check (will fail on execution, but that's OK)
+        assert result["success"] is False
+        assert result["error_type"] == "Exception"
+
+    @pytest.mark.asyncio
+    async def test_check_tool_safety_safe_operation(self, mock_config, mock_docker_client):
+        """Test that safe operations pass safety checks."""
+        from mcp_docker.config import SafetyConfig
+        from mcp_docker.tools.base import OperationSafety
+
+        # Set up config with everything disabled
+        mock_config.safety = SafetyConfig(
+            allow_destructive_operations=False,
+            require_confirmation_for_destructive=True,
+            allow_privileged_containers=False,
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Mock a safe tool
+        class MockInput(BaseModel):
+            pass
+
+        mock_tool = Mock()
+        mock_tool.name = "docker_list_containers"
+        mock_tool.input_model = MockInput
+        mock_tool.safety_level = OperationSafety.SAFE
+        mock_tool.execute = AsyncMock(return_value=Mock(model_dump=lambda: {"containers": []}))
+
+        server.tools["docker_list_containers"] = mock_tool
+
+        # Call tool - should succeed
+        result = await server.call_tool("docker_list_containers", {})
+
+        assert result["success"] is True

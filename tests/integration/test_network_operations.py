@@ -66,8 +66,8 @@ class TestNetworkOperations:
         cleanup_test_network,
     ) -> None:
         """Test creating and removing a network."""
-        create_tool = CreateNetworkTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveNetworkTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateNetworkTool(docker_wrapper)
+        remove_tool = RemoveNetworkTool(docker_wrapper)
 
         # Create network
         create_result = await create_tool.execute({"name": test_network_name})
@@ -88,8 +88,8 @@ class TestNetworkOperations:
         cleanup_test_network,
     ) -> None:
         """Test listing networks."""
-        create_tool = CreateNetworkTool(docker_wrapper, integration_config.safety)
-        list_tool = ListNetworksTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateNetworkTool(docker_wrapper)
+        list_tool = ListNetworksTool(docker_wrapper)
 
         # Create a test network
         await create_tool.execute({"name": test_network_name})
@@ -116,8 +116,8 @@ class TestNetworkOperations:
         cleanup_test_network,
     ) -> None:
         """Test inspecting a network."""
-        create_tool = CreateNetworkTool(docker_wrapper, integration_config.safety)
-        inspect_tool = InspectNetworkTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateNetworkTool(docker_wrapper)
+        inspect_tool = InspectNetworkTool(docker_wrapper)
 
         # Create network
         create_result = await create_tool.execute({"name": test_network_name})
@@ -138,12 +138,12 @@ class TestNetworkOperations:
         cleanup_test_network,
     ) -> None:
         """Test connecting and disconnecting container to network."""
-        create_network_tool = CreateNetworkTool(docker_wrapper, integration_config.safety)
-        create_container_tool = CreateContainerTool(docker_wrapper, integration_config.safety)
-        connect_tool = ConnectContainerTool(docker_wrapper, integration_config.safety)
-        disconnect_tool = DisconnectContainerTool(docker_wrapper, integration_config.safety)
-        inspect_network_tool = InspectNetworkTool(docker_wrapper, integration_config.safety)
-        remove_container_tool = RemoveContainerTool(docker_wrapper, integration_config.safety)
+        create_network_tool = CreateNetworkTool(docker_wrapper)
+        create_container_tool = CreateContainerTool(docker_wrapper)
+        connect_tool = ConnectContainerTool(docker_wrapper)
+        disconnect_tool = DisconnectContainerTool(docker_wrapper)
+        inspect_network_tool = InspectNetworkTool(docker_wrapper)
+        remove_container_tool = RemoveContainerTool(docker_wrapper)
 
         # Create network
         network_result = await create_network_tool.execute({"name": test_network_name})
@@ -196,8 +196,8 @@ class TestNetworkOperations:
         cleanup_test_network,
     ) -> None:
         """Test creating network with custom options."""
-        create_tool = CreateNetworkTool(docker_wrapper, integration_config.safety)
-        inspect_tool = InspectNetworkTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateNetworkTool(docker_wrapper)
+        inspect_tool = InspectNetworkTool(docker_wrapper)
 
         network_name = "mcp-docker-test-network-custom"
 
@@ -233,9 +233,9 @@ class TestNetworkOperations:
         integration_config: Config,
     ) -> None:
         """Test error handling for invalid network operations."""
-        inspect_tool = InspectNetworkTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveNetworkTool(docker_wrapper, integration_config.safety)
-        connect_tool = ConnectContainerTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectNetworkTool(docker_wrapper)
+        remove_tool = RemoveNetworkTool(docker_wrapper)
+        connect_tool = ConnectContainerTool(docker_wrapper)
 
         # Try to inspect non-existent network
         inspect_result = await inspect_tool.execute({"network_id": "nonexistent-network"})
@@ -261,8 +261,8 @@ class TestNetworkOperations:
         cleanup_test_network,
     ) -> None:
         """Test listing networks with filters."""
-        create_tool = CreateNetworkTool(docker_wrapper, integration_config.safety)
-        list_tool = ListNetworksTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateNetworkTool(docker_wrapper)
+        list_tool = ListNetworksTool(docker_wrapper)
 
         # Create a test network
         await create_tool.execute({"name": test_network_name, "driver": "bridge"})

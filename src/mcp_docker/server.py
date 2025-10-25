@@ -10,6 +10,7 @@ from mcp_docker.config import Config
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.prompts.templates import PromptProvider
 from mcp_docker.resources.providers import ResourceProvider
+from mcp_docker.tools.base import OperationSafety
 from mcp_docker.tools.container_tools import (
     ContainerLogsTool,
     ContainerStatsTool,
@@ -173,6 +174,7 @@ class MCPDockerServer:
 
         Raises:
             ValueError: If tool not found
+            PermissionError: If operation is not allowed by safety config
         """
         if tool_name not in self.tools:
             logger.error(f"Tool not found: {tool_name}")
@@ -182,6 +184,9 @@ class MCPDockerServer:
         logger.info(f"Calling tool: {tool_name}")
 
         try:
+            # Check safety before execution
+            self._check_tool_safety(tool, arguments)
+
             # Validate input
             validated_input = tool.input_model(**arguments)
 
@@ -197,6 +202,54 @@ class MCPDockerServer:
         except Exception as e:
             logger.error(f"Tool {tool_name} failed: {e}")
             return {"success": False, "error": str(e), "error_type": type(e).__name__}
+
+    def _check_tool_safety(self, tool: Any, arguments: dict[str, Any]) -> None:
+        """Check if a tool operation is allowed based on safety configuration.
+
+        Args:
+            tool: Tool instance to check
+            arguments: Tool arguments (to check privileged flag)
+
+        Raises:
+            PermissionError: If operation is not allowed
+        """
+        # Get tool safety level
+        safety_level = getattr(tool, "safety_level", OperationSafety.SAFE)
+
+        # Check destructive operations
+        if safety_level == OperationSafety.DESTRUCTIVE:
+            if not self.config.safety.allow_destructive_operations:
+                logger.warning(f"Destructive operation '{tool.name}' blocked by safety config")
+                raise PermissionError(
+                    f"Destructive operation '{tool.name}' is not allowed. "
+                    "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
+                )
+
+            if self.config.safety.require_confirmation_for_destructive:
+                logger.warning(
+                    f"Destructive operation '{tool.name}' requires confirmation. "
+                    "Proceeding without confirmation in MCP mode."
+                )
+
+        # Check privileged containers (for exec commands)
+        if tool.name == "docker_exec_command":
+            privileged = arguments.get("privileged", False)
+            if privileged and not self.config.safety.allow_privileged_containers:
+                logger.warning("Privileged exec command blocked by safety config")
+                raise PermissionError(
+                    "Privileged containers are not allowed. "
+                    "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
+                )
+
+        # Check privileged flag in container creation
+        if tool.name == "docker_create_container":
+            privileged = arguments.get("privileged", False)
+            if privileged and not self.config.safety.allow_privileged_containers:
+                logger.warning("Privileged container creation blocked by safety config")
+                raise PermissionError(
+                    "Privileged containers are not allowed. "
+                    "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
+                )
 
     async def start(self) -> None:
         """Start the MCP server."""
