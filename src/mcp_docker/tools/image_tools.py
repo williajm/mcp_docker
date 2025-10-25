@@ -596,7 +596,7 @@ class PruneImagesTool:
 
             result = self.docker_client.client.images.prune(filters=input_data.filters)
 
-            deleted = result.get("ImagesDeleted", [])
+            deleted = result.get("ImagesDeleted") or []
             space_reclaimed = result.get("SpaceReclaimed", 0)
 
             logger.info(

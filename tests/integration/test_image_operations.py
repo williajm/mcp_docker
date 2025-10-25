@@ -65,7 +65,7 @@ class TestImageOperations:
         integration_config: Config,
     ) -> None:
         """Test pulling an image from registry."""
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
 
         # Pull a small test image
         pull_result = await pull_tool.execute({"image": "alpine:latest"})
@@ -80,10 +80,10 @@ class TestImageOperations:
         integration_config: Config,
     ) -> None:
         """Test listing images."""
-        list_tool = ListImagesTool(docker_wrapper, integration_config.safety)
+        list_tool = ListImagesTool(docker_wrapper)
 
         # Ensure we have at least one image (alpine from previous test or existing)
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
         await pull_tool.execute({"image": "alpine:latest"})
 
         # List images
@@ -99,10 +99,10 @@ class TestImageOperations:
     ) -> None:
         """Test inspecting an image."""
         # Ensure alpine image exists
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
         await pull_tool.execute({"image": "alpine:latest"})
 
-        inspect_tool = InspectImageTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectImageTool(docker_wrapper)
 
         # Inspect image
         inspect_result = await inspect_tool.execute({"image": "alpine:latest"})
@@ -121,10 +121,10 @@ class TestImageOperations:
     ) -> None:
         """Test tagging an image."""
         # Ensure alpine image exists
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
         await pull_tool.execute({"image": "alpine:latest"})
 
-        tag_tool = TagImageTool(docker_wrapper, integration_config.safety)
+        tag_tool = TagImageTool(docker_wrapper)
 
         # Tag the image
         tag_result = await tag_tool.execute(
@@ -133,7 +133,7 @@ class TestImageOperations:
         assert tag_result.success is True
 
         # Verify tag exists
-        inspect_tool = InspectImageTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectImageTool(docker_wrapper)
         inspect_result = await inspect_tool.execute({"image": test_image_tag})
         assert inspect_result.success is True
 
@@ -145,10 +145,10 @@ class TestImageOperations:
     ) -> None:
         """Test getting image history."""
         # Ensure alpine image exists
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
         await pull_tool.execute({"image": "alpine:latest"})
 
-        history_tool = ImageHistoryTool(docker_wrapper, integration_config.safety)
+        history_tool = ImageHistoryTool(docker_wrapper)
 
         # Get history
         history_result = await history_tool.execute({"image": "alpine:latest"})
@@ -165,21 +165,21 @@ class TestImageOperations:
     ) -> None:
         """Test removing an image."""
         # Pull and tag an image for removal
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
         await pull_tool.execute({"image": "alpine:latest"})
 
-        tag_tool = TagImageTool(docker_wrapper, integration_config.safety)
+        tag_tool = TagImageTool(docker_wrapper)
         await tag_tool.execute(
             {"source_image": "alpine:latest", "target_image": test_image_tag}
         )
 
         # Remove the tagged image
-        remove_tool = RemoveImageTool(docker_wrapper, integration_config.safety)
+        remove_tool = RemoveImageTool(docker_wrapper)
         remove_result = await remove_tool.execute({"image": test_image_tag, "force": False})
         assert remove_result.success is True
 
         # Verify image is removed
-        inspect_tool = InspectImageTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectImageTool(docker_wrapper)
         inspect_result = await inspect_tool.execute({"image": test_image_tag})
         assert inspect_result.success is False
 
@@ -190,7 +190,7 @@ class TestImageOperations:
         integration_config: Config,
     ) -> None:
         """Test pruning unused images."""
-        prune_tool = PruneImagesTool(docker_wrapper, integration_config.safety)
+        prune_tool = PruneImagesTool(docker_wrapper)
 
         # Prune images (this might not remove anything, but should succeed)
         prune_result = await prune_tool.execute({})
@@ -205,8 +205,8 @@ class TestImageOperations:
         integration_config: Config,
     ) -> None:
         """Test error handling for invalid image operations."""
-        inspect_tool = InspectImageTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveImageTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectImageTool(docker_wrapper)
+        remove_tool = RemoveImageTool(docker_wrapper)
 
         # Try to inspect non-existent image
         inspect_result = await inspect_tool.execute({"image": "nonexistent-image:notag"})
@@ -226,14 +226,14 @@ class TestImageOperations:
         integration_config: Config,
     ) -> None:
         """Test pulling image with specific tag."""
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
 
         # Pull specific version
         pull_result = await pull_tool.execute({"image": "alpine:3.18"})
         assert pull_result.success is True
 
         # Verify the specific tag
-        inspect_tool = InspectImageTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectImageTool(docker_wrapper)
         inspect_result = await inspect_tool.execute({"image": "alpine:3.18"})
         assert inspect_result.success is True
         assert any("alpine:3.18" in tag for tag in inspect_result.data.get("tags", []))
@@ -246,10 +246,10 @@ class TestImageOperations:
     ) -> None:
         """Test listing images with filters."""
         # Ensure alpine image exists
-        pull_tool = PullImageTool(docker_wrapper, integration_config.safety)
+        pull_tool = PullImageTool(docker_wrapper)
         await pull_tool.execute({"image": "alpine:latest"})
 
-        list_tool = ListImagesTool(docker_wrapper, integration_config.safety)
+        list_tool = ListImagesTool(docker_wrapper)
 
         # List all images
         list_result = await list_tool.execute({"all": True})

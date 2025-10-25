@@ -64,8 +64,8 @@ class TestVolumeOperations:
         cleanup_test_volume,
     ) -> None:
         """Test creating and removing a volume."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveVolumeTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        remove_tool = RemoveVolumeTool(docker_wrapper)
 
         # Create volume
         create_result = await create_tool.execute({"name": test_volume_name})
@@ -85,8 +85,8 @@ class TestVolumeOperations:
         cleanup_test_volume,
     ) -> None:
         """Test listing volumes."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        list_tool = ListVolumesTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        list_tool = ListVolumesTool(docker_wrapper)
 
         # Create a test volume
         await create_tool.execute({"name": test_volume_name})
@@ -113,8 +113,8 @@ class TestVolumeOperations:
         cleanup_test_volume,
     ) -> None:
         """Test inspecting a volume."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        inspect_tool = InspectVolumeTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        inspect_tool = InspectVolumeTool(docker_wrapper)
 
         # Create volume
         await create_tool.execute({"name": test_volume_name})
@@ -134,8 +134,8 @@ class TestVolumeOperations:
         cleanup_test_volume,
     ) -> None:
         """Test creating volume with specific driver."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        inspect_tool = InspectVolumeTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        inspect_tool = InspectVolumeTool(docker_wrapper)
 
         volume_name = "mcp-docker-test-volume-custom"
 
@@ -167,8 +167,8 @@ class TestVolumeOperations:
         cleanup_test_volume,
     ) -> None:
         """Test creating volume with labels."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        inspect_tool = InspectVolumeTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        inspect_tool = InspectVolumeTool(docker_wrapper)
 
         volume_name = "mcp-docker-test-volume-labels"
 
@@ -205,8 +205,8 @@ class TestVolumeOperations:
         test_volume_name: str,
     ) -> None:
         """Test removing volume with force option."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveVolumeTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        remove_tool = RemoveVolumeTool(docker_wrapper)
 
         # Create volume
         await create_tool.execute({"name": test_volume_name})
@@ -218,7 +218,7 @@ class TestVolumeOperations:
         assert remove_result.success is True
 
         # Verify removal
-        inspect_tool = InspectVolumeTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectVolumeTool(docker_wrapper)
         inspect_result = await inspect_tool.execute({"volume_name": test_volume_name})
         assert inspect_result.success is False
 
@@ -229,7 +229,7 @@ class TestVolumeOperations:
         integration_config: Config,
     ) -> None:
         """Test pruning unused volumes."""
-        prune_tool = PruneVolumesTool(docker_wrapper, integration_config.safety)
+        prune_tool = PruneVolumesTool(docker_wrapper)
 
         # Prune volumes (might not remove anything, but should succeed)
         prune_result = await prune_tool.execute({})
@@ -244,8 +244,8 @@ class TestVolumeOperations:
         integration_config: Config,
     ) -> None:
         """Test error handling for invalid volume operations."""
-        inspect_tool = InspectVolumeTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveVolumeTool(docker_wrapper, integration_config.safety)
+        inspect_tool = InspectVolumeTool(docker_wrapper)
+        remove_tool = RemoveVolumeTool(docker_wrapper)
 
         # Try to inspect non-existent volume
         inspect_result = await inspect_tool.execute({"volume_name": "nonexistent-volume"})
@@ -267,8 +267,8 @@ class TestVolumeOperations:
         cleanup_test_volume,
     ) -> None:
         """Test listing volumes with filters."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        list_tool = ListVolumesTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        list_tool = ListVolumesTool(docker_wrapper)
 
         # Create volume with label
         await create_tool.execute(
@@ -294,8 +294,8 @@ class TestVolumeOperations:
         integration_config: Config,
     ) -> None:
         """Test creating volume with auto-generated name."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        remove_tool = RemoveVolumeTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        remove_tool = RemoveVolumeTool(docker_wrapper)
 
         # Create volume without specifying name
         create_result = await create_tool.execute({})
@@ -313,8 +313,8 @@ class TestVolumeOperations:
         integration_config: Config,
     ) -> None:
         """Test pruning volumes with filters."""
-        create_tool = CreateVolumeTool(docker_wrapper, integration_config.safety)
-        prune_tool = PruneVolumesTool(docker_wrapper, integration_config.safety)
+        create_tool = CreateVolumeTool(docker_wrapper)
+        prune_tool = PruneVolumesTool(docker_wrapper)
 
         # Create a volume with label for pruning test
         temp_volume_name = "mcp-docker-temp-volume"

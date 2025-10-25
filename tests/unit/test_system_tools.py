@@ -106,10 +106,10 @@ class TestSystemDfTool:
         input_data = SystemDfInput()
         result = await tool.execute(input_data)
 
-        assert result.images["TotalCount"] == 10
-        assert result.containers["TotalCount"] == 15
-        assert result.volumes["TotalCount"] == 5
-        assert result.build_cache["Size"] == 524288000
+        assert result.usage["Images"]["TotalCount"] == 10
+        assert result.usage["Containers"]["TotalCount"] == 15
+        assert result.usage["Volumes"]["TotalCount"] == 5
+        assert result.usage["BuildCache"]["Size"] == 524288000
         mock_docker_client.client.df.assert_called_once()
 
     @pytest.mark.asyncio
