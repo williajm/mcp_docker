@@ -100,7 +100,8 @@ jobs:
           -v \
           -m "integration" \
           --tb=short \
-          --maxfail=5
+          --maxfail=5 \
+          --cov-fail-under=70
 
     - name: Cleanup Docker resources
       if: always()
