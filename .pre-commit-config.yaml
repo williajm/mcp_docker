@@ -25,5 +25,8 @@ repos:
       - id: mypy
         additional_dependencies:
           - types-docker
-        args: [--strict]
+          - pydantic>=2.0.0
+          - pydantic-settings>=2.0.0
+          - loguru>=0.7.0
+        args: [--strict, --config-file=pyproject.toml]
         files: ^src/

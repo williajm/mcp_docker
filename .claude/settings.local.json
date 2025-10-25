@@ -36,7 +36,8 @@
       "Bash(gh run view:*)",
       "Bash(UV_PROJECT_ENVIRONMENT=.venv-win uv run pre-commit run:*)",
       "Bash(UV_PROJECT_ENVIRONMENT=.venv-win uv pip install:*)",
-      "Bash(.venv-win/Scripts/pre-commit.exe run:*)"
+      "Bash(.venv-win/Scripts/pre-commit.exe run:*)",
+      "Bash(.venv-win/Scripts/python.exe:*)"
     ],
     "deny": [],
     "ask": []
