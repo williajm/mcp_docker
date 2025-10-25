@@ -41,7 +41,9 @@ class SystemDfInput(BaseModel):
 class SystemDfOutput(BaseModel):
     """Output for disk usage statistics."""
 
-    usage: dict[str, Any] = Field(description="Complete disk usage information including Images, Containers, Volumes, and BuildCache")
+    usage: dict[str, Any] = Field(
+        description="Disk usage info for Images, Containers, Volumes, and BuildCache"
+    )
 
 
 class SystemPruneInput(BaseModel):
