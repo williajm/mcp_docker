@@ -187,8 +187,8 @@ class ContainerStatsResource:
         try:
             container = self.docker.client.containers.get(container_id)
 
-            # Get stats (stream=False for single snapshot)
-            stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
+            # Get stats (stream=False for single snapshot, decode=True for dict)
+            stats = container.stats(stream=False, decode=True)  # type: ignore[no-untyped-call]
 
             # Format stats as readable text
             cpu_stats = stats.get("cpu_stats", {})

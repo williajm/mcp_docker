@@ -162,7 +162,7 @@ class TestContainerStatsResource:
 
         # Verify calls
         mock_docker_client.client.containers.get.assert_called_once_with("abc123")
-        mock_container.stats.assert_called_once_with(stream=False)
+        mock_container.stats.assert_called_once_with(stream=False, decode=True)
 
     @pytest.mark.asyncio
     async def test_read_stats_container_not_found(

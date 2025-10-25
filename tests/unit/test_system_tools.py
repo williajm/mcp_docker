@@ -178,6 +178,34 @@ class TestSystemPruneTool:
         )
 
     @pytest.mark.asyncio
+    async def test_system_prune_with_volumes(self, mock_docker_client):
+        """Test system prune with volumes enabled."""
+        mock_docker_client.client.api.prune_containers.return_value = {
+            "ContainersDeleted": ["container1"],
+            "SpaceReclaimed": 104857600,
+        }
+        mock_docker_client.client.images.prune.return_value = {
+            "ImagesDeleted": [],
+            "SpaceReclaimed": 0,
+        }
+        mock_docker_client.client.api.prune_networks.return_value = {
+            "NetworksDeleted": [],
+            "SpaceReclaimed": 0,
+        }
+        mock_docker_client.client.volumes.prune.return_value = {
+            "VolumesDeleted": ["volume1", "volume2"],
+            "SpaceReclaimed": 536870912,
+        }
+
+        tool = SystemPruneTool(mock_docker_client)
+        input_data = SystemPruneInput(volumes=True)
+        result = await tool.execute(input_data)
+
+        assert len(result.volumes_deleted) == 2
+        assert result.space_reclaimed == 104857600 + 536870912
+        mock_docker_client.client.volumes.prune.assert_called_once_with(filters=None)
+
+    @pytest.mark.asyncio
     async def test_system_prune_api_error(self, mock_docker_client):
         """Test handling of API errors."""
         mock_docker_client.client.api.prune_containers.side_effect = APIError("API error")

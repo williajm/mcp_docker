@@ -770,8 +770,10 @@ class ContainerStatsTool:
             # When stream=True, returns a generator of dicts
             if input_data.stream:
                 # Get first stats snapshot from the stream
-                stats_gen = container.stats(stream=True)  # type: ignore[no-untyped-call]
+                stats_gen = container.stats(stream=True, decode=True)  # type: ignore[no-untyped-call]
                 stats = next(stats_gen)
+                # Close the generator to avoid resource leaks
+                stats_gen.close()
             else:
                 # Returns a dict directly when stream=False
                 stats = container.stats(stream=False, decode=True)  # type: ignore[no-untyped-call]
