@@ -623,8 +623,29 @@ class ContainerLogsTool:
 
             logs = container.logs(**kwargs)
 
-            # Convert bytes to string
-            logs_str = logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
+            # Handle different return types based on follow mode
+            if input_data.follow:
+                # When follow=True, logs returns a generator
+                # Collect logs with a reasonable limit to avoid memory issues
+                log_lines = []
+                max_lines = 10000  # Safety limit
+                try:
+                    for line in logs:
+                        log_lines.append(line)
+                        if len(log_lines) >= max_lines:
+                            logger.warning(
+                                f"Reached max line limit ({max_lines}) for follow mode, "
+                                "stopping collection"
+                            )
+                            break
+                    logs_bytes = b"".join(log_lines)
+                    logs_str = logs_bytes.decode("utf-8")
+                except Exception as e:
+                    logger.error(f"Error collecting logs in follow mode: {e}")
+                    logs_str = f"Error collecting logs: {e}"
+            else:
+                # When follow=False, logs returns bytes or string directly
+                logs_str = logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
 
             logger.info(f"Successfully retrieved logs for container: {input_data.container_id}")
             return ContainerLogsOutput(logs=logs_str, container_id=str(container.id))
