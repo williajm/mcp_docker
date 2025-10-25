@@ -5,7 +5,7 @@ These tests verify the complete MCP protocol integration with Docker operations.
 
 import pytest
 
-from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
+from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 
 
@@ -80,7 +80,8 @@ class TestMCPServerE2E:
 
         assert result["success"] is True
         assert "result" in result
-        assert "name" in result["result"]
+        assert "info" in result["result"]
+        assert "ID" in result["result"]["info"] or "Name" in result["result"]["info"]
 
     @pytest.mark.asyncio
     async def test_call_tool_healthcheck(self, mcp_server: MCPDockerServer) -> None:
@@ -89,7 +90,8 @@ class TestMCPServerE2E:
 
         assert result["success"] is True
         assert "result" in result
-        assert "status" in result["result"]
+        assert "healthy" in result["result"]
+        assert result["result"]["healthy"] is True
 
     @pytest.mark.asyncio
     async def test_call_invalid_tool(self, mcp_server: MCPDockerServer) -> None:
@@ -113,7 +115,7 @@ class TestMCPServerE2E:
                 },
             )
             assert create_result["success"] is True
-            container_id = create_result["result"]["id"]
+            container_id = create_result["result"]["container_id"]
 
             # Start container
             start_result = await mcp_server.call_tool(
@@ -126,7 +128,7 @@ class TestMCPServerE2E:
                 "docker_inspect_container", {"container_id": container_id}
             )
             assert inspect_result["success"] is True
-            assert inspect_result["result"]["state"] == "running"
+            assert inspect_result["result"]["details"]["State"]["Status"] == "running"
 
             # Stop container
             stop_result = await mcp_server.call_tool(
@@ -165,7 +167,7 @@ class TestMCPServerE2E:
 
         # Inspect image
         inspect_result = await mcp_server.call_tool(
-            "docker_inspect_image", {"image": "alpine:latest"}
+            "docker_inspect_image", {"image_name": "alpine:latest"}
         )
         assert inspect_result["success"] is True
 
@@ -180,7 +182,7 @@ class TestMCPServerE2E:
                 "docker_create_network", {"name": network_name}
             )
             assert create_result["success"] is True
-            network_id = create_result["result"]["id"]
+            network_id = create_result["result"]["network_id"]
 
             # List networks
             list_result = await mcp_server.call_tool("docker_list_networks", {})
@@ -259,7 +261,7 @@ class TestMCPServerE2E:
                     "command": ["sh", "-c", "echo 'test' && sleep 300"],
                 },
             )
-            container_id = create_result["result"]["id"]
+            container_id = create_result["result"]["container_id"]
             await mcp_server.call_tool("docker_start_container", {"container_id": container_id})
 
             # Wait for output
