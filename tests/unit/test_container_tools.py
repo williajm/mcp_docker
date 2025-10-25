@@ -406,6 +406,72 @@ class TestContainerLogsTool:
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_get_logs_with_follow_mode(self, mock_docker_client, mock_container):
+        """Test log retrieval with follow mode (generator)."""
+        # Mock follow mode returns a generator
+        def log_generator():
+            yield b"log line 1\n"
+            yield b"log line 2\n"
+            yield b"log line 3\n"
+
+        mock_container.logs.return_value = log_generator()
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = ContainerLogsTool(mock_docker_client)
+        input_data = ContainerLogsInput(container_id="abc123", follow=True, tail=10)
+        result = await tool.execute(input_data)
+
+        # Should collect all lines from generator
+        assert "log line 1" in result.logs
+        assert "log line 2" in result.logs
+        assert "log line 3" in result.logs
+        assert result.container_id == "abc123def456"
+        call_kwargs = mock_container.logs.call_args[1]
+        assert call_kwargs["follow"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_logs_follow_mode_max_lines(self, mock_docker_client, mock_container):
+        """Test log retrieval with follow mode hitting max line limit."""
+        # Create a generator that yields more than max_lines (10000)
+        def large_log_generator():
+            for i in range(15000):
+                yield f"log line {i}\n".encode()
+
+        mock_container.logs.return_value = large_log_generator()
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = ContainerLogsTool(mock_docker_client)
+        input_data = ContainerLogsInput(container_id="abc123", follow=True)
+        result = await tool.execute(input_data)
+
+        # Should stop at max_lines (10000)
+        assert "log line 0" in result.logs
+        assert "log line 9999" in result.logs
+        # Should not include lines beyond max_lines
+        assert "log line 10000" not in result.logs
+        assert result.container_id == "abc123def456"
+
+    @pytest.mark.asyncio
+    async def test_get_logs_follow_mode_error(self, mock_docker_client, mock_container):
+        """Test log retrieval with follow mode when generator raises error."""
+        # Create a generator that raises an error
+        def failing_generator():
+            yield b"log line 1\n"
+            raise RuntimeError("Generator error")
+
+        mock_container.logs.return_value = failing_generator()
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = ContainerLogsTool(mock_docker_client)
+        input_data = ContainerLogsInput(container_id="abc123", follow=True)
+        result = await tool.execute(input_data)
+
+        # Should return error message
+        assert "Error collecting logs" in result.logs
+        assert "Generator error" in result.logs
+        assert result.container_id == "abc123def456"
+
 
 class TestExecCommandTool:
     """Tests for ExecCommandTool."""
