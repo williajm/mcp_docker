@@ -41,10 +41,7 @@ class SystemDfInput(BaseModel):
 class SystemDfOutput(BaseModel):
     """Output for disk usage statistics."""
 
-    images: dict[str, Any] = Field(description="Images disk usage")
-    containers: dict[str, Any] = Field(description="Containers disk usage")
-    volumes: dict[str, Any] = Field(description="Volumes disk usage")
-    build_cache: dict[str, Any] | None = Field(default=None, description="Build cache disk usage")
+    usage: dict[str, Any] = Field(description="Complete disk usage information including Images, Containers, Volumes, and BuildCache")
 
 
 class SystemPruneInput(BaseModel):
@@ -182,18 +179,8 @@ class SystemDfTool:
             logger.info("Getting Docker disk usage statistics")
             df_info = self.docker_client.client.df()  # type: ignore[no-untyped-call]
 
-            images = df_info.get("Images", {})
-            containers = df_info.get("Containers", {})
-            volumes = df_info.get("Volumes", {})
-            build_cache = df_info.get("BuildCache")
-
             logger.info("Successfully retrieved disk usage statistics")
-            return SystemDfOutput(
-                images=images,
-                containers=containers,
-                volumes=volumes,
-                build_cache=build_cache,
-            )
+            return SystemDfOutput(usage=df_info)
 
         except APIError as e:
             logger.error(f"Failed to get disk usage: {e}")

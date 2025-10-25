@@ -596,13 +596,13 @@ class PruneImagesTool:
 
             result = self.docker_client.client.images.prune(filters=input_data.filters)
 
-            deleted = result.get("ImagesDeleted", [])
+            deleted = result.get("ImagesDeleted") or []
             space_reclaimed = result.get("SpaceReclaimed", 0)
 
             logger.info(
                 f"Successfully pruned {len(deleted)} images, reclaimed {space_reclaimed} bytes"
             )
-            return PruneImagesOutput(deleted=deleted, space_reclaimed=space_reclaimed)
+            return PruneImagesOutput(images_deleted=deleted, space_reclaimed=space_reclaimed)
 
         except APIError as e:
             logger.error(f"Failed to prune images: {e}")
