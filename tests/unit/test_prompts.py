@@ -375,9 +375,7 @@ class TestPromptProvider:
         }
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        result = await prompt_provider.get_prompt(
-            "optimize_container", {"container_id": "abc123"}
-        )
+        result = await prompt_provider.get_prompt("optimize_container", {"container_id": "abc123"})
 
         assert result.description is not None
         assert len(result.messages) == 2
@@ -401,9 +399,7 @@ class TestPromptProvider:
             await prompt_provider.get_prompt("unknown_prompt", {})
 
     @pytest.mark.asyncio
-    async def test_get_prompt_missing_required_arg(
-        self, prompt_provider: PromptProvider
-    ) -> None:
+    async def test_get_prompt_missing_required_arg(self, prompt_provider: PromptProvider) -> None:
         """Test getting prompt with missing required argument."""
         with pytest.raises(ValueError, match="container_id is required"):
             await prompt_provider.get_prompt("troubleshoot_container", {})

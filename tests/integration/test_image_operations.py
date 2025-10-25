@@ -153,7 +153,8 @@ class TestImageOperations:
         await mcp_server.call_tool("docker_pull_image", {"image": "alpine:latest"})
 
         await mcp_server.call_tool(
-            "docker_tag_image", {"image": "alpine:latest", "repository": test_image_tag.split(":")[0], "tag": "latest"}
+            "docker_tag_image",
+            {"image": "alpine:latest", "repository": test_image_tag.split(":")[0], "tag": "latest"},
         )
 
         # Remove the tagged image

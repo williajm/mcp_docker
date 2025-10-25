@@ -306,7 +306,9 @@ class TestEventsTool:
     async def test_events_limit(self, mock_docker_client):
         """Test events limited to 100."""
         # Create 150 events
-        events = [{"status": "start", "id": f"container{i}", "Type": "container"} for i in range(150)]
+        events = [
+            {"status": "start", "id": f"container{i}", "Type": "container"} for i in range(150)
+        ]
         mock_docker_client.client.events.return_value = iter(events)
 
         tool = EventsTool(mock_docker_client)

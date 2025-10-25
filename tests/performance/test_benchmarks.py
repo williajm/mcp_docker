@@ -106,7 +106,9 @@ class TestPerformanceBenchmarks:
 
         # Should complete in less than 1 second on average
         assert avg_time < 1.0, f"Average time {avg_time:.2f}s, expected < 1.0s"
-        print(f"\nList containers - Avg: {avg_time:.3f}s, Min: {min_time:.3f}s, Max: {max_time:.3f}s")
+        print(
+            f"\nList containers - Avg: {avg_time:.3f}s, Min: {min_time:.3f}s, Max: {max_time:.3f}s"
+        )
 
     @pytest.mark.asyncio
     async def test_system_info_performance(self, mcp_server: MCPDockerServer) -> None:
@@ -119,9 +121,7 @@ class TestPerformanceBenchmarks:
         times = []
 
         for _ in range(iterations):
-            duration, _ = await measure_time_async(
-                mcp_server.call_tool, "docker_system_info", {}
-            )
+            duration, _ = await measure_time_async(mcp_server.call_tool, "docker_system_info", {})
             times.append(duration)
 
         avg_time = sum(times) / len(times)
@@ -178,7 +178,7 @@ class TestPerformanceBenchmarks:
 
             total_time = create_time + start_time + inspect_time + stop_time + remove_time
 
-            print(f"\nContainer lifecycle benchmark:")
+            print("\nContainer lifecycle benchmark:")
             print(f"  Create:  {create_time:.3f}s")
             print(f"  Start:   {start_time:.3f}s")
             print(f"  Inspect: {inspect_time:.3f}s")
@@ -208,9 +208,7 @@ class TestPerformanceBenchmarks:
         times = []
 
         for _ in range(iterations):
-            duration, _ = await measure_time_async(
-                mcp_server.call_tool, "docker_list_images", {}
-            )
+            duration, _ = await measure_time_async(mcp_server.call_tool, "docker_list_images", {})
             times.append(duration)
 
         avg_time = sum(times) / len(times)
@@ -228,9 +226,7 @@ class TestPerformanceBenchmarks:
         times = []
 
         for _ in range(iterations):
-            duration, _ = await measure_time_async(
-                mcp_server.call_tool, "docker_list_networks", {}
-            )
+            duration, _ = await measure_time_async(mcp_server.call_tool, "docker_list_networks", {})
             times.append(duration)
 
         avg_time = sum(times) / len(times)
@@ -244,9 +240,7 @@ class TestPerformanceBenchmarks:
         times = []
 
         for _ in range(iterations):
-            duration, _ = await measure_time_async(
-                mcp_server.call_tool, "docker_list_volumes", {}
-            )
+            duration, _ = await measure_time_async(mcp_server.call_tool, "docker_list_volumes", {})
             times.append(duration)
 
         avg_time = sum(times) / len(times)
@@ -260,9 +254,7 @@ class TestPerformanceBenchmarks:
         times = []
 
         for _ in range(iterations):
-            duration, _ = await measure_time_async(
-                mcp_server.call_tool, "docker_healthcheck", {}
-            )
+            duration, _ = await measure_time_async(mcp_server.call_tool, "docker_healthcheck", {})
             times.append(duration)
 
         avg_time = sum(times) / len(times)
