@@ -206,32 +206,34 @@ class TestServerRunFunction:
                     return_value={"options": "test"}
                 )
 
-                with patch("mcp_docker.__main__.SseServerTransport") as mock_sse_transport:
-                    with patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server:
-                        # Mock SSE transport
-                        mock_sse_instance = Mock()
-                        mock_sse_transport.return_value = mock_sse_instance
+                with (
+                    patch("mcp_docker.__main__.SseServerTransport") as mock_sse_transport,
+                    patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                ):
+                    # Mock SSE transport
+                    mock_sse_instance = Mock()
+                    mock_sse_transport.return_value = mock_sse_instance
 
-                        # Mock SSE connection context manager
-                        mock_streams = (AsyncMock(), AsyncMock())
-                        mock_sse_instance.connect_sse = Mock()
-                        mock_sse_instance.connect_sse.return_value.__aenter__ = AsyncMock(
-                            return_value=mock_streams
-                        )
-                        mock_sse_instance.connect_sse.return_value.__aexit__ = AsyncMock()
+                    # Mock SSE connection context manager
+                    mock_streams = (AsyncMock(), AsyncMock())
+                    mock_sse_instance.connect_sse = Mock()
+                    mock_sse_instance.connect_sse.return_value.__aenter__ = AsyncMock(
+                        return_value=mock_streams
+                    )
+                    mock_sse_instance.connect_sse.return_value.__aexit__ = AsyncMock()
 
-                        # Mock uvicorn server
-                        mock_server_instance = Mock()
-                        mock_server_instance.serve = AsyncMock()
-                        mock_uvicorn_server.return_value = mock_server_instance
+                    # Mock uvicorn server
+                    mock_server_instance = Mock()
+                    mock_server_instance.serve = AsyncMock()
+                    mock_uvicorn_server.return_value = mock_server_instance
 
-                        # Run the SSE server function
-                        await main_module.run_sse("localhost", 8080)
+                    # Run the SSE server function
+                    await main_module.run_sse("localhost", 8080)
 
-                        # Verify calls
-                        mock_docker_server.start.assert_called_once()
-                        mock_sse_transport.assert_called_once_with("/messages")
-                        mock_docker_server.stop.assert_called_once()
+                    # Verify calls
+                    mock_docker_server.start.assert_called_once()
+                    mock_sse_transport.assert_called_once_with("/messages")
+                    mock_docker_server.stop.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_run_sse_cleanup_on_error(self):

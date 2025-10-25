@@ -208,9 +208,7 @@ class TestValidateCommand:
             "echo $(whoami)",
         ]
         for cmd in dangerous_commands:
-            with pytest.raises(
-                ValidationError, match="contains potentially dangerous patterns"
-            ):
+            with pytest.raises(ValidationError, match="contains potentially dangerous patterns"):
                 validate_command(cmd)
 
     def test_empty_list_command(self) -> None:
