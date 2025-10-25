@@ -114,9 +114,9 @@ class TestVolumeOperations:
             "docker_inspect_volume", {"volume_name": test_volume_name}
         )
         assert inspect_result["success"] is True
-        assert inspect_result["result"]["name"] == test_volume_name
-        assert "driver" in inspect_result["result"]
-        assert "mountpoint" in inspect_result["result"]
+        assert inspect_result["result"]["details"]["Name"] == test_volume_name
+        assert "Driver" in inspect_result["result"]["details"]
+        assert "Mountpoint" in inspect_result["result"]["details"]
 
     @pytest.mark.asyncio
     async def test_create_volume_with_driver(
@@ -140,7 +140,7 @@ class TestVolumeOperations:
                 "docker_inspect_volume", {"volume_name": volume_name}
             )
             assert inspect_result["success"] is True
-            assert inspect_result["result"]["driver"] == "local"
+            assert inspect_result["result"]["details"]["Driver"] == "local"
 
         finally:
             # Cleanup
@@ -177,7 +177,7 @@ class TestVolumeOperations:
                 "docker_inspect_volume", {"volume_name": volume_name}
             )
             assert inspect_result["success"] is True
-            labels = inspect_result["result"].get("labels", {})
+            labels = inspect_result["result"]["details"].get("Labels", {})
             assert labels.get("test") == "integration"
             assert labels.get("project") == "mcp-docker"
 
@@ -224,7 +224,7 @@ class TestVolumeOperations:
         prune_result = await mcp_server.call_tool("docker_prune_volumes", {})
         assert prune_result["success"] is True
         assert "space_reclaimed" in prune_result["result"]
-        assert "volumes_deleted" in prune_result["result"]
+        assert "deleted" in prune_result["result"]
 
     @pytest.mark.asyncio
     async def test_volume_error_handling(

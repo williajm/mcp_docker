@@ -146,6 +146,12 @@ class TestNetworkOperations:
         container_id = container_result["result"]["container_id"]
 
         try:
+            # Start the container (needed for network connection to be visible)
+            start_result = await mcp_server.call_tool(
+                "docker_start_container", {"container_id": container_id}
+            )
+            assert start_result["success"] is True
+
             # Connect container to network
             connect_result = await mcp_server.call_tool(
                 "docker_connect_container",
