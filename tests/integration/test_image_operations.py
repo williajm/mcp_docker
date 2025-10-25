@@ -139,8 +139,8 @@ class TestImageOperations:
             "docker_image_history", {"image": "alpine:latest"}
         )
         assert history_result["success"] is True
-        assert "layers" in history_result["result"]
-        assert len(history_result["result"]["layers"]) > 0
+        assert "history" in history_result["result"]
+        assert len(history_result["result"]["history"]) > 0
 
     @pytest.mark.asyncio
     async def test_remove_image(
@@ -180,7 +180,7 @@ class TestImageOperations:
         prune_result = await mcp_server.call_tool("docker_prune_images", {})
         assert prune_result["success"] is True
         assert "space_reclaimed" in prune_result["result"]
-        assert "images_deleted" in prune_result["result"]
+        assert "deleted" in prune_result["result"]
 
     @pytest.mark.asyncio
     async def test_image_error_handling(

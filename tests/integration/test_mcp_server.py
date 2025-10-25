@@ -80,7 +80,8 @@ class TestMCPServerE2E:
 
         assert result["success"] is True
         assert "result" in result
-        assert "name" in result["result"]
+        assert "info" in result["result"]
+        assert "ID" in result["result"]["info"] or "Name" in result["result"]["info"]
 
     @pytest.mark.asyncio
     async def test_call_tool_healthcheck(self, mcp_server: MCPDockerServer) -> None:
@@ -89,7 +90,8 @@ class TestMCPServerE2E:
 
         assert result["success"] is True
         assert "result" in result
-        assert "status" in result["result"]
+        assert "healthy" in result["result"]
+        assert result["result"]["healthy"] is True
 
     @pytest.mark.asyncio
     async def test_call_invalid_tool(self, mcp_server: MCPDockerServer) -> None:
@@ -113,7 +115,7 @@ class TestMCPServerE2E:
                 },
             )
             assert create_result["success"] is True
-            container_id = create_result["result"]["id"]
+            container_id = create_result["result"]["container_id"]
 
             # Start container
             start_result = await mcp_server.call_tool(
