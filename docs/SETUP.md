@@ -1,3 +1,8 @@
+---
+layout: default
+title: Setup Guide
+---
+
 # Setup and Installation Guide
 
 Complete guide for installing and configuring the MCP Docker server.
