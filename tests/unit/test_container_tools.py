@@ -406,6 +406,30 @@ class TestContainerLogsTool:
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_get_logs_with_follow_mode(self, mock_docker_client, mock_container):
+        """Test log retrieval with follow mode (generator)."""
+        # Mock follow mode returns a generator
+        def log_generator():
+            yield b"log line 1\n"
+            yield b"log line 2\n"
+            yield b"log line 3\n"
+
+        mock_container.logs.return_value = log_generator()
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = ContainerLogsTool(mock_docker_client)
+        input_data = ContainerLogsInput(container_id="abc123", follow=True, tail=10)
+        result = await tool.execute(input_data)
+
+        # Should collect all lines from generator
+        assert "log line 1" in result.logs
+        assert "log line 2" in result.logs
+        assert "log line 3" in result.logs
+        assert result.container_id == "abc123def456"
+        call_kwargs = mock_container.logs.call_args[1]
+        assert call_kwargs["follow"] is True
+
 
 class TestExecCommandTool:
     """Tests for ExecCommandTool."""
