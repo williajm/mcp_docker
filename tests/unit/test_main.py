@@ -208,8 +208,9 @@ class TestMainFunction:
 
     def test_main_sse_transport(self):
         """Test main function with SSE transport."""
-        with patch("asyncio.run") as mock_asyncio_run, patch(
-            "sys.argv", ["mcp-docker", "--transport", "sse"]
+        with (
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("sys.argv", ["mcp-docker", "--transport", "sse"]),
         ):
             main_module.main()
             mock_asyncio_run.assert_called_once()
@@ -219,16 +220,18 @@ class TestMainFunction:
 
     def test_main_sse_custom_port(self):
         """Test main function with custom SSE port."""
-        with patch("asyncio.run") as mock_asyncio_run, patch(
-            "sys.argv", ["mcp-docker", "--transport", "sse", "--port", "9000"]
+        with (
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("sys.argv", ["mcp-docker", "--transport", "sse", "--port", "9000"]),
         ):
             main_module.main()
             mock_asyncio_run.assert_called_once()
 
     def test_main_keyboard_interrupt(self):
         """Test main function handles KeyboardInterrupt."""
-        with patch("asyncio.run", side_effect=KeyboardInterrupt()), patch(
-            "sys.argv", ["mcp-docker"]
+        with (
+            patch("asyncio.run", side_effect=KeyboardInterrupt()),
+            patch("sys.argv", ["mcp-docker"]),
         ):
             # Should not raise, just log
             main_module.main()

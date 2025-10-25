@@ -197,9 +197,7 @@ class TestConnectContainerTool:
         mock_docker_client.client.networks.get.return_value = mock_network
 
         tool = ConnectContainerTool(mock_docker_client)
-        input_data = ConnectContainerInput(
-            network_id="my-network", container_id="container123"
-        )
+        input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
         result = await tool.execute(input_data)
 
         assert result.network_id == "net123"
@@ -232,9 +230,7 @@ class TestConnectContainerTool:
         mock_docker_client.client.networks.get.side_effect = NotFound("Network not found")
 
         tool = ConnectContainerTool(mock_docker_client)
-        input_data = ConnectContainerInput(
-            network_id="nonexistent", container_id="container123"
-        )
+        input_data = ConnectContainerInput(network_id="nonexistent", container_id="container123")
 
         with pytest.raises(NetworkNotFound):
             await tool.execute(input_data)
@@ -246,9 +242,7 @@ class TestConnectContainerTool:
         mock_network.connect.side_effect = NotFound("Container not found")
 
         tool = ConnectContainerTool(mock_docker_client)
-        input_data = ConnectContainerInput(
-            network_id="my-network", container_id="nonexistent"
-        )
+        input_data = ConnectContainerInput(network_id="my-network", container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
@@ -263,17 +257,13 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.return_value = mock_network
 
         tool = DisconnectContainerTool(mock_docker_client)
-        input_data = DisconnectContainerInput(
-            network_id="my-network", container_id="container123"
-        )
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
         result = await tool.execute(input_data)
 
         assert result.network_id == "net123"
         assert result.container_id == "container123"
         assert result.status == "disconnected"
-        mock_network.disconnect.assert_called_once_with(
-            container="container123", force=False
-        )
+        mock_network.disconnect.assert_called_once_with(container="container123", force=False)
 
     @pytest.mark.asyncio
     async def test_disconnect_container_with_force(self, mock_docker_client, mock_network):
@@ -287,9 +277,7 @@ class TestDisconnectContainerTool:
         result = await tool.execute(input_data)
 
         assert result.status == "disconnected"
-        mock_network.disconnect.assert_called_once_with(
-            container="container123", force=True
-        )
+        mock_network.disconnect.assert_called_once_with(container="container123", force=True)
 
     @pytest.mark.asyncio
     async def test_disconnect_container_network_not_found(self, mock_docker_client):
@@ -297,9 +285,7 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.side_effect = NotFound("Network not found")
 
         tool = DisconnectContainerTool(mock_docker_client)
-        input_data = DisconnectContainerInput(
-            network_id="nonexistent", container_id="container123"
-        )
+        input_data = DisconnectContainerInput(network_id="nonexistent", container_id="container123")
 
         with pytest.raises(NetworkNotFound):
             await tool.execute(input_data)
@@ -311,9 +297,7 @@ class TestDisconnectContainerTool:
         mock_network.disconnect.side_effect = NotFound("Container not found")
 
         tool = DisconnectContainerTool(mock_docker_client)
-        input_data = DisconnectContainerInput(
-            network_id="my-network", container_id="nonexistent"
-        )
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)

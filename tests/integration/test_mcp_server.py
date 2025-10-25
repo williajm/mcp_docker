@@ -155,9 +155,7 @@ class TestMCPServerE2E:
     async def test_e2e_image_workflow(self, mcp_server: MCPDockerServer) -> None:
         """Test image workflow through MCP."""
         # Pull image
-        pull_result = await mcp_server.call_tool(
-            "docker_pull_image", {"image": "alpine:latest"}
-        )
+        pull_result = await mcp_server.call_tool("docker_pull_image", {"image": "alpine:latest"})
         assert pull_result["success"] is True
 
         # List images
@@ -203,9 +201,7 @@ class TestMCPServerE2E:
         finally:
             # Ensure cleanup
             try:
-                await mcp_server.call_tool(
-                    "docker_remove_network", {"network_id": network_name}
-                )
+                await mcp_server.call_tool("docker_remove_network", {"network_id": network_name})
             except Exception:
                 pass
 

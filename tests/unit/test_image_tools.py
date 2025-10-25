@@ -245,9 +245,7 @@ class TestPushImageTool:
     @pytest.mark.asyncio
     async def test_push_image_not_found(self, mock_docker_client):
         """Test handling of image not found."""
-        mock_docker_client.client.images.push.side_effect = DockerImageNotFound(
-            "Image not found"
-        )
+        mock_docker_client.client.images.push.side_effect = DockerImageNotFound("Image not found")
 
         tool = PushImageTool(mock_docker_client)
         input_data = PushImageInput(image="nonexistent:latest")
@@ -304,9 +302,7 @@ class TestRemoveImageTool:
     @pytest.mark.asyncio
     async def test_remove_image_not_found(self, mock_docker_client):
         """Test handling of image not found."""
-        mock_docker_client.client.images.remove.side_effect = DockerImageNotFound(
-            "Image not found"
-        )
+        mock_docker_client.client.images.remove.side_effect = DockerImageNotFound("Image not found")
 
         tool = RemoveImageTool(mock_docker_client)
         input_data = RemoveImageInput(image="nonexistent:latest")

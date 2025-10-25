@@ -88,7 +88,7 @@ class TestContainerLogsResource:
         mock_docker_client.client.containers.get.return_value = mock_container
 
         # Read logs with custom tail
-        content = await logs_resource.read("abc123", tail=10)
+        await logs_resource.read("abc123", tail=10)
 
         mock_container.logs.assert_called_once_with(tail=10, follow=False)
 
@@ -271,9 +271,7 @@ class TestResourceProvider:
         assert content.text is not None
 
     @pytest.mark.asyncio
-    async def test_read_resource_unknown_scheme(
-        self, resource_provider: ResourceProvider
-    ) -> None:
+    async def test_read_resource_unknown_scheme(self, resource_provider: ResourceProvider) -> None:
         """Test reading resource with unknown scheme."""
         with pytest.raises(ValueError, match="Unknown resource URI scheme"):
             await resource_provider.read_resource("unknown://resource")
