@@ -59,11 +59,33 @@ mcp-docker
 
 ### Configuration
 
-The server can be configured via environment variables:
+The server can be configured via environment variables or a `.env` file.
+
+#### Platform-Specific Docker Configuration
+
+**IMPORTANT**: The `DOCKER_BASE_URL` must be set correctly for your platform:
+
+**Linux / macOS:**
+```bash
+export DOCKER_BASE_URL="unix:///var/run/docker.sock"
+```
+
+**Windows (Docker Desktop):**
+```cmd
+set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
+```
+
+**PowerShell:**
+```powershell
+$env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
+```
+
+#### All Configuration Options
 
 ```bash
 # Docker Configuration
-export DOCKER_BASE_URL="unix:///var/run/docker.sock"  # Docker daemon socket URL (default)
+export DOCKER_BASE_URL="unix:///var/run/docker.sock"  # Linux/macOS (default)
+# export DOCKER_BASE_URL="npipe:////./pipe/docker_engine"  # Windows
 export DOCKER_TIMEOUT=60  # API timeout in seconds (default: 60)
 export DOCKER_TLS_VERIFY=false  # Enable TLS verification (default: false)
 export DOCKER_TLS_CA_CERT="/path/to/ca.pem"  # Path to CA certificate (optional)
@@ -80,12 +102,33 @@ export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations (default
 export MCP_SERVER_NAME="mcp-docker"  # MCP server name (default: mcp-docker)
 export MCP_SERVER_VERSION="0.1.0"  # MCP server version (default: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
+export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # Log file path (optional, defaults to mcp_docker.log in working directory)
+```
+
+#### Using a .env File
+
+Alternatively, create a `.env` file in your project directory:
+
+```bash
+# .env file example (Linux/macOS)
+DOCKER_BASE_URL=unix:///var/run/docker.sock
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+```
+
+```bash
+# .env file example (Windows)
+DOCKER_BASE_URL=npipe:////./pipe/docker_engine
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
 ### Claude Desktop Setup
 
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+Add to your Claude Desktop configuration:
+- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+- Linux: `~/.config/Claude/claude_desktop_config.json`
 
+**Basic configuration (stdio transport - recommended):**
 ```json
 {
   "mcpServers": {
@@ -93,11 +136,51 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
       "command": "uvx",
       "args": ["mcp-docker"],
       "env": {
-        "SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS": "false"
+        "DOCKER_BASE_URL": "unix:///var/run/docker.sock"
       }
     }
   }
 }
+```
+
+**Windows configuration:**
+```json
+{
+  "mcpServers": {
+    "docker": {
+      "command": "uvx",
+      "args": ["mcp-docker"],
+      "env": {
+        "DOCKER_BASE_URL": "npipe:////./pipe/docker_engine"
+      }
+    }
+  }
+}
+```
+
+### Advanced Usage
+
+#### SSE Transport (HTTP)
+
+The server supports SSE (Server-Sent Events) transport over HTTP in addition to the default stdio transport:
+
+```bash
+# Run with SSE transport
+mcp-docker --transport sse --host 127.0.0.1 --port 8000
+```
+
+**Command-line options:**
+- `--transport`: Transport type (`stdio` or `sse`, default: `stdio`)
+- `--host`: Host to bind SSE server (default: `127.0.0.1`)
+- `--port`: Port to bind SSE server (default: `8000`)
+
+#### Custom Log Path
+
+Set a custom log file location using the `MCP_DOCKER_LOG_PATH` environment variable:
+
+```bash
+export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
+mcp-docker
 ```
 
 ## Tools Overview

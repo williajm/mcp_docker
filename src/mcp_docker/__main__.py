@@ -3,13 +3,19 @@
 This module provides the main entry point for running the MCP Docker server.
 """
 
+import argparse
 import asyncio
+import os
 from pathlib import Path
 from typing import Any
 
+import uvicorn
 from mcp.server import Server
+from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
+from starlette.applications import Starlette
+from starlette.routing import Route
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
@@ -19,7 +25,9 @@ from mcp_docker.utils.logger import get_logger, setup_logger
 config = Config()
 
 # Setup logging to file
-log_file = Path("mcp_docker.log")
+# Use env var if set, otherwise default to current working directory
+log_path = os.getenv("MCP_DOCKER_LOG_PATH")
+log_file = Path(log_path) if log_path else Path("mcp_docker.log")
 setup_logger(config.server, log_file)
 
 logger = get_logger(__name__)
@@ -100,7 +108,7 @@ async def handle_get_prompt(name: str, arguments: dict[str, Any] | None = None) 
 logger.info("MCP server handlers registered")
 
 
-async def run_server() -> None:
+async def run_stdio() -> None:
     """Run the MCP server with stdio transport."""
     logger.info("Starting MCP server with stdio transport")
 
@@ -118,10 +126,69 @@ async def run_server() -> None:
         logger.info("MCP server shutdown complete")
 
 
+async def run_sse(host: str, port: int) -> None:
+    """Run the MCP server with SSE transport over HTTP."""
+    logger.info(f"Starting MCP server with SSE transport on {host}:{port}")
+
+    # Initialize Docker server
+    await docker_server.start()
+
+    try:
+        # Create SSE transport
+        sse = SseServerTransport("/messages")
+
+        # Create Starlette app with SSE endpoint
+        async def handle_sse(request: Any) -> Any:
+            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
+                await mcp_server.run(
+                    streams[0], streams[1], mcp_server.create_initialization_options()
+                )
+
+        app = Starlette(
+            debug=True,
+            routes=[Route("/sse", endpoint=handle_sse)],
+        )
+
+        # Run server
+        config_uvicorn = uvicorn.Config(app, host=host, port=port, log_level="info")
+        server = uvicorn.Server(config_uvicorn)
+
+        logger.info(f"MCP server listening on http://{host}:{port}/sse")
+        await server.serve()
+
+    finally:
+        await docker_server.stop()
+        logger.info("MCP server shutdown complete")
+
+
 def main() -> None:
     """Main entry point."""
+    parser = argparse.ArgumentParser(description="MCP Docker Server")
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse"],
+        default="stdio",
+        help="Transport type (default: stdio)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind SSE server (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind SSE server (default: 8000)",
+    )
+
+    args = parser.parse_args()
+
     try:
-        asyncio.run(run_server())
+        if args.transport == "stdio":
+            asyncio.run(run_stdio())
+        else:  # sse
+            asyncio.run(run_sse(args.host, args.port))
     except KeyboardInterrupt:
         logger.info("Received interrupt signal")
     except Exception as e:

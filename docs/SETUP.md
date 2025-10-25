@@ -78,6 +78,15 @@ Before installing the MCP Docker server, ensure your system meets these requirem
     # Log out and back in for changes to take effect
     ```
 
+#### Platform-Specific Docker Configuration
+
+**CRITICAL**: You must configure the correct Docker socket URL for your platform:
+
+- **Linux/macOS**: `unix:///var/run/docker.sock` (default)
+- **Windows**: `npipe:////./pipe/docker_engine` (Docker Desktop)
+
+See [Environment Variables](#environment-variables) section for configuration details.
+
 ## Installation Options
 
 Choose the installation method that best fits your workflow:
@@ -406,33 +415,55 @@ Control how the server connects to Docker:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DOCKER_BASE_URL` | `unix:///var/run/docker.sock` | Docker daemon socket URL. Use `npipe:////./pipe/docker_engine` on Windows or `tcp://host:port` for remote |
+| `DOCKER_BASE_URL` | `unix:///var/run/docker.sock` | **PLATFORM-SPECIFIC**: Docker daemon socket URL. See platform examples below. |
 | `DOCKER_TIMEOUT` | `60` | Timeout for Docker API operations in seconds. Increase for slow networks or large operations |
 | `DOCKER_TLS_VERIFY` | `false` | Enable TLS verification for Docker daemon connection |
 | `DOCKER_TLS_CA_CERT` | - | Path to CA certificate file for TLS verification |
 | `DOCKER_TLS_CLIENT_CERT` | - | Path to client certificate file for TLS authentication |
 | `DOCKER_TLS_CLIENT_KEY` | - | Path to client private key file for TLS authentication |
 
-**Examples:**
+#### Platform-Specific DOCKER_BASE_URL Examples
 
+**IMPORTANT**: The default value (`unix:///var/run/docker.sock`) only works on Linux/macOS. You **MUST** set the correct value for your platform.
+
+**Linux:**
 ```bash
-# Local Docker (default)
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
+```
 
-# Windows Docker Desktop
-export DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
+**macOS:**
+```bash
+export DOCKER_BASE_URL="unix:///var/run/docker.sock"
+```
 
-# Remote Docker over TCP
+**Windows (CMD):**
+```cmd
+set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
+```
+
+#### Other Configuration Examples
+
+**Remote Docker over TCP:**
+```bash
 export DOCKER_BASE_URL="tcp://192.168.1.100:2375"
+```
 
-# Remote Docker with TLS
+**Remote Docker with TLS:**
+```bash
 export DOCKER_BASE_URL="tcp://192.168.1.100:2376"
 export DOCKER_TLS_VERIFY="true"
 export DOCKER_TLS_CA_CERT="/path/to/ca.pem"
 export DOCKER_TLS_CLIENT_CERT="/path/to/cert.pem"
 export DOCKER_TLS_CLIENT_KEY="/path/to/key.pem"
+```
 
-# Increase timeout for slow operations
+**Increase timeout for slow operations:**
+```bash
 export DOCKER_TIMEOUT="120"
 ```
 
