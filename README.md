@@ -371,5 +371,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [ ] Enhanced streaming (build/pull progress)
 - [ ] WebSocket transport option
 - [ ] Docker Scout integration
-
-
