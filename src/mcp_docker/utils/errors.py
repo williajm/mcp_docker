@@ -43,3 +43,26 @@ class NetworkNotFound(MCPDockerError):  # noqa: N818
 
 class VolumeNotFound(MCPDockerError):  # noqa: N818
     """Raised when a volume is not found."""
+
+
+# Docker Compose Errors
+
+
+class ComposeError(DockerOperationError):
+    """Base exception for Docker Compose operations."""
+
+
+class ComposeFileError(ComposeError):
+    """Raised when there is an issue with the compose file."""
+
+
+class ComposeNotFoundError(ComposeError):
+    """Raised when a compose project or service is not found."""
+
+
+class ComposeOperationError(ComposeError):
+    """Raised when a compose operation fails."""
+
+
+class ComposeValidationError(ComposeError):
+    """Raised when compose file validation fails."""

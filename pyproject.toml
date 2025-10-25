@@ -26,6 +26,7 @@ dependencies = [
     "loguru>=0.7.0",
     "starlette>=0.27.0",
     "uvicorn>=0.27.0",
+    "pyyaml>=6.0.0",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +38,7 @@ dev = [
     "mypy>=1.8.0",
     "ruff>=0.6.0",
     "types-docker>=7.1.0",
+    "types-pyyaml>=6.0.0",
 ]
 
 [project.scripts]
@@ -109,6 +111,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "loguru.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "yaml.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
