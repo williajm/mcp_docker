@@ -5,11 +5,14 @@ import pytest
 from mcp_docker.utils.errors import ValidationError
 from mcp_docker.utils.validation import (
     sanitize_command,
+    validate_command,
     validate_container_name,
     validate_image_name,
     validate_label,
+    validate_memory,
     validate_memory_string,
     validate_port,
+    validate_port_mapping,
 )
 
 
@@ -169,3 +172,108 @@ class TestSanitizeCommand:
 
         with pytest.raises(ValidationError):
             sanitize_command(123)  # type: ignore[arg-type]
+
+
+class TestValidateCommand:
+    """Tests for validate_command function."""
+
+    def test_valid_string_command(self) -> None:
+        """Test valid string command."""
+        result = validate_command("echo hello")
+        assert result == "echo hello"
+
+    def test_valid_list_command(self) -> None:
+        """Test valid list command."""
+        result = validate_command(["echo", "hello"])
+        assert result == ["echo", "hello"]
+
+    def test_empty_string_command(self) -> None:
+        """Test empty string command raises error."""
+        with pytest.raises(ValidationError, match="Command cannot be empty"):
+            validate_command("")
+
+    def test_whitespace_only_command(self) -> None:
+        """Test whitespace-only command raises error."""
+        with pytest.raises(ValidationError, match="Command cannot be empty"):
+            validate_command("   ")
+
+    def test_dangerous_patterns_in_command(self) -> None:
+        """Test dangerous patterns in commands."""
+        dangerous_commands = [
+            "echo hello; rm -rf /",
+            "echo hello && whoami",
+            "echo hello || whoami",
+            "echo hello | whoami",
+            "echo `whoami`",
+            "echo $(whoami)",
+        ]
+        for cmd in dangerous_commands:
+            with pytest.raises(ValidationError, match="contains potentially dangerous patterns"):
+                validate_command(cmd)
+
+    def test_empty_list_command(self) -> None:
+        """Test empty list command raises error."""
+        with pytest.raises(ValidationError, match="Command list cannot be empty"):
+            validate_command([])
+
+    def test_list_with_non_string_items(self) -> None:
+        """Test list command with non-string items."""
+        with pytest.raises(ValidationError, match="All command items must be strings"):
+            validate_command(["echo", 123])  # type: ignore[list-item]
+
+    def test_invalid_command_type(self) -> None:
+        """Test invalid command type."""
+        with pytest.raises(ValidationError, match="Command must be a string or list"):
+            validate_command(123)  # type: ignore[arg-type]
+
+
+class TestValidateMemory:
+    """Tests for validate_memory wrapper function."""
+
+    def test_validate_memory_wrapper(self) -> None:
+        """Test validate_memory wrapper function."""
+        assert validate_memory("512m") == "512m"
+        assert validate_memory("2g") == "2g"
+
+
+class TestValidatePortMapping:
+    """Tests for port mapping validation."""
+
+    def test_valid_port_mapping_int(self) -> None:
+        """Test valid port mapping with integer container port."""
+        container_port, host_port = validate_port_mapping(80, 8080)
+        assert container_port == "80"
+        assert host_port == 8080
+
+    def test_valid_port_mapping_string(self) -> None:
+        """Test valid port mapping with string container port."""
+        container_port, host_port = validate_port_mapping("80", 8080)
+        assert container_port == "80"
+        assert host_port == 8080
+
+    def test_valid_port_mapping_with_protocol(self) -> None:
+        """Test valid port mapping with protocol."""
+        container_port, host_port = validate_port_mapping("80/tcp", 8080)
+        assert container_port == "80/tcp"
+        assert host_port == 8080
+
+        container_port, host_port = validate_port_mapping("53/udp", 5353)
+        assert container_port == "53/udp"
+        assert host_port == 5353
+
+        container_port, host_port = validate_port_mapping("132/sctp", 1320)
+        assert container_port == "132/sctp"
+        assert host_port == 1320
+
+    def test_invalid_protocol(self) -> None:
+        """Test invalid protocol in port mapping."""
+        with pytest.raises(ValidationError, match="Invalid protocol"):
+            validate_port_mapping("80/http", 8080)
+
+    def test_invalid_port_in_mapping(self) -> None:
+        """Test invalid port numbers in mapping."""
+        with pytest.raises(ValidationError):
+            validate_port_mapping(80, 0)  # Invalid host port
+
+        with pytest.raises(ValidationError):
+            validate_port_mapping("99999", 8080)  # Invalid container port
