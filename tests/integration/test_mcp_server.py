@@ -128,7 +128,7 @@ class TestMCPServerE2E:
                 "docker_inspect_container", {"container_id": container_id}
             )
             assert inspect_result["success"] is True
-            assert inspect_result["result"]["state"] == "running"
+            assert inspect_result["result"]["details"]["State"]["Status"] == "running"
 
             # Stop container
             stop_result = await mcp_server.call_tool(
@@ -182,7 +182,7 @@ class TestMCPServerE2E:
                 "docker_create_network", {"name": network_name}
             )
             assert create_result["success"] is True
-            network_id = create_result["result"]["id"]
+            network_id = create_result["result"]["network_id"]
 
             # List networks
             list_result = await mcp_server.call_tool("docker_list_networks", {})
@@ -261,7 +261,7 @@ class TestMCPServerE2E:
                     "command": ["sh", "-c", "echo 'test' && sleep 300"],
                 },
             )
-            container_id = create_result["result"]["id"]
+            container_id = create_result["result"]["container_id"]
             await mcp_server.call_tool("docker_start_container", {"container_id": container_id})
 
             # Wait for output

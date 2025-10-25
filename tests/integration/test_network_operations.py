@@ -62,8 +62,8 @@ class TestNetworkOperations:
             "docker_create_network", {"name": test_network_name}
         )
         assert create_result["success"] is True
-        assert "id" in create_result["result"]
-        network_id = create_result["result"]["id"]
+        assert "network_id" in create_result["result"]
+        network_id = create_result["result"]["network_id"]
 
         # Remove network
         remove_result = await mcp_server.call_tool(
@@ -109,7 +109,7 @@ class TestNetworkOperations:
         create_result = await mcp_server.call_tool(
             "docker_create_network", {"name": test_network_name}
         )
-        network_id = create_result["result"]["id"]
+        network_id = create_result["result"]["network_id"]
 
         # Inspect network
         inspect_result = await mcp_server.call_tool(
@@ -132,7 +132,7 @@ class TestNetworkOperations:
         network_result = await mcp_server.call_tool(
             "docker_create_network", {"name": test_network_name}
         )
-        network_id = network_result["result"]["id"]
+        network_id = network_result["result"]["network_id"]
 
         # Create container
         container_result = await mcp_server.call_tool(
@@ -203,7 +203,7 @@ class TestNetworkOperations:
                 },
             )
             assert create_result["success"] is True
-            network_id = create_result["result"]["id"]
+            network_id = create_result["result"]["network_id"]
 
             # Inspect to verify options
             inspect_result = await mcp_server.call_tool(
