@@ -5,17 +5,8 @@ These tests require Docker to be running and will create/remove test networks.
 
 import pytest
 
-from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.container_tools import CreateContainerTool, RemoveContainerTool
-from mcp_docker.tools.network_tools import (
-    ConnectContainerTool,
-    CreateNetworkTool,
-    DisconnectContainerTool,
-    InspectNetworkTool,
-    ListNetworksTool,
-    RemoveNetworkTool,
-)
+from mcp_docker.config import Config
+from mcp_docker.server import MCPDockerServer
 
 
 @pytest.fixture
@@ -29,11 +20,12 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-def docker_wrapper(integration_config: Config) -> DockerClientWrapper:
-    """Create Docker client wrapper."""
-    wrapper = DockerClientWrapper(integration_config.docker)
-    yield wrapper
-    wrapper.close()
+async def mcp_server(integration_config: Config) -> MCPDockerServer:
+    """Create MCP server instance."""
+    server = MCPDockerServer(integration_config)
+    await server.start()
+    yield server
+    await server.stop()
 
 
 @pytest.fixture
@@ -43,12 +35,11 @@ def test_network_name() -> str:
 
 
 @pytest.fixture
-def cleanup_test_network(docker_wrapper: DockerClientWrapper, test_network_name: str):
+async def cleanup_test_network(mcp_server: MCPDockerServer, test_network_name: str):
     """Cleanup fixture to remove test network after tests."""
     yield
     try:
-        network = docker_wrapper.client.networks.get(test_network_name)
-        network.remove()
+        await mcp_server.call_tool("docker_remove_network", {"network_id": test_network_name})
     except Exception:
         pass
 
@@ -60,48 +51,46 @@ class TestNetworkOperations:
     @pytest.mark.asyncio
     async def test_create_and_remove_network(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
         cleanup_test_network,
     ) -> None:
         """Test creating and removing a network."""
-        create_tool = CreateNetworkTool(docker_wrapper)
-        remove_tool = RemoveNetworkTool(docker_wrapper)
-
         # Create network
-        create_result = await create_tool.execute({"name": test_network_name})
-        assert create_result.success is True
-        assert "id" in create_result.data
-        network_id = create_result.data["id"]
+        create_result = await mcp_server.call_tool(
+            "docker_create_network", {"name": test_network_name}
+        )
+        assert create_result["success"] is True
+        assert "id" in create_result["result"]
+        network_id = create_result["result"]["id"]
 
         # Remove network
-        remove_result = await remove_tool.execute({"network_id": network_id})
-        assert remove_result.success is True
+        remove_result = await mcp_server.call_tool(
+            "docker_remove_network", {"network_id": network_id}
+        )
+        assert remove_result["success"] is True
 
     @pytest.mark.asyncio
     async def test_list_networks(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
         cleanup_test_network,
     ) -> None:
         """Test listing networks."""
-        create_tool = CreateNetworkTool(docker_wrapper)
-        list_tool = ListNetworksTool(docker_wrapper)
-
         # Create a test network
-        await create_tool.execute({"name": test_network_name})
+        await mcp_server.call_tool("docker_create_network", {"name": test_network_name})
 
         # List networks
-        list_result = await list_tool.execute({})
-        assert list_result.success is True
-        assert len(list_result.data["networks"]) > 0
+        list_result = await mcp_server.call_tool("docker_list_networks", {})
+        assert list_result["success"] is True
+        assert len(list_result["result"]["networks"]) > 0
 
         # Find our network
         found = False
-        for network in list_result.data["networks"]:
+        for network in list_result["result"]["networks"]:
             if network["name"] == test_network_name:
                 found = True
                 break
@@ -110,171 +99,179 @@ class TestNetworkOperations:
     @pytest.mark.asyncio
     async def test_inspect_network(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
         cleanup_test_network,
     ) -> None:
         """Test inspecting a network."""
-        create_tool = CreateNetworkTool(docker_wrapper)
-        inspect_tool = InspectNetworkTool(docker_wrapper)
-
         # Create network
-        create_result = await create_tool.execute({"name": test_network_name})
-        network_id = create_result.data["id"]
+        create_result = await mcp_server.call_tool(
+            "docker_create_network", {"name": test_network_name}
+        )
+        network_id = create_result["result"]["id"]
 
         # Inspect network
-        inspect_result = await inspect_tool.execute({"network_id": network_id})
-        assert inspect_result.success is True
-        assert inspect_result.data["name"] == test_network_name
-        assert "driver" in inspect_result.data
+        inspect_result = await mcp_server.call_tool(
+            "docker_inspect_network", {"network_id": network_id}
+        )
+        assert inspect_result["success"] is True
+        assert inspect_result["result"]["name"] == test_network_name
+        assert "driver" in inspect_result["result"]
 
     @pytest.mark.asyncio
     async def test_connect_disconnect_container(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
         cleanup_test_network,
     ) -> None:
         """Test connecting and disconnecting container to network."""
-        create_network_tool = CreateNetworkTool(docker_wrapper)
-        create_container_tool = CreateContainerTool(docker_wrapper)
-        connect_tool = ConnectContainerTool(docker_wrapper)
-        disconnect_tool = DisconnectContainerTool(docker_wrapper)
-        inspect_network_tool = InspectNetworkTool(docker_wrapper)
-        remove_container_tool = RemoveContainerTool(docker_wrapper)
-
         # Create network
-        network_result = await create_network_tool.execute({"name": test_network_name})
-        network_id = network_result.data["id"]
+        network_result = await mcp_server.call_tool(
+            "docker_create_network", {"name": test_network_name}
+        )
+        network_id = network_result["result"]["id"]
 
         # Create container
-        container_result = await create_container_tool.execute(
+        container_result = await mcp_server.call_tool(
+            "docker_create_container",
             {
                 "image": "alpine:latest",
                 "name": "mcp-test-network-container",
                 "command": ["sleep", "300"],
-            }
+            },
         )
-        container_id = container_result.data["id"]
+        container_id = container_result["result"]["container_id"]
 
         try:
             # Connect container to network
-            connect_result = await connect_tool.execute(
-                {"network_id": network_id, "container_id": container_id}
+            connect_result = await mcp_server.call_tool(
+                "docker_connect_container",
+                {"network_id": network_id, "container_id": container_id},
             )
-            assert connect_result.success is True
+            assert connect_result["success"] is True
 
             # Verify connection
-            inspect_result = await inspect_network_tool.execute({"network_id": network_id})
-            assert inspect_result.success is True
-            assert container_id in str(inspect_result.data.get("containers", {}))
+            inspect_result = await mcp_server.call_tool(
+                "docker_inspect_network", {"network_id": network_id}
+            )
+            assert inspect_result["success"] is True
+            assert container_id in str(inspect_result["result"].get("containers", {}))
 
             # Disconnect container from network
-            disconnect_result = await disconnect_tool.execute(
-                {"network_id": network_id, "container_id": container_id}
+            disconnect_result = await mcp_server.call_tool(
+                "docker_disconnect_container",
+                {"network_id": network_id, "container_id": container_id},
             )
-            assert disconnect_result.success is True
+            assert disconnect_result["success"] is True
 
             # Verify disconnection
-            inspect_result = await inspect_network_tool.execute({"network_id": network_id})
-            assert inspect_result.success is True
-            containers_str = str(inspect_result.data.get("containers", {}))
+            inspect_result = await mcp_server.call_tool(
+                "docker_inspect_network", {"network_id": network_id}
+            )
+            assert inspect_result["success"] is True
+            containers_str = str(inspect_result["result"].get("containers", {}))
             # After disconnect, container should not be in network
             assert container_id not in containers_str or len(containers_str) == 2  # Empty dict
 
         finally:
             # Cleanup container
-            await remove_container_tool.execute({"container_id": container_id, "force": True})
+            await mcp_server.call_tool(
+                "docker_remove_container", {"container_id": container_id, "force": True}
+            )
 
     @pytest.mark.asyncio
     async def test_create_network_with_options(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
         cleanup_test_network,
     ) -> None:
         """Test creating network with custom options."""
-        create_tool = CreateNetworkTool(docker_wrapper)
-        inspect_tool = InspectNetworkTool(docker_wrapper)
-
         network_name = "mcp-docker-test-network-custom"
 
         try:
             # Create network with custom driver
-            create_result = await create_tool.execute(
+            create_result = await mcp_server.call_tool(
+                "docker_create_network",
                 {
                     "name": network_name,
                     "driver": "bridge",
                     "options": {"com.docker.network.bridge.name": "mcp-test-br0"},
-                }
+                },
             )
-            assert create_result.success is True
-            network_id = create_result.data["id"]
+            assert create_result["success"] is True
+            network_id = create_result["result"]["id"]
 
             # Inspect to verify options
-            inspect_result = await inspect_tool.execute({"network_id": network_id})
-            assert inspect_result.success is True
-            assert inspect_result.data["driver"] == "bridge"
+            inspect_result = await mcp_server.call_tool(
+                "docker_inspect_network", {"network_id": network_id}
+            )
+            assert inspect_result["success"] is True
+            assert inspect_result["result"]["driver"] == "bridge"
 
         finally:
             # Cleanup
             try:
-                network = docker_wrapper.client.networks.get(network_name)
-                network.remove()
+                await mcp_server.call_tool(
+                    "docker_remove_network", {"network_id": network_name}
+                )
             except Exception:
                 pass
 
     @pytest.mark.asyncio
     async def test_network_error_handling(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
     ) -> None:
         """Test error handling for invalid network operations."""
-        inspect_tool = InspectNetworkTool(docker_wrapper)
-        remove_tool = RemoveNetworkTool(docker_wrapper)
-        connect_tool = ConnectContainerTool(docker_wrapper)
-
         # Try to inspect non-existent network
-        inspect_result = await inspect_tool.execute({"network_id": "nonexistent-network"})
-        assert inspect_result.success is False
-        assert "not found" in inspect_result.error.lower()
+        inspect_result = await mcp_server.call_tool(
+            "docker_inspect_network", {"network_id": "nonexistent-network"}
+        )
+        assert inspect_result["success"] is False
+        assert "not found" in inspect_result["error"].lower()
 
         # Try to remove non-existent network
-        remove_result = await remove_tool.execute({"network_id": "nonexistent-network"})
-        assert remove_result.success is False
+        remove_result = await mcp_server.call_tool(
+            "docker_remove_network", {"network_id": "nonexistent-network"}
+        )
+        assert remove_result["success"] is False
 
         # Try to connect non-existent container to network
-        connect_result = await connect_tool.execute(
-            {"network_id": "bridge", "container_id": "nonexistent-container"}
+        connect_result = await mcp_server.call_tool(
+            "docker_connect_container",
+            {"network_id": "bridge", "container_id": "nonexistent-container"},
         )
-        assert connect_result.success is False
+        assert connect_result["success"] is False
 
     @pytest.mark.asyncio
     async def test_list_networks_with_filters(
         self,
-        docker_wrapper: DockerClientWrapper,
+        mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
         cleanup_test_network,
     ) -> None:
         """Test listing networks with filters."""
-        create_tool = CreateNetworkTool(docker_wrapper)
-        list_tool = ListNetworksTool(docker_wrapper)
-
         # Create a test network
-        await create_tool.execute({"name": test_network_name, "driver": "bridge"})
+        await mcp_server.call_tool(
+            "docker_create_network", {"name": test_network_name, "driver": "bridge"}
+        )
 
         # List with driver filter
-        list_result = await list_tool.execute({"filters": {"driver": ["bridge"]}})
-        assert list_result.success is True
-        assert len(list_result.data["networks"]) > 0
+        list_result = await mcp_server.call_tool(
+            "docker_list_networks", {"filters": {"driver": ["bridge"]}}
+        )
+        assert list_result["success"] is True
+        assert len(list_result["result"]["networks"]) > 0
 
         # Verify our network is in the list
         found = False
-        for network in list_result.data["networks"]:
+        for network in list_result["result"]["networks"]:
             if network["name"] == test_network_name:
                 found = True
                 assert network["driver"] == "bridge"
