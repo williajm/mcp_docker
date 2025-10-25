@@ -101,7 +101,6 @@ jobs:
           -m "integration" \
           --tb=short \
           --maxfail=5
-      continue-on-error: true
 
     - name: Cleanup Docker resources
       if: always()
