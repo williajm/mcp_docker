@@ -139,9 +139,7 @@ async def run_sse(host: str, port: int) -> None:
 
         # Create Starlette app with SSE endpoint
         async def handle_sse(request: Any) -> Any:
-            async with sse.connect_sse(
-                request.scope, request.receive, request._send
-            ) as streams:
+            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
                 await mcp_server.run(
                     streams[0], streams[1], mcp_server.create_initialization_options()
                 )
