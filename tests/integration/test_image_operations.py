@@ -40,9 +40,7 @@ async def cleanup_test_image(mcp_server: MCPDockerServer, test_image_tag: str):
     yield
     # Cleanup after test
     try:
-        await mcp_server.call_tool(
-            "docker_remove_image", {"image": test_image_tag, "force": True}
-        )
+        await mcp_server.call_tool("docker_remove_image", {"image": test_image_tag, "force": True})
     except Exception:
         pass
 
@@ -114,7 +112,8 @@ class TestImageOperations:
 
         # Tag the image
         tag_result = await mcp_server.call_tool(
-            "docker_tag_image", {"image": "alpine:latest", "repository": test_image_tag.split(":")[0], "tag": "latest"}
+            "docker_tag_image",
+            {"image": "alpine:latest", "repository": test_image_tag.split(":")[0], "tag": "latest"},
         )
         assert tag_result["success"] is True
 
@@ -154,7 +153,8 @@ class TestImageOperations:
         await mcp_server.call_tool("docker_pull_image", {"image": "alpine:latest"})
 
         await mcp_server.call_tool(
-            "docker_tag_image", {"image": "alpine:latest", "repository": test_image_tag.split(":")[0], "tag": "latest"}
+            "docker_tag_image",
+            {"image": "alpine:latest", "repository": test_image_tag.split(":")[0], "tag": "latest"},
         )
 
         # Remove the tagged image

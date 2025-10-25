@@ -448,7 +448,7 @@ class PromptProvider:
             for prompt in self.prompts.values()
             if isinstance(
                 prompt,
-                (TroubleshootContainerPrompt, OptimizeContainerPrompt, GenerateComposePrompt),
+                TroubleshootContainerPrompt | OptimizeContainerPrompt | GenerateComposePrompt,
             )
         ]
 

@@ -12,6 +12,7 @@ class TestDockerConfig:
     def test_default_values(self) -> None:
         """Test default configuration values."""
         import os
+
         # Clear DOCKER_BASE_URL env var if set
         old_base_url = os.environ.pop("DOCKER_BASE_URL", None)
         try:

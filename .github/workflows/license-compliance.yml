@@ -1,0 +1,65 @@
+name: License Compliance
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main, dev ]
+  schedule:
+    # Run weekly on Mondays at 9:00 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  license-check:
+    name: Check Dependency Licenses
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        version: "latest"
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --all-extras
+
+    - name: Install pip-licenses
+      run: uv pip install pip-licenses
+
+    - name: Check licenses
+      run: |
+        echo "## Dependency Licenses" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        uv run pip-licenses --format=markdown --order=license >> $GITHUB_STEP_SUMMARY
+
+    - name: Check for GPL/AGPL licenses
+      run: |
+        # Check for GPL-like licenses that might be incompatible with MIT
+        if uv run pip-licenses --format=json | grep -iE '"License":\s*"(GPL|AGPL|LGPL)"'; then
+          echo "::warning::Found GPL/AGPL licensed dependencies. Please review for compatibility."
+          exit 0  # Don't fail, just warn
+        else
+          echo "No GPL/AGPL licenses found."
+        fi
+
+    - name: Generate license report
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        mkdir -p reports
+        uv run pip-licenses --format=markdown --output-file=reports/licenses.md
+        uv run pip-licenses --format=json --output-file=reports/licenses.json
+
+    - name: Upload license report
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: license-report
+        path: reports/
+        retention-days: 30

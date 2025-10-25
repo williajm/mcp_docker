@@ -221,9 +221,7 @@ class TestNetworkOperations:
         finally:
             # Cleanup
             try:
-                await mcp_server.call_tool(
-                    "docker_remove_network", {"network_id": network_name}
-                )
+                await mcp_server.call_tool("docker_remove_network", {"network_id": network_name})
             except Exception:
                 pass
 

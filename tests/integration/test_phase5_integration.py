@@ -5,7 +5,7 @@ These tests require Docker to be running and may create temporary containers.
 
 import pytest
 
-from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
+from mcp_docker.config import Config, SafetyConfig
 from mcp_docker.server import MCPDockerServer
 from mcp_docker.utils.errors import UnsafeOperationError
 from mcp_docker.utils.safety import (
@@ -42,9 +42,7 @@ class TestResourcesIntegration:
         # Should return list (may be empty if no containers exist)
 
     @pytest.mark.asyncio
-    async def test_read_logs_resource_integration(
-        self, mcp_server: MCPDockerServer
-    ) -> None:
+    async def test_read_logs_resource_integration(self, mcp_server: MCPDockerServer) -> None:
         """Test reading logs resource (requires a test container)."""
         # This test assumes there might be containers running
         # If no containers, it should handle gracefully
@@ -65,9 +63,7 @@ class TestResourcesIntegration:
                 assert content["uri"] == uri
 
     @pytest.mark.asyncio
-    async def test_read_stats_resource_integration(
-        self, mcp_server: MCPDockerServer
-    ) -> None:
+    async def test_read_stats_resource_integration(self, mcp_server: MCPDockerServer) -> None:
         """Test reading stats resource (requires a running container)."""
         resources = mcp_server.list_resources()
 
@@ -115,9 +111,7 @@ class TestPromptsIntegration:
         assert result["messages"][1]["role"] == "user"
 
     @pytest.mark.asyncio
-    async def test_get_troubleshoot_prompt_integration(
-        self, mcp_server: MCPDockerServer
-    ) -> None:
+    async def test_get_troubleshoot_prompt_integration(self, mcp_server: MCPDockerServer) -> None:
         """Test getting troubleshoot prompt (may fail if no containers)."""
         # This test will fail gracefully if no containers exist
         # It's testing the integration, not specific containers
@@ -224,7 +218,6 @@ class TestServerIntegration:
 
         # Verify tools, resources, and prompts are available
         tools = mcp_server.list_tools()
-        resources = mcp_server.list_resources()
         prompts = mcp_server.list_prompts()
 
         assert len(tools) > 0

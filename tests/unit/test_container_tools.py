@@ -409,6 +409,7 @@ class TestContainerLogsTool:
     @pytest.mark.asyncio
     async def test_get_logs_with_follow_mode(self, mock_docker_client, mock_container):
         """Test log retrieval with follow mode (generator)."""
+
         # Mock follow mode returns a generator
         def log_generator():
             yield b"log line 1\n"
@@ -433,6 +434,7 @@ class TestContainerLogsTool:
     @pytest.mark.asyncio
     async def test_get_logs_follow_mode_max_lines(self, mock_docker_client, mock_container):
         """Test log retrieval with follow mode hitting max line limit."""
+
         # Create a generator that yields more than max_lines (10000)
         def large_log_generator():
             for i in range(15000):
@@ -455,6 +457,7 @@ class TestContainerLogsTool:
     @pytest.mark.asyncio
     async def test_get_logs_follow_mode_error(self, mock_docker_client, mock_container):
         """Test log retrieval with follow mode when generator raises error."""
+
         # Create a generator that raises an error
         def failing_generator():
             yield b"log line 1\n"
