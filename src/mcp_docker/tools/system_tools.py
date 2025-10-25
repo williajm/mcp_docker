@@ -50,6 +50,7 @@ class SystemPruneInput(BaseModel):
     """Input for pruning all unused resources."""
 
     filters: dict[str, str | list[str]] | None = Field(default=None, description="Filters to apply")
+    volumes: bool = Field(default=False, description="Prune volumes in addition to other resources")
 
 
 class SystemPruneOutput(BaseModel):
@@ -238,15 +239,18 @@ class SystemPruneTool:
 
             # Only prune volumes if explicitly requested
             volumes_deleted: list[str] = []
-            if input_data.filters and input_data.filters.get("volumes"):
+            volumes_space_reclaimed = 0
+            if input_data.volumes:
                 result_volumes = self.docker_client.client.volumes.prune(filters=input_data.filters)
                 volumes_deleted = result_volumes.get("VolumesDeleted", []) or []
+                volumes_space_reclaimed = result_volumes.get("SpaceReclaimed", 0)
 
             # Calculate total space reclaimed
             space_reclaimed = (
                 result.get("SpaceReclaimed", 0)
                 + result_images.get("SpaceReclaimed", 0)
                 + result_networks.get("SpaceReclaimed", 0)
+                + volumes_space_reclaimed
             )
 
             logger.info(
