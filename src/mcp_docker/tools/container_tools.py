@@ -634,7 +634,8 @@ class ContainerLogsTool:
                         log_lines.append(line)
                         if len(log_lines) >= max_lines:
                             logger.warning(
-                                f"Reached max line limit ({max_lines}) for follow mode, stopping collection"
+                                f"Reached max line limit ({max_lines}) for follow mode, "
+                                "stopping collection"
                             )
                             break
                     logs_bytes = b"".join(log_lines)
