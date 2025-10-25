@@ -208,6 +208,6 @@ __marimo__/
 
 .idea/
 
+.claude/
+test_manual_all_tools.py
 
-# Manual test files
-test_manual_*.py
