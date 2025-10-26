@@ -58,7 +58,9 @@ class TestMCPServerE2E:
         # List prompts
         prompts = mcp_server.list_prompts()
         assert isinstance(prompts, list)
-        assert len(prompts) == 5  # troubleshoot, optimize, generate_compose, troubleshoot_compose_stack, optimize_compose_config
+        assert (
+            len(prompts) == 5
+        )  # troubleshoot, optimize, generate_compose, troubleshoot_compose_stack, optimize_compose_config
 
     @pytest.mark.asyncio
     async def test_call_tool_list_containers(self, mcp_server: MCPDockerServer) -> None:

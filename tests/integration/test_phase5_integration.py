@@ -90,7 +90,9 @@ class TestPromptsIntegration:
         """Test listing prompts from server."""
         prompts = mcp_server.list_prompts()
         assert isinstance(prompts, list)
-        assert len(prompts) == 5  # troubleshoot, optimize, generate_compose, troubleshoot_compose_stack, optimize_compose_config
+        assert (
+            len(prompts) == 5
+        )  # troubleshoot, optimize, generate_compose, troubleshoot_compose_stack, optimize_compose_config
 
         prompt_names = [p["name"] for p in prompts]
         assert "troubleshoot_container" in prompt_names
