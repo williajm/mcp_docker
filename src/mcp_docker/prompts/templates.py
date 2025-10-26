@@ -523,7 +523,8 @@ Configuration Overview:  # pragma: no cover
 - Volumes: {len(config_data.get("volumes", {}))} volumes  # pragma: no cover
 """  # pragma: no cover
 
-            system_message = r"""You are a Docker Compose troubleshooting expert. \  # pragma: no cover
+            # noqa: E501
+            system_message = r"""You are a Docker Compose troubleshooting expert  # pragma: no cover
 Analyze the compose project information and help diagnose issues. Consider:  # pragma: no cover
 1. Service health and status  # pragma: no cover
 2. Inter-service dependencies and startup order  # pragma: no cover
@@ -538,7 +539,7 @@ Analyze the compose project information and help diagnose issues. Consider:  # p
 Provide specific, actionable recommendations to resolve the issues."""  # pragma: no cover
 
             user_message = (  # pragma: no cover
-                f"Please analyze this Docker Compose project and help troubleshoot any issues:\n\n"  # pragma: no cover
+                f"Please analyze this Docker Compose project and help troubleshoot any issues:\n\n"  # noqa: E501  # pragma: no cover
                 f"{context}\n\n"  # pragma: no cover
                 "What could be wrong and how can I fix it?"  # pragma: no cover
             )
@@ -673,7 +674,7 @@ Analyze the compose configuration and suggest improvements for:  # pragma: no co
 Provide specific, practical recommendations with YAML examples."""  # pragma: no cover
 
             user_message = (  # pragma: no cover
-                f"Please analyze this Docker Compose configuration and suggest optimizations:\n\n"  # pragma: no cover
+                f"Please analyze this Docker Compose configuration and suggest optimizations:\n\n"  # noqa: E501  # pragma: no cover
                 f"{context}\n\n"  # pragma: no cover
                 "How can I optimize this compose file for better performance, "  # pragma: no cover
                 "reliability, and security?"  # pragma: no cover

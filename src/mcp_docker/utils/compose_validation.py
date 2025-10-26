@@ -538,12 +538,14 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     warnings = []
 
     # Check for complex inline code with python -c
-    if "python -c" in content and re.search(r"python -c.*[\n;]", content, re.DOTALL):  # pragma: no cover
+    if "python -c" in content and re.search(
+        r"python -c.*[\n;]", content, re.DOTALL
+    ):  # pragma: no cover
         # Look for multi-line inline code or semicolon-separated statements
         warnings.append(  # pragma: no cover
             "⚠️  Complex inline Python code detected using 'python -c'. "  # pragma: no cover
             "This is fragile and error-prone. "  # pragma: no cover
-            "Recommendation: Use a Dockerfile with a proper app.py file instead. "  # pragma: no cover
+            "Recommendation: Use a Dockerfile with a proper app.py file instead. "  # noqa: E501  # pragma: no cover
             "Example: COPY app.py /app/ then CMD ['python', '/app/app.py']"  # pragma: no cover
         )  # pragma: no cover
 
@@ -551,22 +553,24 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     if re.search(r"(node -e|ruby -e).*[\n;]", content, re.DOTALL):  # pragma: no cover
         warnings.append(  # pragma: no cover
             "⚠️  Complex inline code detected. "  # pragma: no cover
-            "Consider using a Dockerfile or mounting a script file for better maintainability."  # pragma: no cover
+            "Consider using a Dockerfile or mounting a script file for better maintainability."  # noqa: E501  # pragma: no cover
         )  # pragma: no cover
 
     # Check for long shell command chains
     if re.search(r"sh -c.*&&.*&&.*&&", content):  # pragma: no cover
         warnings.append(  # pragma: no cover
             "💡 Long command chains detected (multiple &&). "  # pragma: no cover
-            "Consider using a Dockerfile with RUN commands or an entrypoint script for clarity."  # pragma: no cover
+            "Consider using a Dockerfile with RUN commands or an entrypoint script for clarity."  # noqa: E501  # pragma: no cover
         )  # pragma: no cover
 
     # Check for database services without healthchecks
     db_patterns = {  # pragma: no cover
-        "postgres": "healthcheck:\n  test: ['CMD-SHELL', 'pg_isready -U postgres']",  # pragma: no cover
-        "mysql": ("healthcheck:\n  test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']"),  # pragma: no cover
+        "postgres": "healthcheck:\n  test: ['CMD-SHELL', 'pg_isready -U postgres']",  # noqa: E501  # pragma: no cover
+        "mysql": (
+            "healthcheck:\n  test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']"
+        ),  # pragma: no cover
         "mongodb": (  # pragma: no cover
-            "healthcheck:\n  test: ['CMD', 'mongosh', '--eval', 'db.adminCommand(\"ping\")']"  # pragma: no cover
+            "healthcheck:\n  test: ['CMD', 'mongosh', '--eval', 'db.adminCommand(\"ping\")']"  # noqa: E501  # pragma: no cover
         ),  # pragma: no cover
         "redis": "healthcheck:\n  test: ['CMD', 'redis-cli', 'ping']",  # pragma: no cover
     }  # pragma: no cover
@@ -574,16 +578,18 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     for db_name, healthcheck_example in db_patterns.items():  # pragma: no cover
         if db_name in content.lower() and "healthcheck" not in content.lower():  # pragma: no cover
             warnings.append(  # pragma: no cover
-                f"💡 {db_name.capitalize()} service detected without healthcheck. "  # pragma: no cover
+                f"💡 {db_name.capitalize()} service detected without healthcheck. "  # noqa: E501  # pragma: no cover
                 f"Recommended: {healthcheck_example}"  # pragma: no cover
             )  # pragma: no cover
 
     # Check for exposed database ports
-    if re.search(r"(postgres|mysql|mongodb).*ports.*:\s*-\s*[\"']?(\d+):", content, re.DOTALL):  # pragma: no cover
+    if re.search(
+        r"(postgres|mysql|mongodb).*ports.*:\s*-\s*[\"']?(\d+):", content, re.DOTALL
+    ):  # pragma: no cover
         warnings.append(  # pragma: no cover
             "🔒 Database port exposed externally. "  # pragma: no cover
-            "Security tip: Only expose database ports if external access is required. "  # pragma: no cover
-            "Internal services can connect via Docker networks without port exposure."  # pragma: no cover
+            "Security tip: Only expose database ports if external access is required. "  # noqa: E501  # pragma: no cover
+            "Internal services can connect via Docker networks without port exposure."  # noqa: E501  # pragma: no cover
         )  # pragma: no cover
 
     # Check for missing restart policies
@@ -601,7 +607,7 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     ):  # pragma: no cover
         warnings.append(  # pragma: no cover
             "💡 Using bind mounts (./path). "  # pragma: no cover
-            "Tip: Named volumes are more portable. Define in top-level 'volumes:' section."  # pragma: no cover
+            "Tip: Named volumes are more portable. Define in top-level 'volumes:' section."  # noqa: E501  # pragma: no cover
         )  # pragma: no cover
 
     # Check for missing networks
@@ -612,7 +618,7 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     ):  # pragma: no cover
         warnings.append(  # pragma: no cover
             "💡 Multiple services without custom network. "  # pragma: no cover
-            "Best practice: Define a custom network for better isolation and service discovery."  # pragma: no cover
+            "Best practice: Define a custom network for better isolation and service discovery."  # noqa: E501  # pragma: no cover
         )  # pragma: no cover
 
     # Check for container_name which prevents scaling
