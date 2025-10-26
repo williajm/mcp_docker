@@ -520,3 +520,93 @@ def validate_full_compose_file(
     validate_compose_networks(compose_data)
 
     return compose_data
+
+
+def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
+    """Check Docker Compose content for anti-patterns and best practices.
+
+    This validation checks for common issues that won't cause syntax errors
+    but may lead to runtime failures or poor practices.
+
+    Args:
+        content: Compose file content as string
+
+    Returns:
+        Dictionary with 'warnings' list containing best practice recommendations
+
+    """
+    import re
+
+    warnings = []
+
+    # Check for complex inline code with python -c
+    if "python -c" in content:
+        # Look for multi-line inline code or semicolon-separated statements
+        if re.search(r"python -c.*[\n;]", content, re.DOTALL):
+            warnings.append(
+                "⚠️  Complex inline Python code detected using 'python -c'. "
+                "This is fragile and error-prone. "
+                "Recommendation: Use a Dockerfile with a proper app.py file instead. "
+                "Example: COPY app.py /app/ then CMD ['python', '/app/app.py']"
+            )
+
+    # Check for other inline interpreters with complex commands
+    if re.search(r"(node -e|ruby -e).*[\n;]", content, re.DOTALL):
+        warnings.append(
+            "⚠️  Complex inline code detected. "
+            "Consider using a Dockerfile or mounting a script file for better maintainability."
+        )
+
+    # Check for long shell command chains
+    if re.search(r"sh -c.*&&.*&&.*&&", content):
+        warnings.append(
+            "💡 Long command chains detected (multiple &&). "
+            "Consider using a Dockerfile with RUN commands or an entrypoint script for clarity."
+        )
+
+    # Check for database services without healthchecks
+    db_patterns = {
+        "postgres": "healthcheck:\n  test: ['CMD-SHELL', 'pg_isready -U postgres']",
+        "mysql": "healthcheck:\n  test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']",
+        "mongodb": "healthcheck:\n  test: ['CMD', 'mongosh', '--eval', 'db.adminCommand(\"ping\")']",
+        "redis": "healthcheck:\n  test: ['CMD', 'redis-cli', 'ping']",
+    }
+
+    for db_name, healthcheck_example in db_patterns.items():
+        if db_name in content.lower() and "healthcheck" not in content.lower():
+            warnings.append(
+                f"💡 {db_name.capitalize()} service detected without healthcheck. "
+                f"Recommended: {healthcheck_example}"
+            )
+
+    # Check for exposed database ports
+    if re.search(r"(postgres|mysql|mongodb).*ports.*:\s*-\s*[\"']?(\d+):", content, re.DOTALL):
+        warnings.append(
+            "🔒 Database port exposed externally. "
+            "Security tip: Only expose database ports if external access is required. "
+            "Internal services can connect via Docker networks without port exposure."
+        )
+
+    # Check for missing restart policies
+    if "services:" in content and "restart:" not in content:
+        warnings.append(
+            "💡 No restart policy specified. "
+            "Recommendation: Add 'restart: unless-stopped' to ensure services recover from failures."
+        )
+
+    # Check for volumes without named volumes
+    if re.search(r"volumes:\s*-\s*\./", content) and "volumes:" not in content.split("services:")[-1]:
+        warnings.append(
+            "💡 Using bind mounts (./path). "
+            "Tip: Named volumes are more portable. Define in top-level 'volumes:' section."
+        )
+
+    # Check for missing networks
+    if "services:" in content and len(re.findall(r"^\s*\w+:", content, re.MULTILINE)) > 3:
+        if "networks:" not in content:
+            warnings.append(
+                "💡 Multiple services without custom network. "
+                "Best practice: Define a custom network for better isolation and service discovery."
+            )
+
+    return {"warnings": warnings}

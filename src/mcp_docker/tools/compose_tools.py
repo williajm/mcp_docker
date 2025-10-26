@@ -11,7 +11,10 @@ import yaml
 from pydantic import BaseModel, Field
 
 from mcp_docker.tools.compose_base import ComposeBaseTool
-from mcp_docker.utils.compose_validation import validate_full_compose_file
+from mcp_docker.utils.compose_validation import (
+    validate_compose_content_quality,
+    validate_full_compose_file,
+)
 from mcp_docker.utils.errors import DockerOperationError, UnsafeOperationError, ValidationError
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
@@ -1405,6 +1408,10 @@ class ComposeWriteFileOutput(BaseModel):
         default=None,
         description="Validation results if validation was performed",
     )
+    warnings: list[str] | None = Field(
+        default=None,
+        description="Best practice warnings and recommendations (non-blocking)",
+    )
 
 
 class ComposeWriteFileTool(ComposeBaseTool):
@@ -1430,9 +1437,26 @@ class ComposeWriteFileTool(ComposeBaseTool):
     def description(self) -> str:
         """Tool description."""
         return (
-            "Write a Docker Compose file to the compose_files directory. "
-            "The file is automatically validated for security and correctness. "
-            "Use this to create custom compose configurations for testing."
+            "Write a Docker Compose file to the compose_files directory with automatic validation and best practice checks.\n\n"
+            "BEST PRACTICES - Follow these for reliable services:\n"
+            "✅ DO:\n"
+            "  • Use official stable images (nginx:alpine, postgres:15-alpine, redis:7-alpine)\n"
+            "  • Add healthchecks to databases and critical services\n"
+            "  • Use named volumes for data persistence\n"
+            "  • Define custom networks for service isolation\n"
+            "  • Add restart policies (restart: unless-stopped)\n"
+            "  • Use environment variables for configuration\n\n"
+            "❌ AVOID:\n"
+            "  • Complex inline code with 'python -c', 'node -e', 'ruby -e' - these are fragile!\n"
+            "  • Multi-line commands with semicolons in command: fields\n"
+            "  • Exposing database ports externally unless required\n"
+            "  • Missing healthchecks for databases\n\n"
+            "EXAMPLES:\n"
+            "Good: image: nginx:alpine, ports: ['80:80'], volumes: ['./html:/usr/share/nginx/html']\n"
+            "Bad:  command: python -c 'from flask import Flask; app=Flask(__name__); ...' # Will likely fail!\n\n"
+            "Better approach for custom apps: Use a Dockerfile with COPY app.py /app/ and CMD ['python', '/app/app.py']\n\n"
+            "The tool validates syntax but cannot detect runtime errors in application code. "
+            "You'll receive warnings for anti-patterns and best practice recommendations."
         )
 
     @property
@@ -1556,11 +1580,23 @@ class ComposeWriteFileTool(ComposeBaseTool):
 
             logger.success(f"Successfully wrote compose file to {file_path}")
 
+            # Perform quality validation to provide best practice recommendations
+            content_str = yaml.dump(compose_data, default_flow_style=False, sort_keys=False)
+            quality_check = validate_compose_content_quality(content_str)
+            warnings = quality_check.get("warnings")
+
+            # Build result message
+            message = f"Compose file written to {file_path}"
+            if warnings:
+                logger.warning(f"Found {len(warnings)} best practice recommendations")
+                message += f". Note: {len(warnings)} best practice recommendations provided."
+
             return ComposeWriteFileOutput(
                 success=True,
                 file_path=str(file_path),
-                message=f"Compose file written to {file_path}",
+                message=message,
                 validation_result=validation_result,
+                warnings=warnings if warnings else None,
             )
 
         except ValidationError:
