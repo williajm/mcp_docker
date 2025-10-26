@@ -3,7 +3,6 @@
 These tests require Docker Compose v2 to be running and will create/remove test compose projects.
 """
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -12,7 +11,6 @@ import yaml
 from mcp_docker.compose_wrapper.client import ComposeClient
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
-from mcp_docker.utils.errors import DockerConnectionError, DockerOperationError
 
 
 @pytest.fixture
