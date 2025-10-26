@@ -8,6 +8,7 @@ from docker import DockerClient
 
 from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.version import __version__
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def server_config() -> ServerConfig:
     """Create test server configuration."""
     return ServerConfig(
         server_name="mcp-docker-test",
-        server_version="0.1.0",
+        server_version=__version__,
         log_level="DEBUG",
     )
 

@@ -4,17 +4,47 @@ This module provides tools for managing Docker volumes, including
 creating, listing, inspecting, and removing volumes.
 """
 
+import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.base import OperationSafety
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
+
+
+def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
+    """Parse JSON strings to objects (workaround for MCP client serialization bug).
+
+    Args:
+        v: The value to parse (dict or JSON string)
+        field_name: Name of the field for error messages
+
+    Returns:
+        Parsed dict if v was a string, otherwise returns v unchanged
+
+    Raises:
+        ValueError: If v is a string but not valid JSON
+    """
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            logger.warning(
+                f"Received JSON string instead of object for {field_name}, auto-parsing. "
+                "This is a workaround for MCP client serialization issues."
+            )
+            return parsed
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Received invalid JSON string for {field_name}: {v[:100]}... "
+                f"Expected an object/dict, not a string. Error: {e}"
+            ) from e
+    return v
 
 
 # Input/Output Models
@@ -24,7 +54,12 @@ class ListVolumesInput(BaseModel):
     """Input for listing volumes."""
 
     filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters to apply (e.g., {'dangling': ['true']})"
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'dangling': ['true']}, {'driver': 'local'}, "
+            "{'label': ['env=prod']}"
+        ),
     )
 
 
@@ -52,8 +87,27 @@ class CreateVolumeInput(BaseModel):
 
     name: str | None = Field(default=None, description="Volume name (auto-generated if not set)")
     driver: str = Field(default="local", description="Volume driver")
-    driver_opts: dict[str, str] | None = Field(default=None, description="Driver options")
-    labels: dict[str, str] | None = Field(default=None, description="Volume labels")
+    driver_opts: dict[str, str] | str | None = Field(
+        default=None,
+        description=(
+            "Driver-specific options as key-value pairs. "
+            "Example: {'type': 'nfs', 'device': ':/path/to/dir', 'o': 'addr=10.0.0.1'}"
+        ),
+    )
+    labels: dict[str, str] | str | None = Field(
+        default=None,
+        description=(
+            "Volume labels as key-value pairs. "
+            "Example: {'environment': 'production', 'backup': 'daily'}"
+        ),
+    )
+
+    @field_validator("driver_opts", "labels", mode="before")
+    @classmethod
+    def parse_json_strings(cls, v: Any, info: Any) -> Any:
+        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
+        field_name = info.field_name if hasattr(info, 'field_name') else "field"
+        return parse_json_string_field(v, field_name)
 
 
 class CreateVolumeOutput(BaseModel):
@@ -80,7 +134,13 @@ class RemoveVolumeOutput(BaseModel):
 class PruneVolumesInput(BaseModel):
     """Input for pruning unused volumes."""
 
-    filters: dict[str, str | list[str]] | None = Field(default=None, description="Filters to apply")
+    filters: dict[str, str | list[str]] | None = Field(
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'label': ['env=test']}, {'dangling': ['true']}"
+        ),
+    )
 
 
 class PruneVolumesOutput(BaseModel):
@@ -93,22 +153,30 @@ class PruneVolumesOutput(BaseModel):
 # Tool Implementations
 
 
-class ListVolumesTool:
+class ListVolumesTool(BaseTool):
     """List Docker volumes with optional filters."""
 
-    name = "docker_list_volumes"
-    description = "List Docker volumes with optional filters"
-    input_model = ListVolumesInput
     output_model = ListVolumesOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_list_volumes"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "List Docker volumes with optional filters"
+
+    @property
+    def input_schema(self) -> type[ListVolumesInput]:
+        """Input schema."""
+        return ListVolumesInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ListVolumesInput) -> ListVolumesOutput:
         """Execute the list volumes operation.
@@ -124,7 +192,7 @@ class ListVolumesTool:
         """
         try:
             logger.info(f"Listing volumes (filters={input_data.filters})")
-            volumes = self.docker_client.client.volumes.list(filters=input_data.filters)
+            volumes = self.docker.client.volumes.list(filters=input_data.filters)
 
             volume_list = [
                 {
@@ -145,22 +213,30 @@ class ListVolumesTool:
             raise DockerOperationError(f"Failed to list volumes: {e}") from e
 
 
-class InspectVolumeTool:
+class InspectVolumeTool(BaseTool):
     """Inspect a Docker volume to get detailed information."""
 
-    name = "docker_inspect_volume"
-    description = "Get detailed information about a Docker volume"
-    input_model = InspectVolumeInput
     output_model = InspectVolumeOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_inspect_volume"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get detailed information about a Docker volume"
+
+    @property
+    def input_schema(self) -> type[InspectVolumeInput]:
+        """Input schema."""
+        return InspectVolumeInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: InspectVolumeInput) -> InspectVolumeOutput:
         """Execute the inspect volume operation.
@@ -177,7 +253,7 @@ class InspectVolumeTool:
         """
         try:
             logger.info(f"Inspecting volume: {input_data.volume_name}")
-            volume = self.docker_client.client.volumes.get(input_data.volume_name)
+            volume = self.docker.client.volumes.get(input_data.volume_name)
             details = volume.attrs
 
             logger.info(f"Successfully inspected volume: {input_data.volume_name}")
@@ -191,22 +267,30 @@ class InspectVolumeTool:
             raise DockerOperationError(f"Failed to inspect volume: {e}") from e
 
 
-class CreateVolumeTool:
+class CreateVolumeTool(BaseTool):
     """Create a new Docker volume."""
 
-    name = "docker_create_volume"
-    description = "Create a new Docker volume"
-    input_model = CreateVolumeInput
     output_model = CreateVolumeOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_create_volume"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Create a new Docker volume"
+
+    @property
+    def input_schema(self) -> type[CreateVolumeInput]:
+        """Input schema."""
+        return CreateVolumeInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: CreateVolumeInput) -> CreateVolumeOutput:
         """Execute the create volume operation.
@@ -233,7 +317,7 @@ class CreateVolumeTool:
             if input_data.labels:
                 kwargs["labels"] = input_data.labels
 
-            volume = self.docker_client.client.volumes.create(**kwargs)
+            volume = self.docker.client.volumes.create(**kwargs)
 
             logger.info(f"Successfully created volume: {volume.name}")
             return CreateVolumeOutput(
@@ -247,22 +331,30 @@ class CreateVolumeTool:
             raise DockerOperationError(f"Failed to create volume: {e}") from e
 
 
-class RemoveVolumeTool:
+class RemoveVolumeTool(BaseTool):
     """Remove a Docker volume."""
 
-    name = "docker_remove_volume"
-    description = "Remove a Docker volume"
-    input_model = RemoveVolumeInput
     output_model = RemoveVolumeOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_remove_volume"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Remove a Docker volume"
+
+    @property
+    def input_schema(self) -> type[RemoveVolumeInput]:
+        """Input schema."""
+        return RemoveVolumeInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: RemoveVolumeInput) -> RemoveVolumeOutput:
         """Execute the remove volume operation.
@@ -280,7 +372,7 @@ class RemoveVolumeTool:
         try:
             logger.info(f"Removing volume: {input_data.volume_name} (force={input_data.force})")
 
-            volume = self.docker_client.client.volumes.get(input_data.volume_name)
+            volume = self.docker.client.volumes.get(input_data.volume_name)
             volume.remove(force=input_data.force)
 
             logger.info(f"Successfully removed volume: {input_data.volume_name}")
@@ -294,22 +386,30 @@ class RemoveVolumeTool:
             raise DockerOperationError(f"Failed to remove volume: {e}") from e
 
 
-class PruneVolumesTool:
+class PruneVolumesTool(BaseTool):
     """Remove unused Docker volumes."""
 
-    name = "docker_prune_volumes"
-    description = "Remove unused Docker volumes"
-    input_model = PruneVolumesInput
     output_model = PruneVolumesOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_prune_volumes"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Remove unused Docker volumes"
+
+    @property
+    def input_schema(self) -> type[PruneVolumesInput]:
+        """Input schema."""
+        return PruneVolumesInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: PruneVolumesInput) -> PruneVolumesOutput:
         """Execute the prune volumes operation.
@@ -326,7 +426,7 @@ class PruneVolumesTool:
         try:
             logger.info(f"Pruning volumes (filters={input_data.filters})")
 
-            result = self.docker_client.client.volumes.prune(filters=input_data.filters)
+            result = self.docker.client.volumes.prune(filters=input_data.filters)
 
             deleted = result.get("VolumesDeleted", []) or []
             space_reclaimed = result.get("SpaceReclaimed", 0)

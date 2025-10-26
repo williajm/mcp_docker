@@ -58,11 +58,11 @@ class TestListContainersTool:
     """Tests for ListContainersTool."""
 
     @pytest.mark.asyncio
-    async def test_list_containers_success(self, mock_docker_client, mock_container):
+    async def test_list_containers_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful container listing."""
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        tool = ListContainersTool(mock_docker_client)
+        tool = ListContainersTool(mock_docker_client, safety_config)
         input_data = ListContainersInput(all=True)
         result = await tool.execute(input_data)
 
@@ -73,11 +73,11 @@ class TestListContainersTool:
         mock_docker_client.client.containers.list.assert_called_once_with(all=True, filters=None)
 
     @pytest.mark.asyncio
-    async def test_list_containers_with_filters(self, mock_docker_client, mock_container):
+    async def test_list_containers_with_filters(self, mock_docker_client, safety_config, mock_container):
         """Test listing containers with filters."""
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        tool = ListContainersTool(mock_docker_client)
+        tool = ListContainersTool(mock_docker_client, safety_config)
         input_data = ListContainersInput(all=False, filters={"status": ["running"]})
         result = await tool.execute(input_data)
 
@@ -87,11 +87,11 @@ class TestListContainersTool:
         )
 
     @pytest.mark.asyncio
-    async def test_list_containers_empty(self, mock_docker_client):
+    async def test_list_containers_empty(self, mock_docker_client, safety_config):
         """Test listing when no containers exist."""
         mock_docker_client.client.containers.list.return_value = []
 
-        tool = ListContainersTool(mock_docker_client)
+        tool = ListContainersTool(mock_docker_client, safety_config)
         input_data = ListContainersInput()
         result = await tool.execute(input_data)
 
@@ -99,11 +99,11 @@ class TestListContainersTool:
         assert len(result.containers) == 0
 
     @pytest.mark.asyncio
-    async def test_list_containers_api_error(self, mock_docker_client):
+    async def test_list_containers_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.containers.list.side_effect = APIError("API error")
 
-        tool = ListContainersTool(mock_docker_client)
+        tool = ListContainersTool(mock_docker_client, safety_config)
         input_data = ListContainersInput()
 
         with pytest.raises(DockerOperationError):
@@ -114,11 +114,11 @@ class TestInspectContainerTool:
     """Tests for InspectContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_inspect_container_success(self, mock_docker_client, mock_container):
+    async def test_inspect_container_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful container inspection."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = InspectContainerTool(mock_docker_client)
+        tool = InspectContainerTool(mock_docker_client, safety_config)
         input_data = InspectContainerInput(container_id="abc123")
         result = await tool.execute(input_data)
 
@@ -127,22 +127,22 @@ class TestInspectContainerTool:
         mock_docker_client.client.containers.get.assert_called_once_with("abc123")
 
     @pytest.mark.asyncio
-    async def test_inspect_container_not_found(self, mock_docker_client):
+    async def test_inspect_container_not_found(self, mock_docker_client, safety_config):
         """Test handling of container not found."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = InspectContainerTool(mock_docker_client)
+        tool = InspectContainerTool(mock_docker_client, safety_config)
         input_data = InspectContainerInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_inspect_container_api_error(self, mock_docker_client):
+    async def test_inspect_container_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.containers.get.side_effect = APIError("API error")
 
-        tool = InspectContainerTool(mock_docker_client)
+        tool = InspectContainerTool(mock_docker_client, safety_config)
         input_data = InspectContainerInput(container_id="abc123")
 
         with pytest.raises(DockerOperationError):
@@ -153,11 +153,11 @@ class TestCreateContainerTool:
     """Tests for CreateContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_create_container_minimal(self, mock_docker_client, mock_container):
+    async def test_create_container_minimal(self, mock_docker_client, safety_config, mock_container):
         """Test creating container with minimal parameters."""
         mock_docker_client.client.containers.create.return_value = mock_container
 
-        tool = CreateContainerTool(mock_docker_client)
+        tool = CreateContainerTool(mock_docker_client, safety_config)
         input_data = CreateContainerInput(image="ubuntu:latest")
         result = await tool.execute(input_data)
 
@@ -166,11 +166,11 @@ class TestCreateContainerTool:
         mock_docker_client.client.containers.create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_container_with_options(self, mock_docker_client, mock_container):
+    async def test_create_container_with_options(self, mock_docker_client, safety_config, mock_container):
         """Test creating container with all options."""
         mock_docker_client.client.containers.create.return_value = mock_container
 
-        tool = CreateContainerTool(mock_docker_client)
+        tool = CreateContainerTool(mock_docker_client, safety_config)
         input_data = CreateContainerInput(
             image="ubuntu:latest",
             name="my_container",
@@ -190,9 +190,9 @@ class TestCreateContainerTool:
         assert call_kwargs["environment"] == {"VAR": "value"}
 
     @pytest.mark.asyncio
-    async def test_create_container_invalid_name(self, mock_docker_client):
+    async def test_create_container_invalid_name(self, mock_docker_client, safety_config):
         """Test creating container with invalid name."""
-        tool = CreateContainerTool(mock_docker_client)
+        tool = CreateContainerTool(mock_docker_client, safety_config)
         input_data = CreateContainerInput(image="ubuntu:latest", name="Invalid Name!")
 
         # Should raise ValidationError due to invalid container name
@@ -200,11 +200,11 @@ class TestCreateContainerTool:
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_create_container_api_error(self, mock_docker_client):
+    async def test_create_container_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.containers.create.side_effect = APIError("API error")
 
-        tool = CreateContainerTool(mock_docker_client)
+        tool = CreateContainerTool(mock_docker_client, safety_config)
         input_data = CreateContainerInput(image="ubuntu:latest")
 
         with pytest.raises(DockerOperationError):
@@ -215,11 +215,11 @@ class TestStartContainerTool:
     """Tests for StartContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_start_container_success(self, mock_docker_client, mock_container):
+    async def test_start_container_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful container start."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = StartContainerTool(mock_docker_client)
+        tool = StartContainerTool(mock_docker_client, safety_config)
         input_data = StartContainerInput(container_id="abc123")
         result = await tool.execute(input_data)
 
@@ -229,23 +229,23 @@ class TestStartContainerTool:
         mock_container.reload.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_start_container_not_found(self, mock_docker_client):
+    async def test_start_container_not_found(self, mock_docker_client, safety_config):
         """Test starting non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = StartContainerTool(mock_docker_client)
+        tool = StartContainerTool(mock_docker_client, safety_config)
         input_data = StartContainerInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_start_container_api_error(self, mock_docker_client, mock_container):
+    async def test_start_container_api_error(self, mock_docker_client, safety_config, mock_container):
         """Test handling of API errors."""
         mock_docker_client.client.containers.get.return_value = mock_container
         mock_container.start.side_effect = APIError("API error")
 
-        tool = StartContainerTool(mock_docker_client)
+        tool = StartContainerTool(mock_docker_client, safety_config)
         input_data = StartContainerInput(container_id="abc123")
 
         with pytest.raises(DockerOperationError):
@@ -256,12 +256,12 @@ class TestStopContainerTool:
     """Tests for StopContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_stop_container_success(self, mock_docker_client, mock_container):
+    async def test_stop_container_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful container stop."""
         mock_container.status = "exited"
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = StopContainerTool(mock_docker_client)
+        tool = StopContainerTool(mock_docker_client, safety_config)
         input_data = StopContainerInput(container_id="abc123", timeout=10)
         result = await tool.execute(input_data)
 
@@ -271,23 +271,23 @@ class TestStopContainerTool:
         mock_container.reload.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_stop_container_custom_timeout(self, mock_docker_client, mock_container):
+    async def test_stop_container_custom_timeout(self, mock_docker_client, safety_config, mock_container):
         """Test stopping container with custom timeout."""
         mock_container.status = "exited"
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = StopContainerTool(mock_docker_client)
+        tool = StopContainerTool(mock_docker_client, safety_config)
         input_data = StopContainerInput(container_id="abc123", timeout=30)
         await tool.execute(input_data)
 
         mock_container.stop.assert_called_once_with(timeout=30)
 
     @pytest.mark.asyncio
-    async def test_stop_container_not_found(self, mock_docker_client):
+    async def test_stop_container_not_found(self, mock_docker_client, safety_config):
         """Test stopping non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = StopContainerTool(mock_docker_client)
+        tool = StopContainerTool(mock_docker_client, safety_config)
         input_data = StopContainerInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
@@ -298,11 +298,11 @@ class TestRestartContainerTool:
     """Tests for RestartContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_restart_container_success(self, mock_docker_client, mock_container):
+    async def test_restart_container_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful container restart."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = RestartContainerTool(mock_docker_client)
+        tool = RestartContainerTool(mock_docker_client, safety_config)
         input_data = RestartContainerInput(container_id="abc123", timeout=10)
         result = await tool.execute(input_data)
 
@@ -312,11 +312,11 @@ class TestRestartContainerTool:
         mock_container.reload.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_restart_container_not_found(self, mock_docker_client):
+    async def test_restart_container_not_found(self, mock_docker_client, safety_config):
         """Test restarting non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = RestartContainerTool(mock_docker_client)
+        tool = RestartContainerTool(mock_docker_client, safety_config)
         input_data = RestartContainerInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
@@ -327,11 +327,11 @@ class TestRemoveContainerTool:
     """Tests for RemoveContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_remove_container_success(self, mock_docker_client, mock_container):
+    async def test_remove_container_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful container removal."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = RemoveContainerTool(mock_docker_client)
+        tool = RemoveContainerTool(mock_docker_client, safety_config)
         input_data = RemoveContainerInput(container_id="abc123")
         result = await tool.execute(input_data)
 
@@ -340,11 +340,11 @@ class TestRemoveContainerTool:
         mock_container.remove.assert_called_once_with(force=False, v=False)
 
     @pytest.mark.asyncio
-    async def test_remove_container_with_force(self, mock_docker_client, mock_container):
+    async def test_remove_container_with_force(self, mock_docker_client, safety_config, mock_container):
         """Test force removing a running container."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = RemoveContainerTool(mock_docker_client)
+        tool = RemoveContainerTool(mock_docker_client, safety_config)
         input_data = RemoveContainerInput(container_id="abc123", force=True, volumes=True)
         result = await tool.execute(input_data)
 
@@ -352,11 +352,11 @@ class TestRemoveContainerTool:
         mock_container.remove.assert_called_once_with(force=True, v=True)
 
     @pytest.mark.asyncio
-    async def test_remove_container_not_found(self, mock_docker_client):
+    async def test_remove_container_not_found(self, mock_docker_client, safety_config):
         """Test removing non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = RemoveContainerTool(mock_docker_client)
+        tool = RemoveContainerTool(mock_docker_client, safety_config)
         input_data = RemoveContainerInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
@@ -367,12 +367,12 @@ class TestContainerLogsTool:
     """Tests for ContainerLogsTool."""
 
     @pytest.mark.asyncio
-    async def test_get_logs_success(self, mock_docker_client, mock_container):
+    async def test_get_logs_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful log retrieval."""
         mock_container.logs.return_value = b"log line 1\nlog line 2\n"
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ContainerLogsTool(mock_docker_client)
+        tool = ContainerLogsTool(mock_docker_client, safety_config)
         input_data = ContainerLogsInput(container_id="abc123", tail=10)
         result = await tool.execute(input_data)
 
@@ -382,12 +382,12 @@ class TestContainerLogsTool:
         mock_container.logs.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_logs_with_timestamps(self, mock_docker_client, mock_container):
+    async def test_get_logs_with_timestamps(self, mock_docker_client, safety_config, mock_container):
         """Test log retrieval with timestamps."""
         mock_container.logs.return_value = b"2024-01-01 log line\n"
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ContainerLogsTool(mock_docker_client)
+        tool = ContainerLogsTool(mock_docker_client, safety_config)
         input_data = ContainerLogsInput(container_id="abc123", timestamps=True)
         result = await tool.execute(input_data)
 
@@ -396,18 +396,18 @@ class TestContainerLogsTool:
         assert call_kwargs["timestamps"] is True
 
     @pytest.mark.asyncio
-    async def test_get_logs_container_not_found(self, mock_docker_client):
+    async def test_get_logs_container_not_found(self, mock_docker_client, safety_config):
         """Test log retrieval for non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = ContainerLogsTool(mock_docker_client)
+        tool = ContainerLogsTool(mock_docker_client, safety_config)
         input_data = ContainerLogsInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_get_logs_with_follow_mode(self, mock_docker_client, mock_container):
+    async def test_get_logs_with_follow_mode(self, mock_docker_client, safety_config, mock_container):
         """Test log retrieval with follow mode (generator)."""
 
         # Mock follow mode returns a generator
@@ -419,7 +419,7 @@ class TestContainerLogsTool:
         mock_container.logs.return_value = log_generator()
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ContainerLogsTool(mock_docker_client)
+        tool = ContainerLogsTool(mock_docker_client, safety_config)
         input_data = ContainerLogsInput(container_id="abc123", follow=True, tail=10)
         result = await tool.execute(input_data)
 
@@ -432,7 +432,7 @@ class TestContainerLogsTool:
         assert call_kwargs["follow"] is True
 
     @pytest.mark.asyncio
-    async def test_get_logs_follow_mode_max_lines(self, mock_docker_client, mock_container):
+    async def test_get_logs_follow_mode_max_lines(self, mock_docker_client, safety_config, mock_container):
         """Test log retrieval with follow mode hitting max line limit."""
 
         # Create a generator that yields more than max_lines (10000)
@@ -443,7 +443,7 @@ class TestContainerLogsTool:
         mock_container.logs.return_value = large_log_generator()
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ContainerLogsTool(mock_docker_client)
+        tool = ContainerLogsTool(mock_docker_client, safety_config)
         input_data = ContainerLogsInput(container_id="abc123", follow=True)
         result = await tool.execute(input_data)
 
@@ -455,7 +455,7 @@ class TestContainerLogsTool:
         assert result.container_id == "abc123def456"
 
     @pytest.mark.asyncio
-    async def test_get_logs_follow_mode_error(self, mock_docker_client, mock_container):
+    async def test_get_logs_follow_mode_error(self, mock_docker_client, safety_config, mock_container):
         """Test log retrieval with follow mode when generator raises error."""
 
         # Create a generator that raises an error
@@ -466,7 +466,7 @@ class TestContainerLogsTool:
         mock_container.logs.return_value = failing_generator()
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ContainerLogsTool(mock_docker_client)
+        tool = ContainerLogsTool(mock_docker_client, safety_config)
         input_data = ContainerLogsInput(container_id="abc123", follow=True)
         result = await tool.execute(input_data)
 
@@ -480,12 +480,12 @@ class TestExecCommandTool:
     """Tests for ExecCommandTool."""
 
     @pytest.mark.asyncio
-    async def test_exec_command_success(self, mock_docker_client, mock_container):
+    async def test_exec_command_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful command execution."""
         mock_container.exec_run.return_value = (0, b"command output")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ExecCommandTool(mock_docker_client)
+        tool = ExecCommandTool(mock_docker_client, safety_config)
         input_data = ExecCommandInput(container_id="abc123", command="echo hello")
         result = await tool.execute(input_data)
 
@@ -494,12 +494,12 @@ class TestExecCommandTool:
         mock_container.exec_run.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_exec_command_with_options(self, mock_docker_client, mock_container):
+    async def test_exec_command_with_options(self, mock_docker_client, safety_config, mock_container):
         """Test command execution with additional options."""
         mock_container.exec_run.return_value = (0, b"output")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ExecCommandTool(mock_docker_client)
+        tool = ExecCommandTool(mock_docker_client, safety_config)
         input_data = ExecCommandInput(
             container_id="abc123",
             command="ls",
@@ -517,12 +517,12 @@ class TestExecCommandTool:
         assert call_kwargs["privileged"] is True
 
     @pytest.mark.asyncio
-    async def test_exec_command_non_zero_exit(self, mock_docker_client, mock_container):
+    async def test_exec_command_non_zero_exit(self, mock_docker_client, safety_config, mock_container):
         """Test command execution with non-zero exit code."""
         mock_container.exec_run.return_value = (1, b"error output")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ExecCommandTool(mock_docker_client)
+        tool = ExecCommandTool(mock_docker_client, safety_config)
         input_data = ExecCommandInput(container_id="abc123", command="false")
         result = await tool.execute(input_data)
 
@@ -530,11 +530,11 @@ class TestExecCommandTool:
         assert result.output == "error output"
 
     @pytest.mark.asyncio
-    async def test_exec_command_container_not_found(self, mock_docker_client):
+    async def test_exec_command_container_not_found(self, mock_docker_client, safety_config):
         """Test command execution on non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = ExecCommandTool(mock_docker_client)
+        tool = ExecCommandTool(mock_docker_client, safety_config)
         input_data = ExecCommandInput(container_id="nonexistent", command="echo test")
 
         with pytest.raises(ContainerNotFound):
@@ -545,7 +545,7 @@ class TestContainerStatsTool:
     """Tests for ContainerStatsTool."""
 
     @pytest.mark.asyncio
-    async def test_get_stats_success(self, mock_docker_client, mock_container):
+    async def test_get_stats_success(self, mock_docker_client, safety_config, mock_container):
         """Test successful stats retrieval."""
         stats_data = {
             "cpu_stats": {"cpu_usage": {"total_usage": 1000000}},
@@ -555,7 +555,7 @@ class TestContainerStatsTool:
         mock_container.stats.return_value = stats_data
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        tool = ContainerStatsTool(mock_docker_client)
+        tool = ContainerStatsTool(mock_docker_client, safety_config)
         input_data = ContainerStatsInput(container_id="abc123", stream=False)
         result = await tool.execute(input_data)
 
@@ -565,23 +565,23 @@ class TestContainerStatsTool:
         mock_container.stats.assert_called_once_with(stream=False, decode=True)
 
     @pytest.mark.asyncio
-    async def test_get_stats_container_not_found(self, mock_docker_client):
+    async def test_get_stats_container_not_found(self, mock_docker_client, safety_config):
         """Test stats retrieval for non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        tool = ContainerStatsTool(mock_docker_client)
+        tool = ContainerStatsTool(mock_docker_client, safety_config)
         input_data = ContainerStatsInput(container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_get_stats_api_error(self, mock_docker_client, mock_container):
+    async def test_get_stats_api_error(self, mock_docker_client, safety_config, mock_container):
         """Test handling of API errors during stats retrieval."""
         mock_docker_client.client.containers.get.return_value = mock_container
         mock_container.stats.side_effect = APIError("API error")
 
-        tool = ContainerStatsTool(mock_docker_client)
+        tool = ContainerStatsTool(mock_docker_client, safety_config)
         input_data = ContainerStatsInput(container_id="abc123")
 
         with pytest.raises(DockerOperationError):

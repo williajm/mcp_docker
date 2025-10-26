@@ -9,15 +9,44 @@ from typing import Any
 
 from docker.errors import APIError, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.base import OperationSafety
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
+
+
+def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
+    """Parse JSON strings to objects (workaround for MCP client serialization bug).
+
+    Args:
+        v: The value to parse (dict or JSON string)
+        field_name: Name of the field for error messages
+
+    Returns:
+        Parsed dict if v was a string, otherwise returns v unchanged
+
+    Raises:
+        ValueError: If v is a string but not valid JSON
+    """
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            logger.warning(
+                f"Received JSON string instead of object for {field_name}, auto-parsing. "
+                "This is a workaround for MCP client serialization issues."
+            )
+            return parsed
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Received invalid JSON string for {field_name}: {v[:100]}... "
+                f"Expected an object/dict, not a string. Error: {e}"
+            ) from e
+    return v
 
 
 # Input/Output Models
@@ -28,7 +57,12 @@ class ListImagesInput(BaseModel):
 
     all: bool = Field(default=False, description="Show all images including intermediates")
     filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters to apply (e.g., {'dangling': ['true']})"
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'dangling': ['true']}, {'reference': 'ubuntu:*'}, "
+            "{'label': ['maintainer=myname']}"
+        ),
     )
 
 
@@ -74,10 +108,23 @@ class BuildImageInput(BaseModel):
     path: str = Field(description="Path to build context")
     tag: str | None = Field(default=None, description="Tag for the image")
     dockerfile: str = Field(default="Dockerfile", description="Path to Dockerfile")
-    buildargs: dict[str, str] | None = Field(default=None, description="Build arguments")
+    buildargs: dict[str, str] | str | None = Field(
+        default=None,
+        description=(
+            "Build arguments as key-value pairs. "
+            "Example: {'NODE_VERSION': '18', 'ENVIRONMENT': 'production'}"
+        ),
+    )
     nocache: bool = Field(default=False, description="Do not use cache")
     rm: bool = Field(default=True, description="Remove intermediate containers")
     pull: bool = Field(default=False, description="Always pull newer base images")
+
+    @field_validator("buildargs", mode="before")
+    @classmethod
+    def parse_buildargs_json(cls, v: Any, info: Any) -> Any:
+        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
+        field_name = info.field_name if hasattr(info, 'field_name') else "buildargs"
+        return parse_json_string_field(v, field_name)
 
 
 class BuildImageOutput(BaseModel):
@@ -135,7 +182,12 @@ class PruneImagesInput(BaseModel):
     """Input for pruning unused images."""
 
     filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters (e.g., {'dangling': ['true']})"
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'dangling': ['true']}, {'until': '24h'}, "
+            "{'label': ['env=test']}"
+        ),
     )
 
 
@@ -161,22 +213,30 @@ class ImageHistoryOutput(BaseModel):
 # Tool Implementations
 
 
-class ListImagesTool:
+class ListImagesTool(BaseTool):
     """List Docker images with optional filters."""
 
-    name = "docker_list_images"
-    description = "List Docker images with optional filters"
-    input_model = ListImagesInput
     output_model = ListImagesOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_list_images"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "List Docker images with optional filters"
+
+    @property
+    def input_schema(self) -> type[ListImagesInput]:
+        """Input schema."""
+        return ListImagesInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ListImagesInput) -> ListImagesOutput:
         """Execute the list images operation.
@@ -192,7 +252,7 @@ class ListImagesTool:
         """
         try:
             logger.info(f"Listing images (all={input_data.all}, filters={input_data.filters})")
-            images = self.docker_client.client.images.list(
+            images = self.docker.client.images.list(
                 all=input_data.all, filters=input_data.filters
             )
 
@@ -215,22 +275,30 @@ class ListImagesTool:
             raise DockerOperationError(f"Failed to list images: {e}") from e
 
 
-class InspectImageTool:
+class InspectImageTool(BaseTool):
     """Inspect a Docker image to get detailed information."""
 
-    name = "docker_inspect_image"
-    description = "Get detailed information about a Docker image"
-    input_model = InspectImageInput
     output_model = InspectImageOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_inspect_image"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get detailed information about a Docker image"
+
+    @property
+    def input_schema(self) -> type[InspectImageInput]:
+        """Input schema."""
+        return InspectImageInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: InspectImageInput) -> InspectImageOutput:
         """Execute the inspect image operation.
@@ -247,7 +315,7 @@ class InspectImageTool:
         """
         try:
             logger.info(f"Inspecting image: {input_data.image_name}")
-            image = self.docker_client.client.images.get(input_data.image_name)
+            image = self.docker.client.images.get(input_data.image_name)
             details = image.attrs
 
             logger.info(f"Successfully inspected image: {input_data.image_name}")
@@ -261,22 +329,30 @@ class InspectImageTool:
             raise DockerOperationError(f"Failed to inspect image: {e}") from e
 
 
-class PullImageTool:
+class PullImageTool(BaseTool):
     """Pull a Docker image from a registry."""
 
-    name = "docker_pull_image"
-    description = "Pull a Docker image from a registry"
-    input_model = PullImageInput
     output_model = PullImageOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_pull_image"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Pull a Docker image from a registry"
+
+    @property
+    def input_schema(self) -> type[PullImageInput]:
+        """Input schema."""
+        return PullImageInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: PullImageInput) -> PullImageOutput:
         """Execute the pull image operation.
@@ -304,7 +380,7 @@ class PullImageTool:
             if input_data.platform:
                 kwargs["platform"] = input_data.platform
 
-            image = self.docker_client.client.images.pull(**kwargs)
+            image = self.docker.client.images.pull(**kwargs)
 
             logger.info(f"Successfully pulled image: {input_data.image}")
             return PullImageOutput(image=input_data.image, id=str(image.id), tags=image.tags)
@@ -314,22 +390,30 @@ class PullImageTool:
             raise DockerOperationError(f"Failed to pull image: {e}") from e
 
 
-class BuildImageTool:
+class BuildImageTool(BaseTool):
     """Build a Docker image from a Dockerfile."""
 
-    name = "docker_build_image"
-    description = "Build a Docker image from a Dockerfile"
-    input_model = BuildImageInput
     output_model = BuildImageOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_build_image"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Build a Docker image from a Dockerfile"
+
+    @property
+    def input_schema(self) -> type[BuildImageInput]:
+        """Input schema."""
+        return BuildImageInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: BuildImageInput) -> BuildImageOutput:
         """Execute the build image operation.
@@ -362,7 +446,7 @@ class BuildImageTool:
             if input_data.buildargs:
                 kwargs["buildargs"] = input_data.buildargs
 
-            image, build_logs = self.docker_client.client.images.build(**kwargs)
+            image, build_logs = self.docker.client.images.build(**kwargs)
 
             # Extract log messages
             log_messages = []
@@ -380,22 +464,30 @@ class BuildImageTool:
             raise DockerOperationError(f"Failed to build image: {e}") from e
 
 
-class PushImageTool:
+class PushImageTool(BaseTool):
     """Push a Docker image to a registry."""
 
-    name = "docker_push_image"
-    description = "Push a Docker image to a registry"
-    input_model = PushImageInput
     output_model = PushImageOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_push_image"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Push a Docker image to a registry"
+
+    @property
+    def input_schema(self) -> type[PushImageInput]:
+        """Input schema."""
+        return PushImageInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: PushImageInput) -> PushImageOutput:
         """Execute the push image operation.
@@ -421,7 +513,7 @@ class PushImageTool:
                 kwargs["tag"] = input_data.tag
 
             # Push returns a generator of status updates (JSON strings)
-            push_stream = self.docker_client.client.images.push(**kwargs)
+            push_stream = self.docker.client.images.push(**kwargs)
 
             # Parse the stream to check for errors and get final status
             last_status = None
@@ -459,22 +551,30 @@ class PushImageTool:
             raise DockerOperationError(f"Failed to push image: {e}") from e
 
 
-class TagImageTool:
+class TagImageTool(BaseTool):
     """Tag a Docker image."""
 
-    name = "docker_tag_image"
-    description = "Tag a Docker image"
-    input_model = TagImageInput
     output_model = TagImageOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_tag_image"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Tag a Docker image"
+
+    @property
+    def input_schema(self) -> type[TagImageInput]:
+        """Input schema."""
+        return TagImageInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: TagImageInput) -> TagImageOutput:
         """Execute the tag image operation.
@@ -496,7 +596,7 @@ class TagImageTool:
                 f"Tagging image: {input_data.image} as {input_data.repository}:{input_data.tag}"
             )
 
-            image = self.docker_client.client.images.get(input_data.image)
+            image = self.docker.client.images.get(input_data.image)
             image.tag(repository=input_data.repository, tag=input_data.tag)
 
             target = f"{input_data.repository}:{input_data.tag}"
@@ -511,22 +611,30 @@ class TagImageTool:
             raise DockerOperationError(f"Failed to tag image: {e}") from e
 
 
-class RemoveImageTool:
+class RemoveImageTool(BaseTool):
     """Remove a Docker image."""
 
-    name = "docker_remove_image"
-    description = "Remove a Docker image"
-    input_model = RemoveImageInput
     output_model = RemoveImageOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_remove_image"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Remove a Docker image"
+
+    @property
+    def input_schema(self) -> type[RemoveImageInput]:
+        """Input schema."""
+        return RemoveImageInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: RemoveImageInput) -> RemoveImageOutput:
         """Execute the remove image operation.
@@ -547,7 +655,7 @@ class RemoveImageTool:
                 f"noprune={input_data.noprune})"
             )
 
-            self.docker_client.client.images.remove(
+            self.docker.client.images.remove(
                 image=input_data.image, force=input_data.force, noprune=input_data.noprune
             )
 
@@ -562,22 +670,30 @@ class RemoveImageTool:
             raise DockerOperationError(f"Failed to remove image: {e}") from e
 
 
-class PruneImagesTool:
+class PruneImagesTool(BaseTool):
     """Remove unused Docker images."""
 
-    name = "docker_prune_images"
-    description = "Remove unused Docker images"
-    input_model = PruneImagesInput
     output_model = PruneImagesOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_prune_images"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Remove unused Docker images"
+
+    @property
+    def input_schema(self) -> type[PruneImagesInput]:
+        """Input schema."""
+        return PruneImagesInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: PruneImagesInput) -> PruneImagesOutput:
         """Execute the prune images operation.
@@ -594,7 +710,7 @@ class PruneImagesTool:
         try:
             logger.info(f"Pruning images (filters={input_data.filters})")
 
-            result = self.docker_client.client.images.prune(filters=input_data.filters)
+            result = self.docker.client.images.prune(filters=input_data.filters)
 
             deleted = result.get("ImagesDeleted") or []
             space_reclaimed = result.get("SpaceReclaimed", 0)
@@ -609,22 +725,30 @@ class PruneImagesTool:
             raise DockerOperationError(f"Failed to prune images: {e}") from e
 
 
-class ImageHistoryTool:
+class ImageHistoryTool(BaseTool):
     """View the history of a Docker image."""
 
-    name = "docker_image_history"
-    description = "View the history of a Docker image"
-    input_model = ImageHistoryInput
     output_model = ImageHistoryOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_image_history"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "View the history of a Docker image"
+
+    @property
+    def input_schema(self) -> type[ImageHistoryInput]:
+        """Input schema."""
+        return ImageHistoryInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ImageHistoryInput) -> ImageHistoryOutput:
         """Execute the image history operation.
@@ -642,7 +766,7 @@ class ImageHistoryTool:
         try:
             logger.info(f"Getting history for image: {input_data.image}")
 
-            image = self.docker_client.client.images.get(input_data.image)
+            image = self.docker.client.images.get(input_data.image)
             history = image.history()
 
             logger.info(f"Successfully retrieved history for image: {input_data.image}")

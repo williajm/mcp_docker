@@ -20,6 +20,7 @@ from starlette.routing import Route
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 from mcp_docker.utils.logger import get_logger, setup_logger
+from mcp_docker.version import __version__, get_full_version
 
 # Load configuration
 config = Config()
@@ -31,16 +32,19 @@ log_file = Path(log_path) if log_path else Path("mcp_docker.log")
 setup_logger(config.server, log_file)
 
 logger = get_logger(__name__)
+full_version = get_full_version()
 logger.info("=" * 60)
-logger.info("MCP Docker Server Initializing")
+logger.info(f"MCP Docker Server v{full_version} Initializing")
 logger.info("=" * 60)
+logger.info(f"Package version: {__version__}")
+logger.info(f"Full version string: {full_version}")
 logger.info(f"Configuration: {config}")
 
 # Create Docker server wrapper
 docker_server = MCPDockerServer(config)
 
-# Create MCP server
-mcp_server = Server("mcp-docker")
+# Create MCP server with version
+mcp_server = Server("mcp-docker", version=full_version)
 
 logger.info(f"Docker server initialized with {len(docker_server.tools)} tools")
 
