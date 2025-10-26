@@ -25,7 +25,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **2 Resources**: Real-time container logs and resource statistics
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
-- **Comprehensive Testing**: 90%+ test coverage with unit, integration, and performance tests
+- **Comprehensive Testing**: 90%+ test coverage with unit and integration tests
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
 ## Quick Start
@@ -314,9 +314,6 @@ uv run pytest tests/unit/ -v
 
 # Run integration tests (requires Docker)
 uv run pytest tests/integration/ -v -m integration
-
-# Run performance tests
-uv run pytest tests/performance/ -v
 ```
 
 ### Project Structure

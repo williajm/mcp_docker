@@ -977,28 +977,7 @@ async def test_container(docker_client_wrapper):
     container.remove()
 ```
 
-### 5.5 Performance Testing
-
-**Benchmarks**: Track operation performance over time.
-
-```python
-@pytest.mark.performance
-def test_list_containers_performance(benchmark, docker_client_wrapper):
-    """Benchmark container listing performance."""
-    tool = ListContainersTool(docker_client_wrapper)
-
-    # Benchmark the operation
-    result = benchmark(
-        lambda: asyncio.run(tool.execute({"all": False}))
-    )
-
-    # Performance assertions
-    assert result.success is True
-    assert benchmark.stats.mean < 0.1  # <100ms average
-    assert benchmark.stats.max < 0.5   # <500ms worst case
-```
-
-### 5.6 Coverage Strategy
+### 5.5 Coverage Strategy
 
 **Coverage Targets**:
 - **Overall**: 90%+ coverage
@@ -1432,38 +1411,7 @@ def list_containers_batch(
     ]
 ```
 
-### 7.6 Performance Testing
-
-**Benchmark Suite**:
-```python
-@pytest.mark.performance
-def test_list_containers_performance(benchmark):
-    """Benchmark container listing."""
-    tool = ListContainersTool(docker_client)
-
-    result = benchmark(
-        lambda: asyncio.run(tool.execute({"all": False}))
-    )
-
-    # Assertions
-    assert benchmark.stats.mean < 0.1  # <100ms average
-    assert benchmark.stats.max < 0.5   # <500ms worst case
-
-@pytest.mark.performance
-def test_concurrent_operations(benchmark):
-    """Test multiple concurrent tool calls."""
-    async def concurrent_calls():
-        tasks = [
-            tool.execute({"all": False})
-            for _ in range(10)
-        ]
-        return await asyncio.gather(*tasks)
-
-    result = benchmark(lambda: asyncio.run(concurrent_calls()))
-    assert benchmark.stats.mean < 1.0  # <1s for 10 concurrent calls
-```
-
-### 7.7 Performance Monitoring
+### 7.6 Performance Monitoring
 
 **Logging Performance Metrics**:
 ```python
