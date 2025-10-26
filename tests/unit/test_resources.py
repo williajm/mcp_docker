@@ -1,11 +1,15 @@
 """Unit tests for resource providers."""
 
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
+from mcp_docker.compose_wrapper.client import ComposeClient
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.resources.providers import (
+    ComposeConfigResource,
+    ComposeServiceLogsResource,
+    ComposeServicesResource,
     ContainerLogsResource,
     ContainerStatsResource,
     ResourceProvider,
@@ -22,6 +26,12 @@ def mock_docker_client() -> DockerClientWrapper:
 
 
 @pytest.fixture
+def mock_compose_client() -> ComposeClient:
+    """Create a mock Compose client."""
+    return Mock(spec=ComposeClient)
+
+
+@pytest.fixture
 def logs_resource(mock_docker_client: DockerClientWrapper) -> ContainerLogsResource:
     """Create a container logs resource."""
     return ContainerLogsResource(mock_docker_client)
@@ -31,6 +41,24 @@ def logs_resource(mock_docker_client: DockerClientWrapper) -> ContainerLogsResou
 def stats_resource(mock_docker_client: DockerClientWrapper) -> ContainerStatsResource:
     """Create a container stats resource."""
     return ContainerStatsResource(mock_docker_client)
+
+
+@pytest.fixture
+def compose_config_resource(mock_compose_client: ComposeClient) -> ComposeConfigResource:
+    """Create a compose config resource."""
+    return ComposeConfigResource(mock_compose_client)
+
+
+@pytest.fixture
+def compose_services_resource(mock_compose_client: ComposeClient) -> ComposeServicesResource:
+    """Create a compose services resource."""
+    return ComposeServicesResource(mock_compose_client)
+
+
+@pytest.fixture
+def compose_logs_resource(mock_compose_client: ComposeClient) -> ComposeServiceLogsResource:
+    """Create a compose service logs resource."""
+    return ComposeServiceLogsResource(mock_compose_client)
 
 
 @pytest.fixture
@@ -111,6 +139,44 @@ class TestContainerLogsResource:
 
         with pytest.raises(MCPDockerError, match="Failed to get container logs"):
             await logs_resource.read("abc123")
+
+    @pytest.mark.asyncio
+    async def test_read_logs_with_follow(
+        self, logs_resource: ContainerLogsResource, mock_docker_client: DockerClientWrapper
+    ) -> None:
+        """Test reading container logs with follow mode (generator)."""
+        # Mock container with generator logs
+        mock_container = MagicMock()
+        # Simulate generator returning log lines
+        mock_container.logs.return_value = iter([b"line 1\n", b"line 2\n", b"line 3\n"])
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        # Read logs with follow mode
+        content = await logs_resource.read("abc123", follow=True)
+
+        assert content.uri == "container://logs/abc123"
+        assert content.mime_type == "text/plain"
+        assert content.text == "line 1\nline 2\nline 3\n"
+
+        # Verify calls
+        mock_docker_client.client.containers.get.assert_called_once_with("abc123")
+        mock_container.logs.assert_called_once_with(tail=100, follow=True)
+
+    @pytest.mark.asyncio
+    async def test_read_logs_with_follow_string_items(
+        self, logs_resource: ContainerLogsResource, mock_docker_client: DockerClientWrapper
+    ) -> None:
+        """Test reading container logs with follow mode returning string items."""
+        # Mock container with generator logs as strings
+        mock_container = MagicMock()
+        # Simulate generator returning string items (non-bytes)
+        mock_container.logs.return_value = iter(["string line 1\n", "string line 2\n"])
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        # Read logs with follow mode
+        content = await logs_resource.read("abc123", follow=True)
+
+        assert content.text == "string line 1\nstring line 2\n"
 
 
 class TestContainerStatsResource:
@@ -294,3 +360,352 @@ class TestResourceProvider:
         """Test getting metadata for unknown resource scheme."""
         with pytest.raises(ValueError, match="Unknown resource URI scheme"):
             resource_provider.get_resource_metadata("unknown://resource")
+
+
+class TestComposeConfigResource:
+    """Test compose config resource."""
+
+    def test_get_uri(self, compose_config_resource: ComposeConfigResource) -> None:
+        """Test getting resource URI."""
+        uri = compose_config_resource.get_uri("myproject")
+        assert uri == "compose://config/myproject"
+
+    def test_get_metadata(self, compose_config_resource: ComposeConfigResource) -> None:
+        """Test getting resource metadata."""
+        metadata = compose_config_resource.get_metadata("myproject")
+        assert metadata.uri == "compose://config/myproject"
+        assert "myproject" in metadata.name
+        assert "myproject" in metadata.description
+        assert metadata.mime_type == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_read_success(
+        self, compose_config_resource: ComposeConfigResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose config successfully."""
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "data": {"version": "3.8", "services": {"web": {"image": "nginx"}}},
+        }
+
+        content = await compose_config_resource.read("myproject")
+
+        assert content.uri == "compose://config/myproject"
+        assert content.mime_type == "application/json"
+        assert "nginx" in content.text
+        mock_compose_client.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_failure(
+        self, compose_config_resource: ComposeConfigResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose config with failure."""
+        mock_compose_client.execute.return_value = {
+            "success": False,
+            "stderr": "Project not found",
+        }
+
+        with pytest.raises(MCPDockerError, match="Failed to get config"):
+            await compose_config_resource.read("myproject")
+
+    @pytest.mark.asyncio
+    async def test_read_exception(
+        self, compose_config_resource: ComposeConfigResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose config with exception."""
+        mock_compose_client.execute.side_effect = Exception("Connection error")
+
+        with pytest.raises(MCPDockerError, match="Failed to get compose config"):
+            await compose_config_resource.read("myproject")
+
+
+class TestComposeServicesResource:
+    """Test compose services resource."""
+
+    def test_get_uri(self, compose_services_resource: ComposeServicesResource) -> None:
+        """Test getting resource URI."""
+        uri = compose_services_resource.get_uri("myproject")
+        assert uri == "compose://services/myproject"
+
+    def test_get_metadata(self, compose_services_resource: ComposeServicesResource) -> None:
+        """Test getting resource metadata."""
+        metadata = compose_services_resource.get_metadata("myproject")
+        assert metadata.uri == "compose://services/myproject"
+        assert "myproject" in metadata.name
+        assert metadata.mime_type == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_read_success(
+        self,
+        compose_services_resource: ComposeServicesResource,
+        mock_compose_client: ComposeClient,
+    ) -> None:
+        """Test reading compose services successfully."""
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "data": [{"Name": "web", "State": "running"}, {"Name": "db", "State": "running"}],
+        }
+
+        content = await compose_services_resource.read("myproject")
+
+        assert content.uri == "compose://services/myproject"
+        assert content.mime_type == "application/json"
+        assert "web" in content.text
+        assert "db" in content.text
+        mock_compose_client.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_failure(
+        self,
+        compose_services_resource: ComposeServicesResource,
+        mock_compose_client: ComposeClient,
+    ) -> None:
+        """Test reading compose services with failure."""
+        mock_compose_client.execute.return_value = {
+            "success": False,
+            "stderr": "Project not found",
+        }
+
+        with pytest.raises(MCPDockerError, match="Failed to get services"):
+            await compose_services_resource.read("myproject")
+
+    @pytest.mark.asyncio
+    async def test_read_exception(
+        self,
+        compose_services_resource: ComposeServicesResource,
+        mock_compose_client: ComposeClient,
+    ) -> None:
+        """Test reading compose services with exception."""
+        mock_compose_client.execute.side_effect = Exception("Connection error")
+
+        with pytest.raises(MCPDockerError, match="Failed to get compose services"):
+            await compose_services_resource.read("myproject")
+
+
+class TestComposeServiceLogsResource:
+    """Test compose service logs resource."""
+
+    def test_get_uri(self, compose_logs_resource: ComposeServiceLogsResource) -> None:
+        """Test getting resource URI."""
+        uri = compose_logs_resource.get_uri("myproject", "web")
+        assert uri == "compose://logs/myproject/web"
+
+    def test_get_metadata(self, compose_logs_resource: ComposeServiceLogsResource) -> None:
+        """Test getting resource metadata."""
+        metadata = compose_logs_resource.get_metadata("myproject", "web")
+        assert metadata.uri == "compose://logs/myproject/web"
+        assert "myproject" in metadata.name
+        assert "web" in metadata.name
+        assert metadata.mime_type == "text/plain"
+
+    @pytest.mark.asyncio
+    async def test_read_success(
+        self, compose_logs_resource: ComposeServiceLogsResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose service logs successfully."""
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "stdout": "log line 1\nlog line 2\n",
+        }
+
+        content = await compose_logs_resource.read("myproject", "web")
+
+        assert content.uri == "compose://logs/myproject/web"
+        assert content.mime_type == "text/plain"
+        assert "log line 1" in content.text
+        mock_compose_client.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_with_tail(
+        self, compose_logs_resource: ComposeServiceLogsResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose service logs with custom tail."""
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "stdout": "recent log\n",
+        }
+
+        await compose_logs_resource.read("myproject", "web", tail=50)
+
+        # Verify tail was passed in args
+        call_args = mock_compose_client.execute.call_args
+        assert "--tail" in call_args[1]["args"]
+        assert "50" in call_args[1]["args"]
+
+    @pytest.mark.asyncio
+    async def test_read_failure(
+        self, compose_logs_resource: ComposeServiceLogsResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose service logs with failure."""
+        mock_compose_client.execute.return_value = {
+            "success": False,
+            "stderr": "Service not found",
+        }
+
+        with pytest.raises(MCPDockerError, match="Failed to get logs"):
+            await compose_logs_resource.read("myproject", "web")
+
+    @pytest.mark.asyncio
+    async def test_read_exception(
+        self, compose_logs_resource: ComposeServiceLogsResource, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose service logs with exception."""
+        mock_compose_client.execute.side_effect = Exception("Connection error")
+
+        with pytest.raises(MCPDockerError, match="Failed to get compose service logs"):
+            await compose_logs_resource.read("myproject", "web")
+
+
+class TestResourceProviderCompose:
+    """Test resource provider compose-related methods."""
+
+    @pytest.mark.asyncio
+    async def test_read_resource_compose_config(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose config resource."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "data": {"services": {"web": {}}},
+        }
+
+        content = await resource_provider.read_resource("compose://config/myproject")
+
+        assert content.uri == "compose://config/myproject"
+        assert content.mime_type == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_read_resource_compose_services(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose services resource."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "data": [{"Name": "web"}],
+        }
+
+        content = await resource_provider.read_resource("compose://services/myproject")
+
+        assert content.uri == "compose://services/myproject"
+        assert content.mime_type == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_read_resource_compose_logs(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose service logs resource."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+        mock_compose_client.execute.return_value = {
+            "success": True,
+            "stdout": "service logs",
+        }
+
+        content = await resource_provider.read_resource("compose://logs/myproject/web")
+
+        assert content.uri == "compose://logs/myproject/web"
+        assert content.text == "service logs"
+
+    @pytest.mark.asyncio
+    async def test_read_resource_compose_logs_invalid_uri(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test reading compose logs with invalid URI."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+
+        with pytest.raises(ValueError, match="Invalid compose logs URI"):
+            await resource_provider.read_resource("compose://logs/myproject")  # Missing service
+
+    def test_get_resource_metadata_compose_config(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test getting metadata for compose config resource."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+        metadata = resource_provider.get_resource_metadata("compose://config/myproject")
+
+        assert metadata.uri == "compose://config/myproject"
+        assert metadata.mime_type == "application/json"
+
+    def test_get_resource_metadata_compose_services(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test getting metadata for compose services resource."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+        metadata = resource_provider.get_resource_metadata("compose://services/myproject")
+
+        assert metadata.uri == "compose://services/myproject"
+        assert metadata.mime_type == "application/json"
+
+    def test_get_resource_metadata_compose_logs(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test getting metadata for compose service logs resource."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+        metadata = resource_provider.get_resource_metadata("compose://logs/myproject/web")
+
+        assert metadata.uri == "compose://logs/myproject/web"
+        assert metadata.mime_type == "text/plain"
+
+    def test_get_resource_metadata_compose_logs_invalid_uri(
+        self, mock_docker_client: DockerClientWrapper, mock_compose_client: ComposeClient
+    ) -> None:
+        """Test getting metadata for compose logs with invalid URI."""
+        resource_provider = ResourceProvider(mock_docker_client, mock_compose_client)
+
+        with pytest.raises(ValueError, match="Invalid compose logs URI"):
+            resource_provider.get_resource_metadata("compose://logs/myproject")
+
+    def test_resolve_compose_file_from_query_params(
+        self, mock_docker_client: DockerClientWrapper
+    ) -> None:
+        """Test resolving compose file from query parameters."""
+        resource_provider = ResourceProvider(mock_docker_client)
+
+        with patch("pathlib.Path.exists", return_value=True):
+            compose_file = resource_provider._resolve_compose_file(
+                "myproject", {"file": ["/tmp/docker-compose.yml"]}
+            )
+            assert compose_file == "/tmp/docker-compose.yml"
+
+    def test_resolve_compose_file_from_directory(
+        self, mock_docker_client: DockerClientWrapper
+    ) -> None:
+        """Test resolving compose file from compose_files directory."""
+        resource_provider = ResourceProvider(mock_docker_client)
+
+        # Mock the file system to simulate finding a compose file
+        with patch("pathlib.Path.exists") as mock_exists:
+            # First call for compose_dir.exists(), then for exact_match.exists()
+            mock_exists.side_effect = [True, True]
+
+            compose_file = resource_provider._resolve_compose_file("myproject", None)
+
+            # Should return the path to user-myproject.yml
+            assert compose_file is not None
+            assert "user-myproject.yml" in compose_file
+
+    def test_resolve_compose_file_yaml_extension(
+        self, mock_docker_client: DockerClientWrapper
+    ) -> None:
+        """Test resolving compose file with .yaml extension."""
+        resource_provider = ResourceProvider(mock_docker_client)
+
+        with patch("pathlib.Path.exists") as mock_exists:
+            # compose_dir exists, .yml doesn't exist, .yaml exists
+            mock_exists.side_effect = [True, False, True]
+
+            compose_file = resource_provider._resolve_compose_file("myproject", None)
+
+            assert compose_file is not None
+            assert "user-myproject.yaml" in compose_file
+
+    def test_resolve_compose_file_not_found(
+        self, mock_docker_client: DockerClientWrapper
+    ) -> None:
+        """Test resolving compose file when not found."""
+        resource_provider = ResourceProvider(mock_docker_client)
+
+        with patch("pathlib.Path.exists", return_value=False):
+            compose_file = resource_provider._resolve_compose_file("nonexistent", None)
+            assert compose_file is None
