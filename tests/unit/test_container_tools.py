@@ -73,7 +73,9 @@ class TestListContainersTool:
         mock_docker_client.client.containers.list.assert_called_once_with(all=True, filters=None)
 
     @pytest.mark.asyncio
-    async def test_list_containers_with_filters(self, mock_docker_client, safety_config, mock_container):
+    async def test_list_containers_with_filters(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test listing containers with filters."""
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
@@ -114,7 +116,9 @@ class TestInspectContainerTool:
     """Tests for InspectContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_inspect_container_success(self, mock_docker_client, safety_config, mock_container):
+    async def test_inspect_container_success(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test successful container inspection."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
@@ -153,7 +157,9 @@ class TestCreateContainerTool:
     """Tests for CreateContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_create_container_minimal(self, mock_docker_client, safety_config, mock_container):
+    async def test_create_container_minimal(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test creating container with minimal parameters."""
         mock_docker_client.client.containers.create.return_value = mock_container
 
@@ -166,7 +172,9 @@ class TestCreateContainerTool:
         mock_docker_client.client.containers.create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_container_with_options(self, mock_docker_client, safety_config, mock_container):
+    async def test_create_container_with_options(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test creating container with all options."""
         mock_docker_client.client.containers.create.return_value = mock_container
 
@@ -240,7 +248,9 @@ class TestStartContainerTool:
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_start_container_api_error(self, mock_docker_client, safety_config, mock_container):
+    async def test_start_container_api_error(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test handling of API errors."""
         mock_docker_client.client.containers.get.return_value = mock_container
         mock_container.start.side_effect = APIError("API error")
@@ -271,7 +281,9 @@ class TestStopContainerTool:
         mock_container.reload.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_stop_container_custom_timeout(self, mock_docker_client, safety_config, mock_container):
+    async def test_stop_container_custom_timeout(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test stopping container with custom timeout."""
         mock_container.status = "exited"
         mock_docker_client.client.containers.get.return_value = mock_container
@@ -298,7 +310,9 @@ class TestRestartContainerTool:
     """Tests for RestartContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_restart_container_success(self, mock_docker_client, safety_config, mock_container):
+    async def test_restart_container_success(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test successful container restart."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
@@ -327,7 +341,9 @@ class TestRemoveContainerTool:
     """Tests for RemoveContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_remove_container_success(self, mock_docker_client, safety_config, mock_container):
+    async def test_remove_container_success(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test successful container removal."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
@@ -340,7 +356,9 @@ class TestRemoveContainerTool:
         mock_container.remove.assert_called_once_with(force=False, v=False)
 
     @pytest.mark.asyncio
-    async def test_remove_container_with_force(self, mock_docker_client, safety_config, mock_container):
+    async def test_remove_container_with_force(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test force removing a running container."""
         mock_docker_client.client.containers.get.return_value = mock_container
 
@@ -382,7 +400,9 @@ class TestContainerLogsTool:
         mock_container.logs.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_get_logs_with_timestamps(self, mock_docker_client, safety_config, mock_container):
+    async def test_get_logs_with_timestamps(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test log retrieval with timestamps."""
         mock_container.logs.return_value = b"2024-01-01 log line\n"
         mock_docker_client.client.containers.get.return_value = mock_container
@@ -407,7 +427,9 @@ class TestContainerLogsTool:
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_get_logs_with_follow_mode(self, mock_docker_client, safety_config, mock_container):
+    async def test_get_logs_with_follow_mode(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test log retrieval with follow mode (generator)."""
 
         # Mock follow mode returns a generator
@@ -432,7 +454,9 @@ class TestContainerLogsTool:
         assert call_kwargs["follow"] is True
 
     @pytest.mark.asyncio
-    async def test_get_logs_follow_mode_max_lines(self, mock_docker_client, safety_config, mock_container):
+    async def test_get_logs_follow_mode_max_lines(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test log retrieval with follow mode hitting max line limit."""
 
         # Create a generator that yields more than max_lines (10000)
@@ -455,7 +479,9 @@ class TestContainerLogsTool:
         assert result.container_id == "abc123def456"
 
     @pytest.mark.asyncio
-    async def test_get_logs_follow_mode_error(self, mock_docker_client, safety_config, mock_container):
+    async def test_get_logs_follow_mode_error(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test log retrieval with follow mode when generator raises error."""
 
         # Create a generator that raises an error
@@ -494,7 +520,9 @@ class TestExecCommandTool:
         mock_container.exec_run.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_exec_command_with_options(self, mock_docker_client, safety_config, mock_container):
+    async def test_exec_command_with_options(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test command execution with additional options."""
         mock_container.exec_run.return_value = (0, b"output")
         mock_docker_client.client.containers.get.return_value = mock_container
@@ -517,7 +545,9 @@ class TestExecCommandTool:
         assert call_kwargs["privileged"] is True
 
     @pytest.mark.asyncio
-    async def test_exec_command_non_zero_exit(self, mock_docker_client, safety_config, mock_container):
+    async def test_exec_command_non_zero_exit(
+        self, mock_docker_client, safety_config, mock_container
+    ):
         """Test command execution with non-zero exit code."""
         mock_container.exec_run.return_value = (1, b"error output")
         mock_docker_client.client.containers.get.return_value = mock_container

@@ -72,9 +72,7 @@ class MCPDockerServer:
                         self._register_tool(tool_instance)
                         logger.debug(f"Auto-registered tool: {tool_instance.name}")
                     except Exception as e:
-                        logger.error(
-                            f"Failed to register tool {name} from {module.__name__}: {e}"
-                        )
+                        logger.error(f"Failed to register tool {name} from {module.__name__}: {e}")
 
     def _register_tool(self, tool: Any) -> None:
         """Register a single tool.

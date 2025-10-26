@@ -166,9 +166,7 @@ class BaseTool(ABC):
 
         # Validate input
         validated_input = self.input_schema(**arguments)
-        logger.info(
-            f"Executing tool '{self.name}' with safety level: {self.safety_level.value}"
-        )
+        logger.info(f"Executing tool '{self.name}' with safety level: {self.safety_level.value}")
 
         # Execute and return result
         result = await self.execute(validated_input)

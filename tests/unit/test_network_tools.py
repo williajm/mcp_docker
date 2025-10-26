@@ -72,7 +72,9 @@ class TestListNetworksTool:
         mock_docker_client.client.networks.list.assert_called_once_with(filters=None)
 
     @pytest.mark.asyncio
-    async def test_list_networks_with_filters(self, mock_docker_client, safety_config, mock_network):
+    async def test_list_networks_with_filters(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test listing networks with filters."""
         mock_docker_client.client.networks.list.return_value = [mock_network]
 
@@ -153,7 +155,9 @@ class TestCreateNetworkTool:
         mock_docker_client.client.networks.create.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_create_network_with_options(self, mock_docker_client, safety_config, mock_network):
+    async def test_create_network_with_options(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test creating network with additional options."""
         mock_docker_client.client.networks.create.return_value = mock_network
 
@@ -206,7 +210,9 @@ class TestConnectContainerTool:
         mock_network.connect.assert_called_once_with(container="container123")
 
     @pytest.mark.asyncio
-    async def test_connect_container_with_options(self, mock_docker_client, safety_config, mock_network):
+    async def test_connect_container_with_options(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test connecting container with additional options."""
         mock_docker_client.client.networks.get.return_value = mock_network
 
@@ -236,7 +242,9 @@ class TestConnectContainerTool:
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_connect_container_not_found(self, mock_docker_client, safety_config, mock_network):
+    async def test_connect_container_not_found(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test handling of container not found."""
         mock_docker_client.client.networks.get.return_value = mock_network
         mock_network.connect.side_effect = NotFound("Container not found")
@@ -252,7 +260,9 @@ class TestDisconnectContainerTool:
     """Tests for DisconnectContainerTool."""
 
     @pytest.mark.asyncio
-    async def test_disconnect_container_success(self, mock_docker_client, safety_config, mock_network):
+    async def test_disconnect_container_success(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test successful container disconnection."""
         mock_docker_client.client.networks.get.return_value = mock_network
 
@@ -266,7 +276,9 @@ class TestDisconnectContainerTool:
         mock_network.disconnect.assert_called_once_with(container="container123", force=False)
 
     @pytest.mark.asyncio
-    async def test_disconnect_container_with_force(self, mock_docker_client, safety_config, mock_network):
+    async def test_disconnect_container_with_force(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test disconnecting container with force."""
         mock_docker_client.client.networks.get.return_value = mock_network
 
@@ -291,7 +303,9 @@ class TestDisconnectContainerTool:
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_disconnect_container_not_found(self, mock_docker_client, safety_config, mock_network):
+    async def test_disconnect_container_not_found(
+        self, mock_docker_client, safety_config, mock_network
+    ):
         """Test handling of container not found."""
         mock_docker_client.client.networks.get.return_value = mock_network
         mock_network.disconnect.side_effect = NotFound("Container not found")

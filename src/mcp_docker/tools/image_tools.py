@@ -123,7 +123,7 @@ class BuildImageInput(BaseModel):
     @classmethod
     def parse_buildargs_json(cls, v: Any, info: Any) -> Any:
         """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, 'field_name') else "buildargs"
+        field_name = info.field_name if hasattr(info, "field_name") else "buildargs"
         return parse_json_string_field(v, field_name)
 
 
@@ -252,9 +252,7 @@ class ListImagesTool(BaseTool):
         """
         try:
             logger.info(f"Listing images (all={input_data.all}, filters={input_data.filters})")
-            images = self.docker.client.images.list(
-                all=input_data.all, filters=input_data.filters
-            )
+            images = self.docker.client.images.list(all=input_data.all, filters=input_data.filters)
 
             image_list = [
                 {

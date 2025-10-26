@@ -106,7 +106,7 @@ class CreateVolumeInput(BaseModel):
     @classmethod
     def parse_json_strings(cls, v: Any, info: Any) -> Any:
         """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, 'field_name') else "field"
+        field_name = info.field_name if hasattr(info, "field_name") else "field"
         return parse_json_string_field(v, field_name)
 
 

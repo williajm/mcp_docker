@@ -297,10 +297,7 @@ class TestConcurrencyLimiting:
         assert server._operation_semaphore._value == 2
 
         # Launch multiple operations concurrently
-        tasks = [
-            server.call_tool("docker_list_containers", {"all": True})
-            for _ in range(5)
-        ]
+        tasks = [server.call_tool("docker_list_containers", {"all": True}) for _ in range(5)]
         results = await asyncio.gather(*tasks)
 
         # All should succeed
@@ -324,10 +321,7 @@ class TestConcurrencyLimiting:
         assert server._operation_semaphore._value == 10
 
         # Launch many operations concurrently
-        tasks = [
-            server.call_tool("docker_list_containers", {"all": True})
-            for _ in range(10)
-        ]
+        tasks = [server.call_tool("docker_list_containers", {"all": True}) for _ in range(10)]
         results = await asyncio.gather(*tasks)
 
         # All should succeed
