@@ -41,7 +41,7 @@ async def cleanup_test_network(mcp_server: MCPDockerServer, test_network_name: s
     try:
         await mcp_server.call_tool("docker_remove_network", {"network_id": test_network_name})
     except Exception:
-        pass
+        pass  # Ignore cleanup errors - network may not exist
 
 
 @pytest.mark.integration
@@ -223,7 +223,7 @@ class TestNetworkOperations:
             try:
                 await mcp_server.call_tool("docker_remove_network", {"network_id": network_name})
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - network may already be removed
 
     @pytest.mark.asyncio
     async def test_network_error_handling(

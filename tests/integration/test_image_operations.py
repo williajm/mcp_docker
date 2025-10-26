@@ -42,7 +42,7 @@ async def cleanup_test_image(mcp_server: MCPDockerServer, test_image_tag: str):
     try:
         await mcp_server.call_tool("docker_remove_image", {"image": test_image_tag, "force": True})
     except Exception:
-        pass
+        pass  # Ignore cleanup errors - resource may not exist
 
 
 @pytest.mark.integration

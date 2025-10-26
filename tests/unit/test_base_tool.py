@@ -249,5 +249,5 @@ class TestOperationSafety:
 
     def test_enum_comparison(self) -> None:
         """Test enum comparison."""
-        assert OperationSafety.SAFE == OperationSafety.SAFE
         assert OperationSafety.SAFE != OperationSafety.DESTRUCTIVE
+        assert OperationSafety.MODERATE != OperationSafety.SAFE

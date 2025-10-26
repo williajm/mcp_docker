@@ -255,9 +255,6 @@ class TestMCPDockerServer:
         server = MCPDockerServer(mock_config)
 
         # Mock a destructive tool
-        class MockInput(BaseModel):
-            container_id: str = Field(description="Container ID")
-
         mock_tool = Mock()
         mock_tool.name = "docker_remove_container"
         mock_tool.run = AsyncMock(side_effect=Exception("Container not found"))
@@ -286,9 +283,6 @@ class TestMCPDockerServer:
         server = MCPDockerServer(mock_config)
 
         # Mock a safe tool
-        class MockInput(BaseModel):
-            pass
-
         mock_tool = Mock()
         mock_tool.name = "docker_list_containers"
         mock_tool.run = AsyncMock(return_value=Mock(model_dump=lambda: {"containers": []}))
