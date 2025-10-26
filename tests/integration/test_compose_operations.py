@@ -3,10 +3,10 @@
 These tests require Docker Compose v2 to be running and will create/remove test compose projects.
 """
 
+import json
 from pathlib import Path
 
 import pytest
-import yaml
 
 from mcp_docker.compose_wrapper.client import ComposeClient
 from mcp_docker.config import Config
@@ -38,19 +38,18 @@ def compose_client() -> ComposeClient:
 @pytest.fixture
 def test_compose_file(tmp_path: Path) -> Path:
     """Create a temporary test compose file."""
-    compose_content = {
-        "services": {
-            "web": {
-                "image": "nginx:alpine",
-                "ports": ["8080:80"],
-                "environment": {"TEST_VAR": "integration_test"},
-            }
-        }
-    }
+    # Using YAML-compatible string format since docker compose accepts both YAML and JSON
+    compose_content = """services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    environment:
+      TEST_VAR: integration_test
+"""
 
     compose_file = tmp_path / "docker-compose.yml"
-    with compose_file.open("w") as f:
-        yaml.dump(compose_content, f)
+    compose_file.write_text(compose_content)
 
     return compose_file
 
