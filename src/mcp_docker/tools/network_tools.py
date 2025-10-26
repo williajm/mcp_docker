@@ -4,17 +4,47 @@ This module provides tools for managing Docker networks, including
 creating, listing, inspecting, connecting, and removing networks.
 """
 
+import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.base import OperationSafety
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, NetworkNotFound
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
+
+
+def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
+    """Parse JSON strings to objects (workaround for MCP client serialization bug).
+
+    Args:
+        v: The value to parse (dict or JSON string)
+        field_name: Name of the field for error messages
+
+    Returns:
+        Parsed dict if v was a string, otherwise returns v unchanged
+
+    Raises:
+        ValueError: If v is a string but not valid JSON
+    """
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            logger.warning(
+                f"Received JSON string instead of object for {field_name}, auto-parsing. "
+                "This is a workaround for MCP client serialization issues."
+            )
+            return parsed
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Received invalid JSON string for {field_name}: {v[:100]}... "
+                f"Expected an object/dict, not a string. Error: {e}"
+            ) from e
+    return v
 
 
 # Input/Output Models
@@ -24,7 +54,12 @@ class ListNetworksInput(BaseModel):
     """Input for listing networks."""
 
     filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters to apply (e.g., {'driver': ['bridge']})"
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'driver': ['bridge']}, {'name': 'my-network'}, "
+            "{'type': ['custom']}"
+        ),
     )
 
 
@@ -52,12 +87,37 @@ class CreateNetworkInput(BaseModel):
 
     name: str = Field(description="Network name")
     driver: str = Field(default="bridge", description="Network driver (bridge, overlay, etc.)")
-    options: dict[str, Any] | None = Field(default=None, description="Driver options")
-    ipam: dict[str, Any] | None = Field(default=None, description="IPAM configuration")
+    options: dict[str, Any] | str | None = Field(
+        default=None,
+        description=(
+            "Driver-specific options as key-value pairs. "
+            "Example: {'com.docker.network.bridge.name': 'docker1', 'mtu': '1500'}"
+        ),
+    )
+    ipam: dict[str, Any] | str | None = Field(
+        default=None,
+        description=(
+            "IPAM (IP Address Management) configuration. "
+            "Example: {'Config': [{'Subnet': '172.20.0.0/16', 'Gateway': '172.20.0.1'}]}"
+        ),
+    )
     internal: bool = Field(default=False, description="Restrict external access")
-    labels: dict[str, str] | None = Field(default=None, description="Network labels")
+    labels: dict[str, str] | str | None = Field(
+        default=None,
+        description=(
+            "Network labels as key-value pairs. "
+            "Example: {'environment': 'production', 'team': 'backend'}"
+        ),
+    )
     enable_ipv6: bool = Field(default=False, description="Enable IPv6")
     attachable: bool = Field(default=False, description="Enable manual container attachment")
+
+    @field_validator("options", "ipam", "labels", mode="before")
+    @classmethod
+    def parse_json_strings(cls, v: Any, info: Any) -> Any:
+        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
+        field_name = info.field_name if hasattr(info, "field_name") else "field"
+        return parse_json_string_field(v, field_name)
 
 
 class CreateNetworkOutput(BaseModel):
@@ -118,22 +178,30 @@ class RemoveNetworkOutput(BaseModel):
 # Tool Implementations
 
 
-class ListNetworksTool:
+class ListNetworksTool(BaseTool):
     """List Docker networks with optional filters."""
 
-    name = "docker_list_networks"
-    description = "List Docker networks with optional filters"
-    input_model = ListNetworksInput
     output_model = ListNetworksOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_list_networks"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "List Docker networks with optional filters"
+
+    @property
+    def input_schema(self) -> type[ListNetworksInput]:
+        """Input schema."""
+        return ListNetworksInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ListNetworksInput) -> ListNetworksOutput:
         """Execute the list networks operation.
@@ -149,7 +217,7 @@ class ListNetworksTool:
         """
         try:
             logger.info(f"Listing networks (filters={input_data.filters})")
-            networks = self.docker_client.client.networks.list(filters=input_data.filters)
+            networks = self.docker.client.networks.list(filters=input_data.filters)
 
             network_list = [
                 {
@@ -171,22 +239,30 @@ class ListNetworksTool:
             raise DockerOperationError(f"Failed to list networks: {e}") from e
 
 
-class InspectNetworkTool:
+class InspectNetworkTool(BaseTool):
     """Inspect a Docker network to get detailed information."""
 
-    name = "docker_inspect_network"
-    description = "Get detailed information about a Docker network"
-    input_model = InspectNetworkInput
     output_model = InspectNetworkOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_inspect_network"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get detailed information about a Docker network"
+
+    @property
+    def input_schema(self) -> type[InspectNetworkInput]:
+        """Input schema."""
+        return InspectNetworkInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: InspectNetworkInput) -> InspectNetworkOutput:
         """Execute the inspect network operation.
@@ -203,7 +279,7 @@ class InspectNetworkTool:
         """
         try:
             logger.info(f"Inspecting network: {input_data.network_id}")
-            network = self.docker_client.client.networks.get(input_data.network_id)
+            network = self.docker.client.networks.get(input_data.network_id)
             details = network.attrs
 
             logger.info(f"Successfully inspected network: {input_data.network_id}")
@@ -217,22 +293,30 @@ class InspectNetworkTool:
             raise DockerOperationError(f"Failed to inspect network: {e}") from e
 
 
-class CreateNetworkTool:
+class CreateNetworkTool(BaseTool):
     """Create a new Docker network."""
 
-    name = "docker_create_network"
-    description = "Create a new Docker network"
-    input_model = CreateNetworkInput
     output_model = CreateNetworkOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_create_network"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Create a new Docker network"
+
+    @property
+    def input_schema(self) -> type[CreateNetworkInput]:
+        """Input schema."""
+        return CreateNetworkInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: CreateNetworkInput) -> CreateNetworkOutput:
         """Execute the create network operation.
@@ -265,7 +349,7 @@ class CreateNetworkTool:
             if input_data.labels:
                 kwargs["labels"] = input_data.labels
 
-            network = self.docker_client.client.networks.create(**kwargs)
+            network = self.docker.client.networks.create(**kwargs)
 
             logger.info(f"Successfully created network: {network.id}")
             return CreateNetworkOutput(
@@ -277,22 +361,30 @@ class CreateNetworkTool:
             raise DockerOperationError(f"Failed to create network: {e}") from e
 
 
-class ConnectContainerTool:
+class ConnectContainerTool(BaseTool):
     """Connect a container to a network."""
 
-    name = "docker_connect_container"
-    description = "Connect a container to a Docker network"
-    input_model = ConnectContainerInput
     output_model = ConnectContainerOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_connect_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Connect a container to a Docker network"
+
+    @property
+    def input_schema(self) -> type[ConnectContainerInput]:
+        """Input schema."""
+        return ConnectContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: ConnectContainerInput) -> ConnectContainerOutput:
         """Execute the connect container operation.
@@ -313,7 +405,7 @@ class ConnectContainerTool:
                 f"Connecting container {input_data.container_id} to network {input_data.network_id}"
             )
 
-            network = self.docker_client.client.networks.get(input_data.network_id)
+            network = self.docker.client.networks.get(input_data.network_id)
 
             # Prepare kwargs for connect
             kwargs: dict[str, Any] = {"container": input_data.container_id}
@@ -351,22 +443,30 @@ class ConnectContainerTool:
             raise DockerOperationError(f"Failed to connect container: {e}") from e
 
 
-class DisconnectContainerTool:
+class DisconnectContainerTool(BaseTool):
     """Disconnect a container from a network."""
 
-    name = "docker_disconnect_container"
-    description = "Disconnect a container from a Docker network"
-    input_model = DisconnectContainerInput
     output_model = DisconnectContainerOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_disconnect_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Disconnect a container from a Docker network"
+
+    @property
+    def input_schema(self) -> type[DisconnectContainerInput]:
+        """Input schema."""
+        return DisconnectContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: DisconnectContainerInput) -> DisconnectContainerOutput:
         """Execute the disconnect container operation.
@@ -388,7 +488,7 @@ class DisconnectContainerTool:
                 f"from network {input_data.network_id}"
             )
 
-            network = self.docker_client.client.networks.get(input_data.network_id)
+            network = self.docker.client.networks.get(input_data.network_id)
             network.disconnect(container=input_data.container_id, force=input_data.force)
 
             logger.info(
@@ -414,22 +514,30 @@ class DisconnectContainerTool:
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e
 
 
-class RemoveNetworkTool:
+class RemoveNetworkTool(BaseTool):
     """Remove a Docker network."""
 
-    name = "docker_remove_network"
-    description = "Remove a Docker network"
-    input_model = RemoveNetworkInput
     output_model = RemoveNetworkOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_remove_network"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Remove a Docker network"
+
+    @property
+    def input_schema(self) -> type[RemoveNetworkInput]:
+        """Input schema."""
+        return RemoveNetworkInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: RemoveNetworkInput) -> RemoveNetworkOutput:
         """Execute the remove network operation.
@@ -447,7 +555,7 @@ class RemoveNetworkTool:
         try:
             logger.info(f"Removing network: {input_data.network_id}")
 
-            network = self.docker_client.client.networks.get(input_data.network_id)
+            network = self.docker.client.networks.get(input_data.network_id)
             network_id = network.id
             network.remove()
 

@@ -5,6 +5,8 @@ This module provides resources that can be accessed through MCP URIs:
 - container://stats/{container_id} - Container resource statistics
 """
 
+from urllib.parse import urlparse
+
 from pydantic import BaseModel, Field
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
@@ -309,13 +311,15 @@ class ResourceProvider:
 
         """
         if uri.startswith(ContainerLogsResource.URI_SCHEME):
-            # Extract container ID from URI
-            container_id = uri[len(ContainerLogsResource.URI_SCHEME) :]
+            # Extract container ID from URI using proper URL parsing
+            parsed = urlparse(uri)
+            container_id = parsed.path.lstrip("/")
             return await self.logs_resource.read(container_id)
 
         if uri.startswith(ContainerStatsResource.URI_SCHEME):
-            # Extract container ID from URI
-            container_id = uri[len(ContainerStatsResource.URI_SCHEME) :]
+            # Extract container ID from URI using proper URL parsing
+            parsed = urlparse(uri)
+            container_id = parsed.path.lstrip("/")
             return await self.stats_resource.read(container_id)
 
         raise ValueError(f"Unknown resource URI scheme: {uri}")
@@ -334,11 +338,15 @@ class ResourceProvider:
 
         """
         if uri.startswith(ContainerLogsResource.URI_SCHEME):
-            container_id = uri[len(ContainerLogsResource.URI_SCHEME) :]
+            # Extract container ID from URI using proper URL parsing
+            parsed = urlparse(uri)
+            container_id = parsed.path.lstrip("/")
             return self.logs_resource.get_metadata(container_id)
 
         if uri.startswith(ContainerStatsResource.URI_SCHEME):
-            container_id = uri[len(ContainerStatsResource.URI_SCHEME) :]
+            # Extract container ID from URI using proper URL parsing
+            parsed = urlparse(uri)
+            container_id = parsed.path.lstrip("/")
             return self.stats_resource.get_metadata(container_id)
 
         raise ValueError(f"Unknown resource URI scheme: {uri}")

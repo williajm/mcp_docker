@@ -7,7 +7,8 @@ import pytest
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.base import BaseTool, OperationSafety, ToolInput, ToolResult
+from mcp_docker.tools.base import BaseTool, ToolInput, ToolResult
+from mcp_docker.utils.safety import OperationSafety
 
 
 class TestToolInput:
@@ -56,6 +57,12 @@ class TestToolResult:
         assert result.metadata == {}
 
 
+class MockInput(ToolInput):
+    """Mock input model for testing."""
+
+    test_field: str
+
+
 class MockTool(BaseTool):
     """Mock tool for testing."""
 
@@ -78,17 +85,15 @@ class MockTool(BaseTool):
 
     @property
     def input_schema(self) -> type[ToolInput]:
-        class MockInput(ToolInput):
-            test_field: str
-
         return MockInput
 
     @property
     def safety_level(self) -> OperationSafety:
         return self._safety_level
 
-    async def execute(self, arguments: dict[str, Any]) -> ToolResult:
-        return ToolResult.success_result(data=arguments)
+    async def execute(self, input_data: MockInput) -> MockInput:
+        # Just echo back the validated input
+        return input_data
 
 
 @pytest.fixture
@@ -135,8 +140,8 @@ class TestBaseTool:
         """Test running a safe operation."""
         tool = MockTool(mock_docker_client, safety_config, OperationSafety.SAFE)
         result = await tool.run({"test_field": "value"})
-        assert result.success is True
-        assert result.data == {"test_field": "value"}
+        # BaseTool.run() now returns the model directly
+        assert result.test_field == "value"
 
     @pytest.mark.asyncio
     async def test_run_moderate_operation(
@@ -145,7 +150,8 @@ class TestBaseTool:
         """Test running a moderate operation."""
         tool = MockTool(mock_docker_client, safety_config, OperationSafety.MODERATE)
         result = await tool.run({"test_field": "value"})
-        assert result.success is True
+        # BaseTool.run() now returns the model directly
+        assert result.test_field == "value"
 
     @pytest.mark.asyncio
     async def test_run_destructive_operation_blocked(
@@ -153,9 +159,9 @@ class TestBaseTool:
     ) -> None:
         """Test that destructive operations are blocked by default."""
         tool = MockTool(mock_docker_client, safety_config, OperationSafety.DESTRUCTIVE)
-        result = await tool.run({"test_field": "value"})
-        assert result.success is False
-        assert "not allowed" in result.error.lower()
+        # Should raise PermissionError since destructive operations not allowed
+        with pytest.raises(PermissionError, match="not allowed"):
+            await tool.run({"test_field": "value"})
 
     @pytest.mark.asyncio
     async def test_run_destructive_operation_allowed(
@@ -164,7 +170,8 @@ class TestBaseTool:
         """Test that destructive operations work when allowed."""
         tool = MockTool(mock_docker_client, permissive_safety_config, OperationSafety.DESTRUCTIVE)
         result = await tool.run({"test_field": "value"})
-        assert result.success is True
+        # BaseTool.run() now returns the model directly
+        assert result.test_field == "value"
 
     @pytest.mark.asyncio
     async def test_run_validation_error(
@@ -172,10 +179,9 @@ class TestBaseTool:
     ) -> None:
         """Test that validation errors are handled."""
         tool = MockTool(mock_docker_client, safety_config)
-        # Missing required field
-        result = await tool.run({})
-        assert result.success is False
-        assert "error" in result.error.lower()
+        # Missing required field - should raise ValidationError from Pydantic
+        with pytest.raises(Exception):  # Pydantic will raise validation error
+            await tool.run({})
 
     @pytest.mark.asyncio
     async def test_run_exception_handling(
@@ -184,13 +190,13 @@ class TestBaseTool:
         """Test that exceptions are caught and returned as error results."""
 
         class FailingTool(MockTool):
-            async def execute(self, arguments: dict[str, Any]) -> ToolResult:
+            async def execute(self, arguments: Any) -> Any:
                 raise RuntimeError("Something went wrong")
 
         tool = FailingTool(mock_docker_client, safety_config)
-        result = await tool.run({"test_field": "value"})
-        assert result.success is False
-        assert "RuntimeError" in result.error
+        # Exceptions should propagate for the server to handle
+        with pytest.raises(RuntimeError, match="Something went wrong"):
+            await tool.run({"test_field": "value"})
 
     def test_check_safety_safe(
         self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig

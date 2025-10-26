@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
+from mcp_docker.version import __version__
 
 
 class TestDockerConfig:
@@ -80,7 +81,7 @@ class TestServerConfig:
         """Test default server configuration."""
         config = ServerConfig()
         assert config.server_name == "mcp-docker"
-        assert config.server_version == "0.1.0"
+        assert config.server_version == __version__
         assert config.log_level == "INFO"
 
     def test_log_level_validation(self) -> None:

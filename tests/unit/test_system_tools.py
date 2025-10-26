@@ -35,7 +35,7 @@ class TestSystemInfoTool:
     """Tests for SystemInfoTool."""
 
     @pytest.mark.asyncio
-    async def test_system_info_success(self, mock_docker_client):
+    async def test_system_info_success(self, mock_docker_client, safety_config):
         """Test successful system info retrieval."""
         system_info = {
             "Containers": 10,
@@ -50,7 +50,7 @@ class TestSystemInfoTool:
         }
         mock_docker_client.client.info.return_value = system_info
 
-        tool = SystemInfoTool(mock_docker_client)
+        tool = SystemInfoTool(mock_docker_client, safety_config)
         input_data = SystemInfoInput()
         result = await tool.execute(input_data)
 
@@ -59,11 +59,11 @@ class TestSystemInfoTool:
         mock_docker_client.client.info.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_system_info_api_error(self, mock_docker_client):
+    async def test_system_info_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.info.side_effect = APIError("API error")
 
-        tool = SystemInfoTool(mock_docker_client)
+        tool = SystemInfoTool(mock_docker_client, safety_config)
         input_data = SystemInfoInput()
 
         with pytest.raises(DockerOperationError):
@@ -74,7 +74,7 @@ class TestSystemDfTool:
     """Tests for SystemDfTool."""
 
     @pytest.mark.asyncio
-    async def test_system_df_success(self, mock_docker_client):
+    async def test_system_df_success(self, mock_docker_client, safety_config):
         """Test successful disk usage retrieval."""
         df_info = {
             "Images": {
@@ -102,7 +102,7 @@ class TestSystemDfTool:
         }
         mock_docker_client.client.df.return_value = df_info
 
-        tool = SystemDfTool(mock_docker_client)
+        tool = SystemDfTool(mock_docker_client, safety_config)
         input_data = SystemDfInput()
         result = await tool.execute(input_data)
 
@@ -113,11 +113,11 @@ class TestSystemDfTool:
         mock_docker_client.client.df.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_system_df_api_error(self, mock_docker_client):
+    async def test_system_df_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.df.side_effect = APIError("API error")
 
-        tool = SystemDfTool(mock_docker_client)
+        tool = SystemDfTool(mock_docker_client, safety_config)
         input_data = SystemDfInput()
 
         with pytest.raises(DockerOperationError):
@@ -128,7 +128,7 @@ class TestSystemPruneTool:
     """Tests for SystemPruneTool."""
 
     @pytest.mark.asyncio
-    async def test_system_prune_success(self, mock_docker_client):
+    async def test_system_prune_success(self, mock_docker_client, safety_config):
         """Test successful system prune."""
         mock_docker_client.client.api.prune_containers.return_value = {
             "ContainersDeleted": ["container1", "container2"],
@@ -143,7 +143,7 @@ class TestSystemPruneTool:
             "SpaceReclaimed": 0,
         }
 
-        tool = SystemPruneTool(mock_docker_client)
+        tool = SystemPruneTool(mock_docker_client, safety_config)
         input_data = SystemPruneInput()
         result = await tool.execute(input_data)
 
@@ -153,7 +153,7 @@ class TestSystemPruneTool:
         assert result.space_reclaimed == 104857600 + 536870912 + 0
 
     @pytest.mark.asyncio
-    async def test_system_prune_with_filters(self, mock_docker_client):
+    async def test_system_prune_with_filters(self, mock_docker_client, safety_config):
         """Test system prune with filters."""
         mock_docker_client.client.api.prune_containers.return_value = {
             "ContainersDeleted": [],
@@ -168,7 +168,7 @@ class TestSystemPruneTool:
             "SpaceReclaimed": 0,
         }
 
-        tool = SystemPruneTool(mock_docker_client)
+        tool = SystemPruneTool(mock_docker_client, safety_config)
         input_data = SystemPruneInput(filters={"until": ["24h"]})
         result = await tool.execute(input_data)
 
@@ -178,7 +178,7 @@ class TestSystemPruneTool:
         )
 
     @pytest.mark.asyncio
-    async def test_system_prune_with_volumes(self, mock_docker_client):
+    async def test_system_prune_with_volumes(self, mock_docker_client, safety_config):
         """Test system prune with volumes enabled."""
         mock_docker_client.client.api.prune_containers.return_value = {
             "ContainersDeleted": ["container1"],
@@ -197,7 +197,7 @@ class TestSystemPruneTool:
             "SpaceReclaimed": 536870912,
         }
 
-        tool = SystemPruneTool(mock_docker_client)
+        tool = SystemPruneTool(mock_docker_client, safety_config)
         input_data = SystemPruneInput(volumes=True)
         result = await tool.execute(input_data)
 
@@ -206,11 +206,11 @@ class TestSystemPruneTool:
         mock_docker_client.client.volumes.prune.assert_called_once_with(filters=None)
 
     @pytest.mark.asyncio
-    async def test_system_prune_api_error(self, mock_docker_client):
+    async def test_system_prune_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.api.prune_containers.side_effect = APIError("API error")
 
-        tool = SystemPruneTool(mock_docker_client)
+        tool = SystemPruneTool(mock_docker_client, safety_config)
         input_data = SystemPruneInput()
 
         with pytest.raises(DockerOperationError):
@@ -221,7 +221,7 @@ class TestVersionTool:
     """Tests for VersionTool."""
 
     @pytest.mark.asyncio
-    async def test_version_success(self, mock_docker_client):
+    async def test_version_success(self, mock_docker_client, safety_config):
         """Test successful version retrieval."""
         version_info = {
             "Platform": {"Name": "Docker Engine - Community"},
@@ -245,7 +245,7 @@ class TestVersionTool:
         }
         mock_docker_client.client.version.return_value = version_info
 
-        tool = VersionTool(mock_docker_client)
+        tool = VersionTool(mock_docker_client, safety_config)
         input_data = VersionInput()
         result = await tool.execute(input_data)
 
@@ -254,11 +254,11 @@ class TestVersionTool:
         mock_docker_client.client.version.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_version_api_error(self, mock_docker_client):
+    async def test_version_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.version.side_effect = APIError("API error")
 
-        tool = VersionTool(mock_docker_client)
+        tool = VersionTool(mock_docker_client, safety_config)
         input_data = VersionInput()
 
         with pytest.raises(DockerOperationError):
@@ -269,7 +269,7 @@ class TestEventsTool:
     """Tests for EventsTool."""
 
     @pytest.mark.asyncio
-    async def test_events_success(self, mock_docker_client):
+    async def test_events_success(self, mock_docker_client, safety_config):
         """Test successful events retrieval."""
         events = [
             {"status": "start", "id": "container1", "Type": "container"},
@@ -277,7 +277,7 @@ class TestEventsTool:
         ]
         mock_docker_client.client.events.return_value = iter(events)
 
-        tool = EventsTool(mock_docker_client)
+        tool = EventsTool(mock_docker_client, safety_config)
         input_data = EventsInput()
         result = await tool.execute(input_data)
 
@@ -286,12 +286,12 @@ class TestEventsTool:
         assert result.events[0]["status"] == "start"
 
     @pytest.mark.asyncio
-    async def test_events_with_filters(self, mock_docker_client):
+    async def test_events_with_filters(self, mock_docker_client, safety_config):
         """Test events with filters."""
         events = [{"status": "start", "id": "container1", "Type": "container"}]
         mock_docker_client.client.events.return_value = iter(events)
 
-        tool = EventsTool(mock_docker_client)
+        tool = EventsTool(mock_docker_client, safety_config)
         input_data = EventsInput(
             filters={"type": ["container"], "event": ["start"]}, since="2023-01-01"
         )
@@ -303,7 +303,7 @@ class TestEventsTool:
         assert call_kwargs["since"] == "2023-01-01"
 
     @pytest.mark.asyncio
-    async def test_events_limit(self, mock_docker_client):
+    async def test_events_limit(self, mock_docker_client, safety_config):
         """Test events limited to 100."""
         # Create 150 events
         events = [
@@ -311,7 +311,7 @@ class TestEventsTool:
         ]
         mock_docker_client.client.events.return_value = iter(events)
 
-        tool = EventsTool(mock_docker_client)
+        tool = EventsTool(mock_docker_client, safety_config)
         input_data = EventsInput()
         result = await tool.execute(input_data)
 
@@ -319,11 +319,11 @@ class TestEventsTool:
         assert result.count == 100
 
     @pytest.mark.asyncio
-    async def test_events_api_error(self, mock_docker_client):
+    async def test_events_api_error(self, mock_docker_client, safety_config):
         """Test handling of API errors."""
         mock_docker_client.client.events.side_effect = APIError("API error")
 
-        tool = EventsTool(mock_docker_client)
+        tool = EventsTool(mock_docker_client, safety_config)
         input_data = EventsInput()
 
         with pytest.raises(DockerOperationError):
@@ -334,7 +334,7 @@ class TestHealthCheckTool:
     """Tests for HealthCheckTool."""
 
     @pytest.mark.asyncio
-    async def test_health_check_healthy(self, mock_docker_client):
+    async def test_health_check_healthy(self, mock_docker_client, safety_config):
         """Test successful health check with healthy status."""
         health_status = {
             "status": "healthy",
@@ -347,7 +347,7 @@ class TestHealthCheckTool:
         }
         mock_docker_client.health_check.return_value = health_status
 
-        tool = HealthCheckTool(mock_docker_client)
+        tool = HealthCheckTool(mock_docker_client, safety_config)
         input_data = HealthCheckInput()
         result = await tool.execute(input_data)
 
@@ -357,7 +357,7 @@ class TestHealthCheckTool:
         assert result.details["images"] == 10
 
     @pytest.mark.asyncio
-    async def test_health_check_unhealthy(self, mock_docker_client):
+    async def test_health_check_unhealthy(self, mock_docker_client, safety_config):
         """Test health check with unhealthy status."""
         health_status = {
             "status": "unhealthy",
@@ -367,7 +367,7 @@ class TestHealthCheckTool:
         }
         mock_docker_client.health_check.return_value = health_status
 
-        tool = HealthCheckTool(mock_docker_client)
+        tool = HealthCheckTool(mock_docker_client, safety_config)
         input_data = HealthCheckInput()
         result = await tool.execute(input_data)
 
@@ -375,11 +375,11 @@ class TestHealthCheckTool:
         assert result.message == "Docker daemon is unhealthy"
 
     @pytest.mark.asyncio
-    async def test_health_check_exception(self, mock_docker_client):
+    async def test_health_check_exception(self, mock_docker_client, safety_config):
         """Test health check with exception."""
         mock_docker_client.health_check.side_effect = Exception("Connection failed")
 
-        tool = HealthCheckTool(mock_docker_client)
+        tool = HealthCheckTool(mock_docker_client, safety_config)
         input_data = HealthCheckInput()
         result = await tool.execute(input_data)
 

@@ -12,8 +12,11 @@ from mcp_docker.server import MCPDockerServer
 @pytest.fixture
 def mock_config():
     """Create a mock configuration."""
+    from mcp_docker.config import SafetyConfig
+
     config = Mock(spec=Config)
     config.docker = Mock()
+    config.safety = SafetyConfig()  # Use real SafetyConfig with defaults
     return config
 
 
@@ -113,13 +116,13 @@ class TestMCPDockerServer:
         """Test successful tool call."""
         server = MCPDockerServer(mock_config)
 
-        # Mock a tool's execute method
+        # Mock a tool's run method (server calls run(), not execute())
         class MockOutput(BaseModel):
             result: str = Field(description="Result")
 
         mock_tool = Mock()
-        mock_tool.input_model = type("Input", (BaseModel,), {})
-        mock_tool.execute = AsyncMock(return_value=MockOutput(result="success"))
+        mock_tool.name = "test_tool"
+        mock_tool.run = AsyncMock(return_value=MockOutput(result="success"))
 
         server.tools["test_tool"] = mock_tool
 
@@ -139,14 +142,19 @@ class TestMCPDockerServer:
     @pytest.mark.asyncio
     async def test_call_tool_validation_error(self, mock_config, mock_docker_client):
         """Test tool call with validation error."""
+        from pydantic import ValidationError as PydanticValidationError
+
         server = MCPDockerServer(mock_config)
 
-        # Mock a tool with validation requirements
-        class MockInput(BaseModel):
-            required_field: str = Field(description="Required field")
-
+        # Mock a tool that raises validation error on run()
         mock_tool = Mock()
-        mock_tool.input_model = MockInput
+        mock_tool.name = "test_tool"
+        mock_tool.run = AsyncMock(
+            side_effect=PydanticValidationError.from_exception_data(
+                "ValidationError",
+                [{"loc": ("required_field",), "msg": "field required", "type": "missing"}],
+            )
+        )
 
         server.tools["test_tool"] = mock_tool
 
@@ -161,13 +169,10 @@ class TestMCPDockerServer:
         """Test tool call with execution error."""
         server = MCPDockerServer(mock_config)
 
-        # Mock a tool that raises an exception
-        class MockInput(BaseModel):
-            pass
-
+        # Mock a tool that raises an exception on run()
         mock_tool = Mock()
-        mock_tool.input_model = MockInput
-        mock_tool.execute = AsyncMock(side_effect=Exception("Execution failed"))
+        mock_tool.name = "test_tool"
+        mock_tool.run = AsyncMock(side_effect=Exception("Execution failed"))
 
         server.tools["test_tool"] = mock_tool
 
@@ -239,7 +244,6 @@ class TestMCPDockerServer:
     ):
         """Test that confirmation requirement is logged for destructive operations."""
         from mcp_docker.config import SafetyConfig
-        from mcp_docker.tools.base import OperationSafety
 
         # Set up config with confirmation required
         mock_config.safety = SafetyConfig(
@@ -256,13 +260,11 @@ class TestMCPDockerServer:
 
         mock_tool = Mock()
         mock_tool.name = "docker_remove_container"
-        mock_tool.input_model = MockInput
-        mock_tool.safety_level = OperationSafety.DESTRUCTIVE
-        mock_tool.execute = AsyncMock(side_effect=Exception("Container not found"))
+        mock_tool.run = AsyncMock(side_effect=Exception("Container not found"))
 
         server.tools["docker_remove_container"] = mock_tool
 
-        # Call tool - should log warning about confirmation but proceed
+        # Call tool - should log warning but fail on execution
         result = await server.call_tool("docker_remove_container", {"container_id": "test"})
 
         # Should execute past safety check (will fail on execution, but that's OK)
@@ -273,7 +275,6 @@ class TestMCPDockerServer:
     async def test_check_tool_safety_safe_operation(self, mock_config, mock_docker_client):
         """Test that safe operations pass safety checks."""
         from mcp_docker.config import SafetyConfig
-        from mcp_docker.tools.base import OperationSafety
 
         # Set up config with everything disabled
         mock_config.safety = SafetyConfig(
@@ -290,9 +291,7 @@ class TestMCPDockerServer:
 
         mock_tool = Mock()
         mock_tool.name = "docker_list_containers"
-        mock_tool.input_model = MockInput
-        mock_tool.safety_level = OperationSafety.SAFE
-        mock_tool.execute = AsyncMock(return_value=Mock(model_dump=lambda: {"containers": []}))
+        mock_tool.run = AsyncMock(return_value=Mock(model_dump=lambda: {"containers": []}))
 
         server.tools["docker_list_containers"] = mock_tool
 
@@ -300,3 +299,57 @@ class TestMCPDockerServer:
         result = await server.call_tool("docker_list_containers", {})
 
         assert result["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_max_concurrent_operations_limiting(self, mock_config, mock_docker_client):
+        """Test that max_concurrent_operations setting limits concurrent tool execution."""
+        import asyncio
+
+        from mcp_docker.config import SafetyConfig
+
+        # Set up config with max 2 concurrent operations
+        mock_config.safety = SafetyConfig(
+            allow_destructive_operations=False,
+            require_confirmation_for_destructive=False,
+            allow_privileged_containers=False,
+            max_concurrent_operations=2,
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Track concurrent executions
+        concurrent_count = 0
+        max_concurrent_count = 0
+        lock = asyncio.Lock()
+
+        async def slow_execute(input_data):
+            """Simulate a slow operation that tracks concurrency."""
+            nonlocal concurrent_count, max_concurrent_count
+            async with lock:
+                concurrent_count += 1
+                max_concurrent_count = max(max_concurrent_count, concurrent_count)
+
+            # Simulate work
+            await asyncio.sleep(0.1)
+
+            async with lock:
+                concurrent_count -= 1
+
+            return Mock(model_dump=lambda: {"result": "done"})
+
+        # Create a mock tool
+        mock_tool = Mock()
+        mock_tool.name = "docker_slow_tool"
+        mock_tool.run = slow_execute
+
+        server.tools["docker_slow_tool"] = mock_tool
+
+        # Execute 5 operations concurrently
+        tasks = [server.call_tool("docker_slow_tool", {}) for _ in range(5)]
+        results = await asyncio.gather(*tasks)
+
+        # All should succeed
+        assert all(r["success"] for r in results)
+
+        # But max concurrent should never exceed configured limit
+        assert max_concurrent_count <= 2

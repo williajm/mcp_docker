@@ -1,7 +1,6 @@
 """Base tool class and abstractions for MCP Docker tools."""
 
 from abc import ABC, abstractmethod
-from enum import Enum
 from typing import Any
 
 from loguru import logger
@@ -9,14 +8,7 @@ from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
-
-
-class OperationSafety(str, Enum):
-    """Classification of operation safety levels."""
-
-    SAFE = "safe"  # Read-only operations (list, inspect, logs)
-    MODERATE = "moderate"  # State-changing but reversible (start, stop, pause)
-    DESTRUCTIVE = "destructive"  # Permanent changes (rm, prune, rmi)
+from mcp_docker.utils.safety import OperationSafety
 
 
 class ToolInput(BaseModel):
@@ -103,11 +95,11 @@ class BaseTool(ABC):
 
     @property
     @abstractmethod
-    def input_schema(self) -> type[ToolInput]:
+    def input_schema(self) -> type[BaseModel]:
         """Pydantic model for input validation.
 
         Returns:
-            Input model class
+            Input model class (must inherit from ToolInput)
 
         """
 
@@ -142,53 +134,44 @@ class BaseTool(ABC):
                 )
 
     @abstractmethod
-    async def execute(self, arguments: dict[str, Any]) -> ToolResult:
+    async def execute(self, input_data: Any) -> Any:
         """Execute the tool with validated arguments.
 
         Args:
-            arguments: Tool arguments (will be validated against input_schema)
+            input_data: Validated input data (Pydantic model instance)
 
         Returns:
-            Tool execution result
+            Tool execution result (Pydantic model instance)
+
+        Raises:
+            Exception: Tool-specific exceptions
 
         """
 
-    async def run(self, arguments: dict[str, Any]) -> ToolResult:
+    async def run(self, arguments: dict[str, Any]) -> Any:
         """Run the tool with safety checks and error handling.
 
         Args:
-            arguments: Tool arguments
+            arguments: Tool arguments (dict)
 
         Returns:
-            Tool execution result
+            Tool execution result (Pydantic model)
+
+        Raises:
+            Exception: Re-raises exceptions from execute() for server to handle
 
         """
-        try:
-            # Safety check
-            self.check_safety()
+        # Safety check
+        self.check_safety()
 
-            # Validate input
-            validated_input = self.input_schema(**arguments)
-            logger.info(
-                f"Executing tool '{self.name}' with safety level: {self.safety_level.value}"
-            )
+        # Validate input
+        validated_input = self.input_schema(**arguments)
+        logger.info(f"Executing tool '{self.name}' with safety level: {self.safety_level.value}")
 
-            # Execute
-            result = await self.execute(validated_input.model_dump())
-
-            if result.success:
-                logger.success(f"Tool '{self.name}' completed successfully")
-            else:
-                logger.error(f"Tool '{self.name}' failed: {result.error}")
-
-            return result
-
-        except PermissionError as e:
-            logger.error(f"Permission denied for tool '{self.name}': {e}")
-            return ToolResult.error_result(str(e))
-        except Exception as e:
-            logger.exception(f"Unexpected error in tool '{self.name}': {e}")
-            return ToolResult.error_result(f"Unexpected error: {type(e).__name__}: {e}")
+        # Execute and return result
+        result = await self.execute(validated_input)
+        logger.success(f"Tool '{self.name}' completed successfully")
+        return result
 
     def __repr__(self) -> str:
         """Return string representation."""
