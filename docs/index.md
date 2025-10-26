@@ -6,20 +6,31 @@ title: MCP Docker Server
 # MCP Docker Server Documentation
 
 [![CI](https://github.com/williajm/mcp_docker/actions/workflows/ci.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/williajm/mcp_docker/actions/workflows/codeql.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/codeql.yml)
+[![Pre-commit](https://github.com/williajm/mcp_docker/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/pre-commit.yml)
+[![Dependency Review](https://github.com/williajm/mcp_docker/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/dependency-review.yml)
+[![License Compliance](https://github.com/williajm/mcp_docker/actions/workflows/license-compliance.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/license-compliance.yml)
+[![Documentation](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml)
 [![codecov](https://codecov.io/gh/williajm/mcp_docker/branch/main/graph/badge.svg)](https://codecov.io/gh/williajm/mcp_docker)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![MCP](https://img.shields.io/badge/MCP-Server-green.svg)](https://modelcontextprotocol.io)
+[![Python 3.11-3.13](https://img.shields.io/badge/python-3.11--3.13-blue.svg)](https://www.python.org/downloads/)
+[![Docker](https://img.shields.io/badge/Docker-Management-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![type-checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue.svg)](https://mypy-lang.org/)
+[![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://williajm.github.io/mcp_docker/)
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot)
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
 ## Features
 
-- **36 Docker Tools**: Complete container, image, network, volume, and system management
-- **3 AI Prompts**: Intelligent troubleshooting, optimization suggestions, and compose file generation
-- **2 Resources**: Real-time container logs and resource statistics
+- **48 Docker Tools**: Complete container, image, network, volume, system, and **Docker Compose** management
+- **5 AI Prompts**: Intelligent troubleshooting and optimization for containers and compose stacks
+- **5 Resources**: Real-time container logs, stats, and compose project information
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
-- **Comprehensive Testing**: 93%+ test coverage with unit and integration tests
+- **Comprehensive Testing**: 88%+ test coverage with unit and integration tests
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
 ## Quick Links
@@ -29,7 +40,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - [Examples](EXAMPLES.md) - Real-world usage examples and tutorials
 
 ### Reference
-- [API Reference](API.md) - Complete API documentation for all 36 tools, prompts, and resources
+- [API Reference](API.md) - Complete API documentation for all 48 tools, prompts, and resources
 - [Architecture](ARCHITECTURE.md) - Technical design, patterns, and implementation details
 
 ### Resources

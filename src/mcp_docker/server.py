@@ -13,7 +13,14 @@ from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.prompts.templates import PromptProvider
 from mcp_docker.resources.providers import ResourceProvider
 from mcp_docker.tools import base as tools_base
-from mcp_docker.tools import container_tools, image_tools, network_tools, system_tools, volume_tools
+from mcp_docker.tools import (
+    compose_tools,
+    container_tools,
+    image_tools,
+    network_tools,
+    system_tools,
+    volume_tools,
+)
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -57,7 +64,14 @@ class MCPDockerServer:
         and automatically registers them. New tools added to any module will
         be automatically registered without code changes here.
         """
-        tool_modules = [container_tools, image_tools, network_tools, volume_tools, system_tools]
+        tool_modules = [
+            compose_tools,
+            container_tools,
+            image_tools,
+            network_tools,
+            volume_tools,
+            system_tools,
+        ]
 
         for module in tool_modules:
             for name, obj in inspect.getmembers(module, inspect.isclass):

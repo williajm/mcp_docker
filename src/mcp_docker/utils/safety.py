@@ -24,6 +24,7 @@ DESTRUCTIVE_OPERATIONS = {
     "docker_remove_volume",
     "docker_prune_volumes",
     "docker_system_prune",
+    "docker_compose_down",  # Stops and removes compose services
 }
 
 # Set of operations that modify state but are reversible
@@ -41,6 +42,13 @@ MODERATE_OPERATIONS = {
     "docker_connect_container",
     "docker_disconnect_container",
     "docker_create_volume",
+    "docker_compose_up",  # Start compose services
+    "docker_compose_restart",  # Restart compose services
+    "docker_compose_stop",  # Stop compose services
+    "docker_compose_scale",  # Scale compose services
+    "docker_compose_exec",  # Execute commands in compose services
+    "docker_compose_build",  # Build compose services
+    "docker_compose_write_file",  # Write compose files to compose_files directory
 }
 
 # Dangerous patterns in commands that should be blocked or warned about
@@ -62,6 +70,8 @@ DANGEROUS_COMMAND_PATTERNS = [
 PRIVILEGED_OPERATIONS = {
     "docker_exec_command",  # Can execute arbitrary commands
     "docker_build_image",  # Can run arbitrary Dockerfiles
+    "docker_compose_exec",  # Can execute arbitrary commands in compose services
+    "docker_compose_build",  # Can build images from Dockerfiles
 }
 
 
