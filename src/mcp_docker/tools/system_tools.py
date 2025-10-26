@@ -9,10 +9,10 @@ from typing import Any
 from docker.errors import APIError
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.base import OperationSafety
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
@@ -49,7 +49,13 @@ class SystemDfOutput(BaseModel):
 class SystemPruneInput(BaseModel):
     """Input for pruning all unused resources."""
 
-    filters: dict[str, str | list[str]] | None = Field(default=None, description="Filters to apply")
+    filters: dict[str, str | list[str]] | None = Field(
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'until': '24h'}, {'label': ['env=test']}"
+        ),
+    )
     volumes: bool = Field(default=False, description="Prune volumes in addition to other resources")
 
 
@@ -80,7 +86,14 @@ class EventsInput(BaseModel):
 
     since: str | None = Field(default=None, description="Show events since timestamp")
     until: str | None = Field(default=None, description="Show events until timestamp")
-    filters: dict[str, str | list[str]] | None = Field(default=None, description="Event filters")
+    filters: dict[str, str | list[str]] | None = Field(
+        default=None,
+        description=(
+            "Event filters as key-value pairs. "
+            "Examples: {'type': ['container']}, {'event': ['start', 'stop']}, "
+            "{'container': ['my-container']}"
+        ),
+    )
     decode: bool = Field(default=True, description="Decode JSON events")
 
 
@@ -108,22 +121,30 @@ class HealthCheckOutput(BaseModel):
 # Tool Implementations
 
 
-class SystemInfoTool:
+class SystemInfoTool(BaseTool):
     """Get Docker system information."""
 
-    name = "docker_system_info"
-    description = "Get Docker system information"
-    input_model = SystemInfoInput
     output_model = SystemInfoOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_system_info"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get Docker system information"
+
+    @property
+    def input_schema(self) -> type[SystemInfoInput]:
+        """Input schema."""
+        return SystemInfoInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: SystemInfoInput) -> SystemInfoOutput:  # noqa: ARG002
         """Execute the system info operation.
@@ -139,7 +160,7 @@ class SystemInfoTool:
         """
         try:
             logger.info("Getting Docker system information")
-            info = self.docker_client.client.info()  # type: ignore[no-untyped-call]
+            info = self.docker.client.info()  # type: ignore[no-untyped-call]
 
             logger.info("Successfully retrieved system information")
             return SystemInfoOutput(info=info)
@@ -149,22 +170,30 @@ class SystemInfoTool:
             raise DockerOperationError(f"Failed to get system info: {e}") from e
 
 
-class SystemDfTool:
+class SystemDfTool(BaseTool):
     """Get Docker disk usage statistics."""
 
-    name = "docker_system_df"
-    description = "Get Docker disk usage statistics"
-    input_model = SystemDfInput
     output_model = SystemDfOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_system_df"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get Docker disk usage statistics"
+
+    @property
+    def input_schema(self) -> type[SystemDfInput]:
+        """Input schema."""
+        return SystemDfInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: SystemDfInput) -> SystemDfOutput:  # noqa: ARG002
         """Execute the system df operation.
@@ -180,7 +209,7 @@ class SystemDfTool:
         """
         try:
             logger.info("Getting Docker disk usage statistics")
-            df_info = self.docker_client.client.df()  # type: ignore[no-untyped-call]
+            df_info = self.docker.client.df()  # type: ignore[no-untyped-call]
 
             logger.info("Successfully retrieved disk usage statistics")
             return SystemDfOutput(usage=df_info)
@@ -190,22 +219,30 @@ class SystemDfTool:
             raise DockerOperationError(f"Failed to get disk usage: {e}") from e
 
 
-class SystemPruneTool:
+class SystemPruneTool(BaseTool):
     """Prune all unused Docker resources."""
 
-    name = "docker_system_prune"
-    description = "Prune all unused Docker resources (containers, images, networks, volumes)"
-    input_model = SystemPruneInput
     output_model = SystemPruneOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_system_prune"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Prune all unused Docker resources (containers, images, networks, volumes)"
+
+    @property
+    def input_schema(self) -> type[SystemPruneInput]:
+        """Input schema."""
+        return SystemPruneInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: SystemPruneInput) -> SystemPruneOutput:
         """Execute the system prune operation.
@@ -224,15 +261,15 @@ class SystemPruneTool:
 
             # System prune removes stopped containers, unused networks,
             # dangling images, and optionally volumes
-            result = self.docker_client.client.api.prune_containers(  # type: ignore[no-untyped-call]
+            result = self.docker.client.api.prune_containers(  # type: ignore[no-untyped-call]
                 filters=input_data.filters
             )
             containers_deleted = result.get("ContainersDeleted", []) or []
 
-            result_images = self.docker_client.client.images.prune(filters=input_data.filters)
+            result_images = self.docker.client.images.prune(filters=input_data.filters)
             images_deleted = result_images.get("ImagesDeleted", []) or []
 
-            result_networks = self.docker_client.client.api.prune_networks(  # type: ignore[no-untyped-call]
+            result_networks = self.docker.client.api.prune_networks(  # type: ignore[no-untyped-call]
                 filters=input_data.filters
             )
             networks_deleted = result_networks.get("NetworksDeleted", []) or []
@@ -241,7 +278,7 @@ class SystemPruneTool:
             volumes_deleted: list[str] = []
             volumes_space_reclaimed = 0
             if input_data.volumes:
-                result_volumes = self.docker_client.client.volumes.prune(filters=input_data.filters)
+                result_volumes = self.docker.client.volumes.prune(filters=input_data.filters)
                 volumes_deleted = result_volumes.get("VolumesDeleted", []) or []
                 volumes_space_reclaimed = result_volumes.get("SpaceReclaimed", 0)
 
@@ -272,22 +309,30 @@ class SystemPruneTool:
             raise DockerOperationError(f"Failed to prune system: {e}") from e
 
 
-class VersionTool:
+class VersionTool(BaseTool):
     """Get Docker version information."""
 
-    name = "docker_version"
-    description = "Get Docker version information"
-    input_model = VersionInput
     output_model = VersionOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_version"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get Docker version information"
+
+    @property
+    def input_schema(self) -> type[VersionInput]:
+        """Input schema."""
+        return VersionInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: VersionInput) -> VersionOutput:  # noqa: ARG002
         """Execute the version operation.
@@ -303,7 +348,7 @@ class VersionTool:
         """
         try:
             logger.info("Getting Docker version information")
-            version = self.docker_client.client.version()  # type: ignore[no-untyped-call]
+            version = self.docker.client.version()  # type: ignore[no-untyped-call]
 
             logger.info("Successfully retrieved version information")
             return VersionOutput(version=version)
@@ -313,22 +358,30 @@ class VersionTool:
             raise DockerOperationError(f"Failed to get version: {e}") from e
 
 
-class EventsTool:
+class EventsTool(BaseTool):
     """Stream Docker events."""
 
-    name = "docker_events"
-    description = "Stream Docker events (limited to recent events)"
-    input_model = EventsInput
     output_model = EventsOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_events"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Stream Docker events (limited to recent events)"
+
+    @property
+    def input_schema(self) -> type[EventsInput]:
+        """Input schema."""
+        return EventsInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: EventsInput) -> EventsOutput:
         """Execute the events operation.
@@ -355,7 +408,7 @@ class EventsTool:
                 kwargs["filters"] = input_data.filters
 
             # Get events generator (non-streaming for now)
-            events_gen = self.docker_client.client.events(**kwargs)  # type: ignore[no-untyped-call]
+            events_gen = self.docker.client.events(**kwargs)  # type: ignore[no-untyped-call]
 
             # Collect events (limit to prevent infinite loops)
             events = []
@@ -376,22 +429,30 @@ class EventsTool:
             raise DockerOperationError(f"Failed to get events: {e}") from e
 
 
-class HealthCheckTool:
+class HealthCheckTool(BaseTool):
     """Check Docker daemon health."""
 
-    name = "docker_healthcheck"
-    description = "Check Docker daemon health"
-    input_model = HealthCheckInput
     output_model = HealthCheckOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_healthcheck"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Check Docker daemon health"
+
+    @property
+    def input_schema(self) -> type[HealthCheckInput]:
+        """Input schema."""
+        return HealthCheckInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: HealthCheckInput) -> HealthCheckOutput:  # noqa: ARG002
         """Execute the health check operation.
@@ -409,7 +470,7 @@ class HealthCheckTool:
             logger.info("Checking Docker daemon health")
 
             # Perform health check
-            health_status = self.docker_client.health_check()
+            health_status = self.docker.health_check()
 
             # Extract status
             healthy = health_status.get("status") == "healthy"

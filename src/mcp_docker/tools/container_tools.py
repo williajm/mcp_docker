@@ -4,15 +4,16 @@ This module provides tools for managing Docker containers, including
 listing, inspecting, creating, starting, stopping, and executing commands.
 """
 
+import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.base import OperationSafety
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import (
     validate_command,
     validate_container_name,
@@ -23,6 +24,35 @@ from mcp_docker.utils.validation import (
 logger = get_logger(__name__)
 
 
+def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
+    """Parse JSON strings to objects (workaround for MCP client serialization bug).
+
+    Args:
+        v: The value to parse (dict or JSON string)
+        field_name: Name of the field for error messages
+
+    Returns:
+        Parsed dict if v was a string, otherwise returns v unchanged
+
+    Raises:
+        ValueError: If v is a string but not valid JSON
+    """
+    if isinstance(v, str):
+        try:
+            parsed = json.loads(v)
+            logger.warning(
+                f"Received JSON string instead of object for {field_name}, auto-parsing. "
+                "This is a workaround for MCP client serialization issues."
+            )
+            return parsed
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Received invalid JSON string for {field_name}: {v[:100]}... "
+                f"Expected an object/dict, not a string. Error: {e}"
+            ) from e
+    return v
+
+
 # Input/Output Models
 
 
@@ -31,7 +61,12 @@ class ListContainersInput(BaseModel):
 
     all: bool = Field(default=False, description="Show all containers (default shows just running)")
     filters: dict[str, str | list[str]] | None = Field(
-        default=None, description="Filters to apply (e.g., {'status': ['running']})"
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs. "
+            "Examples: {'status': ['running']}, {'name': 'my-container'}, "
+            "{'label': ['env=prod', 'app=web']}"
+        ),
     )
 
 
@@ -60,15 +95,40 @@ class CreateContainerInput(BaseModel):
     image: str = Field(description="Image name to create container from")
     name: str | None = Field(default=None, description="Optional container name")
     command: str | list[str] | None = Field(default=None, description="Command to run")
-    environment: dict[str, str] | None = Field(default=None, description="Environment variables")
-    ports: dict[str, int | tuple[str, int] | None] | None = Field(
-        default=None, description="Port mappings (container_port: host_port)"
+    environment: dict[str, str] | str | None = Field(
+        default=None,
+        description=(
+            "Environment variables as key-value pairs. "
+            "Example: {'DATABASE_URL': 'postgres://localhost', 'DEBUG': 'true'}"
+        ),
     )
-    volumes: dict[str, dict[str, str]] | None = Field(default=None, description="Volume mappings")
+    ports: dict[str, int | tuple[str, int] | None] | str | None = Field(
+        default=None,
+        description=(
+            "Port mappings from container to host. "
+            "Examples: {'80': 8080} maps container port 80 to host port 8080, "
+            "{'80/tcp': 8080} explicitly specifies TCP, "
+            "{'443/tcp': null} exposes port 443 without mapping to host"
+        ),
+    )
+    volumes: dict[str, dict[str, str]] | str | None = Field(
+        default=None,
+        description=(
+            "Volume mappings from host to container. "
+            "Example: {'/host/path': {'bind': '/container/path', 'mode': 'rw'}}"
+        ),
+    )
     detach: bool = Field(default=True, description="Run container in background")
     remove: bool = Field(default=False, description="Remove container when it exits")
     mem_limit: str | None = Field(default=None, description="Memory limit (e.g., '512m', '2g')")
     cpu_shares: int | None = Field(default=None, description="CPU shares (relative weight)")
+
+    @field_validator("ports", "environment", "volumes", mode="before")
+    @classmethod
+    def parse_json_strings(cls, v: Any, info: Any) -> Any:
+        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
+        field_name = info.field_name if hasattr(info, "field_name") else "field"
+        return parse_json_string_field(v, field_name)
 
 
 class CreateContainerOutput(BaseModel):
@@ -162,8 +222,21 @@ class ExecCommandInput(BaseModel):
     command: str | list[str] = Field(description="Command to execute")
     workdir: str | None = Field(default=None, description="Working directory for command")
     user: str | None = Field(default=None, description="User to run command as")
-    environment: dict[str, str] | None = Field(default=None, description="Environment variables")
+    environment: dict[str, str] | str | None = Field(
+        default=None,
+        description=(
+            "Environment variables for the command as key-value pairs. "
+            "Example: {'PATH': '/usr/local/bin:/usr/bin', 'MY_VAR': 'value'}"
+        ),
+    )
     privileged: bool = Field(default=False, description="Run with elevated privileges")
+
+    @field_validator("environment", mode="before")
+    @classmethod
+    def parse_environment_json(cls, v: Any, info: Any) -> Any:
+        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
+        field_name = info.field_name if hasattr(info, "field_name") else "environment"
+        return parse_json_string_field(v, field_name)
 
 
 class ExecCommandOutput(BaseModel):
@@ -190,22 +263,31 @@ class ContainerStatsOutput(BaseModel):
 # Tool Implementations
 
 
-class ListContainersTool:
+class ListContainersTool(BaseTool):
     """List Docker containers with optional filters."""
 
-    name = "docker_list_containers"
-    description = "List Docker containers with optional filters"
-    input_model = ListContainersInput
+    # Keep output_model for documentation (not used by BaseTool but helpful)
     output_model = ListContainersOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_list_containers"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "List Docker containers with optional filters"
+
+    @property
+    def input_schema(self) -> type[ListContainersInput]:
+        """Input schema."""
+        return ListContainersInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ListContainersInput) -> ListContainersOutput:
         """Execute the list containers operation.
@@ -221,7 +303,7 @@ class ListContainersTool:
         """
         try:
             logger.info(f"Listing containers (all={input_data.all}, filters={input_data.filters})")
-            containers = self.docker_client.client.containers.list(
+            containers = self.docker.client.containers.list(
                 all=input_data.all, filters=input_data.filters
             )
 
@@ -245,22 +327,30 @@ class ListContainersTool:
             raise DockerOperationError(f"Failed to list containers: {e}") from e
 
 
-class InspectContainerTool:
+class InspectContainerTool(BaseTool):
     """Inspect a Docker container to get detailed information."""
 
-    name = "docker_inspect_container"
-    description = "Get detailed information about a Docker container"
-    input_model = InspectContainerInput
     output_model = InspectContainerOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_inspect_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get detailed information about a Docker container"
+
+    @property
+    def input_schema(self) -> type[InspectContainerInput]:
+        """Input schema."""
+        return InspectContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: InspectContainerInput) -> InspectContainerOutput:
         """Execute the inspect container operation.
@@ -277,7 +367,7 @@ class InspectContainerTool:
         """
         try:
             logger.info(f"Inspecting container: {input_data.container_id}")
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
             details = container.attrs
 
             logger.info(f"Successfully inspected container: {input_data.container_id}")
@@ -291,22 +381,30 @@ class InspectContainerTool:
             raise DockerOperationError(f"Failed to inspect container: {e}") from e
 
 
-class CreateContainerTool:
+class CreateContainerTool(BaseTool):
     """Create a new Docker container."""
 
-    name = "docker_create_container"
-    description = "Create a new Docker container from an image"
-    input_model = CreateContainerInput
     output_model = CreateContainerOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_create_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Create a new Docker container from an image"
+
+    @property
+    def input_schema(self) -> type[CreateContainerInput]:
+        """Input schema."""
+        return CreateContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(  # noqa: PLR0912
         self, input_data: CreateContainerInput
@@ -331,6 +429,8 @@ class CreateContainerTool:
             if input_data.mem_limit:
                 validate_memory(input_data.mem_limit)
             if input_data.ports:
+                # After field validation, ports is always a dict or None (never str)
+                assert isinstance(input_data.ports, dict)
                 for container_port, host_port in input_data.ports.items():
                     if isinstance(host_port, int):
                         validate_port_mapping(container_port, host_port)
@@ -348,13 +448,18 @@ class CreateContainerTool:
             if input_data.command:
                 kwargs["command"] = input_data.command
             if input_data.environment:
+                # After field validation, environment is always a dict or None (never str)
+                assert isinstance(input_data.environment, dict)
                 kwargs["environment"] = input_data.environment
 
             # Port mappings for binding to host
             if input_data.ports:
+                # Assertion already added above
                 kwargs["ports"] = input_data.ports
 
             if input_data.volumes:
+                # After field validation, volumes is always a dict or None (never str)
+                assert isinstance(input_data.volumes, dict)
                 kwargs["volumes"] = input_data.volumes
             if input_data.mem_limit:
                 kwargs["mem_limit"] = input_data.mem_limit
@@ -364,7 +469,7 @@ class CreateContainerTool:
             if input_data.remove:
                 kwargs["auto_remove"] = input_data.remove
 
-            container = self.docker_client.client.containers.create(**kwargs)
+            container = self.docker.client.containers.create(**kwargs)
 
             logger.info(f"Successfully created container: {container.id}")
             # container.id and container.name are always present for created containers
@@ -377,22 +482,30 @@ class CreateContainerTool:
             raise DockerOperationError(f"Failed to create container: {e}") from e
 
 
-class StartContainerTool:
+class StartContainerTool(BaseTool):
     """Start a Docker container."""
 
-    name = "docker_start_container"
-    description = "Start a stopped Docker container"
-    input_model = StartContainerInput
     output_model = StartContainerOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_start_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Start a stopped Docker container"
+
+    @property
+    def input_schema(self) -> type[StartContainerInput]:
+        """Input schema."""
+        return StartContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: StartContainerInput) -> StartContainerOutput:
         """Execute the start container operation.
@@ -409,7 +522,7 @@ class StartContainerTool:
         """
         try:
             logger.info(f"Starting container: {input_data.container_id}")
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
             container.start()
             container.reload()
 
@@ -424,22 +537,30 @@ class StartContainerTool:
             raise DockerOperationError(f"Failed to start container: {e}") from e
 
 
-class StopContainerTool:
+class StopContainerTool(BaseTool):
     """Stop a running Docker container."""
 
-    name = "docker_stop_container"
-    description = "Stop a running Docker container gracefully"
-    input_model = StopContainerInput
     output_model = StopContainerOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_stop_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Stop a running Docker container gracefully"
+
+    @property
+    def input_schema(self) -> type[StopContainerInput]:
+        """Input schema."""
+        return StopContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: StopContainerInput) -> StopContainerOutput:
         """Execute the stop container operation.
@@ -458,7 +579,7 @@ class StopContainerTool:
             logger.info(
                 f"Stopping container: {input_data.container_id} (timeout={input_data.timeout})"
             )
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
             container.stop(timeout=input_data.timeout)
             container.reload()
 
@@ -473,22 +594,30 @@ class StopContainerTool:
             raise DockerOperationError(f"Failed to stop container: {e}") from e
 
 
-class RestartContainerTool:
+class RestartContainerTool(BaseTool):
     """Restart a Docker container."""
 
-    name = "docker_restart_container"
-    description = "Restart a Docker container"
-    input_model = RestartContainerInput
     output_model = RestartContainerOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_restart_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Restart a Docker container"
+
+    @property
+    def input_schema(self) -> type[RestartContainerInput]:
+        """Input schema."""
+        return RestartContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: RestartContainerInput) -> RestartContainerOutput:
         """Execute the restart container operation.
@@ -507,7 +636,7 @@ class RestartContainerTool:
             logger.info(
                 f"Restarting container: {input_data.container_id} (timeout={input_data.timeout})"
             )
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
             container.restart(timeout=input_data.timeout)
             container.reload()
 
@@ -522,22 +651,30 @@ class RestartContainerTool:
             raise DockerOperationError(f"Failed to restart container: {e}") from e
 
 
-class RemoveContainerTool:
+class RemoveContainerTool(BaseTool):
     """Remove a Docker container."""
 
-    name = "docker_remove_container"
-    description = "Remove a Docker container"
-    input_model = RemoveContainerInput
     output_model = RemoveContainerOutput
-    safety_level = OperationSafety.DESTRUCTIVE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_remove_container"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Remove a Docker container"
+
+    @property
+    def input_schema(self) -> type[RemoveContainerInput]:
+        """Input schema."""
+        return RemoveContainerInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.DESTRUCTIVE
 
     async def execute(self, input_data: RemoveContainerInput) -> RemoveContainerOutput:
         """Execute the remove container operation.
@@ -557,7 +694,7 @@ class RemoveContainerTool:
                 f"Removing container: {input_data.container_id} (force={input_data.force}, "
                 f"volumes={input_data.volumes})"
             )
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
             container_id = container.id
             container.remove(force=input_data.force, v=input_data.volumes)
 
@@ -574,22 +711,30 @@ class RemoveContainerTool:
             raise DockerOperationError(f"Failed to remove container: {e}") from e
 
 
-class ContainerLogsTool:
+class ContainerLogsTool(BaseTool):
     """Get logs from a Docker container."""
 
-    name = "docker_container_logs"
-    description = "Get logs from a Docker container"
-    input_model = ContainerLogsInput
     output_model = ContainerLogsOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_container_logs"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get logs from a Docker container"
+
+    @property
+    def input_schema(self) -> type[ContainerLogsInput]:
+        """Input schema."""
+        return ContainerLogsInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ContainerLogsInput) -> ContainerLogsOutput:
         """Execute the get container logs operation.
@@ -606,7 +751,7 @@ class ContainerLogsTool:
         """
         try:
             logger.info(f"Getting logs for container: {input_data.container_id}")
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
 
             # Prepare kwargs for logs
             kwargs: dict[str, Any] = {
@@ -658,22 +803,30 @@ class ContainerLogsTool:
             raise DockerOperationError(f"Failed to get container logs: {e}") from e
 
 
-class ExecCommandTool:
+class ExecCommandTool(BaseTool):
     """Execute a command in a running Docker container."""
 
-    name = "docker_exec_command"
-    description = "Execute a command in a running Docker container"
-    input_model = ExecCommandInput
     output_model = ExecCommandOutput
-    safety_level = OperationSafety.MODERATE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_exec_command"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Execute a command in a running Docker container"
+
+    @property
+    def input_schema(self) -> type[ExecCommandInput]:
+        """Input schema."""
+        return ExecCommandInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: ExecCommandInput) -> ExecCommandOutput:
         """Execute the exec command operation.
@@ -697,7 +850,7 @@ class ExecCommandTool:
                 f"Executing command in container: {input_data.container_id}, "
                 f"command: {input_data.command}"
             )
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
 
             # Prepare kwargs for exec
             kwargs: dict[str, Any] = {
@@ -731,22 +884,30 @@ class ExecCommandTool:
             raise DockerOperationError(f"Failed to execute command: {e}") from e
 
 
-class ContainerStatsTool:
+class ContainerStatsTool(BaseTool):
     """Get resource usage statistics for a Docker container."""
 
-    name = "docker_container_stats"
-    description = "Get resource usage statistics for a Docker container"
-    input_model = ContainerStatsInput
     output_model = ContainerStatsOutput
-    safety_level = OperationSafety.SAFE
 
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the tool.
+    @property
+    def name(self) -> str:
+        """Tool name."""
+        return "docker_container_stats"
 
-        Args:
-            docker_client: Docker client wrapper instance
-        """
-        self.docker_client = docker_client
+    @property
+    def description(self) -> str:
+        """Tool description."""
+        return "Get resource usage statistics for a Docker container"
+
+    @property
+    def input_schema(self) -> type[ContainerStatsInput]:
+        """Input schema."""
+        return ContainerStatsInput
+
+    @property
+    def safety_level(self) -> OperationSafety:
+        """Safety level."""
+        return OperationSafety.SAFE
 
     async def execute(self, input_data: ContainerStatsInput) -> ContainerStatsOutput:
         """Execute the get container stats operation.
@@ -763,7 +924,7 @@ class ContainerStatsTool:
         """
         try:
             logger.info(f"Getting stats for container: {input_data.container_id}")
-            container = self.docker_client.client.containers.get(input_data.container_id)
+            container = self.docker.client.containers.get(input_data.container_id)
 
             # Get stats - behavior differs based on stream parameter
             # When stream=False, returns a dict directly

@@ -4,59 +4,16 @@ This module provides the main MCP server that exposes Docker functionality
 as tools, resources, and prompts through the Model Context Protocol.
 """
 
+import asyncio
+import inspect
 from typing import Any
 
 from mcp_docker.config import Config
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.prompts.templates import PromptProvider
 from mcp_docker.resources.providers import ResourceProvider
-from mcp_docker.tools.base import OperationSafety
-from mcp_docker.tools.container_tools import (
-    ContainerLogsTool,
-    ContainerStatsTool,
-    CreateContainerTool,
-    ExecCommandTool,
-    InspectContainerTool,
-    ListContainersTool,
-    RemoveContainerTool,
-    RestartContainerTool,
-    StartContainerTool,
-    StopContainerTool,
-)
-from mcp_docker.tools.image_tools import (
-    BuildImageTool,
-    ImageHistoryTool,
-    InspectImageTool,
-    ListImagesTool,
-    PruneImagesTool,
-    PullImageTool,
-    PushImageTool,
-    RemoveImageTool,
-    TagImageTool,
-)
-from mcp_docker.tools.network_tools import (
-    ConnectContainerTool,
-    CreateNetworkTool,
-    DisconnectContainerTool,
-    InspectNetworkTool,
-    ListNetworksTool,
-    RemoveNetworkTool,
-)
-from mcp_docker.tools.system_tools import (
-    EventsTool,
-    HealthCheckTool,
-    SystemDfTool,
-    SystemInfoTool,
-    SystemPruneTool,
-    VersionTool,
-)
-from mcp_docker.tools.volume_tools import (
-    CreateVolumeTool,
-    InspectVolumeTool,
-    ListVolumesTool,
-    PruneVolumesTool,
-    RemoveVolumeTool,
-)
+from mcp_docker.tools import base as tools_base
+from mcp_docker.tools import container_tools, image_tools, network_tools, system_tools, volume_tools
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -82,58 +39,40 @@ class MCPDockerServer:
         self.resource_provider = ResourceProvider(self.docker_client)
         self.prompt_provider = PromptProvider(self.docker_client)
 
+        # Initialize semaphore for concurrency limiting
+        self._operation_semaphore = asyncio.Semaphore(config.safety.max_concurrent_operations)
+
         logger.info("Initializing MCP Docker server")
         self._register_tools()
         logger.info(f"Registered {len(self.tools)} tools")
-        logger.info("Initialized resource and prompt providers")
+        logger.info(
+            f"Initialized resource and prompt providers "
+            f"(max concurrent operations: {config.safety.max_concurrent_operations})"
+        )
 
     def _register_tools(self) -> None:
-        """Register all Docker tools."""
-        # Container tools (10 tools)
-        self._register_tool(ListContainersTool(self.docker_client))
-        self._register_tool(InspectContainerTool(self.docker_client))
-        self._register_tool(CreateContainerTool(self.docker_client))
-        self._register_tool(StartContainerTool(self.docker_client))
-        self._register_tool(StopContainerTool(self.docker_client))
-        self._register_tool(RestartContainerTool(self.docker_client))
-        self._register_tool(RemoveContainerTool(self.docker_client))
-        self._register_tool(ContainerLogsTool(self.docker_client))
-        self._register_tool(ExecCommandTool(self.docker_client))
-        self._register_tool(ContainerStatsTool(self.docker_client))
+        """Auto-register all Docker tools from tool modules.
 
-        # Image tools (9 tools)
-        self._register_tool(ListImagesTool(self.docker_client))
-        self._register_tool(InspectImageTool(self.docker_client))
-        self._register_tool(PullImageTool(self.docker_client))
-        self._register_tool(BuildImageTool(self.docker_client))
-        self._register_tool(PushImageTool(self.docker_client))
-        self._register_tool(TagImageTool(self.docker_client))
-        self._register_tool(RemoveImageTool(self.docker_client))
-        self._register_tool(PruneImagesTool(self.docker_client))
-        self._register_tool(ImageHistoryTool(self.docker_client))
+        This method discovers all BaseTool subclasses from the tool modules
+        and automatically registers them. New tools added to any module will
+        be automatically registered without code changes here.
+        """
+        tool_modules = [container_tools, image_tools, network_tools, volume_tools, system_tools]
 
-        # Network tools (6 tools)
-        self._register_tool(ListNetworksTool(self.docker_client))
-        self._register_tool(InspectNetworkTool(self.docker_client))
-        self._register_tool(CreateNetworkTool(self.docker_client))
-        self._register_tool(ConnectContainerTool(self.docker_client))
-        self._register_tool(DisconnectContainerTool(self.docker_client))
-        self._register_tool(RemoveNetworkTool(self.docker_client))
-
-        # Volume tools (5 tools)
-        self._register_tool(ListVolumesTool(self.docker_client))
-        self._register_tool(InspectVolumeTool(self.docker_client))
-        self._register_tool(CreateVolumeTool(self.docker_client))
-        self._register_tool(RemoveVolumeTool(self.docker_client))
-        self._register_tool(PruneVolumesTool(self.docker_client))
-
-        # System tools (6 tools)
-        self._register_tool(SystemInfoTool(self.docker_client))
-        self._register_tool(SystemDfTool(self.docker_client))
-        self._register_tool(SystemPruneTool(self.docker_client))
-        self._register_tool(VersionTool(self.docker_client))
-        self._register_tool(EventsTool(self.docker_client))
-        self._register_tool(HealthCheckTool(self.docker_client))
+        for module in tool_modules:
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                # Check if it's a BaseTool subclass (but not BaseTool itself)
+                if (
+                    issubclass(obj, tools_base.BaseTool)
+                    and obj is not tools_base.BaseTool
+                    and obj.__module__ == module.__name__  # Ensure it's defined in this module
+                ):
+                    try:
+                        tool_instance = obj(self.docker_client, self.config.safety)
+                        self._register_tool(tool_instance)
+                        logger.debug(f"Auto-registered tool: {tool_instance.name}")
+                    except Exception as e:
+                        logger.error(f"Failed to register tool {name} from {module.__name__}: {e}")
 
     def _register_tool(self, tool: Any) -> None:
         """Register a single tool.
@@ -155,7 +94,7 @@ class MCPDockerServer:
             tool_def = {
                 "name": tool_name,
                 "description": tool.description,
-                "inputSchema": tool.input_model.model_json_schema(),
+                "inputSchema": tool.input_schema.model_json_schema(),
             }
             tool_list.append(tool_def)
 
@@ -183,56 +122,41 @@ class MCPDockerServer:
         tool = self.tools[tool_name]
         logger.info(f"Calling tool: {tool_name}")
 
-        try:
-            # Check safety before execution
-            self._check_tool_safety(tool, arguments)
+        # Use semaphore to limit concurrent operations
+        async with self._operation_semaphore:
+            try:
+                # Additional safety checks beyond what BaseTool.check_safety() does
+                # (BaseTool handles DESTRUCTIVE operations, we handle privileged containers here)
+                self._check_privileged_operations(tool.name, arguments)
 
-            # Validate input
-            validated_input = tool.input_model(**arguments)
+                # Use BaseTool.run() which handles validation and safety checks
+                result = await tool.run(arguments)
 
-            # Execute tool
-            result = await tool.execute(validated_input)
+                # Convert result to dict
+                result_dict = result.model_dump() if hasattr(result, "model_dump") else result
 
-            # Convert result to dict
-            result_dict = result.model_dump() if hasattr(result, "model_dump") else result
+                logger.info(f"Tool {tool_name} executed successfully")
+                return {"success": True, "result": result_dict}
 
-            logger.info(f"Tool {tool_name} executed successfully")
-            return {"success": True, "result": result_dict}
+            except Exception as e:
+                logger.error(f"Tool {tool_name} failed: {e}")
+                return {"success": False, "error": str(e), "error_type": type(e).__name__}
 
-        except Exception as e:
-            logger.error(f"Tool {tool_name} failed: {e}")
-            return {"success": False, "error": str(e), "error_type": type(e).__name__}
+    def _check_privileged_operations(self, tool_name: str, arguments: dict[str, Any]) -> None:
+        """Check privileged operations beyond BaseTool's safety checks.
 
-    def _check_tool_safety(self, tool: Any, arguments: dict[str, Any]) -> None:
-        """Check if a tool operation is allowed based on safety configuration.
+        BaseTool.check_safety() handles DESTRUCTIVE operations.
+        This method handles privileged container checks.
 
         Args:
-            tool: Tool instance to check
+            tool_name: Name of the tool
             arguments: Tool arguments (to check privileged flag)
 
         Raises:
-            PermissionError: If operation is not allowed
+            PermissionError: If privileged operation is not allowed
         """
-        # Get tool safety level
-        safety_level = getattr(tool, "safety_level", OperationSafety.SAFE)
-
-        # Check destructive operations
-        if safety_level == OperationSafety.DESTRUCTIVE:
-            if not self.config.safety.allow_destructive_operations:
-                logger.warning(f"Destructive operation '{tool.name}' blocked by safety config")
-                raise PermissionError(
-                    f"Destructive operation '{tool.name}' is not allowed. "
-                    "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
-                )
-
-            if self.config.safety.require_confirmation_for_destructive:
-                logger.warning(
-                    f"Destructive operation '{tool.name}' requires confirmation. "
-                    "Proceeding without confirmation in MCP mode."
-                )
-
         # Check privileged containers (for exec commands)
-        if tool.name == "docker_exec_command":
+        if tool_name == "docker_exec_command":
             privileged = arguments.get("privileged", False)
             if privileged and not self.config.safety.allow_privileged_containers:
                 logger.warning("Privileged exec command blocked by safety config")
@@ -242,7 +166,7 @@ class MCPDockerServer:
                 )
 
         # Check privileged flag in container creation
-        if tool.name == "docker_create_container":
+        if tool_name == "docker_create_container":
             privileged = arguments.get("privileged", False)
             if privileged and not self.config.safety.allow_privileged_containers:
                 logger.warning("Privileged container creation blocked by safety config")

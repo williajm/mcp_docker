@@ -5,6 +5,8 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from mcp_docker.version import __version__
+
 
 class DockerConfig(BaseSettings):
     """Docker client configuration."""
@@ -96,7 +98,7 @@ class ServerConfig(BaseSettings):
         description="MCP server name",
     )
     server_version: str = Field(
-        default="0.1.0",
+        default=__version__,
         description="MCP server version",
     )
     log_level: str = Field(
