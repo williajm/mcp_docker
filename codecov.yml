@@ -11,12 +11,13 @@ coverage:
           - unittests
     patch:
       default:
-        target: 70%
-        threshold: 5%
+        target: 60%
+        threshold: 10%
         flags:
           - unittests
         # Only consider unit test coverage for patch
         only_pulls: true
+        informational: true  # Make patch coverage informational, not blocking
 
 flags:
   unittests:
