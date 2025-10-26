@@ -1,0 +1,40 @@
+codecov:
+  require_ci_to_pass: yes
+
+coverage:
+  status:
+    project:
+      default:
+        target: 70%
+        threshold: 1%
+        flags:
+          - unittests
+    patch:
+      default:
+        target: 60%
+        threshold: 10%
+        flags:
+          - unittests
+        # Only consider unit test coverage for patch
+        only_pulls: true
+        informational: true  # Make patch coverage informational, not blocking
+
+flags:
+  unittests:
+    paths:
+      - src/
+    carryforward: false
+
+ignore:
+  - "tests/**"
+  - "**/__init__.py"
+  - "setup.py"
+  - "**/__main__.py"
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+  show_carryforward_flags: false
