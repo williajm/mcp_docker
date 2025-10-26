@@ -347,3 +347,159 @@ class TestMCPDockerServer:
 
         # But max concurrent should never exceed configured limit
         assert max_concurrent_count <= 2
+
+    def test_list_resources_success(self, mock_config, mock_docker_client):
+        """Test listing resources successfully."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock resource provider
+        mock_resource = Mock()
+        mock_resource.uri = "container://logs/abc123"
+        mock_resource.name = "Container Logs"
+        mock_resource.description = "Logs for container abc123"
+        mock_resource.mime_type = "text/plain"
+
+        server.resource_provider.list_resources = Mock(return_value=[mock_resource])
+
+        resources = server.list_resources()
+
+        assert len(resources) == 1
+        assert resources[0]["uri"] == "container://logs/abc123"
+        assert resources[0]["name"] == "Container Logs"
+        assert resources[0]["mimeType"] == "text/plain"
+
+    def test_list_resources_with_exception(self, mock_config, mock_docker_client):
+        """Test listing resources when an exception occurs."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock resource provider to raise an exception
+        server.resource_provider.list_resources = Mock(
+            side_effect=Exception("Failed to list resources")
+        )
+
+        # Should return empty list instead of crashing
+        resources = server.list_resources()
+
+        assert resources == []
+
+    @pytest.mark.asyncio
+    async def test_read_resource_with_text(self, mock_config, mock_docker_client):
+        """Test reading resource with text content."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock resource content
+        mock_content = Mock()
+        mock_content.uri = "container://logs/abc123"
+        mock_content.mime_type = "text/plain"
+        mock_content.text = "Log content here"
+        mock_content.blob = None
+
+        server.resource_provider.read_resource = AsyncMock(return_value=mock_content)
+
+        result = await server.read_resource("container://logs/abc123")
+
+        assert result["uri"] == "container://logs/abc123"
+        assert result["mimeType"] == "text/plain"
+        assert result["text"] == "Log content here"
+        assert "blob" not in result
+
+    @pytest.mark.asyncio
+    async def test_read_resource_with_blob(self, mock_config, mock_docker_client):
+        """Test reading resource with blob content."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock resource content with blob
+        mock_content = Mock()
+        mock_content.uri = "container://data/abc123"
+        mock_content.mime_type = "application/octet-stream"
+        mock_content.text = None
+        mock_content.blob = b"binary data"
+
+        server.resource_provider.read_resource = AsyncMock(return_value=mock_content)
+
+        result = await server.read_resource("container://data/abc123")
+
+        assert result["uri"] == "container://data/abc123"
+        assert result["mimeType"] == "application/octet-stream"
+        assert result["blob"] == "binary data"  # Decoded from bytes
+        assert "text" not in result
+
+    @pytest.mark.asyncio
+    async def test_read_resource_with_exception(self, mock_config, mock_docker_client):
+        """Test reading resource when an exception occurs."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock resource provider to raise an exception
+        server.resource_provider.read_resource = AsyncMock(
+            side_effect=Exception("Resource not found")
+        )
+
+        # Should raise the exception
+        with pytest.raises(Exception, match="Resource not found"):
+            await server.read_resource("container://logs/nonexistent")
+
+    def test_list_prompts_success(self, mock_config, mock_docker_client):
+        """Test listing prompts successfully."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock prompt metadata
+        mock_prompt = Mock()
+        mock_prompt.name = "troubleshoot_container"
+        mock_prompt.description = "Troubleshoot a container"
+        mock_prompt.arguments = [{"name": "container_id", "description": "Container ID"}]
+
+        server.prompt_provider.list_prompts = Mock(return_value=[mock_prompt])
+
+        prompts = server.list_prompts()
+
+        assert len(prompts) == 1
+        assert prompts[0]["name"] == "troubleshoot_container"
+        assert prompts[0]["description"] == "Troubleshoot a container"
+        assert len(prompts[0]["arguments"]) == 1
+
+    def test_list_prompts_with_exception(self, mock_config, mock_docker_client):
+        """Test listing prompts when an exception occurs."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock prompt provider to raise an exception
+        server.prompt_provider.list_prompts = Mock(side_effect=Exception("Failed to list prompts"))
+
+        # Should return empty list instead of crashing
+        prompts = server.list_prompts()
+
+        assert prompts == []
+
+    @pytest.mark.asyncio
+    async def test_get_prompt_success(self, mock_config, mock_docker_client):
+        """Test getting a prompt successfully."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock prompt result
+        mock_message = Mock()
+        mock_message.role = "user"
+        mock_message.content = "Troubleshoot container abc123"
+
+        mock_result = Mock()
+        mock_result.description = "Troubleshooting prompt"
+        mock_result.messages = [mock_message]
+
+        server.prompt_provider.get_prompt = AsyncMock(return_value=mock_result)
+
+        result = await server.get_prompt("troubleshoot_container", {"container_id": "abc123"})
+
+        assert result["description"] == "Troubleshooting prompt"
+        assert len(result["messages"]) == 1
+        assert result["messages"][0]["role"] == "user"
+        assert "abc123" in result["messages"][0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_get_prompt_with_exception(self, mock_config, mock_docker_client):
+        """Test getting a prompt when an exception occurs."""
+        server = MCPDockerServer(mock_config)
+
+        # Mock prompt provider to raise an exception
+        server.prompt_provider.get_prompt = AsyncMock(side_effect=Exception("Prompt not found"))
+
+        # Should raise the exception
+        with pytest.raises(Exception, match="Prompt not found"):
+            await server.get_prompt("nonexistent_prompt", {})
