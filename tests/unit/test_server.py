@@ -338,10 +338,6 @@ class TestMCPDockerServer:
             return Mock(model_dump=lambda: {"result": "done"})
 
         # Create a mock tool
-
-        class MockInput(BaseModel):
-            pass
-
         mock_tool = Mock()
         mock_tool.name = "docker_slow_tool"
         mock_tool.run = slow_execute
