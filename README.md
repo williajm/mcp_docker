@@ -7,7 +7,7 @@
 [![License Compliance](https://github.com/williajm/mcp_docker/actions/workflows/license-compliance.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/license-compliance.yml)
 [![Documentation](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml)
 [![codecov](https://codecov.io/gh/williajm/mcp_docker/branch/main/graph/badge.svg)](https://codecov.io/gh/williajm/mcp_docker)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11-3.13](https://img.shields.io/badge/python-3.11--3.13-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/Docker-Management-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -20,12 +20,12 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Features
 
-- **36 Docker Tools**: Complete container, image, network, volume, and system management
-- **3 AI Prompts**: Intelligent troubleshooting, optimization suggestions, and compose file generation
-- **2 Resources**: Real-time container logs and resource statistics
+- **48 Docker Tools**: Complete container, image, network, volume, system, and **Docker Compose** management
+- **5 AI Prompts**: Intelligent troubleshooting and optimization for containers and compose stacks
+- **5 Resources**: Real-time container logs, stats, and compose project information
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
-- **Comprehensive Testing**: 90%+ test coverage with unit and integration tests
+- **Comprehensive Testing**: 88%+ test coverage with unit and integration tests
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
 ## Quick Start
@@ -193,7 +193,7 @@ mcp-docker
 
 ## Tools Overview
 
-The server provides 36 tools organized into 5 categories:
+The server provides 48 tools organized into 6 categories:
 
 ### Container Management (10 tools)
 - `docker_list_containers` - List containers with filters
@@ -206,6 +206,20 @@ The server provides 36 tools organized into 5 categories:
 - `docker_container_logs` - Get container logs
 - `docker_exec_command` - Execute command in container
 - `docker_container_stats` - Get resource usage stats
+
+### Docker Compose Management (12 tools)
+- `docker_compose_up` - Start compose project services
+- `docker_compose_down` - Stop and remove compose services
+- `docker_compose_restart` - Restart compose services
+- `docker_compose_stop` - Stop compose services
+- `docker_compose_ps` - List compose project services
+- `docker_compose_logs` - Get compose service logs
+- `docker_compose_exec` - Execute command in compose service
+- `docker_compose_build` - Build or rebuild compose services
+- `docker_compose_write_file` - Create compose files in compose_files/ directory
+- `docker_compose_scale` - Scale compose services
+- `docker_compose_validate` - Validate compose file syntax
+- `docker_compose_config` - Get resolved compose configuration
 
 ### Image Management (9 tools)
 - `docker_list_images` - List images
@@ -243,18 +257,81 @@ The server provides 36 tools organized into 5 categories:
 
 ## Prompts
 
-Three prompts help AI assistants work with Docker:
+Five prompts help AI assistants work with Docker and Compose:
 
+### Container Prompts
 - **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
 - **optimize_container** - Get optimization suggestions for resource usage and security
 - **generate_compose** - Generate docker-compose.yml from containers or descriptions
 
+### Compose Prompts
+- **troubleshoot_compose_stack** - Diagnose Docker Compose project issues and service dependencies
+- **optimize_compose_config** - Optimize compose configuration for performance, reliability, and security
+
 ## Resources
 
-Two resources provide real-time access to container data:
+Five resources provide real-time access to container and compose data:
 
+### Container Resources
 - **container://logs/{container_id}** - Stream container logs
 - **container://stats/{container_id}** - Get resource usage statistics
+
+### Compose Resources
+- **compose://config/{project_name}** - Get resolved compose project configuration
+- **compose://services/{project_name}** - List services in a compose project
+- **compose://logs/{project_name}/{service_name}** - Get logs from a compose service
+
+## Compose Files Directory
+
+The `compose_files/` directory provides a secure sandbox for creating and testing Docker Compose configurations.
+
+### Sample Files
+
+Three ready-to-use sample files are included:
+- `nginx-redis.yml` - Multi-service web stack (nginx + redis)
+- `postgres-pgadmin.yml` - Database stack with admin UI
+- `simple-webapp.yml` - Minimal single-service example
+
+### Creating Custom Compose Files
+
+Use the `docker_compose_write_file` tool to create custom compose files:
+
+```python
+# Claude can create compose files like this:
+{
+  "filename": "my-stack",  # Will be saved as user-my-stack.yml
+  "content": {
+    "version": "3.8",
+    "services": {
+      "web": {
+        "image": "nginx:alpine",
+        "ports": ["8080:80"]
+      }
+    }
+  }
+}
+```
+
+### Security Features
+
+All compose files written via the tool are:
+- ✅ Restricted to the `compose_files/` directory only
+- ✅ Automatically prefixed with `user-` to distinguish from samples
+- ✅ Validated for YAML syntax and structure
+- ✅ Checked for dangerous volume mounts (/, /etc, /root, etc.)
+- ✅ Validated for proper port ranges and network configurations
+- ✅ Protected against path traversal attacks
+
+### Testing Workflow
+
+Recommended workflow for testing compose functionality:
+
+1. **Create** a compose file using `docker_compose_write_file`
+2. **Validate** with `docker_compose_validate`
+3. **Start** services with `docker_compose_up`
+4. **Check** status with `docker_compose_ps`
+5. **View** logs with `docker_compose_logs`
+6. **Clean up** with `docker_compose_down`
 
 ## Safety System
 
@@ -365,7 +442,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-- [ ] Docker Compose full support
+- [x] Docker Compose full support (11 tools, 2 prompts, 3 resources)
 - [ ] Docker Swarm operations
 - [ ] Remote Docker host support
 - [ ] Enhanced streaming (build/pull progress)
