@@ -3,7 +3,6 @@
 These tests require Docker Compose v2 to be running and will create/remove test compose projects.
 """
 
-import json
 from pathlib import Path
 
 import pytest
