@@ -1,6 +1,7 @@
 """Unit tests for Docker Compose validation utilities."""
 
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 import pytest
 import yaml
@@ -100,6 +101,11 @@ class TestValidateProjectName:
         for name in invalid_names:
             with pytest.raises(ValidationError, match="Invalid project name"):
                 validate_project_name(name)
+
+    def test_project_name_not_string(self) -> None:
+        """Test validation rejects non-string project names."""
+        with pytest.raises(ValidationError, match="must be a string"):
+            validate_project_name(123)  # type: ignore
 
 
 class TestValidateComposeFilePath:
@@ -501,3 +507,272 @@ class TestValidateFullComposeFile:
 
         with pytest.raises(ValidationError, match="Invalid environment variable format"):
             validate_full_compose_file(compose_file)
+
+
+class TestValidateComposeFilePathEdgeCases:
+    """Test edge cases for compose file path validation."""
+
+    def test_path_resolve_oserror(self, tmp_path: Path) -> None:
+        """Test handling of OSError during path resolution."""
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_file.write_text("version: '3.8'\nservices:\n  web:\n    image: nginx")
+
+        # Mock path.resolve() to raise OSError
+        with (
+            patch.object(Path, "resolve", side_effect=OSError("Permission denied")),
+            pytest.raises(ValidationError, match="Failed to resolve compose file path"),
+        ):
+            validate_compose_file_path(compose_file)
+
+    def test_path_resolve_runtime_error(self, tmp_path: Path) -> None:
+        """Test handling of RuntimeError during path resolution."""
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_file.write_text("version: '3.8'\nservices:\n  web:\n    image: nginx")
+
+        # Mock path.resolve() to raise RuntimeError
+        with (
+            patch.object(Path, "resolve", side_effect=RuntimeError("Too many symlinks")),
+            pytest.raises(ValidationError, match="Failed to resolve compose file path"),
+        ):
+            validate_compose_file_path(compose_file)
+
+    def test_path_with_double_dots_after_resolution(self, tmp_path: Path) -> None:
+        """Test rejection of paths containing '..' after resolution."""
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_file.write_text("version: '3.8'\nservices:\n  web:\n    image: nginx")
+
+        # Mock resolve to return a path with ".." in it
+        mock_resolved = Mock(spec=Path)
+        mock_resolved.is_absolute.return_value = True
+        mock_resolved.__str__ = lambda self: "/path/with/../dots"
+
+        with (
+            patch.object(Path, "resolve", return_value=mock_resolved),
+            pytest.raises(UnsafeOperationError, match="suspicious pattern"),
+        ):
+            validate_compose_file_path(compose_file)
+
+    def test_non_absolute_path_after_resolution(self, tmp_path: Path) -> None:
+        """Test rejection of non-absolute paths after resolution."""
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_file.write_text("version: '3.8'\nservices:\n  web:\n    image: nginx")
+
+        # Mock resolve to return a non-absolute path
+        mock_resolved = Mock(spec=Path)
+        mock_resolved.is_absolute.return_value = False
+        mock_resolved.__str__ = lambda self: "relative/path"
+
+        with (
+            patch.object(Path, "resolve", return_value=mock_resolved),
+            pytest.raises(UnsafeOperationError, match="must be absolute"),
+        ):
+            validate_compose_file_path(compose_file)
+
+
+class TestValidateComposeFileFormatEdgeCases:
+    """Test edge cases for compose file format validation."""
+
+    def test_file_read_oserror(self, tmp_path: Path) -> None:
+        """Test handling of OSError during file read."""
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_file.write_text("version: '3.8'\nservices:\n  web:\n    image: nginx")
+
+        # Mock open inside the validate module to raise OSError
+        with (
+            patch(
+                "mcp_docker.utils.compose_validation.Path.open",
+                side_effect=OSError("Permission denied"),
+            ),
+            pytest.raises(ValidationError, match="Failed to read compose file"),
+        ):
+            validate_compose_file_format(compose_file)
+
+    def test_yaml_is_not_dict(self, tmp_path: Path) -> None:
+        """Test rejection when YAML is not a dictionary."""
+        compose_file = tmp_path / "docker-compose.yml"
+        compose_file.write_text("- item1\n- item2\n")  # List instead of dict
+
+        with pytest.raises(ValidationError, match="must contain a YAML dictionary"):
+            validate_compose_file_format(compose_file)
+
+    def test_version_field_present_but_unsupported(self, tmp_path: Path) -> None:
+        """Test that unsupported versions don't fail (just logged)."""
+        compose_file = tmp_path / "docker-compose.yml"
+        content = {"version": "9.9", "services": {"web": {"image": "nginx"}}}
+        compose_file.write_text(yaml.dump(content))
+
+        # Should not raise even with unsupported version
+        result = validate_compose_file_format(compose_file)
+        assert result["version"] == "9.9"
+
+
+class TestValidateComposeVolumeMountsEdgeCases:
+    """Test edge cases for volume mount validation."""
+
+    def test_service_config_not_dict(self) -> None:
+        """Test handling when service config is not a dict."""
+        compose_data = {
+            "services": {
+                "web": "invalid_config",  # Not a dict
+                "api": {"image": "nginx"},
+            }
+        }
+        # Should not raise - non-dict services are skipped
+        validate_compose_volume_mounts(compose_data)
+
+    def test_volume_with_relative_path(self) -> None:
+        """Test handling of relative path volumes."""
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "volumes": ["./data:/app/data"],
+                }
+            }
+        }
+        # Should not raise for relative paths (not dangerous)
+        validate_compose_volume_mounts(compose_data)
+
+    def test_volume_with_parent_directory(self) -> None:
+        """Test handling of parent directory volumes."""
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "volumes": ["../data:/app/data"],
+                }
+            }
+        }
+        # Should not raise for parent directory (not dangerous)
+        validate_compose_volume_mounts(compose_data)
+
+    def test_volume_long_syntax_without_source(self) -> None:
+        """Test handling of long syntax volume without source."""
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "volumes": [{"type": "bind", "target": "/app"}],  # No source
+                }
+            }
+        }
+        # Should not raise - no source to validate
+        validate_compose_volume_mounts(compose_data)
+
+
+class TestValidateComposePortsEdgeCases:
+    """Test edge cases for port validation."""
+
+    def test_port_string_with_three_parts(self) -> None:
+        """Test port string with IP:host:container format."""
+        compose_data = {"services": {"web": {"ports": ["127.0.0.1:8080:80"]}}}
+        # Should not raise
+        validate_compose_ports(compose_data)
+
+    def test_port_long_syntax_with_target(self) -> None:
+        """Test port long syntax with target port."""
+        compose_data = {
+            "services": {
+                "web": {
+                    "ports": [
+                        {"target": 80, "published": 8080},  # Published as int, not string
+                    ]
+                }
+            }
+        }
+        # Should not raise
+        validate_compose_ports(compose_data)
+
+    def test_port_long_syntax_with_invalid_target(self) -> None:
+        """Test port long syntax with invalid target port."""
+        compose_data = {
+            "services": {
+                "web": {
+                    "ports": [
+                        {"target": 99999, "published": 8080},
+                    ]
+                }
+            }
+        }
+        with pytest.raises(ValidationError, match="Invalid target port"):
+            validate_compose_ports(compose_data)
+
+    def test_port_long_syntax_with_invalid_published(self) -> None:
+        """Test port long syntax with invalid published port."""
+        compose_data = {
+            "services": {
+                "web": {
+                    "ports": [
+                        {"target": 80, "published": 99999},
+                    ]
+                }
+            }
+        }
+        with pytest.raises(ValidationError, match="Invalid published port"):
+            validate_compose_ports(compose_data)
+
+
+class TestValidateComposeEnvironmentEdgeCases:
+    """Test edge cases for environment variable validation."""
+
+    def test_service_without_environment(self) -> None:
+        """Test service without environment section."""
+        compose_data = {"services": {"web": {"image": "nginx"}}}
+        # Should not raise
+        validate_compose_environment_variables(compose_data)
+
+    def test_empty_environment_dict(self) -> None:
+        """Test empty environment dictionary."""
+        compose_data = {"services": {"web": {"environment": {}}}}
+        # Should not raise
+        validate_compose_environment_variables(compose_data)
+
+    def test_empty_environment_list(self) -> None:
+        """Test empty environment list."""
+        compose_data = {"services": {"web": {"environment": []}}}
+        # Should not raise
+        validate_compose_environment_variables(compose_data)
+
+
+class TestValidateComposeNetworksEdgeCases:
+    """Test edge cases for network validation."""
+
+    def test_service_without_networks(self) -> None:
+        """Test service without networks section."""
+        compose_data = {"services": {"web": {"image": "nginx"}}}
+        # Should not raise
+        validate_compose_networks(compose_data)
+
+    def test_empty_networks_list(self) -> None:
+        """Test empty networks list."""
+        compose_data = {"services": {"web": {"networks": []}}}
+        # Should not raise
+        validate_compose_networks(compose_data)
+
+    def test_empty_networks_dict(self) -> None:
+        """Test empty networks dictionary."""
+        compose_data = {"services": {"web": {"networks": {}}}}
+        # Should not raise
+        validate_compose_networks(compose_data)
+
+
+class TestValidateComposePortsStringParsing:
+    """Test port string parsing edge cases."""
+
+    def test_port_single_value_invalid_number(self) -> None:
+        """Test single port value that's not a valid number."""
+        compose_data = {"services": {"web": {"ports": ["not_a_number"]}}}
+        with pytest.raises(ValidationError, match="Invalid port format"):
+            validate_compose_ports(compose_data)
+
+    def test_port_two_parts_invalid_host_port(self) -> None:
+        """Test two-part port string with invalid host port."""
+        compose_data = {"services": {"web": {"ports": ["invalid:80"]}}}
+        with pytest.raises(ValidationError, match="Invalid port format"):
+            validate_compose_ports(compose_data)
+
+    def test_port_three_parts_invalid_host_port(self) -> None:
+        """Test three-part port string with invalid host port."""
+        compose_data = {"services": {"web": {"ports": ["127.0.0.1:invalid:80"]}}}
+        with pytest.raises(ValidationError, match="Invalid port format"):
+            validate_compose_ports(compose_data)
