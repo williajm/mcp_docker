@@ -149,7 +149,7 @@ class TestMCPServerE2E:
                     "docker_remove_container", {"container_id": container_name, "force": True}
                 )
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - container may already be removed
 
     @pytest.mark.asyncio
     async def test_e2e_image_workflow(self, mcp_server: MCPDockerServer) -> None:
@@ -203,7 +203,7 @@ class TestMCPServerE2E:
             try:
                 await mcp_server.call_tool("docker_remove_network", {"network_id": network_name})
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - network may already be removed
 
     @pytest.mark.asyncio
     async def test_e2e_volume_workflow(self, mcp_server: MCPDockerServer) -> None:
@@ -240,7 +240,7 @@ class TestMCPServerE2E:
                     "docker_remove_volume", {"volume_name": volume_name, "force": True}
                 )
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - volume may already be removed
 
     @pytest.mark.asyncio
     async def test_resources_integration(self, mcp_server: MCPDockerServer) -> None:
@@ -295,7 +295,7 @@ class TestMCPServerE2E:
                     "docker_remove_container", {"container_id": container_name, "force": True}
                 )
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - container may already be removed
 
     @pytest.mark.asyncio
     async def test_prompts_integration(self, mcp_server: MCPDockerServer) -> None:

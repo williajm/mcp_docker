@@ -43,7 +43,7 @@ async def cleanup_test_volume(mcp_server: MCPDockerServer, test_volume_name: str
             "docker_remove_volume", {"volume_name": test_volume_name, "force": True}
         )
     except Exception:
-        pass
+        pass  # Ignore cleanup errors - volume may not exist
 
 
 @pytest.mark.integration
@@ -149,7 +149,7 @@ class TestVolumeOperations:
                     "docker_remove_volume", {"volume_name": volume_name, "force": True}
                 )
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - volume may already be removed
 
     @pytest.mark.asyncio
     async def test_create_volume_with_labels(
@@ -188,7 +188,7 @@ class TestVolumeOperations:
                     "docker_remove_volume", {"volume_name": volume_name, "force": True}
                 )
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - volume may already be removed
 
     @pytest.mark.asyncio
     async def test_remove_volume_with_force(
@@ -321,4 +321,4 @@ class TestVolumeOperations:
                     "docker_remove_volume", {"volume_name": temp_volume_name, "force": True}
                 )
             except Exception:
-                pass
+                pass  # Ignore cleanup errors - volume may already be removed
