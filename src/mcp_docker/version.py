@@ -5,7 +5,7 @@ which version is running in Claude Desktop.
 """
 
 __version__ = "0.1.0"
-__build__ = 6  # Increment this number when code changes
+__build__ = 9  # Increment this number when code changes
 
 
 def get_full_version() -> str:
