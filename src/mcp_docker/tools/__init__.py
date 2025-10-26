@@ -1,6 +1,20 @@
 """MCP Docker tools."""
 
 from mcp_docker.tools.base import BaseTool, ToolInput, ToolResult
+from mcp_docker.tools.compose_tools import (
+    ComposeBuildTool,
+    ComposeConfigTool,
+    ComposeDownTool,
+    ComposeExecTool,
+    ComposeLogsTool,
+    ComposePsTool,
+    ComposeRestartTool,
+    ComposeScaleTool,
+    ComposeStopTool,
+    ComposeUpTool,
+    ComposeValidateTool,
+    ComposeWriteFileTool,
+)
 from mcp_docker.tools.container_tools import (
     ContainerLogsTool,
     ContainerStatsTool,
@@ -52,6 +66,19 @@ __all__ = [
     "BaseTool",
     "ToolInput",
     "ToolResult",
+    # Compose tools
+    "ComposeBuildTool",
+    "ComposeConfigTool",
+    "ComposeDownTool",
+    "ComposeExecTool",
+    "ComposeLogsTool",
+    "ComposePsTool",
+    "ComposeRestartTool",
+    "ComposeScaleTool",
+    "ComposeStopTool",
+    "ComposeUpTool",
+    "ComposeValidateTool",
+    "ComposeWriteFileTool",
     # Container tools
     "ContainerLogsTool",
     "ContainerStatsTool",
