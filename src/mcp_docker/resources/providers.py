@@ -666,9 +666,7 @@ class ResourceProvider:
             project_name = parsed.path.lstrip("/")
             query_params = parse_qs(parsed.query) if parsed.query else None
             compose_file = self._resolve_compose_file(project_name, query_params)
-            return await self.compose_config_resource.read(
-                project_name, compose_file=compose_file
-            )
+            return await self.compose_config_resource.read(project_name, compose_file=compose_file)
 
         if uri.startswith(ComposeServicesResource.URI_SCHEME):
             # Extract project name from URI
@@ -685,7 +683,9 @@ class ResourceProvider:
             parsed = urlparse(uri)
             path_parts = parsed.path.lstrip("/").split("/", 1)
             if len(path_parts) != 2:
-                raise ValueError(f"Invalid compose logs URI: {uri} (expected format: compose://logs/project/service)")
+                raise ValueError(
+                    f"Invalid compose logs URI: {uri} (expected format: compose://logs/project/service)"
+                )
             project_name, service_name = path_parts
             query_params = parse_qs(parsed.query) if parsed.query else None
             compose_file = self._resolve_compose_file(project_name, query_params)
@@ -737,7 +737,9 @@ class ResourceProvider:
             parsed = urlparse(uri)
             path_parts = parsed.path.lstrip("/").split("/", 1)
             if len(path_parts) != 2:
-                raise ValueError(f"Invalid compose logs URI: {uri} (expected format: compose://logs/project/service)")
+                raise ValueError(
+                    f"Invalid compose logs URI: {uri} (expected format: compose://logs/project/service)"
+                )
             project_name, service_name = path_parts
             return self.compose_logs_resource.get_metadata(project_name, service_name)
 

@@ -97,34 +97,26 @@ class TestComposeClient:
         result = compose_client._sanitize_command_args(args)
         assert result == ["up", "-d", "--build"]
 
-    def test_sanitize_command_args_with_numbers(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_sanitize_command_args_with_numbers(self, compose_client: ComposeClient) -> None:
         """Test sanitizing arguments with numbers."""
         args = ["scale", "web=3"]
         result = compose_client._sanitize_command_args(args)
         assert result == ["scale", "web=3"]
 
-    def test_sanitize_command_args_allows_shell_chars(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_sanitize_command_args_allows_shell_chars(self, compose_client: ComposeClient) -> None:
         """Test that shell metacharacters are allowed (safe without shell=True)."""
         # These characters are safe when using subprocess without shell=True
         args = ["exec", "python -c \"print('hello')\"", "echo $HOME", "test > out.txt"]
         result = compose_client._sanitize_command_args(args)
         assert result == args
 
-    def test_sanitize_command_args_rejects_null_byte(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_sanitize_command_args_rejects_null_byte(self, compose_client: ComposeClient) -> None:
         """Test rejection of null byte character."""
         args = ["up\x00malicious"]
         with pytest.raises(ValidationError, match="null byte"):
             compose_client._sanitize_command_args(args)
 
-    def test_sanitize_command_args_rejects_newline(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_sanitize_command_args_rejects_newline(self, compose_client: ComposeClient) -> None:
         """Test rejection of newline characters."""
         args = ["up\nmalicious"]
         with pytest.raises(ValidationError, match="newline"):
@@ -272,9 +264,7 @@ class TestComposeClient:
 
         client = ComposeClient()
 
-        with patch.object(
-            client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_exec.return_value = mock_result
@@ -298,9 +288,7 @@ class TestComposeClient:
 
         client = ComposeClient()
 
-        with patch.object(
-            client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 1
             mock_result.stderr = "Invalid YAML"
@@ -318,9 +306,7 @@ class TestComposeClient:
 
         client = ComposeClient()
 
-        with patch.object(
-            client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.stdout = '{"services": {"web": {"image": "nginx"}}}'
             mock_result.returncode = 0
@@ -338,9 +324,7 @@ class TestComposeClient:
 
         client = ComposeClient()
 
-        with patch.object(
-            client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.stdout = "version: '3'\nservices:\n  web:\n    image: nginx\n"
             mock_result.returncode = 0
@@ -360,9 +344,7 @@ class TestComposeClient:
 
     def test_execute_subcommand_success(self, compose_client: ComposeClient) -> None:
         """Test executing a compose subcommand."""
-        with patch.object(
-            compose_client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(compose_client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "Services started"
@@ -377,9 +359,7 @@ class TestComposeClient:
 
     def test_execute_subcommand_with_json(self, compose_client: ComposeClient) -> None:
         """Test executing subcommand with JSON parsing."""
-        with patch.object(
-            compose_client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(compose_client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = '{"status": "running"}'
@@ -392,13 +372,9 @@ class TestComposeClient:
             assert "data" in result
             assert result["data"]["status"] == "running"
 
-    def test_execute_subcommand_with_ndjson(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_execute_subcommand_with_ndjson(self, compose_client: ComposeClient) -> None:
         """Test executing subcommand with NDJSON parsing."""
-        with patch.object(
-            compose_client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(compose_client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             # Simulate NDJSON output (newline-delimited JSON)
@@ -418,13 +394,9 @@ class TestComposeClient:
             assert result["data"][0]["Name"] == "nginx"
             assert result["data"][1]["Name"] == "redis"
 
-    def test_execute_subcommand_with_ndjson_and_logs(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_execute_subcommand_with_ndjson_and_logs(self, compose_client: ComposeClient) -> None:
         """Test executing subcommand with NDJSON and log messages."""
-        with patch.object(
-            compose_client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(compose_client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             # Simulate NDJSON output with log messages that should be filtered
@@ -446,13 +418,9 @@ class TestComposeClient:
             assert result["data"][0]["Name"] == "nginx"
             assert result["data"][1]["Name"] == "redis"
 
-    def test_execute_subcommand_with_invalid_json(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_execute_subcommand_with_invalid_json(self, compose_client: ComposeClient) -> None:
         """Test executing subcommand with invalid JSON that can't be parsed."""
-        with patch.object(
-            compose_client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(compose_client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             # Invalid JSON output
@@ -465,13 +433,9 @@ class TestComposeClient:
             assert result["success"] is True
             assert "data" not in result  # No data when parsing fails
 
-    def test_execute_subcommand_override_file(
-        self, compose_client: ComposeClient
-    ) -> None:
+    def test_execute_subcommand_override_file(self, compose_client: ComposeClient) -> None:
         """Test executing subcommand with file override."""
-        with patch.object(
-            compose_client, "_execute_command"
-        ) as mock_exec:
+        with patch.object(compose_client, "_execute_command") as mock_exec:
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = "success"

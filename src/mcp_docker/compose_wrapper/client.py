@@ -93,13 +93,9 @@ class ComposeClient:
             # - Null bytes can truncate arguments at the C level
             # - Newlines can cause issues with argument parsing
             if "\x00" in arg_str:
-                raise ValidationError(
-                    f"Argument contains null byte: {arg_str!r}"
-                )
+                raise ValidationError(f"Argument contains null byte: {arg_str!r}")
             if "\n" in arg_str or "\r" in arg_str:
-                raise ValidationError(
-                    f"Argument contains newline character: {arg_str!r}"
-                )
+                raise ValidationError(f"Argument contains newline character: {arg_str!r}")
 
             sanitized.append(arg_str)
 
@@ -308,9 +304,7 @@ class ComposeClient:
             raise ValidationError("No compose file specified")
 
         if format_json:
-            result = self._execute_command(
-                ["-f", str(file_path), "config", "--format", "json"]
-            )
+            result = self._execute_command(["-f", str(file_path), "config", "--format", "json"])
             config_data: dict[str, Any] = json.loads(result.stdout)
             return config_data
 
