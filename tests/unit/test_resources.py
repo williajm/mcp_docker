@@ -700,9 +700,7 @@ class TestResourceProviderCompose:
             assert compose_file is not None
             assert "user-myproject.yaml" in compose_file
 
-    def test_resolve_compose_file_not_found(
-        self, mock_docker_client: DockerClientWrapper
-    ) -> None:
+    def test_resolve_compose_file_not_found(self, mock_docker_client: DockerClientWrapper) -> None:
         """Test resolving compose file when not found."""
         resource_provider = ResourceProvider(mock_docker_client)
 
