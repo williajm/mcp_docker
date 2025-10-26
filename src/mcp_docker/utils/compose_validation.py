@@ -609,4 +609,13 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
                 "Best practice: Define a custom network for better isolation and service discovery."
             )
 
+    # Check for container_name which prevents scaling
+    if "container_name:" in content:
+        warnings.append(
+            "⚠️  Custom container names detected (container_name:). "
+            "This prevents scaling services to multiple replicas. "
+            "Recommendation: Remove container_name to allow Docker Compose to auto-generate unique names. "
+            "If you need to scale this service, remove the container_name field."
+        )
+
     return {"warnings": warnings}

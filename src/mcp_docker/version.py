@@ -5,7 +5,7 @@ which version is running in Claude Desktop.
 """
 
 __version__ = "0.1.0"
-__build__ = 10  # Added compose quality validation and best practice warnings
+__build__ = 11  # Added container_name scaling warning
 
 
 def get_full_version() -> str:
