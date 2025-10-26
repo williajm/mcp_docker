@@ -535,20 +535,17 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
         Dictionary with 'warnings' list containing best practice recommendations
 
     """
-    import re
-
     warnings = []
 
     # Check for complex inline code with python -c
-    if "python -c" in content:
+    if "python -c" in content and re.search(r"python -c.*[\n;]", content, re.DOTALL):
         # Look for multi-line inline code or semicolon-separated statements
-        if re.search(r"python -c.*[\n;]", content, re.DOTALL):
-            warnings.append(
-                "⚠️  Complex inline Python code detected using 'python -c'. "
-                "This is fragile and error-prone. "
-                "Recommendation: Use a Dockerfile with a proper app.py file instead. "
-                "Example: COPY app.py /app/ then CMD ['python', '/app/app.py']"
-            )
+        warnings.append(
+            "⚠️  Complex inline Python code detected using 'python -c'. "
+            "This is fragile and error-prone. "
+            "Recommendation: Use a Dockerfile with a proper app.py file instead. "
+            "Example: COPY app.py /app/ then CMD ['python', '/app/app.py']"
+        )
 
     # Check for other inline interpreters with complex commands
     if re.search(r"(node -e|ruby -e).*[\n;]", content, re.DOTALL):
@@ -567,8 +564,10 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     # Check for database services without healthchecks
     db_patterns = {
         "postgres": "healthcheck:\n  test: ['CMD-SHELL', 'pg_isready -U postgres']",
-        "mysql": "healthcheck:\n  test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']",
-        "mongodb": "healthcheck:\n  test: ['CMD', 'mongosh', '--eval', 'db.adminCommand(\"ping\")']",
+        "mysql": ("healthcheck:\n  test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']"),
+        "mongodb": (
+            "healthcheck:\n  test: ['CMD', 'mongosh', '--eval', 'db.adminCommand(\"ping\")']"
+        ),
         "redis": "healthcheck:\n  test: ['CMD', 'redis-cli', 'ping']",
     }
 
@@ -591,31 +590,39 @@ def validate_compose_content_quality(content: str) -> dict[str, list[str]]:
     if "services:" in content and "restart:" not in content:
         warnings.append(
             "💡 No restart policy specified. "
-            "Recommendation: Add 'restart: unless-stopped' to ensure services recover from failures."
+            "Recommendation: Add 'restart: unless-stopped' to ensure services "
+            "recover from failures."
         )
 
     # Check for volumes without named volumes
-    if re.search(r"volumes:\s*-\s*\./", content) and "volumes:" not in content.split("services:")[-1]:
+    if (
+        re.search(r"volumes:\s*-\s*\./", content)
+        and "volumes:" not in content.split("services:")[-1]
+    ):
         warnings.append(
             "💡 Using bind mounts (./path). "
             "Tip: Named volumes are more portable. Define in top-level 'volumes:' section."
         )
 
     # Check for missing networks
-    if "services:" in content and len(re.findall(r"^\s*\w+:", content, re.MULTILINE)) > 3:
-        if "networks:" not in content:
-            warnings.append(
-                "💡 Multiple services without custom network. "
-                "Best practice: Define a custom network for better isolation and service discovery."
-            )
+    if (
+        "services:" in content
+        and len(re.findall(r"^\s*\w+:", content, re.MULTILINE)) > 3
+        and "networks:" not in content
+    ):
+        warnings.append(
+            "💡 Multiple services without custom network. "
+            "Best practice: Define a custom network for better isolation and service discovery."
+        )
 
     # Check for container_name which prevents scaling
     if "container_name:" in content:
         warnings.append(
             "⚠️  Custom container names detected (container_name:). "
             "This prevents scaling services to multiple replicas. "
-            "Recommendation: Remove container_name to allow Docker Compose to auto-generate unique names. "
-            "If you need to scale this service, remove the container_name field."
+            "Recommendation: Remove container_name to allow Docker Compose to "
+            "auto-generate unique names. If you need to scale this service, "
+            "remove the container_name field."
         )
 
     return {"warnings": warnings}
