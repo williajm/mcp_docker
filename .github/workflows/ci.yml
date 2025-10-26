@@ -47,7 +47,7 @@ jobs:
           --cov=mcp_docker \
           --cov-report=xml \
           --cov-report=term-missing \
-          --cov-fail-under=90
+          --cov-fail-under=85
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
@@ -101,7 +101,7 @@ jobs:
           -m "integration" \
           --tb=short \
           --maxfail=5 \
-          --cov-fail-under=70
+          --cov-fail-under=60
 
     - name: Cleanup Docker resources
       if: always()

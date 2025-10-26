@@ -106,7 +106,9 @@ class TestComposeClientCoverage:
                 call_count["count"] += 1
                 # First call is for regular JSON parse (will fail)
                 # Subsequent calls during NDJSON parsing - raise TypeError on 2nd NDJSON line
-                if call_count["count"] == 3:  # 1st = regular JSON, 2nd = 1st NDJSON line, 3rd = 2nd NDJSON line
+                if (
+                    call_count["count"] == 3
+                ):  # 1st = regular JSON, 2nd = 1st NDJSON line, 3rd = 2nd NDJSON line
                     # Raise an unexpected exception that will be caught by lines 390-391
                     raise TypeError("Unexpected type error during JSON parsing")
                 return original_loads(s)
