@@ -64,7 +64,9 @@ def test_project_name() -> str:
 
 
 @pytest.fixture
-async def cleanup_test_project(compose_client: ComposeClient, test_compose_file: Path, test_project_name: str):
+async def cleanup_test_project(
+    compose_client: ComposeClient, test_compose_file: Path, test_project_name: str
+):
     """Cleanup fixture to remove test compose project after tests."""
     yield
     # Cleanup after test
@@ -91,14 +93,18 @@ class TestComposeClientIntegration:
         assert "version" in result
         assert result["version"].startswith("2") or result["version"].startswith("v2")
 
-    async def test_validate_compose_file(self, compose_client: ComposeClient, test_compose_file: Path):
+    async def test_validate_compose_file(
+        self, compose_client: ComposeClient, test_compose_file: Path
+    ):
         """Test validating a compose file."""
         result = compose_client.validate_compose_file(test_compose_file)
 
         assert result["valid"] is True
         assert result["file"] == str(test_compose_file)
 
-    async def test_validate_invalid_compose_file(self, compose_client: ComposeClient, tmp_path: Path):
+    async def test_validate_invalid_compose_file(
+        self, compose_client: ComposeClient, tmp_path: Path
+    ):
         """Test validating an invalid compose file."""
         invalid_file = tmp_path / "invalid.yml"
         invalid_file.write_text("invalid: yaml: content:\n  - broken")
@@ -316,7 +322,9 @@ class TestComposeToolsIntegration:
         except Exception:
             pass
 
-    async def test_compose_validate_tool(self, mcp_server: MCPDockerServer, test_compose_file: Path):
+    async def test_compose_validate_tool(
+        self, mcp_server: MCPDockerServer, test_compose_file: Path
+    ):
         """Test the compose validate tool."""
         result = await mcp_server.call_tool(
             "docker_compose_validate",
