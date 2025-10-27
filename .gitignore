@@ -215,3 +215,7 @@ test_manual_all_tools.py
 # User-generated compose files
 compose_files/user-*.yml
 compose_files/user-*.yaml
+
+# Security: API keys and audit logs (NEVER commit these!)
+.mcp_keys.json
+mcp_audit.log
