@@ -10,13 +10,18 @@ from mcp_docker.server import MCPDockerServer
 
 
 @pytest.fixture
-def mock_config():
+def mock_config(tmp_path):
     """Create a mock configuration."""
-    from mcp_docker.config import SafetyConfig
+    from mcp_docker.config import SafetyConfig, SecurityConfig
 
     config = Mock(spec=Config)
     config.docker = Mock()
     config.safety = SafetyConfig()  # Use real SafetyConfig with defaults
+    config.security = SecurityConfig(
+        auth_enabled=False,  # Disable auth for tests
+        api_keys_file=tmp_path / ".mcp_keys.json",
+        audit_log_file=tmp_path / "audit.log",
+    )
     return config
 
 
@@ -136,8 +141,11 @@ class TestMCPDockerServer:
         """Test calling non-existent tool."""
         server = MCPDockerServer(mock_config)
 
-        with pytest.raises(ValueError, match="Tool not found"):
-            await server.call_tool("nonexistent_tool", {})
+        result = await server.call_tool("nonexistent_tool", {})
+
+        assert result["success"] is False
+        assert "Tool not found" in result["error"]
+        assert result["error_type"] == "ValueError"
 
     @pytest.mark.asyncio
     async def test_call_tool_validation_error(self, mock_config, mock_docker_client):
@@ -299,15 +307,17 @@ class TestMCPDockerServer:
         """Test that max_concurrent_operations setting limits concurrent tool execution."""
         import asyncio
 
-        from mcp_docker.config import SafetyConfig
+        from mcp_docker.config import SafetyConfig, SecurityConfig
 
-        # Set up config with max 2 concurrent operations
+        # Set up config with max 2 concurrent operations (safety semaphore)
         mock_config.safety = SafetyConfig(
             allow_destructive_operations=False,
             require_confirmation_for_destructive=False,
             allow_privileged_containers=False,
             max_concurrent_operations=2,
         )
+        # Increase security rate limiter concurrency to not interfere
+        mock_config.security.rate_limit_concurrent = 10
 
         server = MCPDockerServer(mock_config)
 
@@ -345,7 +355,7 @@ class TestMCPDockerServer:
         # All should succeed
         assert all(r["success"] for r in results)
 
-        # But max concurrent should never exceed configured limit
+        # But max concurrent should never exceed configured limit (safety semaphore)
         assert max_concurrent_count <= 2
 
     def test_list_resources_success(self, mock_config, mock_docker_client):
