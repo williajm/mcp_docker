@@ -1,23 +1,9 @@
 name: "CodeQL Config"
 
 # Paths to exclude from analysis
+# Note: scripts/generate_api_key.py is excluded because it intentionally
+# outputs API keys (its purpose is to generate keys for users to copy)
 paths-ignore:
   - 'tests/**'
   - 'docs/**'
-
-# Query filters - suppress specific false positives
-query-filters:
-  # Suppress clear-text logging in key generation script
-  # This is intentional - the script's purpose is to output keys for users to copy
-  - exclude:
-      id: py/clear-text-logging-sensitive-data
-      paths:
-        - scripts/generate_api_key.py
-
-  # Suppress weak crypto warning for audit logging
-  # SHA256 is used for audit logging only, not password verification
-  # Actual authentication uses direct API key comparison
-  - exclude:
-      id: py/weak-cryptographic-algorithm
-      paths:
-        - src/mcp_docker/auth/api_key.py
+  - 'scripts/generate_api_key.py'

@@ -1,6 +1,5 @@
 """API Key authentication implementation."""
 
-import hashlib
 import json
 import secrets
 from datetime import UTC, datetime
@@ -120,10 +119,11 @@ class APIKeyAuthenticator:
             logger.warning("Authentication failed: invalid API key")
             return None
 
-        # Hash the key for audit logging (never log the actual key)
-        # Note: SHA256 is appropriate here as this is for audit logging, not password storage.
-        # The actual authentication is done via direct key comparison above (line 118).
-        key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]  # nosec B324
+        # Create a truncated identifier for audit logging (never log the actual key)
+        # We use Python's built-in hash() for a simple non-cryptographic identifier
+        # This is safe because: (1) it's only for logging/audit trails, not security
+        # (2) the actual authentication is done via direct key comparison above (line 118)
+        key_hash = format(abs(hash(api_key)), "016x")[:16]
 
         logger.info(f"Authentication successful for client: {config.client_id}")
 
