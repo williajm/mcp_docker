@@ -98,8 +98,10 @@ class TestMCPServerE2E:
     @pytest.mark.asyncio
     async def test_call_invalid_tool(self, mcp_server: MCPDockerServer) -> None:
         """Test calling non-existent tool."""
-        with pytest.raises(ValueError, match="Tool not found"):
-            await mcp_server.call_tool("nonexistent_tool", {})
+        result = await mcp_server.call_tool("nonexistent_tool", {})
+        assert result["success"] is False
+        assert "Tool not found" in result["error"]
+        assert result["error_type"] == "ValueError"
 
     @pytest.mark.asyncio
     async def test_e2e_container_workflow(self, mcp_server: MCPDockerServer) -> None:

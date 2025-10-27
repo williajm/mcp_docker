@@ -83,6 +83,81 @@ class SafetyConfig(BaseSettings):
     )
 
 
+class SecurityConfig(BaseSettings):
+    """Security configuration for authentication, authorization, and audit."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="SECURITY_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Authentication
+    auth_enabled: bool = Field(
+        default=False,
+        description="Enable authentication (recommended for production)",
+    )
+    api_keys_file: Path = Field(
+        default=Path(".mcp_keys.json"),
+        description="Path to API keys configuration file",
+    )
+    api_key_header: str = Field(
+        default="X-MCP-API-Key",
+        description="HTTP header name for API key authentication",
+    )
+
+    # Rate Limiting
+    rate_limit_enabled: bool = Field(
+        default=True,
+        description="Enable rate limiting per client",
+    )
+    rate_limit_rpm: int = Field(
+        default=60,
+        description="Maximum requests per minute per client",
+        gt=0,
+        le=1000,
+    )
+    rate_limit_concurrent: int = Field(
+        default=3,
+        description="Maximum concurrent requests per client",
+        gt=0,
+        le=50,
+    )
+
+    # Audit Logging
+    audit_log_enabled: bool = Field(
+        default=True,
+        description="Enable audit logging of all operations",
+    )
+    audit_log_file: Path = Field(
+        default=Path("mcp_audit.log"),
+        description="Path to audit log file",
+    )
+
+    # Network Security
+    allowed_client_ips: list[str] = Field(
+        default_factory=list,
+        description="Allowed client IP addresses (empty list = allow all)",
+    )
+
+    @field_validator("api_keys_file")
+    @classmethod
+    def validate_keys_file_parent_exists(cls, v: Path) -> Path:
+        """Validate that parent directory exists for API keys file."""
+        if not v.parent.exists():
+            raise ValueError(f"Parent directory does not exist for keys file: {v}")
+        return v
+
+    @field_validator("audit_log_file")
+    @classmethod
+    def validate_audit_log_parent_exists(cls, v: Path) -> Path:
+        """Validate that parent directory exists for audit log file."""
+        if not v.parent.exists():
+            raise ValueError(f"Parent directory does not exist for audit log: {v}")
+        return v
+
+
 class ServerConfig(BaseSettings):
     """MCP server configuration."""
 
@@ -133,8 +208,12 @@ class Config:
         """Initialize configuration from environment and .env file."""
         self.docker = DockerConfig()
         self.safety = SafetyConfig()
+        self.security = SecurityConfig()
         self.server = ServerConfig()
 
     def __repr__(self) -> str:
         """Return string representation of config."""
-        return f"Config(docker={self.docker!r}, safety={self.safety!r}, server={self.server!r})"
+        return (
+            f"Config(docker={self.docker!r}, safety={self.safety!r}, "
+            f"security={self.security!r}, server={self.server!r})"
+        )

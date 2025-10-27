@@ -1,0 +1,9 @@
+name: "CodeQL Config"
+
+# Paths to exclude from analysis
+# Note: scripts/generate_api_key.py is excluded because it intentionally
+# outputs API keys (its purpose is to generate keys for users to copy)
+paths-ignore:
+  - 'tests/**'
+  - 'docs/**'
+  - 'scripts/generate_api_key.py'

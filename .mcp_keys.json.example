@@ -1,0 +1,22 @@
+{
+  "clients": [
+    {
+      "api_key": "REPLACE_WITH_GENERATED_KEY_1",
+      "client_id": "claude-desktop",
+      "description": "Claude Desktop application",
+      "enabled": true
+    },
+    {
+      "api_key": "REPLACE_WITH_GENERATED_KEY_2",
+      "client_id": "admin-cli",
+      "description": "Administrator command-line tool",
+      "enabled": true
+    },
+    {
+      "api_key": "REPLACE_WITH_GENERATED_KEY_3",
+      "client_id": "ci-pipeline",
+      "description": "CI/CD pipeline automation",
+      "enabled": false
+    }
+  ]
+}
