@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from mcp_docker.security.rate_limiter import RateLimitExceededError, RateLimiter
+from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceededError
 
 
 class TestRateLimiter:

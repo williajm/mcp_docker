@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 
-from mcp_docker.auth.api_key import ClientInfo
 from mcp_docker.auth.middleware import AuthenticationError, AuthMiddleware
 from mcp_docker.config import SecurityConfig
 
@@ -224,9 +223,7 @@ class TestAuthMiddleware:
         client_info = middleware.authenticate_request("new-key-456", "127.0.0.1")
         assert client_info.client_id == "new-client"
 
-    def test_reload_keys_auth_disabled(
-        self, security_config_auth_disabled: SecurityConfig
-    ) -> None:
+    def test_reload_keys_auth_disabled(self, security_config_auth_disabled: SecurityConfig) -> None:
         """Test reloading keys when auth is disabled."""
         middleware = AuthMiddleware(security_config_auth_disabled)
 

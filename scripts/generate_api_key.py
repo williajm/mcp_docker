@@ -22,17 +22,19 @@ def main() -> None:
     key = generate_api_key()
     print("Generated API Key:")
     print("=" * 60)
-    print(key)
+    # Intentional: This is a key generation utility that outputs keys for users to copy
+    print(key)  # noqa: T201 nosec B608
     print("=" * 60)
     print()
     print("Add this to your .mcp_keys.json file:")
     print()
-    print('{')
-    print('  "api_key": "' + key + '",')
+    print("{")
+    # Intentional: Displaying the key in JSON format for configuration
+    print('  "api_key": "' + key + '",')  # noqa: T201 nosec B608
     print('  "client_id": "your-client-id",')
     print('  "description": "Description of this client",')
     print('  "enabled": true')
-    print('}')
+    print("}")
     print()
     print("IMPORTANT: Keep this key secure and never commit it to version control!")
 

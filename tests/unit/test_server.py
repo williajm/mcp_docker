@@ -307,7 +307,7 @@ class TestMCPDockerServer:
         """Test that max_concurrent_operations setting limits concurrent tool execution."""
         import asyncio
 
-        from mcp_docker.config import SafetyConfig, SecurityConfig
+        from mcp_docker.config import SafetyConfig
 
         # Set up config with max 2 concurrent operations (safety semaphore)
         mock_config.safety = SafetyConfig(

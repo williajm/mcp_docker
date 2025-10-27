@@ -99,9 +99,7 @@ class RateLimiter:
         # Check if limit exceeded
         if len(self._request_times[client_id]) >= self.rpm:
             logger.warning(f"RPM limit exceeded for client: {client_id}")
-            raise RateLimitExceeded(
-                f"Rate limit exceeded: {self.rpm} requests per minute"
-            )
+            raise RateLimitExceeded(f"Rate limit exceeded: {self.rpm} requests per minute")
 
         # Add current request timestamp
         self._request_times[client_id].append(current_time)
@@ -171,9 +169,7 @@ class RateLimiter:
         window_start = current_time - 60.0
 
         # Count requests in current window
-        request_count = sum(
-            1 for ts in self._request_times.get(client_id, []) if ts > window_start
-        )
+        request_count = sum(1 for ts in self._request_times.get(client_id, []) if ts > window_start)
 
         return {
             "client_id": client_id,

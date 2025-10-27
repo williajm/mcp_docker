@@ -111,9 +111,7 @@ class TestAuditLogger:
         # File should not be created when disabled
         assert not audit_log_file.exists()
 
-    def test_log_tool_call_success(
-        self, audit_log_file: Path, client_info: ClientInfo
-    ) -> None:
+    def test_log_tool_call_success(self, audit_log_file: Path, client_info: ClientInfo) -> None:
         """Test logging a successful tool call."""
         logger = AuditLogger(audit_log_file, enabled=True)
 
@@ -135,9 +133,7 @@ class TestAuditLogger:
         assert log_entry["result"] == {"success": True, "containers": []}
         assert log_entry["error"] is None
 
-    def test_log_tool_call_failure(
-        self, audit_log_file: Path, client_info: ClientInfo
-    ) -> None:
+    def test_log_tool_call_failure(self, audit_log_file: Path, client_info: ClientInfo) -> None:
         """Test logging a failed tool call."""
         logger = AuditLogger(audit_log_file, enabled=True)
 
@@ -156,9 +152,7 @@ class TestAuditLogger:
         assert log_entry["error"] == "Connection failed"
         assert log_entry["result"] is None
 
-    def test_log_tool_call_disabled(
-        self, audit_log_file: Path, client_info: ClientInfo
-    ) -> None:
+    def test_log_tool_call_disabled(self, audit_log_file: Path, client_info: ClientInfo) -> None:
         """Test logging when audit logging is disabled."""
         logger = AuditLogger(audit_log_file, enabled=False)
 
@@ -190,9 +184,7 @@ class TestAuditLogger:
         assert log_entry["client_ip"] == "192.168.1.100"
         assert log_entry["error"] == "Invalid API key"
 
-    def test_log_rate_limit_exceeded(
-        self, audit_log_file: Path, client_info: ClientInfo
-    ) -> None:
+    def test_log_rate_limit_exceeded(self, audit_log_file: Path, client_info: ClientInfo) -> None:
         """Test logging a rate limit exceeded event."""
         logger = AuditLogger(audit_log_file, enabled=True)
 

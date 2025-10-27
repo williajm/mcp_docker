@@ -121,7 +121,9 @@ class APIKeyAuthenticator:
             return None
 
         # Hash the key for audit logging (never log the actual key)
-        key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
+        # Note: SHA256 is appropriate here as this is for audit logging, not password storage.
+        # The actual authentication is done via direct key comparison above (line 118).
+        key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]  # nosec B324
 
         logger.info(f"Authentication successful for client: {config.client_id}")
 
