@@ -14,6 +14,14 @@
 [![type-checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue.svg)](https://mypy-lang.org/)
 [![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://williajm.github.io/mcp_docker/)
+[![Documentation en Français](https://img.shields.io/badge/docs-Fran%C3%A7ais-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.fr.md)
+[![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.de.md)
+[![Documentazione in Italiano](https://img.shields.io/badge/docs-Italiano-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.it.md)
+[![Documentación en Español](https://img.shields.io/badge/docs-Espa%C3%B1ol-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.es.md)
+[![Документація Українською](https://img.shields.io/badge/docs-%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.uk.md)
+[![Documentação em Português](https://img.shields.io/badge/docs-Portugu%C3%AAs-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.pt.md)
+[![日本語ドキュメント](https://img.shields.io/badge/docs-%E6%97%A5%E6%9C%AC%E8%AA%9E-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.ja.md)
+[![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.zh.md)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot)
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
