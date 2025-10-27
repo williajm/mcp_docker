@@ -14,10 +14,14 @@
 [![type-checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue.svg)](https://mypy-lang.org/)
 [![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://williajm.github.io/mcp_docker/)
-[![Documentation in English](https://img.shields.io/badge/docs-English-blue)](https://github.com/williajm/mcp_docker/blob/main/README.md)
-[![Documentation en Français](https://img.shields.io/badge/docs-Fran%C3%A7ais-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.fr.md)
-[![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.de.md)
-[![Documentación en Español](https://img.shields.io/badge/docs-Espa%C3%B1ol-blue)](https://github.com/williajm/mcp_docker/blob/main/docs/README.es.md)
+[![Documentation in English](https://img.shields.io/badge/docs-English-blue)](https://williajm.github.io/mcp_docker/)
+[![Documentation en Français](https://img.shields.io/badge/docs-Fran%C3%A7ais-blue)](https://williajm.github.io/mcp_docker/README.fr)
+[![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-blue)](https://williajm.github.io/mcp_docker/README.de)
+[![Documentación en Español](https://img.shields.io/badge/docs-Espa%C3%B1ol-blue)](https://williajm.github.io/mcp_docker/README.es)
+[![Документація Українською](https://img.shields.io/badge/docs-%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-blue)](https://williajm.github.io/mcp_docker/README.uk)
+[![Documentação em Português](https://img.shields.io/badge/docs-Portugu%C3%AAs-blue)](https://williajm.github.io/mcp_docker/README.pt)
+[![日本語ドキュメント](https://img.shields.io/badge/docs-%E6%97%A5%E6%9C%AC%E8%AA%9E-blue)](https://williajm.github.io/mcp_docker/README.ja)
+[![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-blue)](https://williajm.github.io/mcp_docker/README.zh)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot)
 
 Un server [Model Context Protocol (MCP)](https://modelcontextprotocol.io) che espone le funzionalità Docker agli assistenti AI come Claude. Gestisci container, immagini, reti e volumi tramite un'API tipizzata e documentata con controlli di sicurezza.
