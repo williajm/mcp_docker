@@ -17,7 +17,7 @@ jobs:
 
     steps:
     - name: Stale Issues and PRs
-      uses: actions/stale@v9
+      uses: actions/stale@v10
       with:
         # Stale issues config
         days-before-issue-stale: 60
