@@ -63,6 +63,10 @@ class SafetyConfig(BaseSettings):
         extra="ignore",
     )
 
+    allow_moderate_operations: bool = Field(
+        default=True,
+        description="Allow moderate operations (create, start, stop, pull, etc.)",
+    )
     allow_destructive_operations: bool = Field(
         default=False,
         description="Allow destructive operations (rm, prune, etc.)",

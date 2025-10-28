@@ -28,9 +28,9 @@ Un server [Model Context Protocol (MCP)](https://modelcontextprotocol.io) che es
 
 ## Funzionalità
 
-- **48 Strumenti Docker**: Gestione completa di container, immagini, reti, volumi, sistema e **Docker Compose**
-- **5 Prompt AI**: Risoluzione intelligente dei problemi e ottimizzazione per container e stack compose
-- **5 Risorse**: Log in tempo reale dei container, statistiche e informazioni sui progetti compose
+- **36 Strumenti Docker**: Gestione completa di container, immagini, reti, volumi, sistema e **Docker Compose**
+- **3 Prompt AI**: Risoluzione intelligente dei problemi e ottimizzazione per container e stack compose
+- **2 Risorse**: Log in tempo reale dei container, statistiche e informazioni sui progetti compose
 - **Sicurezza dei Tipi**: Type hints completi con validazione Pydantic e modalità strict di mypy
 - **Controlli di Sicurezza**: Sistema di sicurezza a tre livelli (sicuro/moderato/distruttivo) con restrizioni configurabili
 - **Test Completi**: Copertura dei test dell'88%+ con test unitari e di integrazione

@@ -211,8 +211,37 @@ class SystemDfTool(BaseTool):
             logger.info("Getting Docker disk usage statistics")
             df_info = self.docker.client.df()  # type: ignore[no-untyped-call]
 
+            # Summarize the output to avoid token limit issues
+            summary = {
+                "LayersSize": df_info.get("LayersSize", 0),
+                "Images": {
+                    "total_count": len(df_info.get("Images", [])),
+                    "total_size": sum(img.get("Size", 0) for img in df_info.get("Images", [])),
+                    "shared_size": sum(
+                        img.get("SharedSize", 0) for img in df_info.get("Images", [])
+                    ),
+                },
+                "Containers": {
+                    "total_count": len(df_info.get("Containers", [])),
+                    "total_size": sum(c.get("SizeRw", 0) for c in df_info.get("Containers", [])),
+                },
+                "Volumes": {
+                    "total_count": len(df_info.get("Volumes", [])),
+                    "total_size": sum(
+                        v.get("UsageData", {}).get("Size", 0)
+                        for v in df_info.get("Volumes", [])
+                        if v.get("UsageData")
+                    ),
+                },
+                "BuildCache": {
+                    "total_count": len(df_info.get("BuildCache", [])),
+                    "total_size": sum(b.get("Size", 0) for b in df_info.get("BuildCache", [])),
+                    "shared_size": sum(b.get("Shared", 0) for b in df_info.get("BuildCache", [])),
+                },
+            }
+
             logger.info("Successfully retrieved disk usage statistics")
-            return SystemDfOutput(usage=df_info)
+            return SystemDfOutput(usage=summary)
 
         except APIError as e:
             logger.error(f"Failed to get disk usage: {e}")

@@ -17,7 +17,6 @@ from mcp_docker.security.audit import AuditLogger
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
 from mcp_docker.tools import base as tools_base
 from mcp_docker.tools import (
-    compose_tools,
     container_tools,
     image_tools,
     network_tools,
@@ -85,7 +84,6 @@ class MCPDockerServer:
         be automatically registered without code changes here.
         """
         tool_modules = [
-            compose_tools,
             container_tools,
             image_tools,
             network_tools,

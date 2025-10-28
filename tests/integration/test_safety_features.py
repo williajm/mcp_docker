@@ -17,6 +17,7 @@ def restrictive_config() -> Config:
     """Create configuration with all safety features enabled (restrictive)."""
     cfg = Config()
     cfg.safety = SafetyConfig(
+        allow_moderate_operations=True,
         allow_destructive_operations=False,
         allow_privileged_containers=False,
         require_confirmation_for_destructive=True,
@@ -30,6 +31,7 @@ def permissive_config() -> Config:
     """Create configuration with all safety features disabled (permissive)."""
     cfg = Config()
     cfg.safety = SafetyConfig(
+        allow_moderate_operations=True,
         allow_destructive_operations=True,
         allow_privileged_containers=True,
         require_confirmation_for_destructive=False,
@@ -64,6 +66,7 @@ class TestDestructiveOperationsSafety:
 
         # First create a container using permissive server
         permissive_server = MCPDockerServer(Config())
+        permissive_server.config.safety.allow_moderate_operations = True
         permissive_server.config.safety.allow_destructive_operations = True
 
         create_result = await permissive_server.call_tool(
@@ -130,6 +133,7 @@ class TestDestructiveOperationsSafety:
 
         # Create a volume using permissive server
         permissive_server = MCPDockerServer(Config())
+        permissive_server.config.safety.allow_moderate_operations = True
         permissive_server.config.safety.allow_destructive_operations = True
 
         create_result = await permissive_server.call_tool(
@@ -233,6 +237,7 @@ class TestPrivilegedContainersSafety:
         """Test that privileged exec is blocked when not allowed."""
         # Create a running container first with permissive server
         permissive_server = MCPDockerServer(Config())
+        permissive_server.config.safety.allow_moderate_operations = True
         permissive_server.config.safety.allow_destructive_operations = True
 
         create_result = await permissive_server.call_tool(
@@ -351,6 +356,7 @@ class TestSafeOperationsAlwaysAllowed:
         """Test that inspecting containers works even with restrictive config."""
         # Create a container first
         permissive_server = MCPDockerServer(Config())
+        permissive_server.config.safety.allow_moderate_operations = True
         permissive_server.config.safety.allow_destructive_operations = True
 
         create_result = await permissive_server.call_tool(
@@ -388,3 +394,116 @@ class TestSafeOperationsAlwaysAllowed:
 
         assert result["success"] is True
         assert "Version" in result["result"]["version"]
+
+
+@pytest.mark.integration
+class TestReadOnlyModeSafety:
+    """Test read-only mode (allow_moderate_operations=False) safety controls."""
+
+    @pytest.mark.asyncio
+    async def test_create_container_blocked_in_readonly_mode(
+        self, test_container_name: str
+    ) -> None:
+        """Test that creating containers is blocked in read-only mode."""
+        # Create config with read-only mode (moderate operations disabled)
+        cfg = Config()
+        cfg.safety.allow_moderate_operations = False
+        cfg.safety.allow_destructive_operations = False
+        cfg.safety.allow_privileged_containers = False
+
+        server = MCPDockerServer(cfg)
+
+        # Try to create container - should fail
+        create_result = await server.call_tool(
+            "docker_create_container",
+            {
+                "image": "alpine:latest",
+                "name": test_container_name,
+                "command": ["sleep", "10"],
+            },
+        )
+
+        # Should have failed
+        assert create_result["success"] is False
+        assert "read-only mode" in create_result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_start_container_blocked_in_readonly_mode(self, test_container_name: str) -> None:
+        """Test that starting containers is blocked in read-only mode."""
+        # Create a container first with permissive server
+        permissive_server = MCPDockerServer(Config())
+        permissive_server.config.safety.allow_moderate_operations = True
+        permissive_server.config.safety.allow_destructive_operations = True
+
+        create_result = await permissive_server.call_tool(
+            "docker_create_container",
+            {
+                "image": "alpine:latest",
+                "name": test_container_name,
+                "command": ["sleep", "60"],
+            },
+        )
+        assert create_result["success"] is True
+
+        try:
+            # Create read-only mode server
+            cfg = Config()
+            cfg.safety.allow_moderate_operations = False
+            cfg.safety.allow_destructive_operations = False
+
+            server = MCPDockerServer(cfg)
+
+            # Try to start container - should fail
+            start_result = await server.call_tool(
+                "docker_start_container", {"container_id": test_container_name}
+            )
+
+            # Should have failed
+            assert start_result["success"] is False
+            assert "read-only mode" in start_result["error"].lower()
+
+        finally:
+            # Cleanup
+            await permissive_server.call_tool(
+                "docker_remove_container",
+                {"container_id": test_container_name, "force": True},
+            )
+
+    @pytest.mark.asyncio
+    async def test_pull_image_blocked_in_readonly_mode(self) -> None:
+        """Test that pulling images is blocked in read-only mode."""
+        # Create config with read-only mode
+        cfg = Config()
+        cfg.safety.allow_moderate_operations = False
+        cfg.safety.allow_destructive_operations = False
+
+        server = MCPDockerServer(cfg)
+
+        # Try to pull image - should fail
+        pull_result = await server.call_tool("docker_pull_image", {"image": "alpine:latest"})
+
+        # Should have failed
+        assert pull_result["success"] is False
+        assert "read-only mode" in pull_result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_safe_operations_work_in_readonly_mode(self) -> None:
+        """Test that safe operations still work in read-only mode."""
+        # Create config with read-only mode
+        cfg = Config()
+        cfg.safety.allow_moderate_operations = False
+        cfg.safety.allow_destructive_operations = False
+
+        server = MCPDockerServer(cfg)
+
+        # List containers - should work
+        list_result = await server.call_tool("docker_list_containers", {"all": True})
+        assert list_result["success"] is True
+
+        # List images - should work
+        images_result = await server.call_tool("docker_list_images", {})
+        assert images_result["success"] is True
+
+        # Get version - should work
+        version_result = await server.call_tool("docker_version", {})
+        assert version_result["success"] is True

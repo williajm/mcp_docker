@@ -24,9 +24,21 @@ def docker_config() -> DockerConfig:
 def safety_config() -> SafetyConfig:
     """Create test safety configuration."""
     return SafetyConfig(
+        allow_moderate_operations=True,
         allow_destructive_operations=True,
         allow_privileged_containers=False,
         require_confirmation_for_destructive=False,
+    )
+
+
+@pytest.fixture
+def read_only_safety_config() -> SafetyConfig:
+    """Create read-only mode safety configuration (blocks MODERATE operations)."""
+    return SafetyConfig(
+        allow_moderate_operations=False,
+        allow_destructive_operations=False,
+        allow_privileged_containers=False,
+        require_confirmation_for_destructive=True,
     )
 
 
@@ -50,6 +62,20 @@ def config(
     cfg = Config.__new__(Config)
     cfg.docker = docker_config
     cfg.safety = safety_config
+    cfg.server = server_config
+    return cfg
+
+
+@pytest.fixture
+def read_only_config(
+    docker_config: DockerConfig,
+    read_only_safety_config: SafetyConfig,
+    server_config: ServerConfig,
+) -> Config:
+    """Create read-only mode configuration (blocks MODERATE operations)."""
+    cfg = Config.__new__(Config)
+    cfg.docker = docker_config
+    cfg.safety = read_only_safety_config
     cfg.server = server_config
     return cfg
 
@@ -129,6 +155,7 @@ def integration_test_config() -> Config:
     """Create configuration for integration tests."""
     cfg = Config()
     # Override settings for integration tests
+    cfg.safety.allow_moderate_operations = True
     cfg.safety.allow_destructive_operations = True
     cfg.safety.allow_privileged_containers = True
     cfg.safety.require_confirmation_for_destructive = False

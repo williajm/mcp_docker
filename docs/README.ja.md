@@ -28,9 +28,9 @@ ClaudeのようなAIアシスタントにDocker機能を提供する[Model Conte
 
 ## 機能
 
-- **48のDockerツール**: コンテナ、イメージ、ネットワーク、ボリューム、システム、**Docker Compose**の完全な管理
-- **5つのAIプロンプト**: コンテナとcomposeスタックのインテリジェントなトラブルシューティングと最適化
-- **5つのリソース**: リアルタイムのコンテナログ、統計、composeプロジェクト情報
+- **36のDockerツール**: コンテナ、イメージ、ネットワーク、ボリューム、システムの完全な管理
+- **3つのAIプロンプト**: コンテナのインテリジェントなトラブルシューティングと最適化
+- **2つのリソース**: リアルタイムのコンテナログとリソース統計
 - **型安全性**: Pydantic検証とmypyの厳密モードによる完全な型ヒント
 - **セキュリティコントロール**: 設定可能な制限を持つ3段階のセキュリティシステム(安全/中程度/破壊的)
 - **包括的なテスト**: ユニットテストと統合テストによる88%以上のテストカバレッジ
@@ -201,7 +201,7 @@ mcp-docker
 
 ## ツール概要
 
-サーバーは6つのカテゴリに整理された48のツールを提供します:
+サーバーは5つのカテゴリに整理された36のツールを提供します:
 
 ### コンテナ管理(10ツール)
 - `docker_list_containers` - フィルター付きでコンテナをリスト
@@ -214,20 +214,6 @@ mcp-docker
 - `docker_container_logs` - コンテナログを取得
 - `docker_exec_command` - コンテナ内でコマンドを実行
 - `docker_container_stats` - リソース使用統計を取得
-
-### Docker Compose管理(12ツール)
-- `docker_compose_up` - composeプロジェクトのサービスを起動
-- `docker_compose_down` - composeサービスを停止して削除
-- `docker_compose_restart` - composeサービスを再起動
-- `docker_compose_stop` - composeサービスを停止
-- `docker_compose_ps` - composeプロジェクトのサービスをリスト
-- `docker_compose_logs` - composeサービスのログを取得
-- `docker_compose_exec` - composeサービス内でコマンドを実行
-- `docker_compose_build` - composeサービスをビルドまたは再ビルド
-- `docker_compose_write_file` - compose_files/ディレクトリにcomposeファイルを作成
-- `docker_compose_scale` - composeサービスをスケール
-- `docker_compose_validate` - composeファイルの構文を検証
-- `docker_compose_config` - 解決されたcompose設定を取得
 
 ### イメージ管理(9ツール)
 - `docker_list_images` - イメージをリスト
@@ -265,81 +251,18 @@ mcp-docker
 
 ## プロンプト
 
-5つのプロンプトがAIアシスタントのDockerとComposeの作業を支援します:
+3つのプロンプトがAIアシスタントのDockerの作業を支援します:
 
-### コンテナプロンプト
 - **troubleshoot_container** - ログと設定分析によるコンテナ問題の診断
 - **optimize_container** - リソース使用とセキュリティの最適化提案を取得
 - **generate_compose** - コンテナまたは説明からdocker-compose.ymlを生成
 
-### Composeプロンプト
-- **troubleshoot_compose_stack** - Docker Composeプロジェクトの問題とサービス依存関係を診断
-- **optimize_compose_config** - パフォーマンス、信頼性、セキュリティのためにcompose設定を最適化
-
 ## リソース
 
-5つのリソースがコンテナとcomposeデータへのリアルタイムアクセスを提供します:
+2つのリソースがコンテナデータへのリアルタイムアクセスを提供します:
 
-### コンテナリソース
 - **container://logs/{container_id}** - コンテナログをストリーム
 - **container://stats/{container_id}** - リソース使用統計を取得
-
-### Composeリソース
-- **compose://config/{project_name}** - 解決されたcomposeプロジェクト設定を取得
-- **compose://services/{project_name}** - composeプロジェクト内のサービスをリスト
-- **compose://logs/{project_name}/{service_name}** - composeサービスからログを取得
-
-## Composeファイルディレクトリ
-
-`compose_files/`ディレクトリは、Docker Compose設定を作成およびテストするための安全なサンドボックスを提供します。
-
-### サンプルファイル
-
-3つのすぐに使えるサンプルファイルが含まれています:
-- `nginx-redis.yml` - マルチサービスWebスタック(nginx + redis)
-- `postgres-pgadmin.yml` - 管理UIを持つデータベーススタック
-- `simple-webapp.yml` - 最小限のシングルサービスの例
-
-### カスタムComposeファイルの作成
-
-`docker_compose_write_file`ツールを使用してカスタムcomposeファイルを作成:
-
-```python
-# Claudeはこのようにcomposeファイルを作成できます:
-{
-  "filename": "my-stack",  # user-my-stack.ymlとして保存されます
-  "content": {
-    "version": "3.8",
-    "services": {
-      "web": {
-        "image": "nginx:alpine",
-        "ports": ["8080:80"]
-      }
-    }
-  }
-}
-```
-
-### セキュリティ機能
-
-ツールを通じて書き込まれたすべてのcomposeファイルは:
-- ✅ `compose_files/`ディレクトリのみに制限
-- ✅ サンプルと区別するために自動的に`user-`が付加
-- ✅ YAML構文と構造を検証
-- ✅ 危険なボリュームマウント(/, /etc, /root など)をチェック
-- ✅ 適切なポート範囲とネットワーク設定を検証
-- ✅ パストラバーサル攻撃から保護
-
-### テストワークフロー
-
-compose機能をテストするための推奨ワークフロー:
-
-1. **作成** `docker_compose_write_file`を使用してcomposeファイルを作成
-2. **検証** `docker_compose_validate`で検証
-3. **起動** `docker_compose_up`でサービスを起動
-4. **確認** `docker_compose_ps`でステータスを確認
-5. **表示** `docker_compose_logs`でログを表示
-6. **クリーンアップ** `docker_compose_down`でクリーンアップ
 
 ## セキュリティシステム
 

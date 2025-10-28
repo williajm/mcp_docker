@@ -77,28 +77,23 @@ class TestSystemDfTool:
     async def test_system_df_success(self, mock_docker_client, safety_config):
         """Test successful disk usage retrieval."""
         df_info = {
-            "Images": {
-                "TotalCount": 10,
-                "Active": 5,
-                "Size": 1073741824,
-                "Reclaimable": 536870912,
-            },
-            "Containers": {
-                "TotalCount": 15,
-                "Active": 3,
-                "Size": 104857600,
-                "Reclaimable": 52428800,
-            },
-            "Volumes": {
-                "TotalCount": 5,
-                "Active": 2,
-                "Size": 209715200,
-                "Reclaimable": 104857600,
-            },
-            "BuildCache": {
-                "Size": 524288000,
-                "Reclaimable": 262144000,
-            },
+            "LayersSize": 1073741824,
+            "Images": [
+                {"Size": 536870912, "SharedSize": 268435456},
+                {"Size": 536870912, "SharedSize": 268435456},
+            ],
+            "Containers": [
+                {"SizeRw": 52428800},
+                {"SizeRw": 52428800},
+            ],
+            "Volumes": [
+                {"UsageData": {"Size": 104857600}},
+                {"UsageData": {"Size": 104857600}},
+            ],
+            "BuildCache": [
+                {"Size": 262144000, "Shared": 131072000},
+                {"Size": 262144000, "Shared": 131072000},
+            ],
         }
         mock_docker_client.client.df.return_value = df_info
 
@@ -106,10 +101,11 @@ class TestSystemDfTool:
         input_data = SystemDfInput()
         result = await tool.execute(input_data)
 
-        assert result.usage["Images"]["TotalCount"] == 10
-        assert result.usage["Containers"]["TotalCount"] == 15
-        assert result.usage["Volumes"]["TotalCount"] == 5
-        assert result.usage["BuildCache"]["Size"] == 524288000
+        assert result.usage["Images"]["total_count"] == 2
+        assert result.usage["Containers"]["total_count"] == 2
+        assert result.usage["Volumes"]["total_count"] == 2
+        assert result.usage["BuildCache"]["total_count"] == 2
+        assert result.usage["LayersSize"] == 1073741824
         mock_docker_client.client.df.assert_called_once()
 
     @pytest.mark.asyncio

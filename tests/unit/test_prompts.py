@@ -318,21 +318,17 @@ class TestPromptProvider:
         assert prompt_provider.troubleshoot_prompt is not None
         assert prompt_provider.optimize_prompt is not None
         assert prompt_provider.generate_compose_prompt is not None
-        assert prompt_provider.troubleshoot_compose_prompt is not None
-        assert prompt_provider.optimize_compose_prompt is not None
-        assert len(prompt_provider.prompts) == 5
+        assert len(prompt_provider.prompts) == 3
 
     def test_list_prompts(self, prompt_provider: PromptProvider) -> None:
         """Test listing prompts."""
         prompts = prompt_provider.list_prompts()
-        assert len(prompts) == 5
+        assert len(prompts) == 3
 
         prompt_names = [p.name for p in prompts]
         assert "troubleshoot_container" in prompt_names
         assert "optimize_container" in prompt_names
         assert "generate_compose" in prompt_names
-        assert "troubleshoot_compose_stack" in prompt_names
-        assert "optimize_compose_config" in prompt_names
 
     @pytest.mark.asyncio
     async def test_get_prompt_troubleshoot(
