@@ -5,8 +5,8 @@ title: API Reference
 
 # Docker MCP Server - API Reference
 
-**Version:** 1.0.0
-**Last Updated:** 2025-10-24
+**Version:** 0.2.0
+**Last Updated:** 2025-10-28
 
 ## Table of Contents
 

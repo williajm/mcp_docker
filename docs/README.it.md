@@ -116,7 +116,7 @@ export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Massimo operazioni simultanee (pre
 
 # Configurazione Server
 export MCP_SERVER_NAME="mcp-docker"  # Nome server MCP (predefinito: mcp-docker)
-export MCP_SERVER_VERSION="0.1.0"  # Versione server MCP (predefinito: 0.1.0)
+export MCP_SERVER_VERSION="0.2.0"  # Versione server MCP (predefinito: 0.2.0)
 export MCP_LOG_LEVEL="INFO"  # Livello di logging: DEBUG, INFO, WARNING, ERROR, CRITICAL (predefinito: INFO)
 export MCP_DOCKER_LOG_PATH="/percorso/a/mcp_docker.log"  # Percorso file di log (opzionale, predefinito mcp_docker.log nella directory di lavoro)
 ```
