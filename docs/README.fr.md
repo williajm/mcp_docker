@@ -116,7 +116,7 @@ export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Maximum d'opérations simultanées
 
 # Configuration Serveur
 export MCP_SERVER_NAME="mcp-docker"  # Nom du serveur MCP (par défaut : mcp-docker)
-export MCP_SERVER_VERSION="0.1.0"  # Version du serveur MCP (par défaut : 0.1.0)
+export MCP_SERVER_VERSION="0.2.0"  # Version du serveur MCP (par défaut : 0.2.0)
 export MCP_LOG_LEVEL="INFO"  # Niveau de journalisation : DEBUG, INFO, WARNING, ERROR, CRITICAL (par défaut : INFO)
 export MCP_DOCKER_LOG_PATH="/chemin/vers/mcp_docker.log"  # Chemin du fichier journal (optionnel, par défaut mcp_docker.log dans le répertoire de travail)
 ```
