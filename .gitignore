@@ -219,3 +219,6 @@ compose_files/user-*.yaml
 # Security: API keys and audit logs (NEVER commit these!)
 .mcp_keys.json
 mcp_audit.log
+
+# Development plans
+development-plan-*.md

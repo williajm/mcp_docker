@@ -13,6 +13,7 @@ from mcp_docker.server import MCPDockerServer
 def integration_config() -> Config:
     """Create integration test configuration."""
     cfg = Config()
+    cfg.safety.allow_moderate_operations = True
     cfg.safety.allow_destructive_operations = True
     cfg.safety.allow_privileged_containers = True
     cfg.safety.require_confirmation_for_destructive = False
@@ -58,9 +59,7 @@ class TestMCPServerE2E:
         # List prompts
         prompts = mcp_server.list_prompts()
         assert isinstance(prompts, list)
-        assert (
-            len(prompts) == 5
-        )  # troubleshoot, optimize, generate_compose, troubleshoot_compose_stack, optimize_compose_config
+        assert len(prompts) == 3  # troubleshoot_container, optimize_container, generate_compose
 
     @pytest.mark.asyncio
     async def test_call_tool_list_containers(self, mcp_server: MCPDockerServer) -> None:
@@ -306,7 +305,7 @@ class TestMCPServerE2E:
         """Test prompts through MCP server."""
         # List prompts
         prompts = mcp_server.list_prompts()
-        assert len(prompts) == 5
+        assert len(prompts) == 3
 
         # Test generate_compose prompt
         compose_prompt = await mcp_server.get_prompt(

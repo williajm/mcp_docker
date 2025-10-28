@@ -4,15 +4,12 @@ This module provides prompt templates that help users with common Docker tasks:
 - troubleshoot_container: Diagnose container issues
 - optimize_container: Suggest container optimizations
 - generate_compose: Generate docker-compose.yml files
-- troubleshoot_compose_stack: Diagnose compose project issues
-- optimize_compose_config: Optimize compose configuration
 """
 
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from mcp_docker.compose_wrapper.client import ComposeClient
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.utils.logger import get_logger
 
@@ -416,309 +413,17 @@ Generate a complete docker-compose.yml file with proper configuration."""
         )
 
 
-class TroubleshootComposeStackPrompt:
-    """Prompt for troubleshooting Docker Compose stack issues."""
-
-    NAME = "troubleshoot_compose_stack"
-    DESCRIPTION = "Diagnose and troubleshoot Docker Compose project issues"
-
-    def __init__(self, compose_client: ComposeClient) -> None:
-        """Initialize the troubleshoot compose prompt.
-
-        Args:
-            compose_client: Compose client wrapper
-
-        """
-        self.compose = compose_client
-
-    def get_metadata(self) -> PromptMetadata:
-        """Get prompt metadata.
-
-        Returns:
-            Prompt metadata
-
-        """
-        return PromptMetadata(
-            name=self.NAME,
-            description=self.DESCRIPTION,
-            arguments=[
-                {
-                    "name": "project_name",
-                    "description": "Compose project name to troubleshoot",
-                    "required": True,
-                },
-                {
-                    "name": "compose_file",
-                    "description": "Path to docker-compose.yml file",
-                    "required": False,
-                },
-            ],
-        )
-
-    async def generate(self, project_name: str, compose_file: str | None = None) -> PromptResult:
-        """Generate troubleshooting prompt for a compose project.
-
-        Args:
-            project_name: Compose project name
-            compose_file: Path to compose file (optional)
-
-        Returns:
-            Prompt result with troubleshooting guidance
-
-        """
-        try:
-            # Get compose config using execute
-            config_exec = self.compose.execute(
-                "config",
-                args=["--format", "json"],
-                compose_file=compose_file,
-                project_name=project_name,
-                parse_json=True,
-            )
-
-            config_data: dict[str, Any] = {}
-            if config_exec.get("success") and isinstance(config_exec.get("data"), dict):
-                config_data = config_exec["data"]
-
-            # Get services status
-            ps_result = self.compose.execute(
-                "ps",
-                args=["--format", "json"],
-                compose_file=compose_file,
-                project_name=project_name,
-                parse_json=True,
-            )
-
-            # Get logs from all services
-            logs_result = self.compose.execute(
-                "logs",
-                args=["--tail", "50"],
-                compose_file=compose_file,
-                project_name=project_name,
-            )
-
-            # Build context
-            services_info = "Services status not available"
-            if ps_result.get("success") and ps_result.get("data"):
-                services = ps_result["data"]
-                services_info = "\n".join(
-                    f"- {s.get('Name', 'unknown')}: {s.get('State', 'unknown')} "
-                    f"(Health: {s.get('Health', 'N/A')})"
-                    for s in (services if isinstance(services, list) else [services])
-                )
-
-            logs = logs_result.get("stdout", "Logs not available")[:2000]  # Limit size
-
-            context = f"""Compose Project: {project_name}  # pragma: no cover
-
-Services Status:  # pragma: no cover
-{services_info}  # pragma: no cover
-
-Recent Logs (last 50 lines):  # pragma: no cover
-{logs}  # pragma: no cover
-
-Configuration Overview:  # pragma: no cover
-- Services: {len(config_data.get("services", {}))} services defined  # pragma: no cover
-- Networks: {len(config_data.get("networks", {}))} networks  # pragma: no cover
-- Volumes: {len(config_data.get("volumes", {}))} volumes  # pragma: no cover
-"""  # pragma: no cover
-
-            # noqa: E501
-            system_message = r"""You are a Docker Compose troubleshooting expert  # pragma: no cover
-Analyze the compose project information and help diagnose issues. Consider:  # pragma: no cover
-1. Service health and status  # pragma: no cover
-2. Inter-service dependencies and startup order  # pragma: no cover
-3. Network connectivity between services  # pragma: no cover
-4. Volume mount issues  # pragma: no cover
-5. Port conflicts  # pragma: no cover
-6. Environment variable configuration  # pragma: no cover
-7. Resource constraints  # pragma: no cover
-8. Log patterns indicating errors  # pragma: no cover
-9. Common compose pitfalls  # pragma: no cover
-
-Provide specific, actionable recommendations to resolve the issues."""  # pragma: no cover
-
-            user_message = (  # pragma: no cover
-                f"Please analyze this Docker Compose project and help troubleshoot any issues:\n\n"  # noqa: E501  # pragma: no cover
-                f"{context}\n\n"  # pragma: no cover
-                "What could be wrong and how can I fix it?"  # pragma: no cover
-            )
-
-            logger.debug(f"Generated troubleshoot prompt for compose project {project_name}")
-
-            return PromptResult(
-                description=f"Troubleshooting guidance for compose project {project_name}",
-                messages=[
-                    PromptMessage(role="system", content=system_message),
-                    PromptMessage(role="user", content=user_message),
-                ],
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to generate troubleshoot compose prompt: {e}")
-            return PromptResult(
-                description=f"Error troubleshooting compose project {project_name}",
-                messages=[
-                    PromptMessage(
-                        role="user",
-                        content=(
-                            f"I need help troubleshooting compose project {project_name}, "
-                            f"but encountered an error: {e}"
-                        ),
-                    )
-                ],
-            )
-
-
-class OptimizeComposeConfigPrompt:
-    """Prompt for optimizing Docker Compose configuration."""
-
-    NAME = "optimize_compose_config"
-    DESCRIPTION = "Suggest optimizations for Docker Compose configuration"
-
-    def __init__(self, compose_client: ComposeClient) -> None:
-        """Initialize the optimize compose prompt.
-
-        Args:
-            compose_client: Compose client wrapper
-
-        """
-        self.compose = compose_client
-
-    def get_metadata(self) -> PromptMetadata:
-        """Get prompt metadata.
-
-        Returns:
-            Prompt metadata
-
-        """
-        return PromptMetadata(
-            name=self.NAME,
-            description=self.DESCRIPTION,
-            arguments=[
-                {
-                    "name": "compose_file",
-                    "description": "Path to docker-compose.yml file to optimize",
-                    "required": True,
-                }
-            ],
-        )
-
-    async def generate(self, compose_file: str) -> PromptResult:
-        """Generate optimization suggestions for a compose file.
-
-        Args:
-            compose_file: Path to compose file
-
-        Returns:
-            Prompt result with optimization suggestions
-
-        """
-        try:
-            # Get compose config
-            config_result = self.compose.get_config(
-                compose_file=compose_file,
-                format_json=True,
-            )
-
-            # Ensure we have a dict
-            config: dict[str, Any] = config_result if isinstance(config_result, dict) else {}
-
-            # Analyze configuration
-            services = config.get("services", {})
-            networks = config.get("networks", {})
-            volumes = config.get("volumes", {})
-
-            # Build analysis context
-            services_summary = []
-            for service_name, service_config in services.items():
-                has_health_check = "healthcheck" in service_config
-                has_resource_limits = (
-                    "deploy" in service_config and "resources" in service_config["deploy"]
-                )
-                restart_policy = service_config.get("restart", "no")
-
-                services_summary.append(
-                    f"- {service_name}:\n"
-                    f"  - Health check: {'Yes' if has_health_check else 'No'}\n"
-                    f"  - Resource limits: {'Yes' if has_resource_limits else 'No'}\n"
-                    f"  - Restart policy: {restart_policy}\n"
-                    f"  - Ports: {len(service_config.get('ports', []))}\n"
-                    f"  - Volumes: {len(service_config.get('volumes', []))}"
-                )
-
-            context = f"""Docker Compose Configuration Analysis  # pragma: no cover
-
-Services ({len(services)} total):  # pragma: no cover
-{chr(10).join(services_summary)}  # pragma: no cover
-
-Networks: {len(networks)} defined  # pragma: no cover
-Volumes: {len(volumes)} defined  # pragma: no cover
-
-Version: {config.get("version", "not specified")}  # pragma: no cover
-"""  # pragma: no cover
-
-            system_message = r"""You are a Docker Compose optimization expert. \  # pragma: no cover
-Analyze the compose configuration and suggest improvements for:  # pragma: no cover
-1. Service health checks  # pragma: no cover
-2. Resource limits and reservations  # pragma: no cover
-3. Restart policies for reliability  # pragma: no cover
-4. Network configuration and isolation  # pragma: no cover
-5. Volume management and data persistence  # pragma: no cover
-6. Environment variable management  # pragma: no cover
-7. Security best practices  # pragma: no cover
-8. Build optimization  # pragma: no cover
-9. Dependency management (depends_on)  # pragma: no cover
-10. Logging configuration  # pragma: no cover
-
-Provide specific, practical recommendations with YAML examples."""  # pragma: no cover
-
-            user_message = (  # pragma: no cover
-                f"Please analyze this Docker Compose configuration and suggest optimizations:\n\n"  # noqa: E501  # pragma: no cover
-                f"{context}\n\n"  # pragma: no cover
-                "How can I optimize this compose file for better performance, "  # pragma: no cover
-                "reliability, and security?"  # pragma: no cover
-            )
-
-            logger.debug(f"Generated optimization prompt for compose file {compose_file}")
-
-            return PromptResult(
-                description=f"Optimization suggestions for compose file {compose_file}",
-                messages=[
-                    PromptMessage(role="system", content=system_message),
-                    PromptMessage(role="user", content=user_message),
-                ],
-            )
-
-        except Exception as e:
-            logger.error(f"Failed to generate optimize compose prompt: {e}")
-            return PromptResult(
-                description=f"Error optimizing compose file {compose_file}",
-                messages=[
-                    PromptMessage(
-                        role="user",
-                        content=(
-                            f"I need help optimizing compose file {compose_file}, "
-                            f"but encountered an error: {e}"
-                        ),
-                    )
-                ],
-            )
-
-
 class PromptProvider:
-    """Main prompt provider that manages all Docker and Compose prompts."""
+    """Main prompt provider that manages all Docker prompts."""
 
     def __init__(
         self,
         docker_client: DockerClientWrapper,
-        compose_client: ComposeClient | None = None,
     ) -> None:
         """Initialize the prompt provider.
 
         Args:
             docker_client: Docker client wrapper
-            compose_client: Compose client wrapper (optional)
 
         """
         self.docker = docker_client
@@ -726,17 +431,10 @@ class PromptProvider:
         self.optimize_prompt = OptimizeContainerPrompt(docker_client)
         self.generate_compose_prompt = GenerateComposePrompt(docker_client)
 
-        # Initialize compose prompts
-        self.compose = compose_client or ComposeClient()
-        self.troubleshoot_compose_prompt = TroubleshootComposeStackPrompt(self.compose)
-        self.optimize_compose_prompt = OptimizeComposeConfigPrompt(self.compose)
-
         self.prompts = {
             self.troubleshoot_prompt.NAME: self.troubleshoot_prompt,
             self.optimize_prompt.NAME: self.optimize_prompt,
             self.generate_compose_prompt.NAME: self.generate_compose_prompt,
-            self.troubleshoot_compose_prompt.NAME: self.troubleshoot_compose_prompt,
-            self.optimize_compose_prompt.NAME: self.optimize_compose_prompt,
         }
 
         logger.debug("Initialized PromptProvider")
@@ -751,15 +449,9 @@ class PromptProvider:
         return [
             prompt.get_metadata()
             for prompt in self.prompts.values()
-            if isinstance(
+            if isinstance(  # noqa: UP038 - isinstance requires tuple, not union type
                 prompt,
-                (
-                    TroubleshootContainerPrompt
-                    | OptimizeContainerPrompt
-                    | GenerateComposePrompt
-                    | TroubleshootComposeStackPrompt
-                    | OptimizeComposeConfigPrompt
-                ),
+                (TroubleshootContainerPrompt, OptimizeContainerPrompt, GenerateComposePrompt),
             )
         ]
 
@@ -797,18 +489,5 @@ class PromptProvider:
             container_id = arguments.get("container_id")
             service_description = arguments.get("service_description")
             return await self.generate_compose_prompt.generate(container_id, service_description)
-
-        if name == TroubleshootComposeStackPrompt.NAME:
-            project_name = arguments.get("project_name")
-            if not project_name:
-                raise ValueError("project_name is required for troubleshoot_compose_stack prompt")
-            compose_file = arguments.get("compose_file")
-            return await self.troubleshoot_compose_prompt.generate(project_name, compose_file)
-
-        if name == OptimizeComposeConfigPrompt.NAME:
-            compose_file = arguments.get("compose_file")
-            if not compose_file:
-                raise ValueError("compose_file is required for optimize_compose_config prompt")
-            return await self.optimize_compose_prompt.generate(compose_file)
 
         raise ValueError(f"Unsupported prompt: {name}")

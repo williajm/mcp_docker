@@ -505,7 +505,7 @@ class StartContainerTool(BaseTool):
     @property
     def safety_level(self) -> OperationSafety:
         """Safety level."""
-        return OperationSafety.SAFE
+        return OperationSafety.MODERATE
 
     async def execute(self, input_data: StartContainerInput) -> StartContainerOutput:
         """Execute the start container operation.

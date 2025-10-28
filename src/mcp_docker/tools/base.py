@@ -120,6 +120,15 @@ class BaseTool(ABC):
             PermissionError: If operation is not allowed
 
         """
+        if (
+            self.safety_level == OperationSafety.MODERATE
+            and not self.safety.allow_moderate_operations
+        ):
+            raise PermissionError(
+                f"Moderate operation '{self.name}' is not allowed in read-only mode. "
+                "Set SAFETY_ALLOW_MODERATE_OPERATIONS=true to enable state-changing operations."
+            )
+
         if self.safety_level == OperationSafety.DESTRUCTIVE:
             if not self.safety.allow_destructive_operations:
                 raise PermissionError(

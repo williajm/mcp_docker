@@ -118,8 +118,22 @@ def is_privileged_operation(operation_name: str) -> bool:
     return operation_name in PRIVILEGED_OPERATIONS
 
 
+def is_moderate_operation(operation_name: str) -> bool:
+    """Check if an operation is moderate (state-changing but reversible).
+
+    Args:
+        operation_name: Name of the operation
+
+    Returns:
+        True if operation is moderate, False otherwise
+
+    """
+    return operation_name in MODERATE_OPERATIONS
+
+
 def validate_operation_allowed(
     operation_name: str,
+    allow_moderate: bool = True,
     allow_destructive: bool = False,
     allow_privileged: bool = False,
 ) -> None:
@@ -127,6 +141,7 @@ def validate_operation_allowed(
 
     Args:
         operation_name: Name of the operation
+        allow_moderate: Whether moderate operations are allowed
         allow_destructive: Whether destructive operations are allowed
         allow_privileged: Whether privileged operations are allowed
 
@@ -134,18 +149,25 @@ def validate_operation_allowed(
         UnsafeOperationError: If operation is not allowed
 
     """
+    # Check moderate operations (for read-only mode)
+    if is_moderate_operation(operation_name) and not allow_moderate:
+        raise UnsafeOperationError(
+            f"Moderate operation '{operation_name}' is not allowed in read-only mode. "
+            "Set SAFETY_ALLOW_MODERATE_OPERATIONS=true to enable state-changing operations."
+        )
+
     # Check destructive operations
     if is_destructive_operation(operation_name) and not allow_destructive:
         raise UnsafeOperationError(
             f"Destructive operation '{operation_name}' is not allowed. "
-            "Enable destructive operations in configuration to proceed."
+            "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
         )
 
     # Check privileged operations
     if is_privileged_operation(operation_name) and not allow_privileged:
         raise UnsafeOperationError(
             f"Privileged operation '{operation_name}' is not allowed. "
-            "Enable privileged operations in configuration to proceed."
+            "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
         )
 
 

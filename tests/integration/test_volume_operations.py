@@ -13,6 +13,7 @@ from mcp_docker.server import MCPDockerServer
 def integration_config() -> Config:
     """Create integration test configuration."""
     cfg = Config()
+    cfg.safety.allow_moderate_operations = True
     cfg.safety.allow_destructive_operations = True
     cfg.safety.allow_privileged_containers = False
     cfg.safety.require_confirmation_for_destructive = False
