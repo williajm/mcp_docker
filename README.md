@@ -28,9 +28,9 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Features
 
-- **48 Docker Tools**: Complete container, image, network, volume, system, and **Docker Compose** management
-- **5 AI Prompts**: Intelligent troubleshooting and optimization for containers and compose stacks
-- **5 Resources**: Real-time container logs, stats, and compose project information
+- **36 Docker Tools**: Complete container, image, network, volume, and system management
+- **3 AI Prompts**: Intelligent troubleshooting and optimization for containers
+- **2 Resources**: Real-time container logs and resource statistics
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
 - **Comprehensive Testing**: 88%+ test coverage with unit and integration tests
@@ -109,6 +109,7 @@ export DOCKER_TLS_CLIENT_CERT="/path/to/cert.pem"  # Path to client certificate 
 export DOCKER_TLS_CLIENT_KEY="/path/to/key.pem"  # Path to client key (optional)
 
 # Safety Configuration
+export SAFETY_ALLOW_MODERATE_OPERATIONS=true  # Allow state-changing ops like create, start, stop (default: true)
 export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # Allow rm, prune operations (default: false)
 export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false  # Allow privileged containers (default: false)
 export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true  # Require confirmation (default: true)
@@ -128,12 +129,14 @@ Alternatively, create a `.env` file in your project directory:
 ```bash
 # .env file example (Linux/macOS)
 DOCKER_BASE_URL=unix:///var/run/docker.sock
+SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
 ```bash
 # .env file example (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
+SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
@@ -201,7 +204,7 @@ mcp-docker
 
 ## Tools Overview
 
-The server provides 48 tools organized into 6 categories:
+The server provides 36 tools organized into 5 categories:
 
 ### Container Management (10 tools)
 - `docker_list_containers` - List containers with filters
@@ -214,20 +217,6 @@ The server provides 48 tools organized into 6 categories:
 - `docker_container_logs` - Get container logs
 - `docker_exec_command` - Execute command in container
 - `docker_container_stats` - Get resource usage stats
-
-### Docker Compose Management (12 tools)
-- `docker_compose_up` - Start compose project services
-- `docker_compose_down` - Stop and remove compose services
-- `docker_compose_restart` - Restart compose services
-- `docker_compose_stop` - Stop compose services
-- `docker_compose_ps` - List compose project services
-- `docker_compose_logs` - Get compose service logs
-- `docker_compose_exec` - Execute command in compose service
-- `docker_compose_build` - Build or rebuild compose services
-- `docker_compose_write_file` - Create compose files in compose_files/ directory
-- `docker_compose_scale` - Scale compose services
-- `docker_compose_validate` - Validate compose file syntax
-- `docker_compose_config` - Get resolved compose configuration
 
 ### Image Management (9 tools)
 - `docker_list_images` - List images
@@ -265,98 +254,73 @@ The server provides 48 tools organized into 6 categories:
 
 ## Prompts
 
-Five prompts help AI assistants work with Docker and Compose:
+Three prompts help AI assistants work with Docker:
 
-### Container Prompts
 - **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
 - **optimize_container** - Get optimization suggestions for resource usage and security
 - **generate_compose** - Generate docker-compose.yml from containers or descriptions
 
-### Compose Prompts
-- **troubleshoot_compose_stack** - Diagnose Docker Compose project issues and service dependencies
-- **optimize_compose_config** - Optimize compose configuration for performance, reliability, and security
-
 ## Resources
 
-Five resources provide real-time access to container and compose data:
+Two resources provide real-time access to container data:
 
-### Container Resources
 - **container://logs/{container_id}** - Stream container logs
 - **container://stats/{container_id}** - Get resource usage statistics
 
-### Compose Resources
-- **compose://config/{project_name}** - Get resolved compose project configuration
-- **compose://services/{project_name}** - List services in a compose project
-- **compose://logs/{project_name}/{service_name}** - Get logs from a compose service
-
-## Compose Files Directory
-
-The `compose_files/` directory provides a secure sandbox for creating and testing Docker Compose configurations.
-
-### Sample Files
-
-Three ready-to-use sample files are included:
-- `nginx-redis.yml` - Multi-service web stack (nginx + redis)
-- `postgres-pgadmin.yml` - Database stack with admin UI
-- `simple-webapp.yml` - Minimal single-service example
-
-### Creating Custom Compose Files
-
-Use the `docker_compose_write_file` tool to create custom compose files:
-
-```python
-# Claude can create compose files like this:
-{
-  "filename": "my-stack",  # Will be saved as user-my-stack.yml
-  "content": {
-    "version": "3.8",
-    "services": {
-      "web": {
-        "image": "nginx:alpine",
-        "ports": ["8080:80"]
-      }
-    }
-  }
-}
-```
-
-### Security Features
-
-All compose files written via the tool are:
-- ✅ Restricted to the `compose_files/` directory only
-- ✅ Automatically prefixed with `user-` to distinguish from samples
-- ✅ Validated for YAML syntax and structure
-- ✅ Checked for dangerous volume mounts (/, /etc, /root, etc.)
-- ✅ Validated for proper port ranges and network configurations
-- ✅ Protected against path traversal attacks
-
-### Testing Workflow
-
-Recommended workflow for testing compose functionality:
-
-1. **Create** a compose file using `docker_compose_write_file`
-2. **Validate** with `docker_compose_validate`
-3. **Start** services with `docker_compose_up`
-4. **Check** status with `docker_compose_ps`
-5. **View** logs with `docker_compose_logs`
-6. **Clean up** with `docker_compose_down`
-
 ## Safety System
 
-The server implements a three-tier safety system:
+The server implements a three-tier safety system with configurable operation modes:
+
+### Operation Safety Levels
 
 1. **SAFE** - Read-only operations (list, inspect, logs, stats)
    - No restrictions
    - Always allowed
+   - Examples: `docker_list_containers`, `docker_inspect_image`, `docker_container_logs`
 
 2. **MODERATE** - State-changing but reversible (start, stop, create)
    - Can modify system state
-   - Generally safe
+   - Controlled by `SAFETY_ALLOW_MODERATE_OPERATIONS` (default: `true`)
+   - Examples: `docker_create_container`, `docker_start_container`, `docker_pull_image`
 
 3. **DESTRUCTIVE** - Permanent changes (remove, prune)
+   - Cannot be easily undone
    - Requires `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true`
    - Can require confirmation
-   - Cannot be easily undone
+   - Examples: `docker_remove_container`, `docker_prune_images`, `docker_system_prune`
+
+### Safety Modes
+
+Configure the safety mode using environment variables:
+
+**Read-Only Mode (Safest)** - Monitoring and observability only
+```bash
+SAFETY_ALLOW_MODERATE_OPERATIONS=false
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+```
+- ✅ List, inspect, logs, stats
+- ❌ Create, start, stop, pull
+- ❌ Remove, prune
+
+**Default Mode (Balanced)** - Development and operations
+```bash
+SAFETY_ALLOW_MODERATE_OPERATIONS=true  # or omit (default)
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+```
+- ✅ List, inspect, logs, stats
+- ✅ Create, start, stop, pull
+- ❌ Remove, prune
+
+**Full Mode (Least Restrictive)** - Infrastructure management
+```bash
+SAFETY_ALLOW_MODERATE_OPERATIONS=true
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
+```
+- ✅ List, inspect, logs, stats
+- ✅ Create, start, stop, pull
+- ✅ Remove, prune
+
+> **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
 
 ## Documentation
 
@@ -450,7 +414,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Roadmap
 
-- [x] Docker Compose full support (11 tools, 2 prompts, 3 resources)
 - [ ] Docker Swarm operations
 - [ ] Remote Docker host support
 - [ ] Enhanced streaming (build/pull progress)

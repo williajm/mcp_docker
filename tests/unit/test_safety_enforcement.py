@@ -135,6 +135,7 @@ class TestSafetyEnforcement:
         # Create config with privileged containers disabled
         config = Config()
         config.safety = SafetyConfig(
+            allow_moderate_operations=True,
             allow_destructive_operations=True,
             allow_privileged_containers=False,
             require_confirmation_for_destructive=False,

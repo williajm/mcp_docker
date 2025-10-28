@@ -28,9 +28,9 @@ Un serveur [Model Context Protocol (MCP)](https://modelcontextprotocol.io) qui e
 
 ## Fonctionnalités
 
-- **48 Outils Docker** : Gestion complète des conteneurs, images, réseaux, volumes, système et **Docker Compose**
-- **5 Prompts IA** : Dépannage et optimisation intelligents pour les conteneurs et stacks compose
-- **5 Ressources** : Logs en temps réel, statistiques des conteneurs et informations sur les projets compose
+- **36 Outils Docker** : Gestion complète des conteneurs, images, réseaux, volumes et système
+- **3 Prompts IA** : Dépannage et optimisation intelligents pour les conteneurs
+- **2 Ressources** : Logs en temps réel et statistiques des ressources des conteneurs
 - **Sécurité des Types** : Annotations de type complètes avec validation Pydantic et mode strict mypy
 - **Contrôles de Sécurité** : Système de sécurité à trois niveaux (sûr/modéré/destructif) avec restrictions configurables
 - **Tests Complets** : Couverture de tests de 88%+ avec tests unitaires et d'intégration
@@ -201,7 +201,7 @@ mcp-docker
 
 ## Vue d'Ensemble des Outils
 
-Le serveur fournit 48 outils organisés en 6 catégories :
+Le serveur fournit 36 outils organisés en 5 catégories :
 
 ### Gestion des Conteneurs (10 outils)
 - `docker_list_containers` - Lister les conteneurs avec filtres
@@ -214,20 +214,6 @@ Le serveur fournit 48 outils organisés en 6 catégories :
 - `docker_container_logs` - Obtenir les logs du conteneur
 - `docker_exec_command` - Exécuter une commande dans le conteneur
 - `docker_container_stats` - Obtenir les statistiques d'utilisation des ressources
-
-### Gestion Docker Compose (12 outils)
-- `docker_compose_up` - Démarrer les services du projet compose
-- `docker_compose_down` - Arrêter et supprimer les services compose
-- `docker_compose_restart` - Redémarrer les services compose
-- `docker_compose_stop` - Arrêter les services compose
-- `docker_compose_ps` - Lister les services du projet compose
-- `docker_compose_logs` - Obtenir les logs des services compose
-- `docker_compose_exec` - Exécuter une commande dans un service compose
-- `docker_compose_build` - Construire ou reconstruire les services compose
-- `docker_compose_write_file` - Créer des fichiers compose dans le répertoire compose_files/
-- `docker_compose_scale` - Mettre à l'échelle les services compose
-- `docker_compose_validate` - Valider la syntaxe du fichier compose
-- `docker_compose_config` - Obtenir la configuration compose résolue
 
 ### Gestion des Images (9 outils)
 - `docker_list_images` - Lister les images
@@ -265,81 +251,18 @@ Le serveur fournit 48 outils organisés en 6 catégories :
 
 ## Prompts
 
-Cinq prompts aident les assistants IA à travailler avec Docker et Compose :
+Trois prompts aident les assistants IA à travailler avec Docker :
 
-### Prompts Conteneurs
 - **troubleshoot_container** - Diagnostiquer les problèmes de conteneur avec analyse des logs et de la configuration
 - **optimize_container** - Obtenir des suggestions d'optimisation pour l'utilisation des ressources et la sécurité
 - **generate_compose** - Générer docker-compose.yml à partir de conteneurs ou de descriptions
 
-### Prompts Compose
-- **troubleshoot_compose_stack** - Diagnostiquer les problèmes de projet Docker Compose et les dépendances de service
-- **optimize_compose_config** - Optimiser la configuration compose pour les performances, la fiabilité et la sécurité
-
 ## Ressources
 
-Cinq ressources fournissent un accès en temps réel aux données des conteneurs et compose :
+Deux ressources fournissent un accès en temps réel aux données des conteneurs :
 
-### Ressources Conteneurs
 - **container://logs/{container_id}** - Diffuser les logs du conteneur
 - **container://stats/{container_id}** - Obtenir les statistiques d'utilisation des ressources
-
-### Ressources Compose
-- **compose://config/{project_name}** - Obtenir la configuration du projet compose résolue
-- **compose://services/{project_name}** - Lister les services dans un projet compose
-- **compose://logs/{project_name}/{service_name}** - Obtenir les logs d'un service compose
-
-## Répertoire des Fichiers Compose
-
-Le répertoire `compose_files/` fournit un bac à sable sécurisé pour créer et tester les configurations Docker Compose.
-
-### Fichiers d'Exemple
-
-Trois fichiers d'exemple prêts à l'emploi sont inclus :
-- `nginx-redis.yml` - Stack web multi-services (nginx + redis)
-- `postgres-pgadmin.yml` - Stack de base de données avec interface d'administration
-- `simple-webapp.yml` - Exemple minimal à service unique
-
-### Création de Fichiers Compose Personnalisés
-
-Utilisez l'outil `docker_compose_write_file` pour créer des fichiers compose personnalisés :
-
-```python
-# Claude peut créer des fichiers compose comme ceci :
-{
-  "filename": "mon-stack",  # Sera enregistré sous user-mon-stack.yml
-  "content": {
-    "version": "3.8",
-    "services": {
-      "web": {
-        "image": "nginx:alpine",
-        "ports": ["8080:80"]
-      }
-    }
-  }
-}
-```
-
-### Fonctionnalités de Sécurité
-
-Tous les fichiers compose écrits via l'outil sont :
-- ✅ Restreints au répertoire `compose_files/` uniquement
-- ✅ Automatiquement préfixés par `user-` pour les distinguer des exemples
-- ✅ Validés pour la syntaxe et la structure YAML
-- ✅ Vérifiés pour les montages de volumes dangereux (/, /etc, /root, etc.)
-- ✅ Validés pour les plages de ports et configurations réseau appropriées
-- ✅ Protégés contre les attaques de traversée de chemin
-
-### Workflow de Test
-
-Workflow recommandé pour tester la fonctionnalité compose :
-
-1. **Créer** un fichier compose avec `docker_compose_write_file`
-2. **Valider** avec `docker_compose_validate`
-3. **Démarrer** les services avec `docker_compose_up`
-4. **Vérifier** l'état avec `docker_compose_ps`
-5. **Voir** les logs avec `docker_compose_logs`
-6. **Nettoyer** avec `docker_compose_down`
 
 ## Système de Sécurité
 

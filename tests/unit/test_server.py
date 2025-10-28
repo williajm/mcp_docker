@@ -49,7 +49,7 @@ class TestMCPDockerServer:
 
         assert server.config == mock_config
         assert server.docker_client == mock_docker_client
-        assert len(server.tools) == 48  # Total tools: 10+9+6+5+6+12
+        assert len(server.tools) == 36  # Total tools: 10+9+6+5+6 (compose tools removed)
 
     def test_tool_registration(self, mock_config, mock_docker_client):
         """Test that all tools are registered correctly."""
@@ -106,7 +106,7 @@ class TestMCPDockerServer:
         server = MCPDockerServer(mock_config)
         tools = server.list_tools()
 
-        assert len(tools) == 48
+        assert len(tools) == 36
         assert all("name" in tool for tool in tools)
         assert all("description" in tool for tool in tools)
         assert all("inputSchema" in tool for tool in tools)
@@ -244,7 +244,7 @@ class TestMCPDockerServer:
         repr_str = repr(server)
 
         assert "MCPDockerServer" in repr_str
-        assert "tools=48" in repr_str
+        assert "tools=36" in repr_str
 
     @pytest.mark.asyncio
     async def test_safety_check_destructive_with_confirmation_required(

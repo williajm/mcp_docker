@@ -94,6 +94,59 @@ class TestOperationValidation:
             "docker_list_containers", allow_destructive=False, allow_privileged=False
         )
 
+    def test_validate_moderate_operation_allowed(self) -> None:
+        """Test validating moderate operation when allowed."""
+        # Should not raise
+        validate_operation_allowed(
+            "docker_start_container",
+            allow_moderate=True,
+            allow_destructive=False,
+            allow_privileged=False,
+        )
+
+    def test_validate_moderate_operation_not_allowed(self) -> None:
+        """Test validating moderate operation when not allowed (read-only mode)."""
+        with pytest.raises(UnsafeOperationError, match="read-only mode"):
+            validate_operation_allowed(
+                "docker_start_container",
+                allow_moderate=False,
+                allow_destructive=False,
+                allow_privileged=False,
+            )
+
+    def test_validate_moderate_create_container_blocked(self) -> None:
+        """Test that docker_create_container is blocked in read-only mode."""
+        with pytest.raises(UnsafeOperationError, match="read-only mode"):
+            validate_operation_allowed(
+                "docker_create_container",
+                allow_moderate=False,
+                allow_destructive=False,
+                allow_privileged=False,
+            )
+
+    def test_validate_moderate_operation_error_message(self) -> None:
+        """Test that moderate operation error includes correct message."""
+        with pytest.raises(UnsafeOperationError) as exc_info:
+            validate_operation_allowed(
+                "docker_create_container",
+                allow_moderate=False,
+                allow_destructive=True,
+                allow_privileged=True,
+            )
+        error_message = str(exc_info.value)
+        assert "read-only mode" in error_message
+        assert "SAFETY_ALLOW_MODERATE_OPERATIONS=true" in error_message
+
+    def test_validate_safe_operation_works_in_readonly_mode(self) -> None:
+        """Test that safe operations work even when moderate operations are blocked."""
+        # Should not raise even with allow_moderate=False
+        validate_operation_allowed(
+            "docker_list_containers",
+            allow_moderate=False,
+            allow_destructive=False,
+            allow_privileged=False,
+        )
+
 
 class TestCommandSanitization:
     """Test command sanitization."""
