@@ -592,7 +592,7 @@ class TestContainerStatsTool:
         assert result.container_id == "abc123def456"
         assert "cpu_stats" in result.stats
         assert "memory_stats" in result.stats
-        mock_container.stats.assert_called_once_with(stream=False, decode=True)
+        mock_container.stats.assert_called_once_with(stream=False)
 
     @pytest.mark.asyncio
     async def test_get_stats_container_not_found(self, mock_docker_client, safety_config):

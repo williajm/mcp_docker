@@ -189,7 +189,6 @@ class TestContainerLifecycle:
         assert "Hello from container" in logs_result["result"]["logs"]
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Container stats has known issue with stream=True decode parameter")
     async def test_container_stats(
         self,
         mcp_server: MCPDockerServer,
@@ -206,17 +205,26 @@ class TestContainerLifecycle:
                 "command": ["sleep", "300"],
             },
         )
+        assert create_result["success"] is True
         container_id = create_result["result"]["container_id"]
 
-        await mcp_server.call_tool("docker_start_container", {"container_id": container_id})
+        start_result = await mcp_server.call_tool(
+            "docker_start_container", {"container_id": container_id}
+        )
+        assert start_result["success"] is True
 
-        # Get stats
+        # Get stats (stream=False by default)
         stats_result = await mcp_server.call_tool(
-            "docker_container_stats", {"container_id": container_id}
+            "docker_container_stats", {"container_id": container_id, "stream": False}
         )
         assert stats_result["success"] is True
-        assert "cpu_percent" in stats_result["result"]
-        assert "memory_usage_mb" in stats_result["result"]
+        # Check for actual raw Docker stats fields
+        assert "stats" in stats_result["result"]
+        stats = stats_result["result"]["stats"]
+        assert "cpu_stats" in stats
+        assert "memory_stats" in stats
+        assert "pids_stats" in stats
+        assert stats_result["result"]["container_id"] == container_id
 
     @pytest.mark.asyncio
     async def test_container_exec(
