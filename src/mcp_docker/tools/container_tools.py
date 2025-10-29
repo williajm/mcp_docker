@@ -936,8 +936,8 @@ class ContainerStatsTool(BaseTool):
                 # Close the generator to avoid resource leaks
                 stats_gen.close()
             else:
-                # Returns a dict directly when stream=False
-                stats = container.stats(stream=False, decode=True)  # type: ignore[no-untyped-call]
+                # Returns a dict directly when stream=False (decode not supported here)
+                stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
 
             logger.info(f"Successfully retrieved stats for container: {input_data.container_id}")
             return ContainerStatsOutput(stats=stats, container_id=str(container.id))
