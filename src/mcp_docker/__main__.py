@@ -6,8 +6,9 @@ This module provides the main entry point for running the MCP Docker server.
 import argparse
 import asyncio
 import os
+from collections.abc import Awaitable, Callable, MutableMapping
 from pathlib import Path
-from typing import Any, Awaitable, Callable, MutableMapping
+from typing import Any
 
 import uvicorn
 from mcp.server import Server
@@ -176,7 +177,9 @@ async def run_sse(host: str, port: int) -> None:
                 logger.debug("Creating persistent SSE connection")
                 async with sse.connect_sse(scope, log_receive, log_send) as streams:
                     logger.debug("SSE connection established, running MCP server")
-                    await mcp_server.run(streams[0], streams[1], mcp_server.create_initialization_options())
+                    await mcp_server.run(
+                        streams[0], streams[1], mcp_server.create_initialization_options()
+                    )
                     logger.debug("MCP server completed")
 
             # For /messages POST requests, use the dedicated handler
@@ -187,7 +190,13 @@ async def run_sse(host: str, port: int) -> None:
 
             else:
                 logger.warning(f"Unhandled request: {method} {path}")
-                await send({"type": "http.response.start", "status": 404, "headers": [[b"content-type", b"text/plain"]]})
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 404,
+                        "headers": [[b"content-type", b"text/plain"]],
+                    }
+                )
                 await send({"type": "http.response.body", "body": b"Not Found"})
 
         # Mount handler at root

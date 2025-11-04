@@ -5,7 +5,7 @@ system information, disk usage, pruning, version info, and health checks.
 """
 
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from docker.errors import APIError
@@ -68,7 +68,7 @@ def parse_timestamp(timestamp_str: str) -> int:
             raise ValueError(f"Invalid time unit: {unit}")
 
         # Calculate timestamp from now minus delta
-        target_time = datetime.now(timezone.utc) - delta
+        target_time = datetime.now(UTC) - delta
         return int(target_time.timestamp())
 
     raise ValueError(
@@ -523,7 +523,7 @@ class EventsTool(BaseTool):
             elif input_data.since:
                 # If 'since' is provided but 'until' is not, set 'until' to now
                 # to prevent indefinite waiting for future events
-                kwargs["until"] = int(datetime.now(timezone.utc).timestamp())
+                kwargs["until"] = int(datetime.now(UTC).timestamp())
                 logger.debug("Auto-set 'until' to current timestamp to prevent blocking")
 
             if input_data.filters:
