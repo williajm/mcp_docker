@@ -296,7 +296,10 @@ class TestEventsTool:
         assert result.count == 1
         call_kwargs = mock_docker_client.client.events.call_args[1]
         assert call_kwargs["filters"] == {"type": ["container"], "event": ["start"]}
-        assert call_kwargs["since"] == "2023-01-01"
+        # Since should be parsed to Unix timestamp
+        assert call_kwargs["since"] == 1672531200  # 2023-01-01 00:00:00 UTC
+        # Until should be auto-set to prevent blocking when since is provided
+        assert "until" in call_kwargs
 
     @pytest.mark.asyncio
     async def test_events_limit(self, mock_docker_client, safety_config):
