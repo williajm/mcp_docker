@@ -15,7 +15,7 @@ from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
 from starlette.applications import Starlette
-from starlette.routing import Mount, Route, WebSocketRoute
+from starlette.routing import Mount
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer

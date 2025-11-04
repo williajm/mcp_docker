@@ -121,9 +121,17 @@ class APIKeyAuthenticator:
             return None
 
         # Create a truncated identifier for audit logging (never log the actual key)
-        # We use SHA-256 for a stable, deterministic hash that persists across restarts
-        # This allows operators to correlate audit logs for the same client over time
-        # The actual authentication is done via direct key comparison above (line 118)
+        #
+        # SECURITY NOTE: SHA-256 is used here ONLY for creating a stable audit identifier,
+        # NOT for authentication or password hashing. The actual authentication security
+        # is provided by the direct key comparison above (line 118).
+        #
+        # SHA-256 is appropriate here because:
+        # 1. We need deterministic hashes that persist across restarts for log correlation
+        # 2. This hash is never used for authentication decisions
+        # 3. The API key itself must remain secret (transmitted via secure channels)
+        #
+        # For actual password/credential storage, use bcrypt, argon2, or scrypt instead.
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()[:16]
 
         logger.info(f"Authentication successful for client: {config.client_id}")
