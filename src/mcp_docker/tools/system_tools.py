@@ -520,11 +520,6 @@ class EventsTool(BaseTool):
                 except ValueError as e:
                     logger.error(f"Invalid 'until' timestamp: {e}")
                     raise DockerOperationError(f"Invalid 'until' timestamp: {e}") from e
-            elif input_data.since:
-                # If 'since' is provided but 'until' is not, set 'until' to now
-                # to prevent indefinite waiting for future events
-                kwargs["until"] = int(datetime.now(UTC).timestamp())
-                logger.debug("Auto-set 'until' to current timestamp to prevent blocking")
 
             if input_data.filters:
                 kwargs["filters"] = input_data.filters
