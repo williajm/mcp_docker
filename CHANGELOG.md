@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-11-04
+
+### Added
+- **SSE Transport Support**: Implemented proper Server-Sent Events (SSE) transport handler
+  - GET /sse endpoint for SSE connections
+  - POST /messages endpoint for message handling
+  - Built-in session management using MCP's connect_sse and handle_post_message
+  - Comprehensive logging wrappers for debugging HTTP requests/responses
+- **Enhanced Event Tool**: docker_events now supports flexible timestamp parsing
+  - Unix timestamps (e.g., "1699456800")
+  - ISO format (e.g., "2025-11-04T16:30:00Z")
+  - Relative times (e.g., "5m", "1h", "24h", "7d")
+- **SSE Startup Script**: New `start_sse_server.sh` convenience script
+  - Enables all Docker operations including destructive ones
+  - Pre-configured for SSE transport mode
+  - Simplified server startup for development and testing
+- **Improved API Key Hashing**: Replaced Python's hash() with SHA-256
+  - Deterministic hashes across process restarts
+  - Reliable audit log correlation over time
+  - Comprehensive test coverage for hash stability
+
+### Changed
+- **Reduced Logging Verbosity**: Converted excessive info-level logs to debug-level
+  - MCP handler calls (list_tools, call_tool) now at debug level
+  - SSE request/response handling now at debug level
+  - HTTP body logging now at debug level
+  - Maintained info-level for server initialization, startup, and state changes
+- **Development Dependencies**: Added httpx and httpx-sse for SSE client testing
+
+### Fixed
+- **Container Stats Tool**: Removed unsupported decode parameter from container.stats()
+  - Fixed issue where docker_container_stats would fail with stream=False
+  - Re-enabled previously skipped integration test
+  - Updated test assertions to check actual Docker stats fields
+
 ## [0.2.0] - 2025-10-28
 
 ### Breaking Changes
