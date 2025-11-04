@@ -7,7 +7,7 @@ import argparse
 import asyncio
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable, MutableMapping
 
 import uvicorn
 from mcp.server import Server
@@ -15,7 +15,7 @@ from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
 from starlette.applications import Starlette
-from starlette.routing import Route
+from starlette.routing import Mount, Route, WebSocketRoute
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
@@ -53,7 +53,9 @@ logger.info(f"Docker server initialized with {len(docker_server.tools)} tools")
 @mcp_server.list_tools()  # type: ignore[misc, no-untyped-call]
 async def handle_list_tools() -> list[Tool]:
     """List all available Docker tools."""
+    logger.debug("list_tools handler called")
     tools = docker_server.list_tools()
+    logger.debug(f"Returning {len(tools)} tools")
     # Convert to MCP Tool types
     return [
         Tool(name=tool["name"], description=tool["description"], inputSchema=tool["inputSchema"])
@@ -65,13 +67,17 @@ async def handle_list_tools() -> list[Tool]:
 @mcp_server.call_tool()  # type: ignore[misc]
 async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     """Execute a Docker tool."""
+    logger.debug(f"call_tool: {name}")
+    logger.debug(f"Arguments: {arguments}")
     result = await docker_server.call_tool(name, arguments)
 
     # Return result in MCP format (list of content items)
     if result.get("success"):
+        logger.debug(f"Tool {name} executed successfully")
         return [{"type": "text", "text": str(result.get("result", ""))}]
 
     error_msg = result.get("error", "Unknown error")
+    logger.error(f"Tool {name} failed: {error_msg}")
     return [{"type": "text", "text": f"Error: {error_msg}"}]
 
 
@@ -141,16 +147,53 @@ async def run_sse(host: str, port: int) -> None:
         # Create SSE transport
         sse = SseServerTransport("/messages")
 
-        # Create Starlette app with SSE endpoint
-        async def handle_sse(request: Any) -> Any:
-            async with sse.connect_sse(request.scope, request.receive, request._send) as streams:
-                await mcp_server.run(
-                    streams[0], streams[1], mcp_server.create_initialization_options()
-                )
+        # Simplified approach: let connect_sse handle everything
+        # It manages sessions internally via session_id
+        async def sse_handler(
+            scope: MutableMapping[str, Any],
+            receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+            send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+        ) -> None:
+            """Handle both /sse (GET) and /messages (POST) through the SSE transport."""
+            path = scope.get("path", "")
+            method = scope.get("method", "")
+            logger.debug(f"Request: {method} {path}")
 
+            # Logging wrappers for debugging
+            async def log_receive() -> MutableMapping[str, Any]:
+                msg = await receive()
+                if msg.get("type") == "http.request" and msg.get("body"):
+                    logger.debug(f"<<< HTTP body: {msg['body'][:300]}")
+                return msg
+
+            async def log_send(msg: MutableMapping[str, Any]) -> None:
+                if msg.get("type") == "http.response.body" and msg.get("body"):
+                    logger.debug(f">>> HTTP body: {msg['body'][:300]}")
+                await send(msg)
+
+            # For /sse GET requests, create a persistent SSE connection
+            if path.startswith("/sse") and method == "GET":
+                logger.debug("Creating persistent SSE connection")
+                async with sse.connect_sse(scope, log_receive, log_send) as streams:
+                    logger.debug("SSE connection established, running MCP server")
+                    await mcp_server.run(streams[0], streams[1], mcp_server.create_initialization_options())
+                    logger.debug("MCP server completed")
+
+            # For /messages POST requests, use the dedicated handler
+            elif path.startswith("/messages") and method == "POST":
+                logger.debug("Handling /messages POST")
+                await sse.handle_post_message(scope, log_receive, log_send)
+                logger.debug("/messages POST handled")
+
+            else:
+                logger.warning(f"Unhandled request: {method} {path}")
+                await send({"type": "http.response.start", "status": 404, "headers": [[b"content-type", b"text/plain"]]})
+                await send({"type": "http.response.body", "body": b"Not Found"})
+
+        # Mount handler at root
         app = Starlette(
             debug=True,
-            routes=[Route("/sse", endpoint=handle_sse)],
+            routes=[Mount("/", app=sse_handler)],
         )
 
         # Run server

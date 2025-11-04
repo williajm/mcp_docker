@@ -4,6 +4,8 @@ This module provides tools for system-level Docker operations, including
 system information, disk usage, pruning, version info, and health checks.
 """
 
+import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from docker.errors import APIError
@@ -15,6 +17,66 @@ from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
+
+
+def parse_timestamp(timestamp_str: str) -> int:
+    """Parse timestamp string and convert to Unix timestamp.
+
+    Supports:
+    - Unix timestamps: "1699456800"
+    - ISO format: "2025-11-04T16:30:00Z" or "2025-11-04T16:30:00+00:00"
+    - Relative times: "5m", "1h", "24h", "7d"
+
+    Args:
+        timestamp_str: Timestamp string to parse
+
+    Returns:
+        Unix timestamp (seconds since epoch)
+
+    Raises:
+        ValueError: If timestamp format is invalid
+    """
+    # Try to parse as Unix timestamp first
+    try:
+        return int(timestamp_str)
+    except ValueError:
+        pass
+
+    # Try to parse as ISO format
+    try:
+        dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        return int(dt.timestamp())
+    except (ValueError, AttributeError):
+        pass
+
+    # Try to parse as relative time (e.g., "5m", "1h", "24h", "7d")
+    match = re.match(r"^(\d+)([smhd])$", timestamp_str)
+    if match:
+        value, unit = match.groups()
+        value = int(value)
+
+        # Calculate timedelta based on unit
+        if unit == "s":
+            delta = timedelta(seconds=value)
+        elif unit == "m":
+            delta = timedelta(minutes=value)
+        elif unit == "h":
+            delta = timedelta(hours=value)
+        elif unit == "d":
+            delta = timedelta(days=value)
+        else:
+            raise ValueError(f"Invalid time unit: {unit}")
+
+        # Calculate timestamp from now minus delta
+        target_time = datetime.now(timezone.utc) - delta
+        return int(target_time.timestamp())
+
+    raise ValueError(
+        f"Invalid timestamp format: {timestamp_str}. "
+        "Supported formats: Unix timestamp (1699456800), "
+        "ISO format (2025-11-04T16:30:00Z), "
+        "or relative time (5m, 1h, 24h, 7d)"
+    )
 
 
 # Input/Output Models
@@ -84,8 +146,22 @@ class VersionOutput(BaseModel):
 class EventsInput(BaseModel):
     """Input for streaming Docker events."""
 
-    since: str | None = Field(default=None, description="Show events since timestamp")
-    until: str | None = Field(default=None, description="Show events until timestamp")
+    since: str | None = Field(
+        default=None,
+        description=(
+            "Show events since timestamp or relative (e.g., '1h'). "
+            "Formats: Unix timestamp (1699456800), ISO format (2025-11-04T16:30:00Z), "
+            "or relative time (5m, 1h, 24h, 7d)"
+        ),
+    )
+    until: str | None = Field(
+        default=None,
+        description=(
+            "Show events until timestamp. "
+            "Formats: Unix timestamp (1699456800), ISO format (2025-11-04T16:30:00Z), "
+            "or relative time (5m, 1h, 24h, 7d)"
+        ),
+    )
     filters: dict[str, str | list[str]] | None = Field(
         default=None,
         description=(
@@ -429,10 +505,27 @@ class EventsTool(BaseTool):
 
             # Prepare kwargs for events
             kwargs: dict[str, Any] = {"decode": input_data.decode}
+
+            # Convert timestamp strings to Unix timestamps
             if input_data.since:
-                kwargs["since"] = input_data.since
+                try:
+                    kwargs["since"] = parse_timestamp(input_data.since)
+                except ValueError as e:
+                    logger.error(f"Invalid 'since' timestamp: {e}")
+                    raise DockerOperationError(f"Invalid 'since' timestamp: {e}") from e
+
             if input_data.until:
-                kwargs["until"] = input_data.until
+                try:
+                    kwargs["until"] = parse_timestamp(input_data.until)
+                except ValueError as e:
+                    logger.error(f"Invalid 'until' timestamp: {e}")
+                    raise DockerOperationError(f"Invalid 'until' timestamp: {e}") from e
+            elif input_data.since:
+                # If 'since' is provided but 'until' is not, set 'until' to now
+                # to prevent indefinite waiting for future events
+                kwargs["until"] = int(datetime.now(timezone.utc).timestamp())
+                logger.debug("Auto-set 'until' to current timestamp to prevent blocking")
+
             if input_data.filters:
                 kwargs["filters"] = input_data.filters
 
