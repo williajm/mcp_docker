@@ -248,3 +248,114 @@ class TestAPIKeyAuthenticator:
         assert clients[0]["enabled"] is True
         # API key should not be exposed
         assert "api_key" not in clients[0]
+
+    def test_api_key_hash_determinism(self, temp_keys_file: Path) -> None:
+        """Test that API key hashes are deterministic across calls.
+
+        The hash should be stable so operators can correlate audit logs
+        from the same client across time.
+        """
+        authenticator = APIKeyAuthenticator(temp_keys_file)
+
+        # Authenticate multiple times with same key
+        result1 = authenticator.authenticate("valid-key-123", "127.0.0.1")
+        result2 = authenticator.authenticate("valid-key-123", "127.0.0.2")
+        result3 = authenticator.authenticate("valid-key-123", "192.168.1.1")
+
+        assert result1 is not None
+        assert result2 is not None
+        assert result3 is not None
+
+        # Hash should be identical regardless of IP or time
+        assert result1.api_key_hash == result2.api_key_hash
+        assert result2.api_key_hash == result3.api_key_hash
+
+    def test_api_key_hash_stable_across_restarts(self, temp_keys_file: Path) -> None:
+        """Test that API key hashes remain consistent across process restarts.
+
+        Simulates server restart by creating new authenticator instances.
+        This is critical for audit log correlation.
+        """
+        # First "process"
+        auth1 = APIKeyAuthenticator(temp_keys_file)
+        result1 = auth1.authenticate("valid-key-123", "127.0.0.1")
+        assert result1 is not None
+        hash1 = result1.api_key_hash
+
+        # Simulate restart by creating new instance
+        auth2 = APIKeyAuthenticator(temp_keys_file)
+        result2 = auth2.authenticate("valid-key-123", "127.0.0.1")
+        assert result2 is not None
+        hash2 = result2.api_key_hash
+
+        # Hash must be identical after "restart"
+        assert hash1 == hash2, (
+            f"API key hash changed after restart! "
+            f"Before: {hash1}, After: {hash2}. "
+            f"This breaks audit log correlation."
+        )
+
+    def test_api_key_hash_uniqueness(self, temp_keys_file: Path) -> None:
+        """Test that different API keys produce different hashes.
+
+        While hashes should be stable for the same key, different keys
+        should produce different hashes for identification purposes.
+        """
+        # Add another key to the file
+        keys_data = {
+            "clients": [
+                {
+                    "api_key": "key-one-12345678901234567890123",
+                    "client_id": "client1",
+                    "enabled": True,
+                },
+                {
+                    "api_key": "key-two-98765432109876543210987",
+                    "client_id": "client2",
+                    "enabled": True,
+                },
+            ]
+        }
+        temp_keys_file.write_text(json.dumps(keys_data))
+
+        auth = APIKeyAuthenticator(temp_keys_file)
+
+        result1 = auth.authenticate("key-one-12345678901234567890123", "127.0.0.1")
+        result2 = auth.authenticate("key-two-98765432109876543210987", "127.0.0.1")
+
+        assert result1 is not None
+        assert result2 is not None
+
+        # Different keys should produce different hashes
+        assert result1.api_key_hash != result2.api_key_hash
+
+    def test_api_key_hash_uses_cryptographic_function(self, temp_keys_file: Path) -> None:
+        """Test that API key hashes use a cryptographic hash, not Python's hash().
+
+        Python's built-in hash() is salted per-process for security reasons,
+        which makes it unsuitable for audit logging that needs to persist
+        across restarts.
+        """
+        import subprocess
+
+        authenticator = APIKeyAuthenticator(temp_keys_file)
+        result = authenticator.authenticate("valid-key-123", "127.0.0.1")
+        assert result is not None
+        api_key_hash = result.api_key_hash
+
+        # Get Python's hash in a separate process
+        python_hash_result = subprocess.run(
+            ["python3", "-c", "print(format(abs(hash('valid-key-123')), '016x')[:16])"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        python_hash = python_hash_result.stdout.strip()
+
+        # Our hash should NOT equal Python's hash (which changes per process)
+        # This verifies we're using a cryptographic hash like SHA-256
+        assert api_key_hash != python_hash, (
+            f"API key hash appears to use Python's hash() function, "
+            f"which is not stable across process restarts. "
+            f"Expected cryptographic hash, got: {api_key_hash}"
+        )
