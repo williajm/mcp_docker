@@ -3,7 +3,7 @@
 import time
 from datetime import UTC, datetime
 
-import paramiko
+from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 
 from mcp_docker.auth.ssh_auth import SSHAuthProtocol, SSHAuthRequest, SSHSignatureValidator
@@ -104,13 +104,13 @@ class TestSSHSignatureValidator:
         private_key_path.write_bytes(private_pem)
 
         # Load with paramiko
-        private_key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+        _, private_key = load_private_key_from_file(private_key_path)
 
         # Create SSHPublicKey
         public_key = SSHPublicKey(
             client_id="test-client",
             key_type="ssh-ed25519",
-            public_key=private_key.get_base64(),
+            public_key=get_public_key_string(private_key)[1],
             description="test-key",
         )
 
@@ -123,10 +123,10 @@ class TestSSHSignatureValidator:
 
         # Sign message
         message = b"test-message"
-        signature = private_key.sign_ssh_data(message)
+        signature = sign_message(private_key, message)
 
         # Verify signature
-        assert validator.verify_signature(public_key, message, signature.asbytes()) is True
+        assert validator.verify_signature(public_key, message, signature) is True
 
     def test_verify_invalid_signature(self, ed25519_keypair):
         """Test verifying invalid signature."""
@@ -147,11 +147,11 @@ class TestSSHSignatureValidator:
 
         # Sign one message
         message1 = b"original-message"
-        signature = private_key.sign_ssh_data(message1)
+        signature = sign_message(private_key, message1)
 
         # Try to verify different message
         message2 = b"different-message"
-        assert validator.verify_signature(public_key, message2, signature.asbytes()) is False
+        assert validator.verify_signature(public_key, message2, signature) is False
 
     def test_verify_unsupported_key_type(self):
         """Test verification with unsupported key type."""
@@ -197,11 +197,11 @@ class TestSSHAuthIntegration:
         private_key_path.write_bytes(private_pem)
 
         # Load with paramiko
-        private_key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+        _, private_key = load_private_key_from_file(private_key_path)
 
         # Create authorized_keys file
         auth_keys_file = tmp_path / "authorized_keys"
-        public_key_line = f"ssh-ed25519 {private_key.get_base64()} test-client:test-key\n"
+        public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]} test-client:test-key\n"
         auth_keys_file.write_text(public_key_line)
 
         # Create security config
@@ -228,12 +228,12 @@ class TestSSHAuthIntegration:
 
         # Sign challenge
         message = SSHAuthProtocol.create_message(client_id, timestamp, nonce)
-        signature = private_key.sign_ssh_data(message)
+        signature = sign_message(private_key, message)
 
         # Authenticate
         auth_request = SSHAuthRequest(
             client_id=client_id,
-            signature=signature.asbytes(),
+            signature=signature,
             timestamp=timestamp,
             nonce=nonce,
         )

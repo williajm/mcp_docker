@@ -4,7 +4,7 @@ import base64
 import secrets
 from datetime import UTC, datetime
 
-import paramiko
+from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 
 from mcp_docker.config import Config
@@ -33,11 +33,11 @@ class TestSSHAuthIntegration:
         private_key_path.write_bytes(private_pem)
 
         # Load with paramiko
-        private_key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+        _, private_key = load_private_key_from_file(private_key_path)
 
         # Create authorized_keys file
         auth_keys_file = tmp_path / "authorized_keys"
-        public_key_line = f"ssh-ed25519 {private_key.get_base64()} test-client:integration-test\n"
+        public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]} test-client:integration-test\n"
         auth_keys_file.write_text(public_key_line)
 
         # Set environment variables for config
@@ -60,7 +60,7 @@ class TestSSHAuthIntegration:
         nonce = secrets.token_urlsafe(32)
         message = f"{client_id}|{timestamp}|{nonce}".encode()
 
-        signature = private_key.sign_ssh_data(message)
+        signature = sign_message(private_key, message)
         signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
 
         return {

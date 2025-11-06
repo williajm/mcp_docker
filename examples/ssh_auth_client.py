@@ -19,7 +19,7 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-import paramiko
+from mcp_docker.auth.ssh_signing import load_private_key_from_file, sign_message
 
 
 def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
@@ -49,7 +49,7 @@ def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
     print(f"  Private key: {key_path}")
 
     # Load with paramiko to get public key
-    key = paramiko.Ed25519Key.from_private_key_file(str(key_path))
+    key = _, private_key = load_private_key_from_file(key_path)
 
     # Save public key
     public_key_path = key_path.with_suffix(".pub")
@@ -75,7 +75,7 @@ def sign_ssh_challenge(
     print(f"\nSigning authentication challenge...")
 
     # Load private key
-    key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+    key = _, private_key = load_private_key_from_file(private_key_path)
 
     # Generate challenge components
     timestamp = datetime.now(UTC).isoformat()
@@ -86,7 +86,7 @@ def sign_ssh_challenge(
     print(f"  Message: {message.decode()}")
 
     # Sign message
-    signature = key.sign_ssh_data(message)
+    signature = keysign_message(private_key, message)
     signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
 
     print(f"  Signature: {signature_b64[:50]}...")

@@ -22,10 +22,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import paramiko
+from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
@@ -35,7 +35,7 @@ from mcp_docker.server import MCPDockerServer
 # ============================================================================
 
 
-def generate_ed25519_key_pair(tmp_path: Path) -> tuple[paramiko.Ed25519Key, str]:
+def generate_ed25519_key_pair(tmp_path: Path) -> tuple[ed25519.Ed25519PrivateKey, str]:
     """Generate Ed25519 SSH key pair.
 
     Args:
@@ -57,15 +57,15 @@ def generate_ed25519_key_pair(tmp_path: Path) -> tuple[paramiko.Ed25519Key, str]
     private_key_path.write_bytes(private_pem)
 
     # Load with paramiko
-    private_key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+    _, private_key = load_private_key_from_file(private_key_path)
 
     # Format public key for authorized_keys
-    public_key_line = f"ssh-ed25519 {private_key.get_base64()}"
+    public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]}"
 
     return private_key, public_key_line
 
 
-def generate_rsa_key_pair(tmp_path: Path) -> tuple[paramiko.RSAKey, str]:
+def generate_rsa_key_pair(tmp_path: Path) -> tuple[rsa.RSAPrivateKey, str]:
     """Generate RSA SSH key pair.
 
     Args:
@@ -90,17 +90,17 @@ def generate_rsa_key_pair(tmp_path: Path) -> tuple[paramiko.RSAKey, str]:
     private_key_path.write_bytes(private_pem)
 
     # Load with paramiko
-    private_key = paramiko.RSAKey.from_private_key_file(str(private_key_path))
+    _, private_key = load_private_key_from_file(private_key_path)
 
     # Format public key for authorized_keys
-    public_key_line = f"ssh-rsa {private_key.get_base64()}"
+    public_key_line = f"ssh-rsa {get_public_key_string(private_key)[1]}"
 
     return private_key, public_key_line
 
 
 def create_ssh_auth_data(
     client_id: str,
-    private_key: paramiko.PKey,
+    private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey,
     timestamp: str | None = None,
     nonce: str | None = None,
 ) -> dict[str, str]:
@@ -121,7 +121,7 @@ def create_ssh_auth_data(
         nonce = secrets.token_urlsafe(32)
 
     message = f"{client_id}|{timestamp}|{nonce}".encode()
-    signature = private_key.sign_ssh_data(message)
+    signature = sign_message(private_key, message)
     signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
 
     return {
@@ -436,7 +436,7 @@ async def test_multi_device_setup(ssh_test_env, docker_available):
     server.auth_middleware.reload_keys()
 
     # Perform operations from all three devices concurrently
-    async def device_operation(device_name: str, private_key: paramiko.PKey) -> bool:
+    async def device_operation(device_name: str, private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey) -> bool:
         """Execute operation from a specific device."""
         ssh_auth = create_ssh_auth_data(client_id, private_key)
         result = await server.call_tool(
@@ -1165,7 +1165,7 @@ async def test_concurrent_clients(ssh_test_env, docker_available):
     server.auth_middleware.reload_keys()
 
     # Function for client to perform operations
-    async def client_operations(client_id: str, private_key: paramiko.PKey, count: int):
+    async def client_operations(client_id: str, private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey, count: int):
         results = []
         for _ in range(count):
             ssh_auth = create_ssh_auth_data(client_id, private_key)

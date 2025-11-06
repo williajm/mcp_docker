@@ -15,7 +15,7 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-import paramiko
+from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -35,7 +35,7 @@ except ImportError:
 # ============================================================================
 
 
-def generate_ed25519_key_pair(tmp_path: Path) -> tuple[paramiko.Ed25519Key, str]:
+def generate_ed25519_key_pair(tmp_path: Path) -> tuple[ed25519.Ed25519PrivateKey, str]:
     """Generate Ed25519 SSH key pair.
 
     Args:
@@ -58,17 +58,17 @@ def generate_ed25519_key_pair(tmp_path: Path) -> tuple[paramiko.Ed25519Key, str]
     private_key_path.chmod(0o600)
 
     # Load with paramiko
-    private_key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+    _, private_key = load_private_key_from_file(private_key_path)
 
     # Generate public key line for authorized_keys
-    public_key_line = f"ssh-ed25519 {private_key.get_base64()}"
+    public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]}"
 
     return private_key, public_key_line
 
 
 def create_ssh_auth_data(
     client_id: str,
-    private_key: paramiko.Ed25519Key,
+    private_key: ed25519.Ed25519PrivateKey,
     timestamp: str | None = None,
     nonce: str | None = None,
 ) -> dict:
@@ -92,7 +92,7 @@ def create_ssh_auth_data(
     message = f"{client_id}|{timestamp}|{nonce}".encode()
 
     # Sign message
-    signature = private_key.sign_ssh_data(message)
+    signature = sign_message(private_key, message)
     signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
 
     return {

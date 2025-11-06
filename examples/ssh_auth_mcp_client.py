@@ -17,7 +17,7 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-import paramiko
+from mcp_docker.auth.ssh_signing import load_private_key_from_file, sign_message
 
 
 def create_ssh_auth_data(client_id: str, private_key_path: Path) -> dict:
@@ -31,7 +31,7 @@ def create_ssh_auth_data(client_id: str, private_key_path: Path) -> dict:
         Dict with SSH auth data ready to include in tool calls
     """
     # Load private key
-    key = paramiko.Ed25519Key.from_private_key_file(str(private_key_path))
+    key = _, private_key = load_private_key_from_file(private_key_path)
 
     # Generate challenge components
     timestamp = datetime.now(UTC).isoformat()
@@ -41,7 +41,7 @@ def create_ssh_auth_data(client_id: str, private_key_path: Path) -> dict:
     message = f"{client_id}|{timestamp}|{nonce}".encode("utf-8")
 
     # Sign message
-    signature = key.sign_ssh_data(message)
+    signature = keysign_message(private_key, message)
     signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
 
     return {

@@ -9,7 +9,6 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-import paramiko
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives import hashes
@@ -17,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from loguru import logger
 
 from mcp_docker.auth.ssh_keys import SSHKeyManager, SSHPublicKey
+from mcp_docker.auth.ssh_wire import SSHWireMessage
 from mcp_docker.config import SecurityConfig, DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS
 from mcp_docker.utils.errors import (
     SSHKeyNotFoundError,
@@ -75,7 +75,7 @@ class SSHSignatureValidator:
             InvalidSignature: If signature verification fails
         """
         # Ed25519: key_data contains raw 32-byte public key
-        key_msg = paramiko.Message(key_data)
+        key_msg = SSHWireMessage(key_data)
         _ = key_msg.get_text()  # Skip key type
         raw_public_key = key_msg.get_binary()
 
@@ -102,7 +102,7 @@ class SSHSignatureValidator:
             InvalidSignature: If signature verification fails
         """
         # RSA: Parse the key data
-        key_msg = paramiko.Message(key_data)
+        key_msg = SSHWireMessage(key_data)
         _ = key_msg.get_text()  # Skip key type
         e = key_msg.get_mpint()  # Public exponent
         n = key_msg.get_mpint()  # Modulus
@@ -140,7 +140,7 @@ class SSHSignatureValidator:
             InvalidSignature: If signature verification fails
         """
         # ECDSA: Parse the key data
-        key_msg = paramiko.Message(key_data)
+        key_msg = SSHWireMessage(key_data)
         _ = key_msg.get_text()  # Skip key type
         curve_name = key_msg.get_text()
         point = key_msg.get_binary()
@@ -190,7 +190,7 @@ class SSHSignatureValidator:
         """
         try:
             # Parse SSH signature format (key_type_len + key_type + sig_len + sig_data)
-            sig_msg = paramiko.Message(signature)
+            sig_msg = SSHWireMessage(signature)
             sig_type = sig_msg.get_text()
             sig_data = sig_msg.get_binary()
 
