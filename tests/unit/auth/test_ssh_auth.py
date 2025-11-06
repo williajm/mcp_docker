@@ -107,7 +107,7 @@ class TestSSHSignatureValidator:
         )
         private_key_path.write_bytes(private_pem)
 
-        # Load with paramiko
+        # Load SSH private key
         _, private_key = load_private_key_from_file(private_key_path)
 
         # Create SSHPublicKey
@@ -200,7 +200,7 @@ class TestSSHAuthIntegration:
         )
         private_key_path.write_bytes(private_pem)
 
-        # Load with paramiko
+        # Load SSH private key
         _, private_key = load_private_key_from_file(private_key_path)
 
         # Create authorized_keys file

@@ -1,9 +1,8 @@
-"""SSH key loading and signing utilities - replacement for paramiko key operations.
+"""SSH key loading and signing utilities.
 
 This module provides utilities for loading SSH private keys and creating signatures
-without requiring the paramiko library. Uses cryptography library directly.
+using the cryptography library. Supports Ed25519, RSA, and ECDSA keys.
 """
-
 import base64
 import struct
 from pathlib import Path

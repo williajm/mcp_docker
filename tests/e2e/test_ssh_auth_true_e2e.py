@@ -62,7 +62,7 @@ def generate_ed25519_key_pair(tmp_path: Path) -> tuple[ed25519.Ed25519PrivateKey
     private_key_path.write_bytes(private_pem)
     private_key_path.chmod(0o600)
 
-    # Load with paramiko
+    # Load SSH private key
     _, private_key = load_private_key_from_file(private_key_path)
 
     # Generate public key line for authorized_keys

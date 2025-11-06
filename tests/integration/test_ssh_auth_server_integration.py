@@ -60,7 +60,7 @@ def generate_ed25519_key_pair(tmp_path: Path) -> tuple[ed25519.Ed25519PrivateKey
     )
     private_key_path.write_bytes(private_pem)
 
-    # Load with paramiko
+    # Load SSH private key
     _, private_key = load_private_key_from_file(private_key_path)
 
     # Format public key for authorized_keys
@@ -93,7 +93,7 @@ def generate_rsa_key_pair(tmp_path: Path) -> tuple[rsa.RSAPrivateKey, str]:
     )
     private_key_path.write_bytes(private_pem)
 
-    # Load with paramiko
+    # Load SSH private key
     _, private_key = load_private_key_from_file(private_key_path)
 
     # Format public key for authorized_keys

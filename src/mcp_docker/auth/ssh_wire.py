@@ -1,7 +1,8 @@
-"""SSH wire format parser - replacement for paramiko.Message.
+"""SSH wire format parser.
 
 This module provides utilities for parsing and creating SSH wire format data
-without requiring the paramiko library. The SSH wire format is defined in
+
+The SSH wire format is defined in
 RFC 4251 Section 5 (Data Type Representations).
 
 Wire format types:
@@ -17,8 +18,6 @@ class SSHWireMessage:
     """Parser for SSH wire format messages.
 
     Provides methods to read various SSH wire format data types from a byte buffer.
-    This is a lightweight replacement for paramiko.Message specifically for our
-    SSH signature verification needs.
     """
 
     def __init__(self, data: bytes):
