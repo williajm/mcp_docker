@@ -6,19 +6,21 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.tools.container_tools import (
+from mcp_docker.tools.container_inspection_tools import (
     ContainerLogsInput,
     ContainerLogsTool,
     ContainerStatsInput,
     ContainerStatsTool,
-    CreateContainerInput,
-    CreateContainerTool,
     ExecCommandInput,
     ExecCommandTool,
     InspectContainerInput,
     InspectContainerTool,
     ListContainersInput,
     ListContainersTool,
+)
+from mcp_docker.tools.container_lifecycle_tools import (
+    CreateContainerInput,
+    CreateContainerTool,
     RemoveContainerInput,
     RemoveContainerTool,
     RestartContainerInput,

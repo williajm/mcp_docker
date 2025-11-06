@@ -15,6 +15,7 @@ class TestSafetyEnforcement:
         """Test that destructive operations are blocked when safety config disallows them."""
         # Create config with destructive operations disabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=False,
             allow_privileged_containers=True,
@@ -43,6 +44,7 @@ class TestSafetyEnforcement:
         """Test that destructive operations are allowed when safety config allows them."""
         # Create config with destructive operations enabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=True,
             allow_privileged_containers=True,
@@ -70,6 +72,7 @@ class TestSafetyEnforcement:
         """Test that privileged exec is blocked when safety config disallows it."""
         # Create config with privileged containers disabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=True,
             allow_privileged_containers=False,
@@ -101,6 +104,7 @@ class TestSafetyEnforcement:
         """Test that privileged exec is allowed when safety config allows it."""
         # Create config with privileged containers enabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=True,
             allow_privileged_containers=True,
@@ -134,6 +138,7 @@ class TestSafetyEnforcement:
         """Test that non-privileged exec is allowed even when privileged is disabled."""
         # Create config with privileged containers disabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_moderate_operations=True,
             allow_destructive_operations=True,
@@ -164,6 +169,7 @@ class TestSafetyEnforcement:
         """Test that privileged container creation is blocked when safety config disallows it."""
         # Create config with privileged containers disabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=True,
             allow_privileged_containers=False,
@@ -194,6 +200,7 @@ class TestSafetyEnforcement:
         """Test that all DESTRUCTIVE tools are protected by safety config."""
         # Create config with destructive operations disabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=False,
             allow_privileged_containers=True,
@@ -231,6 +238,7 @@ class TestSafetyEnforcement:
         """Test that SAFE operations are never blocked by safety config."""
         # Create config with everything disabled
         config = Config()
+        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=False,
             allow_privileged_containers=False,

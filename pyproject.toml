@@ -27,6 +27,7 @@ dependencies = [
     "loguru>=0.7.0",
     "starlette>=0.27.0",
     "uvicorn>=0.27.0",
+    "paramiko>=3.4.0,<4.0",  # SSH authentication support
 ]
 
 [project.optional-dependencies]
@@ -38,6 +39,7 @@ dev = [
     "mypy>=1.8.0",
     "ruff>=0.6.0",
     "types-docker>=7.1.0",
+    "types-paramiko>=3.4.0",  # Type stubs for paramiko
     "httpx>=0.27.0",
     "httpx-sse>=0.4.0",
 ]
@@ -81,7 +83,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG", "PLR2004", "E501", "B017", "PLC0415", "SIM105"]
+"tests/**/*.py" = ["ARG", "PLR2004", "E501", "B017", "PLC0415", "SIM105", "SIM117", "PLR0915", "ERA001"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -143,6 +145,7 @@ addopts = [
 markers = [
     "unit: Unit tests",
     "integration: Integration tests requiring Docker",
+    "e2e: End-to-end tests with realistic scenarios",
     "slow: Slow running tests",
 ]
 
