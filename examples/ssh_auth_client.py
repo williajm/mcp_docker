@@ -9,9 +9,6 @@ This example demonstrates how to:
 
 Usage:
     python examples/ssh_auth_client.py
-
-Requirements:
-    pip install paramiko
 """
 
 import base64
@@ -19,7 +16,11 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mcp_docker.auth.ssh_signing import load_private_key_from_file, sign_message
+from mcp_docker.auth.ssh_signing import (
+    get_public_key_string,
+    load_private_key_from_file,
+    sign_message,
+)
 
 
 def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
@@ -34,8 +35,8 @@ def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
     print(f"Generating SSH Ed25519 key pair...")
 
     # Generate Ed25519 key using cryptography library
-    from cryptography.hazmat.primitives.asymmetric import ed25519
     from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ed25519
 
     crypto_key = ed25519.Ed25519PrivateKey.generate()
 
@@ -48,13 +49,14 @@ def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
     key_path.write_bytes(private_pem)
     print(f"  Private key: {key_path}")
 
-    # Load with paramiko to get public key
-    key = _, private_key = load_private_key_from_file(key_path)
+    # Get public key in SSH format
+    key_type, private_key = load_private_key_from_file(key_path)
+    pub_key_type, pub_key_b64 = get_public_key_string(private_key)
 
     # Save public key
     public_key_path = key_path.with_suffix(".pub")
     with public_key_path.open("w") as f:
-        f.write(f"{key.get_name()} {key.get_base64()} my-client:example-key\n")
+        f.write(f"{pub_key_type} {pub_key_b64} my-client:example-key\n")
     print(f"  Public key:  {public_key_path}")
 
     return key_path, public_key_path
@@ -73,7 +75,8 @@ def sign_ssh_challenge(private_key_path: Path, client_id: str) -> dict[str, str]
     print(f"\nSigning authentication challenge...")
 
     # Load private key
-    key = _, private_key = load_private_key_from_file(private_key_path)
+    key_type, private_key = load_private_key_from_file(private_key_path)
+    print(f"  Key type: {key_type}")
 
     # Generate challenge components
     timestamp = datetime.now(UTC).isoformat()
@@ -83,9 +86,9 @@ def sign_ssh_challenge(private_key_path: Path, client_id: str) -> dict[str, str]
     message = f"{client_id}|{timestamp}|{nonce}".encode("utf-8")
     print(f"  Message: {message.decode()}")
 
-    # Sign message
-    signature = keysign_message(private_key, message)
-    signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
+    # Sign message using our SSH signing module
+    signature = sign_message(private_key, message)
+    signature_b64 = base64.b64encode(signature).decode("utf-8")
 
     print(f"  Signature: {signature_b64[:50]}...")
 

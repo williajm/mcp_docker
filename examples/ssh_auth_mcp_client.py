@@ -8,7 +8,7 @@ Usage:
     python examples/ssh_auth_mcp_client.py
 
 Requirements:
-    pip install paramiko mcp
+    pip install mcp
 """
 
 import asyncio

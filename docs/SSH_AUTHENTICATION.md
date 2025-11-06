@@ -167,14 +167,12 @@ When calling MCP Docker tools, include SSH authentication in the `_auth` argumen
 import base64
 import secrets
 from datetime import UTC, datetime
-import paramiko
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client
 
 def create_ssh_auth_data(client_id: str, private_key_path: str):
     """Create SSH authentication data for tool calls."""
     # Load private key
-    key = paramiko.Ed25519Key.from_private_key_file(private_key_path)
 
     # Generate challenge
     timestamp = datetime.now(UTC).isoformat()
@@ -427,8 +425,8 @@ def authenticate(
 
 ### Dependencies
 
-- `paramiko>=3.4.0` - SSH protocol implementation
-- `cryptography>=46.0.0` - Cryptographic primitives (via paramiko)
+- `
+- `cryptography>=46.0.0` - Cryptographic primitives for SSH operations
 
 ### Testing
 
@@ -480,5 +478,4 @@ Potential future improvements:
 
 - [OpenSSH Authentication](https://www.openssh.com/manual.html)
 - [RFC 4251: SSH Protocol Architecture](https://tools.ietf.org/html/rfc4251)
-- [Paramiko Documentation](https://www.paramiko.org/)
 - [Ed25519 Signature Scheme](https://ed25519.cr.yp.to/)
