@@ -67,7 +67,7 @@ class TestSSHAuthIntegration:
         message = f"{client_id}|{timestamp}|{nonce}".encode()
 
         signature = sign_message(private_key, message)
-        signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
+        signature_b64 = base64.b64encode(signature).decode("utf-8")
 
         return {
             "client_id": client_id,
