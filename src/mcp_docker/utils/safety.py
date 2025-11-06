@@ -15,6 +15,9 @@ class OperationSafety(str, Enum):
     DESTRUCTIVE = "destructive"  # Permanent changes (rm, prune, rmi)
 
 
+# Port security constants
+PRIVILEGED_PORT_BOUNDARY = 1024  # Ports below this require root privileges on Unix systems
+
 # Set of operations that are considered destructive
 DESTRUCTIVE_OPERATIONS = {
     "docker_remove_container",
@@ -300,10 +303,10 @@ def validate_port_binding(
         UnsafeOperationError: If port is privileged but not allowed
 
     """
-    if host_port < 1024 and not allow_privileged_ports:
+    if host_port < PRIVILEGED_PORT_BOUNDARY and not allow_privileged_ports:
         raise UnsafeOperationError(
-            f"Privileged port {host_port} (<1024) is not allowed. "
-            "Enable privileged ports in configuration or use a port >= 1024."
+            f"Privileged port {host_port} (<{PRIVILEGED_PORT_BOUNDARY}) is not allowed. "
+            f"Enable privileged ports in configuration or use a port >= {PRIVILEGED_PORT_BOUNDARY}."
         )
 
 

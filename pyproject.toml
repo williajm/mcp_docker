@@ -76,14 +76,36 @@ select = [
     "PL",    # pylint
     "PERF",  # perflint
 ]
-ignore = [
-    "PLR0913",  # Too many arguments
-    "PLR2004",  # Magic value used in comparison
-]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["ARG", "PLR2004", "E501", "B017", "PLC0415", "SIM105", "SIM117", "PLR0915", "ERA001"]
-"examples/**/*.py" = ["ALL"]
+# Tests need flexibility for fixtures, long assertions, and test-specific patterns
+"tests/**/*.py" = [
+    "ARG",      # Unused arguments (fixtures may require args for setup)
+    "PLR2004",  # Magic values (acceptable in test assertions)
+    "E501",     # Line length (test assertions can be long for readability)
+    "PLC0415",  # Import at top-level (tests may need conditional imports)
+    "SIM105",   # Use contextlib.suppress (explicit try-except-pass is clearer in tests)
+    "SIM117",   # Single with statement (separate context managers are more readable)
+    "PLR0915",  # Too many statements (integration/E2E tests naturally have many steps)
+    "ERA001",   # Commented code (tests sometimes keep old approaches as documentation)
+]
+# Examples prioritize educational clarity over strict linting
+"examples/**/*.py" = [
+    "E501",     # Line length (examples can have long lines for clarity)
+    "PLR0913",  # Too many arguments (examples may show various parameters)
+    "PLR2004",  # Magic values (acceptable for demonstration)
+    "T201",     # Print statements (examples use print for output)
+    "ERA001",   # Commented code (examples may show alternative approaches)
+    "PLC0415",  # Imports not at top (examples may show imports inline for clarity)
+    "F401",     # Unused imports (examples may import for demonstration)
+    "F541",     # f-string without placeholders (acceptable for consistency)
+    "F821",     # Undefined names (examples may be incomplete)
+    "F841",     # Unused variables (examples may show syntax without using all vars)
+    "I001",     # Import sorting (not critical for examples)
+    "UP012",    # Unnecessary encoding (explicit encoding is clearer in examples)
+    "UP031",    # Use format specifiers (% formatting is shown for comparison)
+]
 
 [tool.mypy]
 python_version = "3.11"

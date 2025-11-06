@@ -8,6 +8,10 @@ from pydantic import BaseModel, Field
 
 from mcp_docker.utils.errors import SSHKeyError
 
+# SSH authorized_keys format constants
+MIN_SSH_KEY_PARTS = 2  # Minimum: key-type public-key
+MIN_PARTS_WITH_COMMENT = 3  # With comment: key-type public-key comment
+
 
 class SSHPublicKey(BaseModel):
     """Represents an SSH public key for authentication.
@@ -47,7 +51,7 @@ class SSHPublicKey(BaseModel):
         line = line.strip()
         parts = line.split()
 
-        if len(parts) < 2:
+        if len(parts) < MIN_SSH_KEY_PARTS:
             raise SSHKeyError(
                 f"Invalid authorized_keys line {line_num}: "
                 f"expected 'key-type public-key [comment]', got '{line}'"
@@ -71,7 +75,7 @@ class SSHPublicKey(BaseModel):
         # Now parse from the key type onwards
         remaining_parts = parts[key_start_idx:]
 
-        if len(remaining_parts) < 2:
+        if len(remaining_parts) < MIN_SSH_KEY_PARTS:
             raise SSHKeyError(
                 f"Invalid authorized_keys line {line_num}: "
                 f"expected 'key-type public-key [comment]', got '{line}'"
@@ -81,7 +85,7 @@ class SSHPublicKey(BaseModel):
         public_key = remaining_parts[1]
 
         # Parse comment field (optional)
-        if len(remaining_parts) >= 3:
+        if len(remaining_parts) >= MIN_PARTS_WITH_COMMENT:
             comment = " ".join(remaining_parts[2:])  # Join remaining parts
             # Extract client_id from comment (format: client-id:description)
             if ":" in comment:

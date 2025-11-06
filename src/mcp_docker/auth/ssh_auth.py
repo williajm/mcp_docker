@@ -24,6 +24,9 @@ from mcp_docker.utils.errors import (
     SSHTimestampExpiredError,
 )
 
+# SSH protocol constants
+SSH_ECDSA_UNCOMPRESSED_POINT_MARKER = 0x04  # First byte of uncompressed ECDSA point
+
 
 @dataclass
 class SSHAuthRequest:
@@ -150,7 +153,7 @@ class SSHSignatureValidator:
             return False
 
         # Parse the point (first byte is 0x04 for uncompressed point)
-        if point[0] != 0x04:
+        if point[0] != SSH_ECDSA_UNCOMPRESSED_POINT_MARKER:
             logger.debug("Invalid ECDSA point format")
             return False
 
