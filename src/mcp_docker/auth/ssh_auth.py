@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from loguru import logger
 
+from mcp_docker.auth.api_key import ClientInfo
 from mcp_docker.auth.ssh_keys import SSHKeyManager, SSHPublicKey
 from mcp_docker.auth.ssh_wire import SSHWireMessage
 from mcp_docker.config import DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS, SecurityConfig
@@ -321,10 +322,6 @@ class SSHAuthProtocol:
         """
         with self._nonce_lock:
             return {"active_nonces": len(self._nonce_store)}
-
-
-# ClientInfo is imported from api_key module
-from mcp_docker.auth.api_key import ClientInfo  # noqa: E402
 
 
 class SSHKeyAuthenticator:
