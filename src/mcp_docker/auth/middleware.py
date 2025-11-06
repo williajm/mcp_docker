@@ -153,6 +153,10 @@ class AuthMiddleware:
         Raises:
             SSHAuthenticationError: If authentication fails
         """
+        # Ensure SSH authenticator is initialized
+        if self.ssh_key_authenticator is None:
+            raise SSHAuthenticationError("SSH authentication is not enabled")
+
         try:
             # Extract authentication data
             client_id = ssh_auth_data.get("client_id")
@@ -164,6 +168,12 @@ class AuthMiddleware:
                 raise SSHAuthenticationError(
                     "Incomplete SSH auth data. Required: client_id, signature, timestamp, nonce"
                 )
+
+            # Type narrowing: after all() check, these are guaranteed to be non-None strings
+            assert isinstance(client_id, str)
+            assert isinstance(signature_b64, str)
+            assert isinstance(timestamp, str)
+            assert isinstance(nonce, str)
 
             # Decode signature
             signature = base64.b64decode(signature_b64)

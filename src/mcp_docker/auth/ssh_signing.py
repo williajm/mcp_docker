@@ -7,7 +7,6 @@ without requiring the paramiko library. Uses cryptography library directly.
 import base64
 import struct
 from pathlib import Path
-from typing import Union, cast
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
@@ -17,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
 from mcp_docker.auth.ssh_wire import create_ssh_signature
 
 # Type alias for supported SSH private key types
-SSHPrivateKey = Union[ed25519.Ed25519PrivateKey, rsa.RSAPrivateKey, ec.EllipticCurvePrivateKey]
+SSHPrivateKey = ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey
 
 
 def load_private_key_from_file(
@@ -122,7 +121,7 @@ def sign_message_ecdsa(private_key: ec.EllipticCurvePrivateKey, message: bytes) 
     """
     # Determine curve and hash algorithm
     curve = private_key.curve
-    hash_algo: Union[hashes.SHA256, hashes.SHA384, hashes.SHA512]
+    hash_algo: hashes.SHA256 | hashes.SHA384 | hashes.SHA512
     if isinstance(curve, ec.SECP256R1):
         key_type = "ecdsa-sha2-nistp256"
         hash_algo = hashes.SHA256()

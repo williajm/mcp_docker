@@ -6,7 +6,6 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.utils.errors import ValidationError
 from mcp_docker.tools.container_inspection_tools import (
     ContainerLogsInput,
     ContainerLogsTool,
@@ -31,7 +30,7 @@ from mcp_docker.tools.container_lifecycle_tools import (
     StopContainerInput,
     StopContainerTool,
 )
-from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, ValidationError
 
 
 @pytest.fixture

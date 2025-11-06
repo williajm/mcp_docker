@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Union
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -141,8 +140,8 @@ class SSHSignatureValidator:
         point = key_msg.get_binary()
 
         # Determine curve and hash algorithm
-        curve: Union[ec.SECP256R1, ec.SECP384R1, ec.SECP521R1]
-        hash_algo: Union[hashes.SHA256, hashes.SHA384, hashes.SHA512]
+        curve: ec.SECP256R1 | ec.SECP384R1 | ec.SECP521R1
+        hash_algo: hashes.SHA256 | hashes.SHA384 | hashes.SHA512
         if "nistp256" in curve_name or "P-256" in key_type:
             curve = ec.SECP256R1()
             hash_algo = hashes.SHA256()
@@ -350,7 +349,7 @@ class SSHKeyAuthenticator:
         # Initialize protocol with configurable timestamp age
         self.protocol = SSHAuthProtocol(max_timestamp_age=security_config.ssh_signature_max_age)
 
-    def authenticate(self, request: SSHAuthRequest) -> ClientInfo | None:
+    def authenticate(self, request: SSHAuthRequest) -> ClientInfo:
         """Authenticate client using SSH signature.
 
         Args:
@@ -358,7 +357,13 @@ class SSHKeyAuthenticator:
                 timestamp, and nonce
 
         Returns:
-            ClientInfo if authentication succeeds, None otherwise
+            ClientInfo if authentication succeeds
+
+        Raises:
+            SSHTimestampExpiredError: If timestamp is too old
+            SSHNonceReuseError: If nonce has been used before (replay attack)
+            SSHKeyNotFoundError: If client_id not found in authorized keys
+            SSHSignatureInvalidError: If signature verification fails
         """
         # 1. Validate timestamp
         if not self.protocol.validate_timestamp(request.timestamp):

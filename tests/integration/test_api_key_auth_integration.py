@@ -109,9 +109,9 @@ class TestAPIKeyAuthIntegration:
         # Should fail
         assert result.get("success") is False, "Invalid API key should be rejected"
         error_msg = result.get("error", "").lower()
-        assert "authentication" in error_msg or "api key" in error_msg or "invalid" in error_msg, (
-            f"Expected authentication error, got: {result.get('error')}"
-        )
+        assert (
+            "authentication" in error_msg or "api key" in error_msg or "invalid" in error_msg
+        ), f"Expected authentication error, got: {result.get('error')}"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -135,9 +135,9 @@ class TestAPIKeyAuthIntegration:
         # Should fail
         assert result.get("success") is False, "Missing API key should be rejected"
         error_msg = result.get("error", "").lower()
-        assert "authentication" in error_msg or "api key" in error_msg or "required" in error_msg, (
-            f"Expected authentication error, got: {result.get('error')}"
-        )
+        assert (
+            "authentication" in error_msg or "api key" in error_msg or "required" in error_msg
+        ), f"Expected authentication error, got: {result.get('error')}"
 
     @pytest.mark.integration
     @pytest.mark.asyncio
