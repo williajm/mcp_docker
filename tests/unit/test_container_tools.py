@@ -6,6 +6,7 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.utils.errors import ValidationError
 from mcp_docker.tools.container_inspection_tools import (
     ContainerLogsInput,
     ContainerLogsTool,
@@ -206,7 +207,7 @@ class TestCreateContainerTool:
         input_data = CreateContainerInput(image="ubuntu:latest", name="Invalid Name!")
 
         # Should raise ValidationError due to invalid container name
-        with pytest.raises(Exception):  # ValidationError from validate_container_name
+        with pytest.raises(ValidationError):  # ValidationError from validate_container_name
             await tool.execute(input_data)
 
     @pytest.mark.asyncio

@@ -7,6 +7,8 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Union
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
@@ -139,6 +141,8 @@ class SSHSignatureValidator:
         point = key_msg.get_binary()
 
         # Determine curve and hash algorithm
+        curve: Union[ec.SECP256R1, ec.SECP384R1, ec.SECP521R1]
+        hash_algo: Union[hashes.SHA256, hashes.SHA384, hashes.SHA512]
         if "nistp256" in curve_name or "P-256" in key_type:
             curve = ec.SECP256R1()
             hash_algo = hashes.SHA256()
@@ -334,7 +338,7 @@ class SSHKeyAuthenticator:
     - Configurable timestamp window
     """
 
-    def __init__(self, authorized_keys_file, security_config: SecurityConfig):
+    def __init__(self, authorized_keys_file: Path, security_config: SecurityConfig) -> None:
         """Initialize SSH key authenticator.
 
         Args:

@@ -121,7 +121,7 @@ class SSHWireMessage:
         if self.offset + 4 > len(self.data):
             raise ValueError(f"Truncated uint32: need 4 bytes, have {len(self.data) - self.offset}")
 
-        value = struct.unpack(">I", self.data[self.offset : self.offset + 4])[0]
+        value: int = struct.unpack(">I", self.data[self.offset : self.offset + 4])[0]
         self.offset += 4
         return value
 
