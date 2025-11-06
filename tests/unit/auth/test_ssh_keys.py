@@ -72,9 +72,7 @@ class TestSSHKeyManager:
     def test_load_single_key(self, tmp_path):
         """Test loading single key from file."""
         keys_file = tmp_path / "authorized_keys"
-        keys_file.write_text(
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFoo client1:test-key\n"
-        )
+        keys_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFoo client1:test-key\n")
 
         manager = SSHKeyManager(keys_file)
         keys = manager.get_keys("client1")
@@ -86,14 +84,16 @@ class TestSSHKeyManager:
     def test_load_multiple_keys_per_client(self, tmp_path):
         """Test loading multiple keys for same client (key rotation)."""
         keys_file = tmp_path / "authorized_keys"
-        keys_file.write_text(dedent("""
+        keys_file.write_text(
+            dedent("""
             # Client1 with laptop and desktop keys
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey1 client1:laptop
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey2 client1:desktop
 
             # Client2 with single key
             ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDer client2:server
-        """))
+        """)
+        )
 
         manager = SSHKeyManager(keys_file)
 
@@ -116,14 +116,16 @@ class TestSSHKeyManager:
     def test_load_keys_skip_comments_and_empty_lines(self, tmp_path):
         """Test that comments and empty lines are ignored."""
         keys_file = tmp_path / "authorized_keys"
-        keys_file.write_text(dedent("""
+        keys_file.write_text(
+            dedent("""
             # This is a comment
 
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey1 client1:key1
 
             # Another comment
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey2 client2:key2
-        """))
+        """)
+        )
 
         manager = SSHKeyManager(keys_file)
         all_keys = manager.get_all_keys()
@@ -141,10 +143,12 @@ class TestSSHKeyManager:
         assert len(manager.get_keys("client1")) == 1
 
         # Add another key
-        keys_file.write_text(dedent("""
+        keys_file.write_text(
+            dedent("""
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey1 client1:key1
             ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey2 client1:key2
-        """))
+        """)
+        )
 
         # Reload
         manager.reload_keys()

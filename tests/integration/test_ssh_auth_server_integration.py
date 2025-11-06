@@ -22,11 +22,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 
+from mcp_docker.auth.ssh_signing import (
+    get_public_key_string,
+    load_private_key_from_file,
+    sign_message,
+)
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 
@@ -436,7 +440,10 @@ async def test_multi_device_setup(ssh_test_env, docker_available):
     server.auth_middleware.reload_keys()
 
     # Perform operations from all three devices concurrently
-    async def device_operation(device_name: str, private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey) -> bool:
+    async def device_operation(
+        device_name: str,
+        private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey,
+    ) -> bool:
         """Execute operation from a specific device."""
         ssh_auth = create_ssh_auth_data(client_id, private_key)
         result = await server.call_tool(
@@ -1165,7 +1172,11 @@ async def test_concurrent_clients(ssh_test_env, docker_available):
     server.auth_middleware.reload_keys()
 
     # Function for client to perform operations
-    async def client_operations(client_id: str, private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey, count: int):
+    async def client_operations(
+        client_id: str,
+        private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey,
+        count: int,
+    ):
         results = []
         for _ in range(count):
             ssh_auth = create_ssh_auth_data(client_id, private_key)

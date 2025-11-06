@@ -43,7 +43,7 @@ def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
     private_pem = crypto_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.OpenSSH,
-        encryption_algorithm=serialization.NoEncryption()
+        encryption_algorithm=serialization.NoEncryption(),
     )
     key_path.write_bytes(private_pem)
     print(f"  Private key: {key_path}")
@@ -60,9 +60,7 @@ def generate_ssh_keypair(key_path: Path) -> tuple[Path, Path]:
     return key_path, public_key_path
 
 
-def sign_ssh_challenge(
-    private_key_path: Path, client_id: str
-) -> dict[str, str]:
+def sign_ssh_challenge(private_key_path: Path, client_id: str) -> dict[str, str]:
     """Sign authentication challenge with SSH private key.
 
     Args:
@@ -137,7 +135,8 @@ def demonstrate_ssh_auth():
 
     # Step 5: Example of sending request (pseudo-code)
     print("\n=== Example Request (pseudo-code) ===")
-    print("""
+    print(
+        """
     import httpx
 
     response = httpx.post(
@@ -156,12 +155,14 @@ def demonstrate_ssh_auth():
         # Now you can make Docker operations
     else:
         print(f"Authentication failed: {response.text}")
-    """ % (
-        auth_data["client_id"],
-        auth_data["timestamp"],
-        auth_data["nonce"][:30] + "...",
-        auth_data["signature"][:30] + "...",
-    ))
+    """
+        % (
+            auth_data["client_id"],
+            auth_data["timestamp"],
+            auth_data["nonce"][:30] + "...",
+            auth_data["signature"][:30] + "...",
+        )
+    )
 
 
 if __name__ == "__main__":

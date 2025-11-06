@@ -3,11 +3,15 @@
 import time
 from datetime import UTC, datetime
 
-from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 
 from mcp_docker.auth.ssh_auth import SSHAuthProtocol, SSHAuthRequest, SSHSignatureValidator
 from mcp_docker.auth.ssh_keys import SSHPublicKey
+from mcp_docker.auth.ssh_signing import (
+    get_public_key_string,
+    load_private_key_from_file,
+    sign_message,
+)
 
 
 class TestSSHAuthProtocol:
@@ -99,7 +103,7 @@ class TestSSHSignatureValidator:
         private_pem = crypto_private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.OpenSSH,
-            encryption_algorithm=serialization.NoEncryption()
+            encryption_algorithm=serialization.NoEncryption(),
         )
         private_key_path.write_bytes(private_pem)
 
@@ -192,7 +196,7 @@ class TestSSHAuthIntegration:
         private_pem = crypto_private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.OpenSSH,
-            encryption_algorithm=serialization.NoEncryption()
+            encryption_algorithm=serialization.NoEncryption(),
         )
         private_key_path.write_bytes(private_pem)
 
@@ -201,7 +205,9 @@ class TestSSHAuthIntegration:
 
         # Create authorized_keys file
         auth_keys_file = tmp_path / "authorized_keys"
-        public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]} test-client:test-key\n"
+        public_key_line = (
+            f"ssh-ed25519 {get_public_key_string(private_key)[1]} test-client:test-key\n"
+        )
         auth_keys_file.write_text(public_key_line)
 
         # Create security config

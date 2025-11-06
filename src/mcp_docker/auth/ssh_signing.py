@@ -15,7 +15,9 @@ from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from mcp_docker.auth.ssh_wire import create_ssh_signature
 
 
-def load_private_key_from_file(key_path: str | Path) -> tuple[str, ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey]:
+def load_private_key_from_file(
+    key_path: str | Path,
+) -> tuple[str, ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey]:
     """Load SSH private key from file.
 
     Supports Ed25519, RSA, and ECDSA keys in OpenSSH or PEM format.
@@ -92,11 +94,7 @@ def sign_message_rsa(private_key: rsa.RSAPrivateKey, message: bytes) -> bytes:
         SSH wire format signature
     """
     # Sign with PKCS1v15 padding and SHA-1 (standard for ssh-rsa)
-    signature_data = private_key.sign(
-        message,
-        asym_padding.PKCS1v15(),
-        hashes.SHA1()
-    )
+    signature_data = private_key.sign(message, asym_padding.PKCS1v15(), hashes.SHA1())
 
     # Create SSH wire format signature
     return create_ssh_signature("ssh-rsa", signature_data)
@@ -133,7 +131,10 @@ def sign_message_ecdsa(private_key: ec.EllipticCurvePrivateKey, message: bytes) 
     return create_ssh_signature(key_type, signature_data)
 
 
-def sign_message(private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey, message: bytes) -> bytes:
+def sign_message(
+    private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey,
+    message: bytes,
+) -> bytes:
     """Sign message with private key (auto-detect key type).
 
     Args:
@@ -148,15 +149,16 @@ def sign_message(private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec
     """
     if isinstance(private_key, ed25519.Ed25519PrivateKey):
         return sign_message_ed25519(private_key, message)
-    elif isinstance(private_key, rsa.RSAPrivateKey):
+    if isinstance(private_key, rsa.RSAPrivateKey):
         return sign_message_rsa(private_key, message)
-    elif isinstance(private_key, ec.EllipticCurvePrivateKey):
+    if isinstance(private_key, ec.EllipticCurvePrivateKey):
         return sign_message_ecdsa(private_key, message)
-    else:
-        raise ValueError(f"Unsupported key type: {type(private_key)}")
+    raise ValueError(f"Unsupported key type: {type(private_key)}")
 
 
-def get_public_key_string(private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey) -> tuple[str, str]:
+def get_public_key_string(
+    private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey,
+) -> tuple[str, str]:
     """Get public key in SSH format from private key.
 
     Args:
@@ -172,22 +174,21 @@ def get_public_key_string(private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivat
 
     if isinstance(private_key, ed25519.Ed25519PrivateKey):
         key_type = "ssh-ed25519"
-        # Ed25519: key_type + public_key_bytes
         pub_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
+            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
         )
         # Create SSH wire format
         key_type_encoded = key_type.encode("utf-8")
         wire_data = (
-            struct.pack(">I", len(key_type_encoded)) + key_type_encoded +
-            struct.pack(">I", len(pub_bytes)) + pub_bytes
+            struct.pack(">I", len(key_type_encoded))
+            + key_type_encoded
+            + struct.pack(">I", len(pub_bytes))
+            + pub_bytes
         )
         return key_type, base64.b64encode(wire_data).decode("ascii")
 
-    elif isinstance(private_key, rsa.RSAPrivateKey):
+    if isinstance(private_key, rsa.RSAPrivateKey):
         key_type = "ssh-rsa"
-        # RSA: key_type + e + n
         public_numbers = public_key.public_numbers()
         e_bytes = public_numbers.e.to_bytes((public_numbers.e.bit_length() + 7) // 8, "big")
         n_bytes = public_numbers.n.to_bytes((public_numbers.n.bit_length() + 7) // 8, "big")
@@ -195,13 +196,16 @@ def get_public_key_string(private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivat
         # Create SSH wire format
         key_type_encoded = key_type.encode("utf-8")
         wire_data = (
-            struct.pack(">I", len(key_type_encoded)) + key_type_encoded +
-            struct.pack(">I", len(e_bytes)) + e_bytes +
-            struct.pack(">I", len(n_bytes)) + n_bytes
+            struct.pack(">I", len(key_type_encoded))
+            + key_type_encoded
+            + struct.pack(">I", len(e_bytes))
+            + e_bytes
+            + struct.pack(">I", len(n_bytes))
+            + n_bytes
         )
         return key_type, base64.b64encode(wire_data).decode("ascii")
 
-    elif isinstance(private_key, ec.EllipticCurvePrivateKey):
+    if isinstance(private_key, ec.EllipticCurvePrivateKey):
         # Determine curve
         curve = private_key.curve
         if isinstance(curve, ec.SECP256R1):
@@ -219,18 +223,20 @@ def get_public_key_string(private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivat
         # Get point bytes (uncompressed format)
         point_bytes = public_key.public_bytes(
             encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint
+            format=serialization.PublicFormat.UncompressedPoint,
         )
 
         # Create SSH wire format
         key_type_encoded = key_type.encode("utf-8")
         curve_name_encoded = curve_name.encode("utf-8")
         wire_data = (
-            struct.pack(">I", len(key_type_encoded)) + key_type_encoded +
-            struct.pack(">I", len(curve_name_encoded)) + curve_name_encoded +
-            struct.pack(">I", len(point_bytes)) + point_bytes
+            struct.pack(">I", len(key_type_encoded))
+            + key_type_encoded
+            + struct.pack(">I", len(curve_name_encoded))
+            + curve_name_encoded
+            + struct.pack(">I", len(point_bytes))
+            + point_bytes
         )
         return key_type, base64.b64encode(wire_data).decode("ascii")
 
-    else:
-        raise ValueError(f"Unsupported key type: {type(private_key)}")
+    raise ValueError(f"Unsupported key type: {type(private_key)}")

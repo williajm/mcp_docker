@@ -143,8 +143,8 @@ class SSHKeyManager:
 
         try:
             with self.authorized_keys_file.open() as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
+                for line_num, raw_line in enumerate(f, 1):
+                    line = raw_line.strip()
 
                     # Skip empty lines and comments
                     if not line or line.startswith("#"):

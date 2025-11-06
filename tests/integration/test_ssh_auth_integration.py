@@ -4,9 +4,13 @@ import base64
 import secrets
 from datetime import UTC, datetime
 
-from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 
+from mcp_docker.auth.ssh_signing import (
+    get_public_key_string,
+    load_private_key_from_file,
+    sign_message,
+)
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 
@@ -37,7 +41,9 @@ class TestSSHAuthIntegration:
 
         # Create authorized_keys file
         auth_keys_file = tmp_path / "authorized_keys"
-        public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]} test-client:integration-test\n"
+        public_key_line = (
+            f"ssh-ed25519 {get_public_key_string(private_key)[1]} test-client:integration-test\n"
+        )
         auth_keys_file.write_text(public_key_line)
 
         # Set environment variables for config

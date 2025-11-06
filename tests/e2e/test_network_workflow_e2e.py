@@ -59,6 +59,7 @@ def cleanup_docker_resources(request):
     # Cleanup after test completes
     try:
         import docker
+
         client = docker.from_env()
 
         # Remove networks with e2e labels
@@ -321,7 +322,9 @@ async def test_network_with_container_connectivity_via_stdio(
                         "command": ["sleep", "60"],
                     },
                 )
-                container_text = create_container_result.content[0].text if create_container_result else ""
+                container_text = (
+                    create_container_result.content[0].text if create_container_result else ""
+                )
                 container_data = json.loads(container_text)
                 container_id = container_data.get("container_id")
 
@@ -348,8 +351,12 @@ async def test_network_with_container_connectivity_via_stdio(
                 )
                 # Check if connection succeeded
                 assert connect_result is not None
-                if hasattr(connect_result, 'isError') and connect_result.isError:
-                    error_msg = connect_result.content[0].text if connect_result.content else "Unknown error"
+                if hasattr(connect_result, "isError") and connect_result.isError:
+                    error_msg = (
+                        connect_result.content[0].text
+                        if connect_result.content
+                        else "Unknown error"
+                    )
                     raise AssertionError(f"Container connection failed: {error_msg}")
 
                 # Step 5: Inspect container to verify network connection
@@ -362,17 +369,30 @@ async def test_network_with_container_connectivity_via_stdio(
                     },
                 )
                 # Check if operation succeeded
-                if hasattr(inspect_container_result, 'isError') and inspect_container_result.isError:
-                    error_msg = inspect_container_result.content[0].text if inspect_container_result.content else "Unknown error"
+                if (
+                    hasattr(inspect_container_result, "isError")
+                    and inspect_container_result.isError
+                ):
+                    error_msg = (
+                        inspect_container_result.content[0].text
+                        if inspect_container_result.content
+                        else "Unknown error"
+                    )
                     raise AssertionError(f"Container inspect failed: {error_msg}")
-                container_inspect_text = inspect_container_result.content[0].text if inspect_container_result.content else ""
+                container_inspect_text = (
+                    inspect_container_result.content[0].text
+                    if inspect_container_result.content
+                    else ""
+                )
                 if not container_inspect_text or not container_inspect_text.strip():
-                    raise AssertionError(f"Empty response from docker_inspect_container")
+                    raise AssertionError("Empty response from docker_inspect_container")
                 container_inspect_data = json.loads(container_inspect_text)
                 container_details = container_inspect_data["details"]
                 networks = container_details.get("NetworkSettings", {}).get("Networks", {})
                 # Verify container is connected to our custom network
-                assert network_name in networks, f"Container should be connected to {network_name}. Networks: {list(networks.keys())}"
+                assert network_name in networks, (
+                    f"Container should be connected to {network_name}. Networks: {list(networks.keys())}"
+                )
 
                 # Step 6: Disconnect container
                 ssh_auth = create_ssh_auth_data(client_id, private_key)
@@ -608,19 +628,19 @@ async def test_network_with_ipam_config_via_stdio(
                         "_auth": {"ssh": ssh_auth},
                         "name": network_name,
                         "driver": "bridge",
-                        "ipam": {
-                            "Config": [{"Subnet": subnet, "Gateway": gateway}]
-                        },
+                        "ipam": {"Config": [{"Subnet": subnet, "Gateway": gateway}]},
                     },
                 )
                 # Check if operation succeeded before parsing
-                if hasattr(create_result, 'isError') and create_result.isError:
-                    error_msg = create_result.content[0].text if create_result.content else "Unknown error"
+                if hasattr(create_result, "isError") and create_result.isError:
+                    error_msg = (
+                        create_result.content[0].text if create_result.content else "Unknown error"
+                    )
                     raise AssertionError(f"Network creation failed: {error_msg}")
 
                 net_text = create_result.content[0].text if create_result.content else ""
                 if not net_text or not net_text.strip():
-                    raise AssertionError(f"Empty response from docker_create_network")
+                    raise AssertionError("Empty response from docker_create_network")
 
                 net_data = json.loads(net_text)
                 network_id = net_data.get("network_id")

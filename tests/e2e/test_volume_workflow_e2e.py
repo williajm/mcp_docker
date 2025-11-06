@@ -31,7 +31,7 @@ def safe_parse_json(result, operation_name: str):
     """Safely parse JSON from MCP call result with error handling."""
     import json
 
-    if hasattr(result, 'isError') and result.isError:
+    if hasattr(result, "isError") and result.isError:
         error_msg = result.content[0].text if result.content else "Unknown error"
         raise AssertionError(f"{operation_name} failed: {error_msg}")
 
@@ -82,6 +82,7 @@ def cleanup_docker_resources(request):
     # Cleanup after test completes
     try:
         import docker
+
         client = docker.from_env()
 
         # Remove networks with e2e labels
@@ -181,7 +182,6 @@ async def test_volume_basic_lifecycle_via_stdio(
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
-                import json
 
                 # Step 1: Create volume
                 ssh_auth = create_ssh_auth_data(client_id, private_key)
@@ -337,7 +337,9 @@ async def test_volume_with_container_mount_via_stdio(
                         "volumes": {volume_name: {"bind": "/data", "mode": "rw"}},
                     },
                 )
-                container_text = create_container_result.content[0].text if create_container_result else ""
+                container_text = (
+                    create_container_result.content[0].text if create_container_result else ""
+                )
                 container_data = json.loads(container_text)
                 container_id = container_data.get("container_id")
 
@@ -464,7 +466,6 @@ async def test_multiple_volumes_via_stdio(
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
-                import json
 
                 # Step 1: Create multiple volumes
                 for volume_name in volume_names:
@@ -573,7 +574,6 @@ async def test_volume_prune_via_stdio(
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
-                import json
 
                 # Step 1: Create volumes with different labels
                 ssh_auth = create_ssh_auth_data(client_id, private_key)
@@ -700,7 +700,6 @@ async def test_volume_error_handling_via_stdio(
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
-                import json
 
                 # Test 1: Inspect non-existent volume
                 ssh_auth = create_ssh_auth_data(client_id, private_key)

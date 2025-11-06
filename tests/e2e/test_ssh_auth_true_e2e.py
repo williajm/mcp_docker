@@ -15,10 +15,15 @@ import secrets
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mcp_docker.auth.ssh_signing import get_public_key_string, load_private_key_from_file, sign_message
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
+
+from mcp_docker.auth.ssh_signing import (
+    get_public_key_string,
+    load_private_key_from_file,
+    sign_message,
+)
 
 # MCP client imports
 try:
@@ -209,15 +214,18 @@ async def test_ssh_auth_via_stdio_transport(
 
             # Verify success - check result structure and content
             assert result is not None, "Result should not be None"
-            assert hasattr(result, 'content'), "Result should have content attribute"
+            assert hasattr(result, "content"), "Result should have content attribute"
             assert len(result.content) > 0, "Result content should not be empty"
 
             # Check that result is not an error
-            if hasattr(result, 'isError'):
-                assert not result.isError, f"Result should not be an error: {result.content[0].text if result.content else 'no content'}"
+            if hasattr(result, "isError"):
+                assert not result.isError, (
+                    f"Result should not be an error: {result.content[0].text if result.content else 'no content'}"
+                )
 
             # Parse and verify the JSON response
             import json
+
             result_text = result.content[0].text
             assert result_text, "Result text should not be empty"
 
@@ -226,8 +234,9 @@ async def test_ssh_auth_via_stdio_transport(
             assert isinstance(result_data, dict), "Result should be a dictionary"
 
             # Verify expected structure for docker_list_containers
-            assert "containers" in result_data or "count" in result_data, \
+            assert "containers" in result_data or "count" in result_data, (
                 f"Result should contain 'containers' or 'count' key: {result_data.keys()}"
+            )
 
 
 @pytest.mark.e2e
@@ -300,16 +309,16 @@ async def test_replay_attack_via_stdio_transport(
             if not exception_raised:
                 assert result2 is not None
                 # MCP may return error in result content
-                if hasattr(result2, 'isError') and result2.isError:
+                if hasattr(result2, "isError") and result2.isError:
                     # Expected error result
                     error_text = result2.content[0].text if result2.content else ""
                     assert "nonce" in error_text.lower() or "authentication" in error_text.lower()
                 else:
                     # Result should contain error message in text
                     result_text = result2.content[0].text if result2.content else ""
-                    assert ("error" in result_text.lower() and
-                           ("nonce" in result_text.lower() or "authentication" in result_text.lower())), \
-                           f"Expected authentication/nonce error but got: {result_text}"
+                    assert "error" in result_text.lower() and (
+                        "nonce" in result_text.lower() or "authentication" in result_text.lower()
+                    ), f"Expected authentication/nonce error but got: {result_text}"
 
             # Third call with FRESH auth - should succeed
             ssh_auth_fresh = create_ssh_auth_data(client_id, private_key)

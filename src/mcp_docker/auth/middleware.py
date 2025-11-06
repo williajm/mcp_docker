@@ -4,7 +4,7 @@ import base64
 from typing import Any
 
 from mcp_docker.auth.api_key import APIKeyAuthenticator, ClientInfo
-from mcp_docker.auth.ssh_auth import SSHKeyAuthenticator, SSHAuthRequest
+from mcp_docker.auth.ssh_auth import SSHAuthRequest, SSHKeyAuthenticator
 from mcp_docker.config import SecurityConfig
 from mcp_docker.utils.errors import SSHAuthenticationError
 from mcp_docker.utils.logger import get_logger
@@ -114,8 +114,7 @@ class AuthMiddleware:
                 raise AuthenticationError("SSH authentication is not enabled")
 
             try:
-                client_info = self._authenticate_ssh(ssh_auth_data, ip_address)
-                return client_info
+                return self._authenticate_ssh(ssh_auth_data, ip_address)
             except SSHAuthenticationError as e:
                 logger.warning(f"SSH authentication failed: {e}")
                 raise AuthenticationError(f"SSH authentication failed: {e}") from e
@@ -137,6 +136,7 @@ class AuthMiddleware:
         if ssh_auth_data is None:
             logger.warning("Authentication failed: no credentials provided")
             raise AuthenticationError("API key required")
+        return None
 
     def _authenticate_ssh(
         self, ssh_auth_data: dict[str, Any], ip_address: str | None

@@ -122,6 +122,7 @@ class TestPromptsIntegration:
         try:
             # Create a simple test container
             import secrets
+
             container_name = f"test-troubleshoot-{secrets.token_hex(4)}"
 
             # Pull alpine image if not present

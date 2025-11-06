@@ -43,7 +43,9 @@ class SSHWireMessage:
         """
         length = self._get_uint32()
         if self.offset + length > len(self.data):
-            raise ValueError(f"Truncated string: need {length} bytes, have {len(self.data) - self.offset}")
+            raise ValueError(
+                f"Truncated string: need {length} bytes, have {len(self.data) - self.offset}"
+            )
 
         text_data = self.data[self.offset : self.offset + length]
         self.offset += length
@@ -62,7 +64,9 @@ class SSHWireMessage:
         """
         length = self._get_uint32()
         if self.offset + length > len(self.data):
-            raise ValueError(f"Truncated binary: need {length} bytes, have {len(self.data) - self.offset}")
+            raise ValueError(
+                f"Truncated binary: need {length} bytes, have {len(self.data) - self.offset}"
+            )
 
         binary_data = self.data[self.offset : self.offset + length]
         self.offset += length
@@ -82,7 +86,9 @@ class SSHWireMessage:
         """
         length = self._get_uint32()
         if self.offset + length > len(self.data):
-            raise ValueError(f"Truncated mpint: need {length} bytes, have {len(self.data) - self.offset}")
+            raise ValueError(
+                f"Truncated mpint: need {length} bytes, have {len(self.data) - self.offset}"
+            )
 
         if length == 0:
             return 0
@@ -101,7 +107,7 @@ class SSHWireMessage:
         Returns:
             Remaining bytes in buffer
         """
-        return self.data[self.offset:]
+        return self.data[self.offset :]
 
     def _get_uint32(self) -> int:
         """Read a 4-byte unsigned integer (big-endian).

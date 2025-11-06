@@ -3,21 +3,20 @@
 import base64
 import hashlib
 import secrets
-import struct
 import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from loguru import logger
 
 from mcp_docker.auth.ssh_keys import SSHKeyManager, SSHPublicKey
 from mcp_docker.auth.ssh_wire import SSHWireMessage
-from mcp_docker.config import SecurityConfig, DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS
+from mcp_docker.config import DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS, SecurityConfig
 from mcp_docker.utils.errors import (
     SSHKeyNotFoundError,
     SSHNonceReuseError,
@@ -58,9 +57,7 @@ class SSHSignatureValidator:
     - ECDSA (P-256, P-384, P-521)
     """
 
-    def _verify_ed25519_signature(
-        self, key_data: bytes, message: bytes, sig_data: bytes
-    ) -> bool:
+    def _verify_ed25519_signature(self, key_data: bytes, message: bytes, sig_data: bytes) -> bool:
         """Verify Ed25519 signature.
 
         Args:
@@ -85,9 +82,7 @@ class SSHSignatureValidator:
         logger.debug("Ed25519 signature verification succeeded")
         return True
 
-    def _verify_rsa_signature(
-        self, key_data: bytes, message: bytes, sig_data: bytes
-    ) -> bool:
+    def _verify_rsa_signature(self, key_data: bytes, message: bytes, sig_data: bytes) -> bool:
         """Verify RSA signature.
 
         Args:
@@ -113,12 +108,7 @@ class SSHSignatureValidator:
 
         # Verify with PKCS1v15 padding and SHA-1 (SSH-RSA default)
         # Note: ssh-rsa uses SHA-1, rsa-sha2-256 uses SHA-256, rsa-sha2-512 uses SHA-512
-        crypto_public_key.verify(
-            sig_data,
-            message,
-            asym_padding.PKCS1v15(),
-            hashes.SHA1()
-        )
+        crypto_public_key.verify(sig_data, message, asym_padding.PKCS1v15(), hashes.SHA1())
         logger.debug("RSA signature verification succeeded")
         return True
 
@@ -172,9 +162,7 @@ class SSHSignatureValidator:
         logger.debug("ECDSA signature verification succeeded")
         return True
 
-    def verify_signature(
-        self, public_key: SSHPublicKey, message: bytes, signature: bytes
-    ) -> bool:
+    def verify_signature(self, public_key: SSHPublicKey, message: bytes, signature: bytes) -> bool:
         """Verify SSH signature using public key.
 
         Delegates to key-type-specific verification methods for better maintainability
@@ -194,13 +182,10 @@ class SSHSignatureValidator:
             sig_type = sig_msg.get_text()
             sig_data = sig_msg.get_binary()
 
-            # Verify signature type matches key type
+            # Verify signature type matches key type and no trailing data
             if sig_type != public_key.key_type:
                 logger.debug(f"Signature type mismatch: {sig_type} != {public_key.key_type}")
                 return False
-
-            # Verify entire signature was consumed (no trailing bytes)
-            # This prevents accepting tampered signatures with extra data
             if sig_msg.get_remainder():
                 logger.debug("Signature has unexpected trailing data")
                 return False
@@ -209,21 +194,27 @@ class SSHSignatureValidator:
             key_data = base64.b64decode(public_key.public_key)
 
             # Delegate to key-type-specific verification method
-            if public_key.key_type == "ssh-ed25519":
-                return self._verify_ed25519_signature(key_data, message, sig_data)
-            elif public_key.key_type == "ssh-rsa":
-                return self._verify_rsa_signature(key_data, message, sig_data)
-            elif public_key.key_type.startswith("ecdsa-sha2-"):
-                return self._verify_ecdsa_signature(public_key.key_type, key_data, message, sig_data)
-            else:
-                logger.warning(f"Unsupported key type: {public_key.key_type}")
-                return False
+            verifier_map = {
+                "ssh-ed25519": self._verify_ed25519_signature,
+                "ssh-rsa": self._verify_rsa_signature,
+            }
 
-        except InvalidSignature:
-            logger.debug("Signature verification failed: invalid signature")
+            # Check exact match first
+            if public_key.key_type in verifier_map:
+                return verifier_map[public_key.key_type](key_data, message, sig_data)
+
+            # Check ECDSA prefix match
+            if public_key.key_type.startswith("ecdsa-sha2-"):
+                return self._verify_ecdsa_signature(
+                    public_key.key_type, key_data, message, sig_data
+                )
+
+            logger.warning(f"Unsupported key type: {public_key.key_type}")
             return False
-        except Exception as e:
-            logger.debug(f"Signature verification failed: {e}")
+
+        except (InvalidSignature, Exception) as e:
+            error_msg = "invalid signature" if isinstance(e, InvalidSignature) else str(e)
+            logger.debug(f"Signature verification failed: {error_msg}")
             return False
 
 
@@ -296,9 +287,7 @@ class SSHAuthProtocol:
         with self._nonce_lock:
             # Clean expired nonces (prevent memory growth)
             now = time.time()
-            self._nonce_store = {
-                n: exp for n, exp in self._nonce_store.items() if exp > now
-            }
+            self._nonce_store = {n: exp for n, exp in self._nonce_store.items() if exp > now}
 
             # Check if nonce already used
             if nonce in self._nonce_store:
@@ -358,7 +347,8 @@ class SSHKeyAuthenticator:
         """Authenticate client using SSH signature.
 
         Args:
-            request: SSH authentication request containing client_id, signature, timestamp, and nonce
+            request: SSH authentication request containing client_id, signature,
+                timestamp, and nonce
 
         Returns:
             ClientInfo if authentication succeeds, None otherwise
@@ -372,7 +362,9 @@ class SSHKeyAuthenticator:
 
         # 2. Validate and register nonce (prevents replay attacks)
         if not self.protocol.validate_and_register_nonce(request.nonce):
-            logger.warning(f"SSH auth failed: replay attack detected for client '{request.client_id}'")
+            logger.warning(
+                f"SSH auth failed: replay attack detected for client '{request.client_id}'"
+            )
             raise SSHNonceReuseError("Nonce has already been used (replay attack detected)")
 
         # 3. Look up client's public keys (supports multiple keys)
@@ -382,7 +374,9 @@ class SSHKeyAuthenticator:
             raise SSHKeyNotFoundError(f"No authorized keys found for client '{request.client_id}'")
 
         # 4. Reconstruct challenge message
-        message = SSHAuthProtocol.create_message(request.client_id, request.timestamp, request.nonce)
+        message = SSHAuthProtocol.create_message(
+            request.client_id, request.timestamp, request.nonce
+        )
 
         # 5. Try to verify signature with any of the client's keys
         verified_key = None
