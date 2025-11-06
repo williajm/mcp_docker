@@ -3,6 +3,7 @@
 This module provides utilities for loading SSH private keys and creating signatures
 using the cryptography library. Supports Ed25519, RSA, and ECDSA keys.
 """
+
 import base64
 import struct
 from pathlib import Path
