@@ -5,13 +5,22 @@ This module provides resources that can be accessed through MCP URIs:
 - container://stats/{container_id} - Container resource statistics
 """
 
+import asyncio
+from typing import Any
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.resources.base import BaseResourceHelper
 from mcp_docker.utils.errors import ContainerNotFound, MCPDockerError
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
+from mcp_docker.utils.stats_formatter import (
+    calculate_cpu_usage,
+    calculate_memory_usage,
+    format_network_stats,
+)
 
 logger = get_logger(__name__)
 
@@ -34,19 +43,10 @@ class ResourceContent(BaseModel):
     blob: bytes | None = Field(default=None, description="Binary content")
 
 
-class ContainerLogsResource:
+class ContainerLogsResource(BaseResourceHelper):
     """Resource provider for container logs."""
 
     URI_SCHEME = "container://logs/"
-
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the container logs resource.
-
-        Args:
-            docker_client: Docker client wrapper
-
-        """
-        self.docker = docker_client
 
     def get_uri(self, container_id: str) -> str:
         """Get the resource URI for a container's logs.
@@ -77,6 +77,37 @@ class ContainerLogsResource:
             mime_type="text/plain",
         )
 
+    def _fetch_logs_blocking(self, container_id: str, tail: int, follow: bool) -> str:
+        """Blocking helper to fetch container logs.
+
+        This is a blocking helper that performs synchronous Docker SDK calls.
+        Always call with asyncio.to_thread() from async methods.
+
+        Args:
+            container_id: Container ID or name
+            tail: Number of lines to return
+            follow: Whether to stream logs
+
+        Returns:
+            Log text
+
+        """
+        container = self.docker.client.containers.get(container_id)
+        logs = container.logs(tail=tail, follow=follow)
+
+        # Decode bytes to string
+        if isinstance(logs, bytes):
+            return logs.decode("utf-8", errors="replace")
+
+        # If follow=True, logs is a generator
+        log_text = ""
+        for line in logs:
+            if isinstance(line, bytes):
+                log_text += line.decode("utf-8", errors="replace")
+            else:
+                log_text += str(line)
+        return log_text
+
     async def read(
         self,
         container_id: str,
@@ -99,20 +130,10 @@ class ContainerLogsResource:
 
         """
         try:
-            container = self.docker.client.containers.get(container_id)
-            logs = container.logs(tail=tail, follow=follow)
-
-            # Decode bytes to string
-            if isinstance(logs, bytes):
-                log_text = logs.decode("utf-8", errors="replace")
-            else:
-                # If follow=True, logs is a generator
-                log_text = ""
-                for line in logs:
-                    if isinstance(line, bytes):
-                        log_text += line.decode("utf-8", errors="replace")
-                    else:
-                        log_text += str(line)
+            # Offload blocking Docker I/O to thread pool
+            log_text = await asyncio.to_thread(
+                self._fetch_logs_blocking, container_id, tail, follow
+            )
 
             logger.debug(f"Retrieved logs for container {container_id}")
 
@@ -124,24 +145,15 @@ class ContainerLogsResource:
 
         except Exception as e:
             if "404" in str(e):
-                raise ContainerNotFound(f"Container not found: {container_id}") from e
+                raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
             logger.error(f"Failed to get logs for container {container_id}: {e}")
             raise MCPDockerError(f"Failed to get container logs: {e}") from e
 
 
-class ContainerStatsResource:
+class ContainerStatsResource(BaseResourceHelper):
     """Resource provider for container statistics."""
 
     URI_SCHEME = "container://stats/"
-
-    def __init__(self, docker_client: DockerClientWrapper) -> None:
-        """Initialize the container stats resource.
-
-        Args:
-            docker_client: Docker client wrapper
-
-        """
-        self.docker = docker_client
 
     def get_uri(self, container_id: str) -> str:
         """Get the resource URI for a container's stats.
@@ -172,6 +184,24 @@ class ContainerStatsResource:
             mime_type="application/json",
         )
 
+    def _fetch_stats_blocking(self, container_id: str) -> dict[str, Any]:
+        """Blocking helper to fetch container stats.
+
+        This is a blocking helper that performs synchronous Docker SDK calls.
+        Always call with asyncio.to_thread() from async methods.
+
+        Args:
+            container_id: Container ID or name
+
+        Returns:
+            Stats dictionary
+
+        """
+        container = self.docker.client.containers.get(container_id)
+        # Get stats (stream=False for single snapshot)
+        # Note: decode parameter can only be used with stream=True
+        return container.stats(stream=False)  # type: ignore[no-untyped-call, no-any-return]
+
     async def read(self, container_id: str) -> ResourceContent:
         """Read container statistics.
 
@@ -187,50 +217,28 @@ class ContainerStatsResource:
 
         """
         try:
-            container = self.docker.client.containers.get(container_id)
+            # Offload blocking Docker I/O to thread pool
+            stats = await asyncio.to_thread(self._fetch_stats_blocking, container_id)
 
-            # Get stats (stream=False for single snapshot)
-            # Note: decode parameter can only be used with stream=True
-            stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
-
-            # Format stats as readable text
-            cpu_stats = stats.get("cpu_stats", {})
-            memory_stats = stats.get("memory_stats", {})
-            network_stats = stats.get("networks", {})
-
-            # Calculate CPU percentage
-            cpu_delta = cpu_stats.get("cpu_usage", {}).get("total_usage", 0)
-            system_delta = cpu_stats.get("system_cpu_usage", 0)
-            cpu_count = cpu_stats.get("online_cpus", 1)
-
-            # Calculate memory usage
-            memory_usage = memory_stats.get("usage", 0)
-            memory_limit = memory_stats.get("limit", 0)
-            memory_percent = (memory_usage / memory_limit * 100) if memory_limit > 0 else 0
-
-            # Format network stats
-            network_text = ""
-            for interface, stats_data in network_stats.items():
-                rx_bytes = stats_data.get("rx_bytes", 0)
-                tx_bytes = stats_data.get("tx_bytes", 0)
-                network_text += (
-                    f"\n  {interface}: RX {rx_bytes / 1024:.2f} KB, TX {tx_bytes / 1024:.2f} KB"
-                )
+            # Format stats as readable text using stats formatter utilities
+            cpu_info = calculate_cpu_usage(stats)
+            memory_info = calculate_memory_usage(stats)
+            network_text = format_network_stats(stats)
 
             stats_text = f"""Container Statistics for {container_id}
 ==========================================
 
 CPU:
-  Online CPUs: {cpu_count}
-  Total Usage: {cpu_delta}
-  System Usage: {system_delta}
+  Online CPUs: {cpu_info["online_cpus"]}
+  Total Usage: {cpu_info["total_usage"]}
+  System Usage: {cpu_info["system_usage"]}
 
 Memory:
-  Usage: {memory_usage / 1024 / 1024:.2f} MB
-  Limit: {memory_limit / 1024 / 1024:.2f} MB
-  Percentage: {memory_percent:.2f}%
+  Usage: {memory_info["usage_mb"]:.2f} MB
+  Limit: {memory_info["limit_mb"]:.2f} MB
+  Percentage: {memory_info["percent"]:.2f}%
 
-Network:{network_text if network_text else " No network interfaces"}
+Network:{network_text}
 
 Block I/O:
   {stats.get("blkio_stats", "No block I/O stats available")}
@@ -246,7 +254,7 @@ Block I/O:
 
         except Exception as e:
             if "404" in str(e):
-                raise ContainerNotFound(f"Container not found: {container_id}") from e
+                raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
             logger.error(f"Failed to get stats for container {container_id}: {e}")
             raise MCPDockerError(f"Failed to get container stats: {e}") from e
 
@@ -269,6 +277,19 @@ class ResourceProvider:
         self.stats_resource = ContainerStatsResource(docker_client)
 
         logger.debug("Initialized ResourceProvider")
+
+    def _parse_container_id_from_uri(self, uri: str) -> str:
+        """Extract container ID from resource URI.
+
+        Args:
+            uri: Resource URI (e.g., container://logs/abc123)
+
+        Returns:
+            Container ID extracted from URI path
+
+        """
+        parsed = urlparse(uri)
+        return parsed.path.lstrip("/")
 
     def list_resources(self) -> list[ResourceMetadata]:
         """List all available resources.
@@ -315,15 +336,11 @@ class ResourceProvider:
 
         """
         if uri.startswith(ContainerLogsResource.URI_SCHEME):
-            # Extract container ID from URI using proper URL parsing
-            parsed = urlparse(uri)
-            container_id = parsed.path.lstrip("/")
+            container_id = self._parse_container_id_from_uri(uri)
             return await self.logs_resource.read(container_id)
 
         if uri.startswith(ContainerStatsResource.URI_SCHEME):
-            # Extract container ID from URI using proper URL parsing
-            parsed = urlparse(uri)
-            container_id = parsed.path.lstrip("/")
+            container_id = self._parse_container_id_from_uri(uri)
             return await self.stats_resource.read(container_id)
 
         raise ValueError(f"Unknown resource URI scheme: {uri}")
@@ -342,15 +359,11 @@ class ResourceProvider:
 
         """
         if uri.startswith(ContainerLogsResource.URI_SCHEME):
-            # Extract container ID from URI using proper URL parsing
-            parsed = urlparse(uri)
-            container_id = parsed.path.lstrip("/")
+            container_id = self._parse_container_id_from_uri(uri)
             return self.logs_resource.get_metadata(container_id)
 
         if uri.startswith(ContainerStatsResource.URI_SCHEME):
-            # Extract container ID from URI using proper URL parsing
-            parsed = urlparse(uri)
-            container_id = parsed.path.lstrip("/")
+            container_id = self._parse_container_id_from_uri(uri)
             return self.stats_resource.get_metadata(container_id)
 
         raise ValueError(f"Unknown resource URI scheme: {uri}")

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, NetworkNotFound
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
@@ -436,8 +437,10 @@ class ConnectContainerTool(BaseTool):
             if "network" in error_msg:
                 logger.error(f"Network not found: {input_data.network_id}")
                 raise NetworkNotFound(f"Network not found: {input_data.network_id}") from e
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to connect container: {e}")
             raise DockerOperationError(f"Failed to connect container: {e}") from e
@@ -507,8 +510,10 @@ class DisconnectContainerTool(BaseTool):
             if "network" in error_msg:
                 logger.error(f"Network not found: {input_data.network_id}")
                 raise NetworkNotFound(f"Network not found: {input_data.network_id}") from e
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to disconnect container: {e}")
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e

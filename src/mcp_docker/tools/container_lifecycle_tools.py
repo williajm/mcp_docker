@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import (
     validate_command,
@@ -314,8 +315,10 @@ class StartContainerTool(BaseTool):
             return StartContainerOutput(container_id=str(container.id), status=container.status)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to start container: {e}")
             raise DockerOperationError(f"Failed to start container: {e}") from e
@@ -371,8 +374,10 @@ class StopContainerTool(BaseTool):
             return StopContainerOutput(container_id=str(container.id), status=container.status)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to stop container: {e}")
             raise DockerOperationError(f"Failed to stop container: {e}") from e
@@ -428,8 +433,10 @@ class RestartContainerTool(BaseTool):
             return RestartContainerOutput(container_id=str(container.id), status=container.status)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to restart container: {e}")
             raise DockerOperationError(f"Failed to restart container: {e}") from e
@@ -488,8 +495,10 @@ class RemoveContainerTool(BaseTool):
             )
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to remove container: {e}")
             raise DockerOperationError(f"Failed to remove container: {e}") from e

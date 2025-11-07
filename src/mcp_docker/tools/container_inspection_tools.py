@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import validate_command
 
@@ -263,8 +264,10 @@ class InspectContainerTool(BaseTool):
             return InspectContainerOutput(details=details)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to inspect container: {e}")
             raise DockerOperationError(f"Failed to inspect container: {e}") from e
@@ -355,8 +358,10 @@ class ContainerLogsTool(BaseTool):
             return ContainerLogsOutput(logs=logs_str, container_id=str(container.id))
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to get container logs: {e}")
             raise DockerOperationError(f"Failed to get container logs: {e}") from e
@@ -436,8 +441,10 @@ class ExecCommandTool(BaseTool):
             return ExecCommandOutput(exit_code=exit_code, output=output_str)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to execute command: {e}")
             raise DockerOperationError(f"Failed to execute command: {e}") from e
@@ -502,8 +509,10 @@ class ContainerStatsTool(BaseTool):
             return ContainerStatsOutput(stats=stats, container_id=str(container.id))
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to get container stats: {e}")
             raise DockerOperationError(f"Failed to get container stats: {e}") from e
