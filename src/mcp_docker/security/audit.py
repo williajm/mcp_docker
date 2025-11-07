@@ -28,12 +28,14 @@ class AuditEvent:
     client_id: str = field(init=False)
     client_ip: str | None = field(init=False)
     api_key_hash: str = field(init=False)
+    description: str | None = field(init=False)
 
     def __post_init__(self) -> None:
         """Extract client information after initialization."""
         self.client_id = self.client_info.client_id
         self.client_ip = self.client_info.ip_address
         self.api_key_hash = self.client_info.api_key_hash
+        self.description = self.client_info.description
 
     def to_dict(self) -> dict[str, Any]:
         """Convert audit event to dictionary.
@@ -47,6 +49,7 @@ class AuditEvent:
             "client_id": self.client_id,
             "client_ip": self.client_ip,
             "api_key_hash": self.api_key_hash,
+            "description": self.description,
             "tool_name": self.tool_name,
             "arguments": self.arguments,
             "result": self.result,
