@@ -7,6 +7,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
 
+# SSH Authentication Constants
+DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS = 300  # 5 minutes
+MAX_SSH_SIGNATURE_AGE_SECONDS = 3600  # 1 hour
+
 
 class DockerConfig(BaseSettings):
     """Docker client configuration."""
@@ -143,6 +147,22 @@ class SecurityConfig(BaseSettings):
     allowed_client_ips: list[str] = Field(
         default_factory=list,
         description="Allowed client IP addresses (empty list = allow all)",
+    )
+
+    # SSH Authentication
+    ssh_auth_enabled: bool = Field(
+        default=False,
+        description="Enable SSH key-based authentication",
+    )
+    ssh_authorized_keys_file: Path = Field(
+        default=Path.home() / ".ssh" / "mcp_authorized_keys",
+        description="Path to authorized SSH public keys file (OpenSSH format)",
+    )
+    ssh_signature_max_age: int = Field(
+        default=DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS,
+        description="Maximum age of SSH signature timestamp in seconds (replay protection)",
+        gt=0,
+        le=MAX_SSH_SIGNATURE_AGE_SECONDS,
     )
 
     @field_validator("api_keys_file")

@@ -220,5 +220,20 @@ compose_files/user-*.yaml
 .mcp_keys.json
 mcp_audit.log
 
-# Development plans
+# Temporary development documentation (fixed issues, plans, analysis)
+# These increase context for future sessions and should not be committed
+*_ANALYSIS.md
+*_REFACTORING*.md
+*_COMPLETE.md
+*_FIXES*.md
+*_REPORT.md
+*_REVIEW*.md
+*_STATUS.md
+*_SUMMARY.md
+*_ISSUE.md
 development-plan-*.md
+plan*.md
+codex_*.md
+
+# Manual testing guide (git-ignored for local notes)
+MANUAL_SSH_TESTING.md

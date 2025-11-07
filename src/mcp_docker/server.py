@@ -17,7 +17,8 @@ from mcp_docker.security.audit import AuditLogger
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
 from mcp_docker.tools import base as tools_base
 from mcp_docker.tools import (
-    container_tools,
+    container_inspection_tools,
+    container_lifecycle_tools,
     image_tools,
     network_tools,
     system_tools,
@@ -84,7 +85,8 @@ class MCPDockerServer:
         be automatically registered without code changes here.
         """
         tool_modules = [
-            container_tools,
+            container_inspection_tools,
+            container_lifecycle_tools,
             image_tools,
             network_tools,
             volume_tools,
@@ -139,6 +141,7 @@ class MCPDockerServer:
         arguments: dict[str, Any],
         api_key: str | None = None,
         ip_address: str | None = None,
+        ssh_auth_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Call a tool with the given arguments.
 
@@ -147,6 +150,13 @@ class MCPDockerServer:
             arguments: Tool arguments
             api_key: API key for authentication (optional if auth disabled)
             ip_address: IP address of the client (for audit logging)
+            ssh_auth_data: SSH authentication data (optional)
+                Format: {
+                    "client_id": str,
+                    "timestamp": str,
+                    "nonce": str,
+                    "signature": str (base64)
+                }
 
         Returns:
             Tool execution result
@@ -157,7 +167,11 @@ class MCPDockerServer:
         """
         # Authenticate the request
         try:
-            client_info = self.auth_middleware.authenticate_request(api_key, ip_address)
+            client_info = self.auth_middleware.authenticate_request(
+                api_key=api_key,
+                ip_address=ip_address,
+                ssh_auth_data=ssh_auth_data,
+            )
         except Exception as e:
             # Log authentication failure
             self.audit_logger.log_auth_failure(

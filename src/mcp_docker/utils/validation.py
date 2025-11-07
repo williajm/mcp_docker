@@ -19,6 +19,14 @@ IMAGE_NAME_PATTERN = re.compile(
 )
 LABEL_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 
+# Docker length limits
+MAX_CONTAINER_NAME_LENGTH = 255  # Maximum container name length in Docker
+MAX_IMAGE_NAME_LENGTH = 255  # Maximum image name length in Docker
+
+# Network port range
+MIN_PORT = 1  # Minimum valid TCP/UDP port number
+MAX_PORT = 65535  # Maximum valid TCP/UDP port number
+
 
 def validate_container_name(name: str) -> str:
     """Validate Docker container name.
@@ -36,8 +44,10 @@ def validate_container_name(name: str) -> str:
     if not name:
         raise ValidationError("Container name cannot be empty")
 
-    if len(name) > 255:
-        raise ValidationError("Container name cannot exceed 255 characters")
+    if len(name) > MAX_CONTAINER_NAME_LENGTH:
+        raise ValidationError(
+            f"Container name cannot exceed {MAX_CONTAINER_NAME_LENGTH} characters"
+        )
 
     if not CONTAINER_NAME_PATTERN.match(name):
         raise ValidationError(
@@ -65,8 +75,8 @@ def validate_image_name(name: str) -> str:
     if not name:
         raise ValidationError("Image name cannot be empty")
 
-    if len(name) > 255:
-        raise ValidationError("Image name cannot exceed 255 characters")
+    if len(name) > MAX_IMAGE_NAME_LENGTH:
+        raise ValidationError(f"Image name cannot exceed {MAX_IMAGE_NAME_LENGTH} characters")
 
     if not IMAGE_NAME_PATTERN.match(name):
         raise ValidationError(
@@ -125,8 +135,8 @@ def validate_port(port: int | str) -> int:
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid port: {port}. Must be an integer.") from e
 
-    if not 1 <= port_int <= 65535:
-        raise ValidationError(f"Invalid port: {port}. Must be between 1 and 65535.")
+    if not MIN_PORT <= port_int <= MAX_PORT:
+        raise ValidationError(f"Invalid port: {port}. Must be between {MIN_PORT} and {MAX_PORT}.")
 
     return port_int
 

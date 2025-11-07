@@ -13,6 +13,9 @@ from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Security constants
+MIN_API_KEY_LENGTH = 32  # Minimum API key length in characters for security
+
 
 class ClientInfo(BaseModel):
     """Information about an authenticated client."""
@@ -152,8 +155,7 @@ class APIKeyAuthenticator:
         Returns:
             True if format is valid
         """
-        # API keys should be at least 32 characters for security
-        return len(api_key) >= 32
+        return len(api_key) >= MIN_API_KEY_LENGTH
 
     @staticmethod
     def generate_api_key() -> str:

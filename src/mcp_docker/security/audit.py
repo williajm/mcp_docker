@@ -1,6 +1,7 @@
 """Audit logging for MCP Docker operations."""
 
 import json
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,37 +12,30 @@ from mcp_docker.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+@dataclass
 class AuditEvent:
     """Represents a single audit event."""
 
-    def __init__(
-        self,
-        event_type: str,
-        client_info: ClientInfo,
-        tool_name: str | None = None,
-        arguments: dict[str, Any] | None = None,
-        result: dict[str, Any] | None = None,
-        error: str | None = None,
-    ) -> None:
-        """Initialize audit event.
+    event_type: str
+    client_info: ClientInfo
+    tool_name: str | None = None
+    arguments: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
-        Args:
-            event_type: Type of event (e.g., "tool_call", "auth_failure")
-            client_info: Information about the client
-            tool_name: Name of the tool called (if applicable)
-            arguments: Tool arguments (if applicable)
-            result: Result of the operation (if applicable)
-            error: Error message (if operation failed)
-        """
-        self.event_type = event_type
-        self.timestamp = datetime.now(UTC)
-        self.client_id = client_info.client_id
-        self.client_ip = client_info.ip_address
-        self.api_key_hash = client_info.api_key_hash
-        self.tool_name = tool_name
-        self.arguments = arguments
-        self.result = result
-        self.error = error
+    # Derived fields from client_info
+    client_id: str = field(init=False)
+    client_ip: str | None = field(init=False)
+    api_key_hash: str = field(init=False)
+    description: str | None = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Extract client information after initialization."""
+        self.client_id = self.client_info.client_id
+        self.client_ip = self.client_info.ip_address
+        self.api_key_hash = self.client_info.api_key_hash
+        self.description = self.client_info.description
 
     def to_dict(self) -> dict[str, Any]:
         """Convert audit event to dictionary.
@@ -55,6 +49,7 @@ class AuditEvent:
             "client_id": self.client_id,
             "client_ip": self.client_ip,
             "api_key_hash": self.api_key_hash,
+            "description": self.description,
             "tool_name": self.tool_name,
             "arguments": self.arguments,
             "result": self.result,

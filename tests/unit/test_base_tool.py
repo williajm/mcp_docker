@@ -24,9 +24,9 @@ class TestToolInput:
         valid = SimpleInput(name="test")
         assert valid.name == "test"
 
-        # Extra field should raise error
-        with pytest.raises(Exception):
-            SimpleInput(name="test", extra_field="value")
+        # Extra field should raise error (Pydantic validation)
+        with pytest.raises((TypeError, ValueError)):  # Pydantic raises TypeError for extra fields
+            SimpleInput(name="test", extra_field="value")  # type: ignore[call-arg]
 
 
 class TestToolResult:
@@ -192,7 +192,7 @@ class TestBaseTool:
         """Test that validation errors are handled."""
         tool = MockTool(mock_docker_client, safety_config)
         # Missing required field - should raise ValidationError from Pydantic
-        with pytest.raises(Exception):  # Pydantic will raise validation error
+        with pytest.raises(ValueError):  # Pydantic raises ValueError for missing required fields
             await tool.run({})
 
     @pytest.mark.asyncio

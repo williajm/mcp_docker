@@ -22,87 +22,87 @@ title: Architecture
 ### 1.1 High-Level Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        MCP Client (Claude)                       │
-│                    (Model Context Protocol)                      │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ stdio transport
-                             │ JSON-RPC messages
++-----------------------------------------------------------------+
+|                        MCP Client (Claude)                       |
+|                    (Model Context Protocol)                      |
++----------------------------+------------------------------------+
+                             | stdio transport
+                             | JSON-RPC messages
                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                      MCPDockerServer                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │   Tools      │  │  Resources   │  │   Prompts    │         │
-│  │  (37 tools)  │  │  (logs/stats)│  │ (templates)  │         │
-│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘         │
-│         │                  │                  │                  │
-│         └──────────────────┼──────────────────┘                  │
-│                            ↓                                     │
-│              ┌──────────────────────────┐                       │
-│              │  DockerClientWrapper     │                       │
-│              │  (Connection Management) │                       │
-│              └──────────┬───────────────┘                       │
-└───────────────────────────┼─────────────────────────────────────┘
-                            │
++-----------------------------------------------------------------+
+|                      MCPDockerServer                            |
+|  +--------------+  +--------------+  +--------------+         |
+|  |   Tools      |  |  Resources   |  |   Prompts    |         |
+|  |  (37 tools)  |  |  (logs/stats)|  | (templates)  |         |
+|  +------+-------+  +------+-------+  +------+-------+         |
+|         |                  |                  |                  |
+|         +------------------+------------------+                  |
+|                            ↓                                     |
+|              +--------------------------+                       |
+|              |  DockerClientWrapper     |                       |
+|              |  (Connection Management) |                       |
+|              +----------+---------------+                       |
++---------------------------+-------------------------------------+
+                            |
                             ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                     Docker SDK (docker-py)                       │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
++-----------------------------------------------------------------+
+|                     Docker SDK (docker-py)                       |
++----------------------------+------------------------------------+
+                             |
                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│              Docker Daemon (dockerd)                            │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐       │
-│  │Containers│  │  Images  │  │ Networks │  │ Volumes  │       │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘       │
-└─────────────────────────────────────────────────────────────────┘
++-----------------------------------------------------------------+
+|              Docker Daemon (dockerd)                            |
+|  +----------+  +----------+  +----------+  +----------+       |
+|  |Containers|  |  Images  |  | Networks |  | Volumes  |       |
+|  +----------+  +----------+  +----------+  +----------+       |
++-----------------------------------------------------------------+
 ```
 
 ### 1.2 Module Structure and Responsibilities
 
 ```
 src/mcp_docker/
-├── server.py              # MCP server orchestration
-│   └── MCPDockerServer    # Main server class, tool/resource/prompt registration
-│
-├── config.py              # Configuration management
-│   ├── DockerConfig       # Docker client settings
-│   ├── SafetyConfig       # Safety controls and limits
-│   └── ServerConfig       # Logging and server metadata
-│
-├── docker/
-│   ├── client.py          # Docker client wrapper
-│   │   └── DockerClientWrapper  # Connection management, health checks, context manager
-│
-├── tools/
-│   ├── base.py            # Tool abstractions
-│   │   ├── BaseTool       # Abstract base class for all tools
-│   │   ├── ToolInput      # Pydantic base model for inputs
-│   │   ├── ToolResult     # Standardized result format
-│   │   └── OperationSafety # Enum (SAFE/MODERATE/DESTRUCTIVE)
-│   │
-│   ├── container_tools.py # 10 container management tools
-│   ├── image_tools.py     # 9 image management tools
-│   ├── network_tools.py   # 6 network management tools
-│   ├── volume_tools.py    # 5 volume management tools
-│   └── system_tools.py    # 7 system-level tools
-│
-├── resources/
-│   └── providers.py       # MCP resource providers
-│       ├── ContainerLogsResource    # container://logs/{id}
-│       └── ContainerStatsResource   # container://stats/{id}
-│
-├── prompts/
-│   └── templates.py       # MCP prompt templates
-│       ├── TroubleshootContainerPrompt  # Diagnostic assistance
-│       ├── OptimizeContainerPrompt      # Optimization suggestions
-│       └── GenerateComposePrompt        # docker-compose.yml generation
-│
-└── utils/
-    ├── errors.py          # Exception hierarchy
-    ├── validation.py      # Input validation (Pydantic)
-    ├── safety.py          # Safety controls and command sanitization
-    └── logger.py          # Structured logging (loguru)
++-- server.py              # MCP server orchestration
+|   +-- MCPDockerServer    # Main server class, tool/resource/prompt registration
+|
++-- config.py              # Configuration management
+|   +-- DockerConfig       # Docker client settings
+|   +-- SafetyConfig       # Safety controls and limits
+|   +-- ServerConfig       # Logging and server metadata
+|
++-- docker/
+|   +-- client.py          # Docker client wrapper
+|   |   +-- DockerClientWrapper  # Connection management, health checks, context manager
+|
++-- tools/
+|   +-- base.py            # Tool abstractions
+|   |   +-- BaseTool       # Abstract base class for all tools
+|   |   +-- ToolInput      # Pydantic base model for inputs
+|   |   +-- ToolResult     # Standardized result format
+|   |   +-- OperationSafety # Enum (SAFE/MODERATE/DESTRUCTIVE)
+|   |
+|   +-- container_tools.py # 10 container management tools
+|   +-- image_tools.py     # 9 image management tools
+|   +-- network_tools.py   # 6 network management tools
+|   +-- volume_tools.py    # 5 volume management tools
+|   +-- system_tools.py    # 7 system-level tools
+|
++-- resources/
+|   +-- providers.py       # MCP resource providers
+|       +-- ContainerLogsResource    # container://logs/{id}
+|       +-- ContainerStatsResource   # container://stats/{id}
+|
++-- prompts/
+|   +-- templates.py       # MCP prompt templates
+|       +-- TroubleshootContainerPrompt  # Diagnostic assistance
+|       +-- OptimizeContainerPrompt      # Optimization suggestions
+|       +-- GenerateComposePrompt        # docker-compose.yml generation
+|
++-- utils/
+    +-- errors.py          # Exception hierarchy
+    +-- validation.py      # Input validation (Pydantic)
+    +-- safety.py          # Safety controls and command sanitization
+    +-- logger.py          # Structured logging (loguru)
 ```
 
 ### 1.3 Data Flow Diagram
@@ -110,123 +110,123 @@ src/mcp_docker/
 #### Tool Execution Flow
 
 ```
-┌──────────────┐
-│ MCP Client   │
-│ (Claude)     │
-└──────┬───────┘
-       │ 1. call_tool("docker_list_containers", {...})
++--------------+
+| MCP Client   |
+| (Claude)     |
++------+-------+
+       | 1. call_tool("docker_list_containers", {...})
        ↓
-┌──────────────────────┐
-│ MCPDockerServer      │
-│ .call_tool()         │
-└──────┬───────────────┘
-       │ 2. Lookup tool by name
++----------------------+
+| MCPDockerServer      |
+| .call_tool()         |
++------+---------------+
+       | 2. Lookup tool by name
        ↓
-┌──────────────────────┐
-│ ListContainersTool   │
-│ (BaseTool)           │
-└──────┬───────────────┘
-       │ 3. Validate input (Pydantic)
++----------------------+
+| ListContainersTool   |
+| (BaseTool)           |
++------+---------------+
+       | 3. Validate input (Pydantic)
        ↓
-┌──────────────────────┐
-│ Safety Check         │
-│ .check_safety()      │
-└──────┬───────────────┘
-       │ 4. Check operation level (SAFE)
++----------------------+
+| Safety Check         |
+| .check_safety()      |
++------+---------------+
+       | 4. Check operation level (SAFE)
        ↓
-┌──────────────────────┐
-│ Tool Implementation  │
-│ .execute()           │
-└──────┬───────────────┘
-       │ 5. Call Docker API
++----------------------+
+| Tool Implementation  |
+| .execute()           |
++------+---------------+
+       | 5. Call Docker API
        ↓
-┌──────────────────────┐
-│ DockerClientWrapper  │
-│ .client              │
-└──────┬───────────────┘
-       │ 6. Lazy connect, health check
++----------------------+
+| DockerClientWrapper  |
+| .client              |
++------+---------------+
+       | 6. Lazy connect, health check
        ↓
-┌──────────────────────┐
-│ Docker SDK           │
-│ containers.list()    │
-└──────┬───────────────┘
-       │ 7. API call to daemon
++----------------------+
+| Docker SDK           |
+| containers.list()    |
++------+---------------+
+       | 7. API call to daemon
        ↓
-┌──────────────────────┐
-│ Docker Daemon        │
-│ GET /containers/json │
-└──────┬───────────────┘
-       │ 8. Return container data
++----------------------+
+| Docker Daemon        |
+| GET /containers/json |
++------+---------------+
+       | 8. Return container data
        ↓
-┌──────────────────────┐
-│ Tool Result          │
-│ ToolResult.success() │
-└──────┬───────────────┘
-       │ 9. Format response
++----------------------+
+| Tool Result          |
+| ToolResult.success() |
++------+---------------+
+       | 9. Format response
        ↓
-┌──────────────────────┐
-│ MCP Client           │
-│ (Result JSON)        │
-└──────────────────────┘
++----------------------+
+| MCP Client           |
+| (Result JSON)        |
++----------------------+
 ```
 
 ### 1.4 Component Interactions
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Configuration Layer                        │
-│  ┌──────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │  Docker  │  │    Safety    │  │    Server    │              │
-│  │  Config  │  │    Config    │  │    Config    │              │
-│  └────┬─────┘  └──────┬───────┘  └──────┬───────┘              │
-└───────┼────────────────┼──────────────────┼────────────────────┘
-        │                │                  │
++------------------------------------------------------------------+
+|                        Configuration Layer                        |
+|  +----------+  +--------------+  +--------------+              |
+|  |  Docker  |  |    Safety    |  |    Server    |              |
+|  |  Config  |  |    Config    |  |    Config    |              |
+|  +----+-----+  +------+-------+  +------+-------+              |
++-------+----------------+------------------+--------------------+
+        |                |                  |
         ↓                ↓                  ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                         Server Layer                             │
-│  ┌────────────────────────────────────────────────────┐          │
-│  │              MCPDockerServer                       │          │
-│  │  - Tool Registration                               │          │
-│  │  - Resource Management                             │          │
-│  │  - Prompt Management                               │          │
-│  │  - Lifecycle Management (start/stop)               │          │
-│  └─────────────────────┬──────────────────────────────┘          │
-└────────────────────────┼─────────────────────────────────────────┘
-                         │
-        ┌────────────────┼────────────────┐
-        │                │                │
++------------------------------------------------------------------+
+|                         Server Layer                             |
+|  +----------------------------------------------------+          |
+|  |              MCPDockerServer                       |          |
+|  |  - Tool Registration                               |          |
+|  |  - Resource Management                             |          |
+|  |  - Prompt Management                               |          |
+|  |  - Lifecycle Management (start/stop)               |          |
+|  +---------------------+------------------------------+          |
++------------------------+-----------------------------------------+
+                         |
+        +----------------+----------------+
+        |                |                |
         ↓                ↓                ↓
-┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ Tool Layer   │  │ Resource     │  │ Prompt       │
-│              │  │ Layer        │  │ Layer        │
-│ - 37 Tools   │  │              │  │              │
-│ - BaseTool   │  │ - Logs       │  │ - Templates  │
-│ - Safety     │  │ - Stats      │  │ - Generation │
-│ - Validation │  │ - URI scheme │  │              │
-└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
-       │                 │                 │
-       └─────────────────┼─────────────────┘
++--------------+  +--------------+  +--------------+
+| Tool Layer   |  | Resource     |  | Prompt       |
+|              |  | Layer        |  | Layer        |
+| - 37 Tools   |  |              |  |              |
+| - BaseTool   |  | - Logs       |  | - Templates  |
+| - Safety     |  | - Stats      |  | - Generation |
+| - Validation |  | - URI scheme |  |              |
++------+-------+  +------+-------+  +------+-------+
+       |                 |                 |
+       +-----------------+-----------------+
                          ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                     Docker Client Layer                          │
-│  ┌────────────────────────────────────────────────────┐          │
-│  │           DockerClientWrapper                      │          │
-│  │  - Lazy Initialization                             │          │
-│  │  - Health Checks                                   │          │
-│  │  - Connection Pooling                              │          │
-│  │  - Context Manager                                 │          │
-│  └─────────────────────┬──────────────────────────────┘          │
-└────────────────────────┼─────────────────────────────────────────┘
++------------------------------------------------------------------+
+|                     Docker Client Layer                          |
+|  +----------------------------------------------------+          |
+|  |           DockerClientWrapper                      |          |
+|  |  - Lazy Initialization                             |          |
+|  |  - Health Checks                                   |          |
+|  |  - Connection Pooling                              |          |
+|  |  - Context Manager                                 |          |
+|  +---------------------+------------------------------+          |
++------------------------+-----------------------------------------+
                          ↓
-┌──────────────────────────────────────────────────────────────────┐
-│                   Utility Layer (Cross-Cutting)                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐        │
-│  │  Errors  │  │Validation│  │  Safety  │  │  Logger  │        │
-│  │          │  │          │  │          │  │          │        │
-│  │ Custom   │  │ Pydantic │  │ Command  │  │ Loguru   │        │
-│  │ Exception│  │ Models   │  │ Sanitize │  │ Struct.  │        │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘        │
-└──────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+|                   Utility Layer (Cross-Cutting)                  |
+|  +----------+  +----------+  +----------+  +----------+        |
+|  |  Errors  |  |Validation|  |  Safety  |  |  Logger  |        |
+|  |          |  |          |  |          |  |          |        |
+|  | Custom   |  | Pydantic |  | Command  |  | Loguru   |        |
+|  | Exception|  | Models   |  | Sanitize |  | Struct.  |        |
+|  +----------+  +----------+  +----------+  +----------+        |
++------------------------------------------------------------------+
 ```
 
 ---
@@ -390,16 +390,16 @@ class ListContainersTool:
 **Hierarchy**:
 ```python
 MCPDockerError (base)
-├── DockerConnectionError
-├── DockerHealthCheckError
-├── DockerOperationError
-├── ValidationError
-├── SafetyError
-│   └── UnsafeOperationError
-├── ContainerNotFound
-├── ImageNotFound
-├── NetworkNotFound
-└── VolumeNotFound
++-- DockerConnectionError
++-- DockerHealthCheckError
++-- DockerOperationError
++-- ValidationError
++-- SafetyError
+|   +-- UnsafeOperationError
++-- ContainerNotFound
++-- ImageNotFound
++-- NetworkNotFound
++-- VolumeNotFound
 ```
 
 **Benefits**:
@@ -471,29 +471,29 @@ validate_memory(memory)
 The project uses a comprehensive type safety strategy with three layers:
 
 ```
-┌──────────────────────────────────────────────────────┐
-│           Layer 1: Static Type Checking              │
-│                    (mypy --strict)                   │
-│  - All functions have type hints                     │
-│  - No implicit Any types                             │
-│  - Return types always specified                     │
-└────────────────────┬─────────────────────────────────┘
++------------------------------------------------------+
+|           Layer 1: Static Type Checking              |
+|                    (mypy --strict)                   |
+|  - All functions have type hints                     |
+|  - No implicit Any types                             |
+|  - Return types always specified                     |
++--------------------+---------------------------------+
                      ↓
-┌──────────────────────────────────────────────────────┐
-│        Layer 2: Runtime Validation                   │
-│              (Pydantic Models)                       │
-│  - Input validation before execution                 │
-│  - Automatic type coercion                           │
-│  - Field-level validators                            │
-└────────────────────┬─────────────────────────────────┘
++------------------------------------------------------+
+|        Layer 2: Runtime Validation                   |
+|              (Pydantic Models)                       |
+|  - Input validation before execution                 |
+|  - Automatic type coercion                           |
+|  - Field-level validators                            |
++--------------------+---------------------------------+
                      ↓
-┌──────────────────────────────────────────────────────┐
-│       Layer 3: Domain Validation                     │
-│          (Custom Validators)                         │
-│  - Business logic validation                         │
-│  - Docker-specific constraints                       │
-│  - Safety checks                                     │
-└──────────────────────────────────────────────────────┘
++------------------------------------------------------+
+|       Layer 3: Domain Validation                     |
+|          (Custom Validators)                         |
+|  - Business logic validation                         |
+|  - Docker-specific constraints                       |
+|  - Safety checks                                     |
++------------------------------------------------------+
 ```
 
 ### 3.2 Type Hints Strategy
@@ -649,35 +649,35 @@ async def get_container_logs(
 
 ```
 MCPDockerError (Base Exception)
-│
-├── DockerConnectionError
-│   └── "Cannot connect to Docker daemon at unix:///var/run/docker.sock"
-│   └── Solution: Check Docker is running
-│
-├── DockerHealthCheckError
-│   └── "Health check failed: daemon not responding"
-│   └── Solution: Restart Docker daemon
-│
-├── DockerOperationError
-│   └── "Operation failed: container already exists"
-│   └── Solution: Use different name or remove existing container
-│
-├── ValidationError
-│   └── "Invalid container name: must not start with hyphen"
-│   └── Solution: Fix the input according to validation rules
-│
-├── SafetyError
-│   ├── UnsafeOperationError
-│   │   └── "Destructive operation not allowed"
-│   │   └── Solution: Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-│   └── "Command contains dangerous pattern: rm -rf /"
-│       └── Solution: Modify command or review safety settings
-│
-└── Resource Not Found (4 types)
-    ├── ContainerNotFound
-    ├── ImageNotFound
-    ├── NetworkNotFound
-    └── VolumeNotFound
+|
++-- DockerConnectionError
+|   +-- "Cannot connect to Docker daemon at unix:///var/run/docker.sock"
+|   +-- Solution: Check Docker is running
+|
++-- DockerHealthCheckError
+|   +-- "Health check failed: daemon not responding"
+|   +-- Solution: Restart Docker daemon
+|
++-- DockerOperationError
+|   +-- "Operation failed: container already exists"
+|   +-- Solution: Use different name or remove existing container
+|
++-- ValidationError
+|   +-- "Invalid container name: must not start with hyphen"
+|   +-- Solution: Fix the input according to validation rules
+|
++-- SafetyError
+|   +-- UnsafeOperationError
+|   |   +-- "Destructive operation not allowed"
+|   |   +-- Solution: Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
+|   +-- "Command contains dangerous pattern: rm -rf /"
+|       +-- Solution: Modify command or review safety settings
+|
++-- Resource Not Found (4 types)
+    +-- ContainerNotFound
+    +-- ImageNotFound
+    +-- NetworkNotFound
+    +-- VolumeNotFound
 ```
 
 ### 4.2 Error Propagation Strategy
@@ -819,21 +819,21 @@ logger.critical(f"Cannot connect to Docker daemon: {e}")
 ### 5.1 Testing Pyramid
 
 ```
-         ┌─────────────┐
+         +-------------+
         ╱               ╲
        ╱   E2E Tests    ╲      10% - Full MCP protocol integration
       ╱   (5-10 tests)   ╲
-     └─────────────────────┘
+     +---------------------+
             ╱           ╲
            ╱ Integration ╲       20% - Real Docker operations
           ╱    Tests      ╲
          ╱  (20-30 tests)  ╲
-        └───────────────────┘
+        +-------------------+
                ╱       ╲
               ╱  Unit   ╲          70% - Fast, isolated tests
              ╱   Tests   ╲
             ╱ (100+ tests)╲
-           └───────────────┘
+           +---------------+
 ```
 
 ### 5.2 Unit Testing Strategy
@@ -1267,24 +1267,24 @@ async def test_sensitive_path_mount_blocked():
 
 **Architecture**:
 ```
-┌──────────────────────────────────────────────────┐
-│          MCP Protocol (Async)                    │
-│  - Multiple tool calls can be in flight          │
-│  - Non-blocking I/O                              │
-└────────────────────┬─────────────────────────────┘
-                     │
++--------------------------------------------------+
+|          MCP Protocol (Async)                    |
+|  - Multiple tool calls can be in flight          |
+|  - Non-blocking I/O                              |
++--------------------+-----------------------------+
+                     |
                      ↓
-┌──────────────────────────────────────────────────┐
-│        Tool Layer (Async Interface)              │
-│  async def execute(...) -> ToolResult            │
-└────────────────────┬─────────────────────────────┘
-                     │
++--------------------------------------------------+
+|        Tool Layer (Async Interface)              |
+|  async def execute(...) -> ToolResult            |
++--------------------+-----------------------------+
+                     |
                      ↓
-┌──────────────────────────────────────────────────┐
-│     Docker SDK (Synchronous - Current)           │
-│  - Blocks on I/O operations                      │
-│  - Future: async Docker SDK                      │
-└──────────────────────────────────────────────────┘
++--------------------------------------------------+
+|     Docker SDK (Synchronous - Current)           |
+|  - Blocks on I/O operations                      |
+|  - Future: async Docker SDK                      |
++--------------------------------------------------+
 ```
 
 **Current Implementation**:

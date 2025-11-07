@@ -15,6 +15,11 @@ from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Display truncation limits for prompt templates
+MAX_DISPLAY_ENV_VARS = 5  # Maximum environment variables to show before truncating
+MAX_DISPLAY_PORTS = 3  # Maximum port mappings to show before truncating
+MAX_DISPLAY_VOLUMES = 3  # Maximum volume mounts to show before truncating
+
 
 class PromptMetadata(BaseModel):
     """Metadata for a prompt."""
@@ -363,14 +368,14 @@ class GenerateComposePrompt:
                 context = f"""Existing Container Configuration for {container.name}:
 - Image: {image}
 - Environment Variables: {len(env_vars)} variables
-  {chr(10).join(f"  - {var}" for var in env_vars[:5])}
-  {"  - ..." if len(env_vars) > 5 else ""}
+  {chr(10).join(f"  - {var}" for var in env_vars[:MAX_DISPLAY_ENV_VARS])}
+  {"  - ..." if len(env_vars) > MAX_DISPLAY_ENV_VARS else ""}
 - Port Mappings: {len(ports)} ports
-  {chr(10).join(f"  - {k}: {v}" for k, v in list(ports.items())[:3])}
-  {"  - ..." if len(ports) > 3 else ""}
+  {chr(10).join(f"  - {k}: {v}" for k, v in list(ports.items())[:MAX_DISPLAY_PORTS])}
+  {"  - ..." if len(ports) > MAX_DISPLAY_PORTS else ""}
 - Volumes: {len(volumes)} mounts
-  {chr(10).join(f"  - {vol}" for vol in volumes[:3])}
-  {"  - ..." if len(volumes) > 3 else ""}
+  {chr(10).join(f"  - {vol}" for vol in volumes[:MAX_DISPLAY_VOLUMES])}
+  {"  - ..." if len(volumes) > MAX_DISPLAY_VOLUMES else ""}
 - Restart Policy: {restart_policy}
 - Network Mode: {network_mode}
 """

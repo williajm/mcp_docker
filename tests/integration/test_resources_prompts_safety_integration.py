@@ -1,4 +1,8 @@
-"""Integration tests for Phase 5 features: Resources, Prompts, and Safety.
+"""Integration tests for MCP Resources, Prompts, and Safety features.
+
+Tests the server's capability to provide resources (logs, stats), prompts
+(troubleshooting, optimization, compose generation), and safety controls
+(operation classification, command sanitization, validation).
 
 These tests require Docker to be running and may create temporary containers.
 """
@@ -112,26 +116,49 @@ class TestPromptsIntegration:
 
     @pytest.mark.asyncio
     async def test_get_troubleshoot_prompt_integration(self, mcp_server: MCPDockerServer) -> None:
-        """Test getting troubleshoot prompt (may fail if no containers)."""
-        # This test will fail gracefully if no containers exist
-        # It's testing the integration, not specific containers
+        """Test getting troubleshoot prompt with provisioned container."""
+        # Provision a test container for this test
+        container = None
         try:
-            # Try to get containers
-            containers = mcp_server.docker_client.client.containers.list(all=True, limit=1)
+            # Create a simple test container
+            import secrets
 
-            if containers:
-                container_id = containers[0].short_id
+            container_name = f"test-troubleshoot-{secrets.token_hex(4)}"
 
-                result = await mcp_server.get_prompt(
-                    "troubleshoot_container", {"container_id": container_id}
-                )
+            # Pull alpine image if not present
+            try:
+                mcp_server.docker_client.client.images.pull("alpine", tag="3.19")
+            except Exception:
+                pass  # Image might already exist
 
-                assert "description" in result
-                assert "messages" in result
-                assert len(result["messages"]) >= 1
-        except Exception:
-            # If Docker is not available or no containers, skip this part
-            pytest.skip("No containers available for integration test")
+            # Create container
+            container = mcp_server.docker_client.client.containers.create(
+                "alpine:3.19",
+                name=container_name,
+                command=["sleep", "10"],
+                labels={"test": "troubleshoot-prompt"},
+            )
+            container_id = container.short_id
+
+            # Test the troubleshoot prompt with our test container
+            result = await mcp_server.get_prompt(
+                "troubleshoot_container", {"container_id": container_id}
+            )
+
+            assert "description" in result
+            assert "messages" in result
+            assert len(result["messages"]) >= 1
+            # Verify the messages contain the container_id
+            messages_str = str(result["messages"])
+            assert container_id in messages_str or container_name in messages_str
+
+        finally:
+            # Cleanup: remove test container
+            if container:
+                try:
+                    container.remove(force=True)
+                except Exception:
+                    pass  # Best effort cleanup
 
 
 @pytest.mark.integration
@@ -192,7 +219,7 @@ class TestSafetyIntegration:
 
 @pytest.mark.integration
 class TestServerIntegration:
-    """Integration tests for server with Phase 5 features."""
+    """Integration tests for server with resources, prompts, and safety features."""
 
     def test_server_initialization_with_resources_and_prompts(
         self, mcp_server: MCPDockerServer
@@ -211,8 +238,8 @@ class TestServerIntegration:
         assert "prompts=enabled" in repr_str
 
     @pytest.mark.asyncio
-    async def test_server_lifecycle_with_phase5(self, mcp_server: MCPDockerServer) -> None:
-        """Test server start/stop lifecycle with Phase 5 features."""
+    async def test_server_lifecycle_with_all_features(self, mcp_server: MCPDockerServer) -> None:
+        """Test server start/stop lifecycle with resources, prompts, and safety features."""
         # Start server
         await mcp_server.start()
 

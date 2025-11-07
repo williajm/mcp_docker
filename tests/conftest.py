@@ -59,11 +59,11 @@ def config(
     server_config: ServerConfig,
 ) -> Config:
     """Create complete test configuration."""
-    cfg = Config.__new__(Config)
-    cfg.docker = docker_config
-    cfg.safety = safety_config
-    cfg.server = server_config
-    return cfg
+    test_config = Config.__new__(Config)
+    test_config.docker = docker_config
+    test_config.safety = safety_config
+    test_config.server = server_config
+    return test_config
 
 
 @pytest.fixture
@@ -73,11 +73,11 @@ def read_only_config(
     server_config: ServerConfig,
 ) -> Config:
     """Create read-only mode configuration (blocks MODERATE operations)."""
-    cfg = Config.__new__(Config)
-    cfg.docker = docker_config
-    cfg.safety = read_only_safety_config
-    cfg.server = server_config
-    return cfg
+    test_config = Config.__new__(Config)
+    test_config.docker = docker_config
+    test_config.safety = read_only_safety_config
+    test_config.server = server_config
+    return test_config
 
 
 @pytest.fixture
@@ -145,18 +145,18 @@ def docker_available() -> bool:
 
 @pytest.fixture
 def skip_if_no_docker(docker_available: bool) -> None:
-    """Skip test if Docker is not available."""
+    """Fail test if Docker is not available."""
     if not docker_available:
-        pytest.skip("Docker is not available")
+        pytest.fail("Docker is required for integration tests but is not available")
 
 
 @pytest.fixture
 def integration_test_config() -> Config:
     """Create configuration for integration tests."""
-    cfg = Config()
+    test_config = Config()
     # Override settings for integration tests
-    cfg.safety.allow_moderate_operations = True
-    cfg.safety.allow_destructive_operations = True
-    cfg.safety.allow_privileged_containers = True
-    cfg.safety.require_confirmation_for_destructive = False
-    return cfg
+    test_config.safety.allow_moderate_operations = True
+    test_config.safety.allow_destructive_operations = True
+    test_config.safety.allow_privileged_containers = True
+    test_config.safety.require_confirmation_for_destructive = False
+    return test_config
