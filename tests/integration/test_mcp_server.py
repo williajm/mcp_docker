@@ -324,7 +324,7 @@ class TestMCPServerE2E:
         assert "error" in result
 
         # Non-existent resource
-        with pytest.raises(Exception):
+        with pytest.raises((ValueError, KeyError, RuntimeError)):  # Invalid URI scheme
             await mcp_server.read_resource("invalid://resource")
 
         # Invalid prompt

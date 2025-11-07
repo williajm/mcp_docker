@@ -1,13 +1,15 @@
 """MCP Docker tools."""
 
 from mcp_docker.tools.base import BaseTool, ToolInput, ToolResult
-from mcp_docker.tools.container_tools import (
+from mcp_docker.tools.container_inspection_tools import (
     ContainerLogsTool,
     ContainerStatsTool,
-    CreateContainerTool,
     ExecCommandTool,
     InspectContainerTool,
     ListContainersTool,
+)
+from mcp_docker.tools.container_lifecycle_tools import (
+    CreateContainerTool,
     RemoveContainerTool,
     RestartContainerTool,
     StartContainerTool,

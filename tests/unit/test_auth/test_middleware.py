@@ -229,3 +229,225 @@ class TestAuthMiddleware:
 
         # Should not raise error
         middleware.reload_keys()
+
+
+class TestAuthMiddlewareSSH:
+    """Unit tests for AuthMiddleware SSH authentication paths."""
+
+    @pytest.fixture
+    def security_config_ssh_enabled(self, tmp_path: Path) -> SecurityConfig:
+        """Create a security config with SSH auth enabled."""
+        # Create authorized_keys file
+        auth_keys_file = tmp_path / "authorized_keys"
+        auth_keys_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFoo test-client:test\n")
+
+        return SecurityConfig(
+            auth_enabled=True,
+            ssh_auth_enabled=True,
+            ssh_authorized_keys_file=auth_keys_file,
+            ssh_signature_max_age=300,
+            api_keys_file=tmp_path / ".mcp_keys.json",
+            rate_limit_enabled=False,
+            audit_log_enabled=False,
+            audit_log_file=tmp_path / "audit.log",
+        )
+
+    def test_init_ssh_auth_enabled(self, security_config_ssh_enabled: SecurityConfig) -> None:
+        """Test initializing middleware with SSH auth enabled."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        assert middleware.config.ssh_auth_enabled is True
+        assert middleware.ssh_key_authenticator is not None
+
+    def test_authenticate_ssh_missing_fields(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with missing required fields."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        # Missing 'signature' field
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": "2025-11-06T12:00:00Z",
+            "nonce": "abc123",
+            # Missing: "signature"
+        }
+
+        with pytest.raises(AuthenticationError, match="Incomplete SSH auth data"):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_missing_client_id(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with missing client_id."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            # Missing: "client_id"
+            "timestamp": "2025-11-06T12:00:00Z",
+            "nonce": "abc123",
+            "signature": "dGVzdA==",
+        }
+
+        with pytest.raises(AuthenticationError, match="Incomplete SSH auth data"):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_missing_timestamp(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with missing timestamp."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            # Missing: "timestamp"
+            "nonce": "abc123",
+            "signature": "dGVzdA==",
+        }
+
+        with pytest.raises(AuthenticationError, match="Incomplete SSH auth data"):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_missing_nonce(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with missing nonce."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": "2025-11-06T12:00:00Z",
+            # Missing: "nonce"
+            "signature": "dGVzdA==",
+        }
+
+        with pytest.raises(AuthenticationError, match="Incomplete SSH auth data"):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_invalid_base64(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with invalid base64 signature."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": "2025-11-06T12:00:00Z",
+            "nonce": "abc123",
+            "signature": "not-valid-base64!@#$",  # Invalid base64
+        }
+
+        with pytest.raises(AuthenticationError):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_empty_nonce(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with empty nonce."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": "2025-11-06T12:00:00Z",
+            "nonce": "",  # Empty nonce
+            "signature": "dGVzdA==",
+        }
+
+        # Empty nonce should be caught by Incomplete check
+        with pytest.raises(AuthenticationError, match="Incomplete SSH auth data"):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_wrong_type_timestamp(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with wrong type for timestamp (int instead of str)."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": 1234567890,  # Should be ISO string, not int
+            "nonce": "abc123",
+            "signature": "dGVzdA==",
+        }
+
+        # This will fail somewhere in the SSH auth process
+        with pytest.raises(AuthenticationError):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_none_values(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: SSH auth with None values."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": None,
+            "timestamp": None,
+            "nonce": None,
+            "signature": None,
+        }
+
+        with pytest.raises(AuthenticationError, match="Incomplete SSH auth data"):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_disabled(self, tmp_path: Path) -> None:
+        """Unit test: SSH auth when SSH is disabled."""
+        # Config with SSH disabled
+        auth_keys_file = tmp_path / "authorized_keys"
+        auth_keys_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFoo test-client:test\n")
+
+        config = SecurityConfig(
+            auth_enabled=True,
+            ssh_auth_enabled=False,  # SSH disabled
+            api_keys_file=tmp_path / ".mcp_keys.json",
+            rate_limit_enabled=False,
+            audit_log_enabled=False,
+            audit_log_file=tmp_path / "audit.log",
+        )
+
+        middleware = AuthMiddleware(config)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": "2025-11-06T12:00:00Z",
+            "nonce": "abc123",
+            "signature": "dGVzdA==",
+        }
+
+        # Should fail because SSH authenticator is None
+        with pytest.raises(AuthenticationError):
+            middleware.authenticate_request(ssh_auth_data=ssh_auth_data)
+
+    def test_authenticate_ssh_both_api_and_ssh_provided(
+        self, security_config_ssh_enabled: SecurityConfig
+    ) -> None:
+        """Unit test: Both API key and SSH auth provided (SSH takes precedence)."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        ssh_auth_data = {
+            "client_id": "test-client",
+            "timestamp": "2025-11-06T12:00:00Z",
+            "nonce": "abc123",
+            "signature": "invalid",
+        }
+
+        # Both provided - SSH should be tried first and fail
+        with pytest.raises(AuthenticationError):
+            middleware.authenticate_request(
+                api_key="some-api-key",  # Also provided
+                ssh_auth_data=ssh_auth_data,  # But SSH takes precedence
+            )
+
+    def test_reload_keys_ssh(self, security_config_ssh_enabled: SecurityConfig) -> None:
+        """Unit test: Reload SSH authorized keys."""
+        middleware = AuthMiddleware(security_config_ssh_enabled)
+
+        # Update authorized_keys file
+        new_key_line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBar new-client:test\n"
+        security_config_ssh_enabled.ssh_authorized_keys_file.write_text(new_key_line)
+
+        # Reload should not raise error
+        middleware.reload_keys()
+
+        # Verify new keys are loaded
+        assert middleware.ssh_key_authenticator is not None

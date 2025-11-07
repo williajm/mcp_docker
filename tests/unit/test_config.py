@@ -50,12 +50,21 @@ class TestSafetyConfig:
 
     def test_default_values(self) -> None:
         """Test default safety configuration."""
-        config = SafetyConfig()
-        assert config.allow_moderate_operations is True
-        assert config.allow_destructive_operations is False
-        assert config.allow_privileged_containers is False
-        assert config.require_confirmation_for_destructive is True
-        assert config.max_concurrent_operations == 10
+        import os
+
+        # Clear any environment variables that might override defaults
+        old_destructive = os.environ.pop("SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS", None)
+        try:
+            config = SafetyConfig()
+            assert config.allow_moderate_operations is True
+            assert config.allow_destructive_operations is False
+            assert config.allow_privileged_containers is False
+            assert config.require_confirmation_for_destructive is True
+            assert config.max_concurrent_operations == 10
+        finally:
+            # Restore original value
+            if old_destructive:
+                os.environ["SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS"] = old_destructive
 
     def test_custom_values(self) -> None:
         """Test custom safety configuration."""

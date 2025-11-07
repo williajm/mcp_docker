@@ -319,6 +319,7 @@ class TestConcurrencyLimiting:
         # Create config with max 10 concurrent operations
         cfg = Config()
         cfg.safety.max_concurrent_operations = 10
+        cfg.security.rate_limit_concurrent = 10  # Also update rate limiter per-client limit
 
         server = MCPDockerServer(cfg)
 

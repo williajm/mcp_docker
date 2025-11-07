@@ -5,6 +5,7 @@ This module provides the main entry point for running the MCP Docker server.
 
 import argparse
 import asyncio
+import json
 import os
 from collections.abc import Awaitable, Callable, MutableMapping
 from pathlib import Path
@@ -22,6 +23,9 @@ from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__, get_full_version
+
+# Logging Constants
+LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
 
 # Load configuration
 config = Config()
@@ -67,15 +71,55 @@ async def handle_list_tools() -> list[Tool]:
 # Register call_tool handler
 @mcp_server.call_tool()  # type: ignore[misc]
 async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
-    """Execute a Docker tool."""
+    """Execute a Docker tool.
+
+    Authentication can be provided via the special '_auth' argument:
+    {
+        "_auth": {
+            "api_key": "your-api-key",  # For API key auth
+            # OR
+            "ssh": {  # For SSH key auth
+                "client_id": "client-id",
+                "timestamp": "2025-11-04T12:00:00Z",
+                "nonce": "random-nonce",
+                "signature": "base64-signature"
+            }
+        },
+        "actual_arg1": "value1",  # Tool's actual arguments
+        "actual_arg2": "value2"
+    }
+    """
     logger.debug(f"call_tool: {name}")
-    logger.debug(f"Arguments: {arguments}")
-    result = await docker_server.call_tool(name, arguments)
+
+    # Extract authentication data (if present) - must be done before logging
+    auth_data = arguments.pop("_auth", {})
+
+    # Validate auth_data is a dict to prevent AttributeError on malformed requests
+    if not isinstance(auth_data, dict):
+        logger.warning(f"Invalid _auth type: {type(auth_data).__name__}, expected dict")
+        auth_data = {}
+
+    # Safe to log arguments now that _auth has been removed (no credential leakage)
+    logger.debug(f"Arguments (auth redacted): {arguments}")
+
+    api_key = auth_data.get("api_key")
+    ssh_auth_data = auth_data.get("ssh")
+    ip_address = None  # Could be extracted from request context if available
+
+    # Call tool with authentication
+    result = await docker_server.call_tool(
+        name,
+        arguments,
+        api_key=api_key,
+        ip_address=ip_address,
+        ssh_auth_data=ssh_auth_data,
+    )
 
     # Return result in MCP format (list of content items)
     if result.get("success"):
         logger.debug(f"Tool {name} executed successfully")
-        return [{"type": "text", "text": str(result.get("result", ""))}]
+        result_data = result.get("result", {})
+        return [{"type": "text", "text": json.dumps(result_data)}]
 
     error_msg = result.get("error", "Unknown error")
     logger.error(f"Tool {name} failed: {error_msg}")
@@ -164,12 +208,12 @@ async def run_sse(host: str, port: int) -> None:
             async def log_receive() -> MutableMapping[str, Any]:
                 msg = await receive()
                 if msg.get("type") == "http.request" and msg.get("body"):
-                    logger.debug(f"<<< HTTP body: {msg['body'][:300]}")
+                    logger.debug(f"<<< HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
                 return msg
 
             async def log_send(msg: MutableMapping[str, Any]) -> None:
                 if msg.get("type") == "http.response.body" and msg.get("body"):
-                    logger.debug(f">>> HTTP body: {msg['body'][:300]}")
+                    logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
                 await send(msg)
 
             # For /sse GET requests, create a persistent SSE connection

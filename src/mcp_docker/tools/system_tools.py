@@ -18,6 +18,9 @@ from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
+# Event stream limits
+MAX_DOCKER_EVENTS = 100  # Maximum Docker events to return (prevent memory issues)
+
 
 def parse_timestamp(timestamp_str: str) -> int:
     """Parse timestamp string and convert to Unix timestamp.
@@ -536,7 +539,7 @@ class EventsTool(BaseTool):
             events = []
             try:
                 for i, event in enumerate(events_gen):
-                    if i >= 100:  # Limit to 100 events
+                    if i >= MAX_DOCKER_EVENTS:
                         break
                     events.append(event)
             except Exception:

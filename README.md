@@ -354,15 +354,37 @@ uv run mypy src tests
 
 ### Running Tests
 
+The project includes three levels of testing: unit, integration, and end-to-end (E2E) tests.
+
+#### Test Level Comparison
+
+| Aspect | Unit Tests | Integration Tests | E2E Tests |
+|--------|-----------|-------------------|-----------|
+| **Docker Daemon** | ❌ Not required | ✅ Required | ✅ Required |
+| **Docker Operations** | ❌ None | ✅ Real operations | ✅ Real operations |
+| **Server Instance** | ❌ None / Mocked | ✅ Real MCPDockerServer | ✅ Real MCPDockerServer |
+| **MCP Client** | ❌ None | ❌ Direct server calls | ✅ Real ClientSession |
+| **Transport Layer** | ❌ None | ❌ Bypassed | ✅ Real stdio/SSE |
+| **SSH Auth Tests** | Logic only | READ ops (list) | Full workflows |
+| **Speed** | ⚡ Very fast (<5s) | ⚡ Fast (~10s) | 🐌 Slower (~30-60s) |
+
+#### Running Different Test Levels
+
 ```bash
 # Run all tests with coverage
 uv run pytest --cov=mcp_docker --cov-report=html
 
-# Run unit tests only
+# Run unit tests only (fast, no Docker required)
 uv run pytest tests/unit/ -v
 
 # Run integration tests (requires Docker)
 uv run pytest tests/integration/ -v -m integration
+
+# Run E2E tests (requires Docker, comprehensive)
+uv run pytest tests/e2e/ -v -m e2e
+
+# Run E2E tests excluding slow tests
+uv run pytest tests/e2e/ -v -m "e2e and not slow"
 ```
 
 ### Project Structure
