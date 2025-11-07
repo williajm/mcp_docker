@@ -94,7 +94,7 @@ class TestPromptsIntegration:
         """Test listing prompts from server."""
         prompts = mcp_server.list_prompts()
         assert isinstance(prompts, list)
-        assert len(prompts) == 3  # troubleshoot_container, optimize_container, generate_compose
+        assert len(prompts) == 5  # troubleshoot_container, optimize_container, generate_compose, debug_networking, security_audit
 
         prompt_names = [p["name"] for p in prompts]
         assert "troubleshoot_container" in prompt_names
@@ -248,7 +248,7 @@ class TestServerIntegration:
         prompts = mcp_server.list_prompts()
 
         assert len(tools) > 0
-        assert len(prompts) == 3
+        assert len(prompts) == 5  # troubleshoot_container, optimize_container, generate_compose, debug_networking, security_audit
         # Resources may be empty if no containers
 
         # Stop server
@@ -270,7 +270,7 @@ class TestServerIntegration:
         # List prompts
         prompts = mcp_server.list_prompts()
         assert isinstance(prompts, list)
-        assert len(prompts) == 3
+        assert len(prompts) == 5  # troubleshoot_container, optimize_container, generate_compose, debug_networking, security_audit
 
         # Verify prompt structure
         for prompt in prompts:
