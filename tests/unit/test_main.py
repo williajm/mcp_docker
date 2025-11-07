@@ -59,6 +59,120 @@ class TestMCPServerHandlers:
             assert "Error: Test error message" in result[0]["text"]
 
     @pytest.mark.asyncio
+    async def test_handle_call_tool_with_null_auth(self):
+        """Test call_tool handler with null _auth doesn't crash (security fix)."""
+        with patch.object(main_module, "docker_server") as mock_server:
+            mock_server.call_tool = AsyncMock(
+                return_value={"success": True, "result": {"output": "test"}}
+            )
+
+            # Malicious request with null _auth should not crash
+            result = await main_module.handle_call_tool("test_tool", {"_auth": None})
+
+            # Should succeed without crashing
+            assert len(result) == 1
+            # Server should be called with no auth (None values)
+            mock_server.call_tool.assert_called_once()
+            call_kwargs = mock_server.call_tool.call_args[1]
+            assert call_kwargs["api_key"] is None
+            assert call_kwargs["ssh_auth_data"] is None
+
+    @pytest.mark.asyncio
+    async def test_handle_call_tool_with_string_auth(self):
+        """Test call_tool handler with string _auth doesn't crash (security fix)."""
+        with patch.object(main_module, "docker_server") as mock_server:
+            mock_server.call_tool = AsyncMock(
+                return_value={"success": True, "result": {"output": "test"}}
+            )
+
+            # Malicious request with string _auth should not crash
+            result = await main_module.handle_call_tool("test_tool", {"_auth": "malicious string"})
+
+            # Should succeed without crashing
+            assert len(result) == 1
+            # Server should be called with no auth
+            call_kwargs = mock_server.call_tool.call_args[1]
+            assert call_kwargs["api_key"] is None
+            assert call_kwargs["ssh_auth_data"] is None
+
+    @pytest.mark.asyncio
+    async def test_handle_call_tool_with_number_auth(self):
+        """Test call_tool handler with number _auth doesn't crash (security fix)."""
+        with patch.object(main_module, "docker_server") as mock_server:
+            mock_server.call_tool = AsyncMock(
+                return_value={"success": True, "result": {"output": "test"}}
+            )
+
+            # Malicious request with number _auth should not crash
+            result = await main_module.handle_call_tool("test_tool", {"_auth": 12345})
+
+            # Should succeed without crashing
+            assert len(result) == 1
+            # Server should be called with no auth
+            call_kwargs = mock_server.call_tool.call_args[1]
+            assert call_kwargs["api_key"] is None
+            assert call_kwargs["ssh_auth_data"] is None
+
+    @pytest.mark.asyncio
+    async def test_handle_call_tool_with_valid_auth(self):
+        """Test call_tool handler with valid _auth dict works correctly."""
+        with patch.object(main_module, "docker_server") as mock_server:
+            mock_server.call_tool = AsyncMock(
+                return_value={"success": True, "result": {"output": "test"}}
+            )
+
+            # Valid auth should be passed through correctly
+            result = await main_module.handle_call_tool(
+                "test_tool",
+                {
+                    "_auth": {"api_key": "test-key", "ssh": {"client_id": "test"}},
+                    "arg": "value",
+                },
+            )
+
+            # Should succeed
+            assert len(result) == 1
+            # Server should be called with auth data
+            call_kwargs = mock_server.call_tool.call_args[1]
+            assert call_kwargs["api_key"] == "test-key"
+            assert call_kwargs["ssh_auth_data"] == {"client_id": "test"}
+            # _auth should be stripped from arguments
+            call_args = mock_server.call_tool.call_args[0]
+            assert "_auth" not in call_args[1]
+            assert call_args[1]["arg"] == "value"
+
+    @pytest.mark.asyncio
+    async def test_handle_call_tool_no_credential_leakage_in_logs(self):
+        """Test that _auth is not logged (prevents credential leakage)."""
+        with (
+            patch.object(main_module, "docker_server") as mock_server,
+            patch.object(main_module, "logger") as mock_logger,
+        ):
+            mock_server.call_tool = AsyncMock(
+                return_value={"success": True, "result": {"output": "test"}}
+            )
+
+            # Call with sensitive auth data
+            await main_module.handle_call_tool(
+                "test_tool",
+                {
+                    "_auth": {"api_key": "secret-key-12345", "ssh": {"signature": "secret"}},
+                    "arg": "value",
+                },
+            )
+
+            # Check that debug logs don't contain _auth
+            debug_calls = [call[0][0] for call in mock_logger.debug.call_args_list]
+            for log_message in debug_calls:
+                # Ensure sensitive data is not in logs
+                assert "secret-key-12345" not in log_message
+                assert "secret" not in log_message
+                # The arguments log should exist but without _auth
+                if "Arguments" in log_message:
+                    assert "_auth" not in log_message
+                    assert "auth redacted" in log_message.lower()
+
+    @pytest.mark.asyncio
     async def test_handle_list_resources(self):
         """Test list_resources handler."""
         with patch.object(main_module, "docker_server") as mock_server:

@@ -90,10 +90,18 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     }
     """
     logger.debug(f"call_tool: {name}")
-    logger.debug(f"Arguments: {arguments}")
 
-    # Extract authentication data (if present)
+    # Extract authentication data (if present) - must be done before logging
     auth_data = arguments.pop("_auth", {})
+
+    # Validate auth_data is a dict to prevent AttributeError on malformed requests
+    if not isinstance(auth_data, dict):
+        logger.warning(f"Invalid _auth type: {type(auth_data).__name__}, expected dict")
+        auth_data = {}
+
+    # Safe to log arguments now that _auth has been removed (no credential leakage)
+    logger.debug(f"Arguments (auth redacted): {arguments}")
+
     api_key = auth_data.get("api_key")
     ssh_auth_data = auth_data.get("ssh")
     ip_address = None  # Could be extracted from request context if available
