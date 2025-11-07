@@ -31,7 +31,7 @@ def create_ssh_auth_data(client_id: str, private_key_path: Path) -> dict:
         Dict with SSH auth data ready to include in tool calls
     """
     # Load private key
-    key = _, private_key = load_private_key_from_file(private_key_path)
+    _, private_key = load_private_key_from_file(private_key_path)
 
     # Generate challenge components
     timestamp = datetime.now(UTC).isoformat()
@@ -41,8 +41,8 @@ def create_ssh_auth_data(client_id: str, private_key_path: Path) -> dict:
     message = f"{client_id}|{timestamp}|{nonce}".encode("utf-8")
 
     # Sign message
-    signature = keysign_message(private_key, message)
-    signature_b64 = base64.b64encode(signature.asbytes()).decode("utf-8")
+    signature = sign_message(private_key, message)
+    signature_b64 = base64.b64encode(signature).decode("utf-8")
 
     return {
         "client_id": client_id,

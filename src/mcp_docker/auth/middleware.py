@@ -133,10 +133,8 @@ class AuthMiddleware:
             return client_info
 
         # No credentials provided (None or empty/whitespace API key, no SSH data)
-        if ssh_auth_data is None:
-            logger.warning("Authentication failed: no credentials provided")
-            raise AuthenticationError("API key required")
-        return None
+        logger.warning("Authentication failed: no credentials provided")
+        raise AuthenticationError("API key required")
 
     def _authenticate_ssh(
         self, ssh_auth_data: dict[str, Any], ip_address: str | None

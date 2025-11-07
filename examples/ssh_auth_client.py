@@ -109,7 +109,7 @@ def demonstrate_ssh_auth():
     if key_path.exists():
         print(f"Using existing key: {key_path}")
     else:
-        private_key, public_key = generate_ssh_keypair(key_path)
+        generate_ssh_keypair(key_path)
 
     # Step 2: Sign authentication challenge
     client_id = "my-client"
