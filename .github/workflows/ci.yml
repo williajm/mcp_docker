@@ -145,7 +145,8 @@ jobs:
           -v \
           -m "e2e and not slow" \
           --tb=short \
-          --maxfail=3
+          --maxfail=3 \
+          --no-cov
 
     - name: Run E2E tests (full - for main branch)
       if: github.ref == 'refs/heads/main'
@@ -154,7 +155,8 @@ jobs:
           -v \
           -m "e2e" \
           --tb=short \
-          --maxfail=5
+          --maxfail=5 \
+          --no-cov
 
     - name: Cleanup Docker resources
       if: always()
