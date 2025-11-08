@@ -40,7 +40,8 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **2 Resources**: Real-time container logs and resource statistics
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
-- **Comprehensive Testing**: Extensive test coverage with unit and integration tests
+- **Comprehensive Testing**: Extensive test coverage with unit, integration, E2E, and fuzz tests
+- **Continuous Fuzzing**: ClusterFuzzLite integration for security and robustness (OpenSSF Scorecard compliant)
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
 ## Quick Start
@@ -363,19 +364,19 @@ uv run mypy src tests
 
 ### Running Tests
 
-The project includes three levels of testing: unit, integration, and end-to-end (E2E) tests.
+The project includes four levels of testing: unit, integration, end-to-end (E2E), and fuzz tests.
 
 #### Test Level Comparison
 
-| Aspect | Unit Tests | Integration Tests | E2E Tests |
-|--------|-----------|-------------------|-----------|
-| **Docker Daemon** | ❌ Not required | ✅ Required | ✅ Required |
-| **Docker Operations** | ❌ None | ✅ Real operations | ✅ Real operations |
-| **Server Instance** | ❌ None / Mocked | ✅ Real MCPDockerServer | ✅ Real MCPDockerServer |
-| **MCP Client** | ❌ None | ❌ Direct server calls | ✅ Real ClientSession |
-| **Transport Layer** | ❌ None | ❌ Bypassed | ✅ Real stdio/SSE |
-| **SSH Auth Tests** | Logic only | READ ops (list) | Full workflows |
-| **Speed** | ⚡ Very fast (<5s) | ⚡ Fast (~10s) | 🐌 Slower (~30-60s) |
+| Aspect | Unit Tests | Integration Tests | E2E Tests | Fuzz Tests |
+|--------|-----------|-------------------|-----------|------------|
+| **Docker Daemon** | ❌ Not required | ✅ Required | ✅ Required | ❌ Not required |
+| **Docker Operations** | ❌ None | ✅ Real operations | ✅ Real operations | ❌ None |
+| **Server Instance** | ❌ None / Mocked | ✅ Real MCPDockerServer | ✅ Real MCPDockerServer | ❌ Component-level |
+| **MCP Client** | ❌ None | ❌ Direct server calls | ✅ Real ClientSession | ❌ None |
+| **Transport Layer** | ❌ None | ❌ Bypassed | ✅ Real stdio/SSE | ❌ None |
+| **Purpose** | Logic/validation | Component integration | Full workflows | Security/robustness |
+| **Speed** | ⚡ Very fast (<5s) | ⚡ Fast (~10s) | 🐌 Slower (~30-60s) | ⚡ Continuous (CI) |
 
 #### Running Different Test Levels
 
@@ -394,7 +395,15 @@ uv run pytest tests/e2e/ -v -m e2e
 
 # Run E2E tests excluding slow tests
 uv run pytest tests/e2e/ -v -m "e2e and not slow"
+
+# Run fuzz tests locally (requires atheris)
+python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
+python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
 ```
+
+#### Fuzzing
+
+The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) for continuous fuzzing to meet [OpenSSF Scorecard](https://github.com/ossf/scorecard) requirements. Fuzz tests run automatically in CI/CD to discover security vulnerabilities and edge cases. See [docs/FUZZING.md](docs/FUZZING.md) for details.
 
 ### Project Structure
 
