@@ -70,7 +70,7 @@ jobs:
             echo "Downloading attestation for $filename..."
             gh attestation download "$file" \
               --owner williajm \
-              --output "attestations/${filename}.intoto.jsonl" || echo "Failed to download attestation for $filename"
+              > "attestations/${filename}.intoto.jsonl" || echo "Failed to download attestation for $filename"
           fi
         done
 
