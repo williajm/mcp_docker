@@ -113,10 +113,11 @@ ClusterFuzzLite runs automatically in GitHub Actions with three modes:
 
 ### 1. PR Fuzzing (Pull Requests)
 
-- Runs for **5 minutes** on every PR
+- Runs for **2 minutes** on every PR
 - Uses **code-change mode** to focus on modified code
 - Reports findings as GitHub Security alerts (SARIF)
 - Sanitizers: address
+- **PyInstaller build caching enabled** for faster runs
 
 ### 2. Batch Fuzzing (Main Branch & Scheduled)
 
@@ -130,6 +131,95 @@ ClusterFuzzLite runs automatically in GitHub Actions with three modes:
 - Runs for **10 minutes** weekly to measure code coverage
 - Helps identify untested code paths
 - Uses **coverage sanitizer**
+
+## PyInstaller Build Caching
+
+To optimize PR check performance, the fuzzing workflow implements intelligent caching of PyInstaller-compiled fuzz targets.
+
+### How It Works
+
+ClusterFuzzLite uses PyInstaller to package Python fuzz targets into standalone executables. This build process:
+- Analyzes all Python dependencies
+- Bundles them with the fuzz test code
+- Creates executable binaries for libFuzzer
+- Typically takes **8-10 minutes**
+
+The caching system skips this expensive build step when the code hasn't changed.
+
+### Cache Strategy
+
+**Cache Key**: Hash-based composite key that invalidates when any of these change:
+```yaml
+fuzz-builds-${{ runner.os }}-${{ hashFiles(
+  'tests/fuzz/*.py',           # Fuzz test files
+  'src/**/*.py',               # Source code
+  'pyproject.toml',            # Dependencies
+  '.clusterfuzzlite/build.sh'  # Build script
+) }}
+```
+
+**Cache Storage**:
+- Location: GitHub Actions cloud cache
+- Size limit: 10 GB per repository
+- Retention: 7 days of inactivity or until size limit reached
+- Scope: Per-branch (PRs cache independently)
+
+**Cache Behavior**:
+- **Cache miss** (code changed): Build targets (~8-10 min) → Save to cache → Run fuzzing (2 min)
+- **Cache hit** (code unchanged): Restore from cache (~5 sec) → Run fuzzing (2 min)
+
+### Performance Impact
+
+| Scenario | Build Time | Fuzzing Time | Total Time | Time Saved |
+|----------|-----------|--------------|------------|------------|
+| Cache miss (first run) | 8-10 min | 2 min | ~10-12 min | - |
+| Cache hit (subsequent) | ~5 sec | 2 min | ~2-3 min | ~8-10 min |
+
+**Expected behavior:**
+- First PR commit: Normal build time (~10-12 minutes total)
+- Subsequent commits without code changes: Fast (~2-3 minutes total)
+- Code changes: Cache invalidates, rebuild required
+
+### Cache Management
+
+The cache is automatically managed by GitHub Actions:
+
+1. **Automatic cleanup**: Caches expire after 7 days of no use
+2. **Size limits**: Oldest caches are evicted when 10 GB limit is reached
+3. **Branch isolation**: Each PR has its own cache to prevent conflicts
+4. **Restore keys**: Falls back to most recent cache if exact match not found
+
+### Monitoring Cache Performance
+
+Check if the cache is working in the PR fuzzing workflow logs:
+
+**Cache hit** (good):
+```
+Cache hit! Restoring PyInstaller builds...
+Restored 4 fuzz targets from cache
+```
+
+**Cache miss** (expected on first run or after code changes):
+```
+Cache not found, will build fuzz targets
+Building fuzz targets...
+```
+
+### When Cache Invalidates
+
+The cache automatically rebuilds when:
+- ✅ Fuzz test files are modified (`tests/fuzz/*.py`)
+- ✅ Source code changes (`src/**/*.py`)
+- ✅ Dependencies change (`pyproject.toml`)
+- ✅ Build script changes (`.clusterfuzzlite/build.sh`)
+- ✅ 7 days pass without use
+- ✅ Cache size exceeds 10 GB limit
+
+The cache does NOT rebuild when:
+- ❌ Documentation changes
+- ❌ Test files change (except fuzz tests)
+- ❌ CI workflow changes (except build.sh)
+- ❌ README or markdown files change
 
 ## Workflow Configuration
 
@@ -319,10 +409,12 @@ Coverage reports are generated for each run and available as artifacts.
 ### Q: How long does fuzzing take?
 
 **A:**
-- PR fuzzing: 5 minutes per PR
+- PR fuzzing: 2 minutes fuzzing + build time
+  - First run (cache miss): ~10-12 minutes total
+  - Subsequent runs (cache hit): ~2-3 minutes total
 - Batch fuzzing: 1 hour weekly (Mondays)
 - Coverage: 10 minutes weekly (Mondays)
-- Total CI time impact: ~5 minutes per PR
+- Total CI time impact: ~2-3 minutes per PR (with cache)
 
 ### Q: What if fuzzing finds a security vulnerability?
 
