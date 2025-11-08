@@ -1,6 +1,3 @@
-# Copyright 2025 MCP Docker Contributors
-# Licensed under the Apache License, Version 2.0 (the "License");
-
 FROM gcr.io/oss-fuzz-base/base-builder-python
 
 # Install system dependencies
