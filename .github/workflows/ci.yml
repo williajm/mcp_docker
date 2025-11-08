@@ -153,7 +153,7 @@ jobs:
           --no-cov
 
     - name: Publish integration test results
-      uses: EnricoMi/publish-unit-test-result-action@v2
+      uses: EnricoMi/publish-unit-test-result-action@34d7c956a59aed1bfebf31df77b8de55db9bbaaf # v2.21.0
       if: always()
       with:
         files: |
@@ -231,7 +231,7 @@ jobs:
           --no-cov
 
     - name: Publish E2E test results
-      uses: EnricoMi/publish-unit-test-result-action@v2
+      uses: EnricoMi/publish-unit-test-result-action@34d7c956a59aed1bfebf31df77b8de55db9bbaaf # v2.21.0
       if: always()
       with:
         files: |
