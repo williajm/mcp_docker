@@ -51,6 +51,7 @@ coverage.json
 .hypothesis/
 .pytest_cache/
 cover/
+junit/
 
 # Translations
 *.mo
