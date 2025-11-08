@@ -24,7 +24,7 @@ loguru==0.7.3 \
     --hash=sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c
 
 cryptography==44.0.1 \
-    --hash=sha256:53f23339864b617a3dfc2b0ac8d5c432625c80014c25caac9082314e9de56f41
+    --hash=sha256:72198e2b5925155497a5a3e8c216c7fb3e64c16ccee11f0e7da272fa93b35c4c
 
 # Transitive dependencies (required by packages above)
 pydantic-core==2.27.2 \
