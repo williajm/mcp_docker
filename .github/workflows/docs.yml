@@ -14,11 +14,6 @@ on:
       - 'README.md'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 # Allow one concurrent deployment
 concurrency:
   group: "pages"
@@ -29,20 +24,22 @@ jobs:
   check:
     name: Check Documentation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
     - name: Check Markdown files
-      uses: gaurav-nelson/github-action-markdown-link-check@v1
+      uses: gaurav-nelson/github-action-markdown-link-check@5c5dfc0ac2e225883c0e5f03a85311ec2830d368 # v1
       with:
         use-quiet-mode: 'yes'
         config-file: '.github/markdown-link-check-config.json'
       continue-on-error: true
 
     - name: Lint Markdown files
-      uses: DavidAnson/markdownlint-cli2-action@v20
+      uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20.0.0
       with:
         globs: |
           docs/**/*.md
@@ -55,6 +52,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
 
     environment:
       name: github-pages
@@ -62,16 +63,16 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
     - name: Setup Pages
-      uses: actions/configure-pages@v5
+      uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
     - name: Upload artifact
-      uses: actions/upload-pages-artifact@v4
+      uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4.0.0
       with:
         path: 'docs'
 
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4
+      uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5

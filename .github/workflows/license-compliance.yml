@@ -14,13 +14,15 @@ jobs:
   license-check:
     name: Check Dependency Licenses
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v5
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@eb1897b8dc4b5d5bfe39a428a8f2304605e0983c # v7.0.0
       with:
         version: "latest"
 
@@ -59,7 +61,7 @@ jobs:
 
     - name: Upload license report
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
       with:
         name: license-report
         path: reports/
