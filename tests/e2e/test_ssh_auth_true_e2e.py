@@ -14,6 +14,7 @@ import os
 import secrets
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -24,6 +25,7 @@ from mcp_docker.auth.ssh_signing import (
     load_private_key_from_file,
     sign_message,
 )
+from tests.e2e.helpers import get_tool_result_text
 
 # MCP client imports
 try:
@@ -64,6 +66,7 @@ def generate_ed25519_key_pair(tmp_path: Path) -> tuple[ed25519.Ed25519PrivateKey
 
     # Load SSH private key
     _, private_key = load_private_key_from_file(private_key_path)
+    assert isinstance(private_key, ed25519.Ed25519PrivateKey), "Expected Ed25519 key"
 
     # Generate public key line for authorized_keys
     public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]}"
@@ -76,7 +79,7 @@ def create_ssh_auth_data(
     private_key: ed25519.Ed25519PrivateKey,
     timestamp: str | None = None,
     nonce: str | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Create SSH authentication data for MCP tool calls.
 
     Args:
@@ -114,14 +117,14 @@ def create_ssh_auth_data(
 
 
 @pytest.fixture
-def skip_if_no_mcp_client():
+def skip_if_no_mcp_client() -> Any:
     """Fail test if MCP client library is not available."""
     if not MCP_CLIENT_AVAILABLE:
         pytest.fail("MCP client library is required for E2E tests (pip install mcp)")
 
 
 @pytest.fixture
-def skip_if_no_docker():
+def skip_if_no_docker() -> Any:
     """Fail test if Docker is not available."""
     try:
         import docker
@@ -134,7 +137,7 @@ def skip_if_no_docker():
 
 
 @pytest.fixture
-def ssh_server_env(tmp_path):
+def ssh_server_env(tmp_path: Any) -> Any:
     """Setup SSH authentication environment for MCP server.
 
     Returns:
@@ -166,8 +169,8 @@ def ssh_server_env(tmp_path):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_ssh_auth_via_stdio_transport(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: SSH authentication through stdio transport with real MCP client.
 
     This test validates the complete production authentication flow:
@@ -219,12 +222,12 @@ async def test_ssh_auth_via_stdio_transport(
 
             # Check that result is not an error
             if hasattr(result, "isError"):
-                assert not result.isError, f"Result should not be an error: {result.content[0].text if result.content else 'no content'}"
+                assert not result.isError, f"Result should not be an error: {get_tool_result_text(result) if result.content else 'no content'}"
 
             # Parse and verify the JSON response
             import json
 
-            result_text = result.content[0].text
+            result_text = get_tool_result_text(result)
             assert result_text, "Result text should not be empty"
 
             # Verify it's valid JSON
@@ -241,8 +244,8 @@ async def test_ssh_auth_via_stdio_transport(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_replay_attack_via_stdio_transport(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Replay attack prevention through stdio transport.
 
     This test validates that nonce-based replay protection works through
@@ -309,11 +312,11 @@ async def test_replay_attack_via_stdio_transport(
                 # MCP may return error in result content
                 if hasattr(result2, "isError") and result2.isError:
                     # Expected error result
-                    error_text = result2.content[0].text if result2.content else ""
+                    error_text = get_tool_result_text(result2) if result2.content else ""
                     assert "nonce" in error_text.lower() or "authentication" in error_text.lower()
                 else:
                     # Result should contain error message in text
-                    result_text = result2.content[0].text if result2.content else ""
+                    result_text = get_tool_result_text(result2) if result2.content else ""
                     assert "error" in result_text.lower() and (
                         "nonce" in result_text.lower() or "authentication" in result_text.lower()
                     ), f"Expected authentication/nonce error but got: {result_text}"
@@ -334,8 +337,8 @@ async def test_replay_attack_via_stdio_transport(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_container_lifecycle_via_stdio_transport(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Complete container lifecycle through stdio transport.
 
     This test validates a complete Docker workflow through the real MCP client:
@@ -396,7 +399,7 @@ async def test_container_lifecycle_via_stdio_transport(
                     },
                 )
                 # Extract container ID from result
-                result_text = create_result.content[0].text if create_result else ""
+                result_text = get_tool_result_text(create_result) if create_result else ""
                 result_data = json.loads(result_text)
                 container_id = result_data.get("container_id")
 
@@ -461,8 +464,8 @@ async def test_container_lifecycle_via_stdio_transport(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_invalid_ssh_auth_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Invalid SSH authentication through stdio transport.
 
     This test validates that authentication failures are properly handled

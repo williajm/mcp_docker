@@ -5,6 +5,9 @@ from enum import Enum
 from typing import Any
 
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
+from mcp_docker.utils.validation import (
+    sanitize_command as validate_command_structure,
+)
 
 
 class OperationSafety(str, Enum):
@@ -175,7 +178,10 @@ def validate_operation_allowed(
 
 
 def sanitize_command(command: str | list[str]) -> list[str]:
-    """Sanitize a command for safe execution.
+    """Sanitize a command for safe execution with security checks.
+
+    This extends the basic command validation from utils.validation with
+    additional safety checks for dangerous command patterns.
 
     Args:
         command: Command string or list to sanitize
@@ -184,25 +190,14 @@ def sanitize_command(command: str | list[str]) -> list[str]:
         Sanitized command as list
 
     Raises:
-        ValidationError: If command is invalid
+        ValidationError: If command structure is invalid
         UnsafeOperationError: If command contains dangerous patterns
 
     """
-    # Convert to list format
-    if isinstance(command, str):
-        if not command.strip():
-            raise ValidationError("Command cannot be empty")
-        cmd_list = [command]
-    elif isinstance(command, list):
-        if not command:
-            raise ValidationError("Command list cannot be empty")
-        if not all(isinstance(item, str) for item in command):
-            raise ValidationError("All command items must be strings")
-        cmd_list = command
-    else:
-        raise ValidationError("Command must be a string or list of strings")
+    # First validate command structure using shared validation logic
+    cmd_list = validate_command_structure(command)
 
-    # Check for dangerous patterns
+    # Then check for dangerous patterns (safety-specific logic)
     command_str = " ".join(cmd_list)
     for pattern in DANGEROUS_COMMAND_PATTERNS:
         if re.search(pattern, command_str, re.IGNORECASE):

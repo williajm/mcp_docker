@@ -13,40 +13,13 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.prune_helpers import force_remove_all_images, prune_all_unused_images
 from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
-
-
-def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
-    """Parse JSON strings to objects (workaround for MCP client serialization bug).
-
-    Args:
-        v: The value to parse (dict or JSON string)
-        field_name: Name of the field for error messages
-
-    Returns:
-        Parsed dict if v was a string, otherwise returns v unchanged
-
-    Raises:
-        ValueError: If v is a string but not valid JSON
-    """
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            logger.warning(
-                f"Received JSON string instead of object for {field_name}, auto-parsing. "
-                "This is a workaround for MCP client serialization issues."
-            )
-            return parsed
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Received invalid JSON string for {field_name}: {v[:100]}... "
-                f"Expected an object/dict, not a string. Error: {e}"
-            ) from e
-    return v
 
 
 # Input/Output Models
@@ -179,14 +152,36 @@ class RemoveImageOutput(BaseModel):
 
 
 class PruneImagesInput(BaseModel):
-    """Input for pruning unused images."""
+    """Input for pruning Docker images (unused by default, all with force_all=true)."""
 
+    all: bool = Field(
+        default=False,
+        description=(
+            "Remove all unused images, not just dangling ones. "
+            "Equivalent to 'docker image prune -a'. "
+            "When False (default), only removes dangling images (untagged intermediate layers). "
+            "When True, removes all images not used by any container. "
+            "NOTE: This still only removes UNUSED images. "
+            "To remove ALL images including tagged ones, use force_all=true."
+        ),
+    )
     filters: dict[str, str | list[str]] | None = Field(
         default=None,
         description=(
             "Filters to apply as key-value pairs. "
             "Examples: {'dangling': ['true']}, {'until': '24h'}, "
             "{'label': ['env=test']}"
+        ),
+    )
+    force_all: bool = Field(
+        default=False,
+        description=(
+            "Force remove ALL images, even if tagged or in use. "
+            "USE THIS when user asks to 'remove all images', 'delete all images', "
+            "or 'prune all images'. "
+            "When True, removes EVERY image regardless of tags, names, or container usage. "
+            "WARNING: This is extremely destructive and will delete all images. "
+            "Requires user confirmation."
         ),
     )
 
@@ -215,8 +210,6 @@ class ImageHistoryOutput(BaseModel):
 
 class ListImagesTool(BaseTool):
     """List Docker images with optional filters."""
-
-    output_model = ListImagesOutput
 
     @property
     def name(self) -> str:
@@ -276,8 +269,6 @@ class ListImagesTool(BaseTool):
 class InspectImageTool(BaseTool):
     """Inspect a Docker image to get detailed information."""
 
-    output_model = InspectImageOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -329,8 +320,6 @@ class InspectImageTool(BaseTool):
 
 class PullImageTool(BaseTool):
     """Pull a Docker image from a registry."""
-
-    output_model = PullImageOutput
 
     @property
     def name(self) -> str:
@@ -390,8 +379,6 @@ class PullImageTool(BaseTool):
 
 class BuildImageTool(BaseTool):
     """Build a Docker image from a Dockerfile."""
-
-    output_model = BuildImageOutput
 
     @property
     def name(self) -> str:
@@ -464,8 +451,6 @@ class BuildImageTool(BaseTool):
 
 class PushImageTool(BaseTool):
     """Push a Docker image to a registry."""
-
-    output_model = PushImageOutput
 
     @property
     def name(self) -> str:
@@ -552,8 +537,6 @@ class PushImageTool(BaseTool):
 class TagImageTool(BaseTool):
     """Tag a Docker image."""
 
-    output_model = TagImageOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -612,8 +595,6 @@ class TagImageTool(BaseTool):
 class RemoveImageTool(BaseTool):
     """Remove a Docker image."""
 
-    output_model = RemoveImageOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -671,8 +652,6 @@ class RemoveImageTool(BaseTool):
 class PruneImagesTool(BaseTool):
     """Remove unused Docker images."""
 
-    output_model = PruneImagesOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -681,7 +660,12 @@ class PruneImagesTool(BaseTool):
     @property
     def description(self) -> str:
         """Tool description."""
-        return "Remove unused Docker images"
+        return (
+            "Prune Docker images. By default, removes only UNUSED/dangling images. "
+            "To remove ALL images including tagged ones, use force_all=true. "
+            "IMPORTANT: When user asks to 'remove all images' or 'delete all images', "
+            "use force_all=true."
+        )
 
     @property
     def input_schema(self) -> type[PruneImagesInput]:
@@ -706,16 +690,35 @@ class PruneImagesTool(BaseTool):
             DockerOperationError: If pruning fails
         """
         try:
-            logger.info(f"Pruning images (filters={input_data.filters})")
-
-            result = self.docker.client.images.prune(filters=input_data.filters)
-
-            deleted = result.get("ImagesDeleted") or []
-            space_reclaimed = result.get("SpaceReclaimed", 0)
-
             logger.info(
-                f"Successfully pruned {len(deleted)} images, reclaimed {space_reclaimed} bytes"
+                f"Pruning images (all={input_data.all}, force_all={input_data.force_all}, "
+                f"filters={input_data.filters})"
             )
+
+            # Delegate to helper functions based on mode
+            if input_data.force_all:
+                deleted, space_reclaimed = force_remove_all_images(self.docker.client)
+                logger.info(
+                    f"Successfully force-pruned {len(deleted)} images (force_all=True), "
+                    f"reclaimed {space_reclaimed} bytes"
+                )
+            elif input_data.all:
+                deleted, space_reclaimed = prune_all_unused_images(
+                    self.docker.client, input_data.filters
+                )
+                logger.info(
+                    f"Successfully pruned {len(deleted)} images (all=True), "
+                    f"reclaimed {space_reclaimed} bytes"
+                )
+            else:
+                # Standard prune (only dangling images)
+                result = self.docker.client.images.prune(filters=input_data.filters)
+                deleted = result.get("ImagesDeleted") or []
+                space_reclaimed = result.get("SpaceReclaimed", 0)
+                logger.info(
+                    f"Successfully pruned {len(deleted)} images, reclaimed {space_reclaimed} bytes"
+                )
+
             return PruneImagesOutput(deleted=deleted, space_reclaimed=space_reclaimed)
 
         except APIError as e:
@@ -725,8 +728,6 @@ class PruneImagesTool(BaseTool):
 
 class ImageHistoryTool(BaseTool):
     """View the history of a Docker image."""
-
-    output_model = ImageHistoryOutput
 
     @property
     def name(self) -> str:

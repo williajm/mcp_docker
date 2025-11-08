@@ -165,13 +165,46 @@ class MCPDockerServer:
             ValueError: If tool not found
             PermissionError: If operation is not allowed by safety config
         """
-        # Authenticate the request
+        # Authenticate the client
+        client_info = self._authenticate_client(api_key, ip_address, ssh_auth_data)
+        if "error" in client_info:
+            return client_info
+
+        # Enforce rate limits
+        rate_limit_result = await self._enforce_rate_limits(client_info)
+        if rate_limit_result is not None:
+            return rate_limit_result
+
+        # Execute tool with safety checks and error handling
+        try:
+            return await self._execute_tool_safely(tool_name, arguments, client_info)
+        finally:
+            # Always release the concurrent slot
+            await self.rate_limiter.release_concurrent_slot(client_info["client_id"])
+
+    def _authenticate_client(
+        self,
+        api_key: str | None,
+        ip_address: str | None,
+        ssh_auth_data: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Authenticate the client request.
+
+        Args:
+            api_key: API key for authentication
+            ip_address: IP address of the client
+            ssh_auth_data: SSH authentication data
+
+        Returns:
+            Client info dict on success, or error dict on failure
+        """
         try:
             client_info = self.auth_middleware.authenticate_request(
                 api_key=api_key,
                 ip_address=ip_address,
                 ssh_auth_data=ssh_auth_data,
             )
+            return {"client_id": client_info.client_id, "client_info_obj": client_info}
         except Exception as e:
             # Log authentication failure
             self.audit_logger.log_auth_failure(
@@ -180,105 +213,94 @@ class MCPDockerServer:
                 api_key_hash=None,
             )
             logger.warning(f"Authentication failed: {e}")
-            return {"success": False, "error": str(e), "error_type": "AuthenticationError"}
+            return {"error": str(e), "success": False, "error_type": "AuthenticationError"}
+
+    async def _enforce_rate_limits(self, client_info: dict[str, Any]) -> dict[str, Any] | None:
+        """Enforce rate limiting for the client.
+
+        Args:
+            client_info: Client information dict
+
+        Returns:
+            Error dict if rate limit exceeded, None if OK
+        """
+        client_info_obj = client_info["client_info_obj"]
+        client_id = client_info["client_id"]
 
         # Check rate limits
         try:
-            await self.rate_limiter.check_rate_limit(client_info.client_id)
+            await self.rate_limiter.check_rate_limit(client_id)
         except RateLimitExceeded as e:
-            # Log rate limit exceeded
-            self.audit_logger.log_rate_limit_exceeded(client_info, "rpm")
-            logger.warning(f"Rate limit exceeded for {client_info.client_id}: {e}")
+            self.audit_logger.log_rate_limit_exceeded(client_info_obj, "rpm")
+            logger.warning(f"Rate limit exceeded for {client_id}: {e}")
             return {"success": False, "error": str(e), "error_type": "RateLimitExceeded"}
 
         # Acquire concurrent slot
         try:
-            await self.rate_limiter.acquire_concurrent_slot(client_info.client_id)
+            await self.rate_limiter.acquire_concurrent_slot(client_id)
         except RateLimitExceeded as e:
-            self.audit_logger.log_rate_limit_exceeded(client_info, "concurrent")
-            logger.warning(f"Concurrent limit exceeded for {client_info.client_id}: {e}")
+            self.audit_logger.log_rate_limit_exceeded(client_info_obj, "concurrent")
+            logger.warning(f"Concurrent limit exceeded for {client_id}: {e}")
             return {"success": False, "error": str(e), "error_type": "RateLimitExceeded"}
 
-        try:
-            if tool_name not in self.tools:
-                error_msg = f"Tool not found: {tool_name}"
-                logger.error(error_msg)
-                self.audit_logger.log_tool_call(client_info, tool_name, arguments, error=error_msg)
-                return {"success": False, "error": error_msg, "error_type": "ValueError"}
+        return None
 
-            tool = self.tools[tool_name]
-            logger.info(f"Calling tool: {tool_name} (client: {client_info.client_id})")
-
-            # Use semaphore to limit concurrent operations
-            async with self._operation_semaphore:
-                try:
-                    # Additional safety checks beyond what BaseTool.check_safety() does
-                    # (BaseTool handles DESTRUCTIVE operations,
-                    # we handle privileged containers here)
-                    self._check_privileged_operations(tool.name, arguments)
-
-                    # Use BaseTool.run() which handles validation and safety checks
-                    result = await tool.run(arguments)
-
-                    # Convert result to dict
-                    result_dict = result.model_dump() if hasattr(result, "model_dump") else result
-
-                    logger.info(f"Tool {tool_name} executed successfully")
-
-                    # Log successful operation
-                    self.audit_logger.log_tool_call(
-                        client_info, tool_name, arguments, result=result_dict
-                    )
-
-                    return {"success": True, "result": result_dict}
-
-                except Exception as e:
-                    error_msg = str(e)
-                    logger.error(f"Tool {tool_name} failed: {e}")
-
-                    # Log failed operation
-                    self.audit_logger.log_tool_call(
-                        client_info, tool_name, arguments, error=error_msg
-                    )
-
-                    return {"success": False, "error": error_msg, "error_type": type(e).__name__}
-
-        finally:
-            # Always release the concurrent slot
-            await self.rate_limiter.release_concurrent_slot(client_info.client_id)
-
-    def _check_privileged_operations(self, tool_name: str, arguments: dict[str, Any]) -> None:
-        """Check privileged operations beyond BaseTool's safety checks.
-
-        BaseTool.check_safety() handles DESTRUCTIVE operations.
-        This method handles privileged container checks.
+    async def _execute_tool_safely(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any],
+        client_info: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Execute tool with safety checks and error handling.
 
         Args:
             tool_name: Name of the tool
-            arguments: Tool arguments (to check privileged flag)
+            arguments: Tool arguments
+            client_info: Client information dict
 
-        Raises:
-            PermissionError: If privileged operation is not allowed
+        Returns:
+            Tool execution result dict
         """
-        # Check privileged containers (for exec commands)
-        if tool_name == "docker_exec_command":
-            privileged = arguments.get("privileged", False)
-            if privileged and not self.config.safety.allow_privileged_containers:
-                logger.warning("Privileged exec command blocked by safety config")
-                raise PermissionError(
-                    "Privileged containers are not allowed. "
-                    "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
+        client_info_obj = client_info["client_info_obj"]
+
+        # Check tool exists
+        if tool_name not in self.tools:
+            error_msg = f"Tool not found: {tool_name}"
+            logger.error(error_msg)
+            self.audit_logger.log_tool_call(client_info_obj, tool_name, arguments, error=error_msg)
+            return {"success": False, "error": error_msg, "error_type": "ValueError"}
+
+        tool = self.tools[tool_name]
+        logger.info(f"Calling tool: {tool_name} (client: {client_info['client_id']})")
+
+        # Use semaphore to limit concurrent operations
+        async with self._operation_semaphore:
+            try:
+                # Use BaseTool.run() which handles validation and all safety checks
+                result = await tool.run(arguments)
+
+                # Convert result to dict
+                result_dict = result.model_dump() if hasattr(result, "model_dump") else result
+
+                logger.info(f"Tool {tool_name} executed successfully")
+
+                # Log successful operation
+                self.audit_logger.log_tool_call(
+                    client_info_obj, tool_name, arguments, result=result_dict
                 )
 
-        # Check privileged flag in container creation
-        if tool_name == "docker_create_container":
-            privileged = arguments.get("privileged", False)
-            if privileged and not self.config.safety.allow_privileged_containers:
-                logger.warning("Privileged container creation blocked by safety config")
-                raise PermissionError(
-                    "Privileged containers are not allowed. "
-                    "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
+                return {"success": True, "result": result_dict}
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Tool {tool_name} failed: {e}")
+
+                # Log failed operation
+                self.audit_logger.log_tool_call(
+                    client_info_obj, tool_name, arguments, error=error_msg
                 )
+
+                return {"success": False, "error": error_msg, "error_type": type(e).__name__}
 
     async def start(self) -> None:
         """Start the MCP server."""

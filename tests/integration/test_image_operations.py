@@ -3,6 +3,9 @@
 These tests require Docker to be running and internet connectivity for pulling images.
 """
 
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import pytest
 
 from mcp_docker.config import Config
@@ -21,7 +24,7 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-async def mcp_server(integration_config: Config) -> MCPDockerServer:
+async def mcp_server(integration_config: Config) -> AsyncGenerator[MCPDockerServer, None]:
     """Create MCP server instance."""
     server = MCPDockerServer(integration_config)
     await server.start()
@@ -36,7 +39,9 @@ def test_image_tag() -> str:
 
 
 @pytest.fixture
-async def cleanup_test_image(mcp_server: MCPDockerServer, test_image_tag: str):
+async def cleanup_test_image(
+    mcp_server: MCPDockerServer, test_image_tag: str
+) -> AsyncGenerator[None, None]:
     """Cleanup fixture to remove test image after tests."""
     yield
     # Cleanup after test
@@ -105,7 +110,7 @@ class TestImageOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_image_tag: str,
-        cleanup_test_image,
+        cleanup_test_image: Any,
     ) -> None:
         """Test tagging an image."""
         # Ensure alpine image exists

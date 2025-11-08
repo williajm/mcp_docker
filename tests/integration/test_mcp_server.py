@@ -3,6 +3,8 @@
 These tests verify the complete MCP protocol integration with Docker operations.
 """
 
+from collections.abc import AsyncGenerator
+
 import pytest
 
 from mcp_docker.config import Config
@@ -21,7 +23,7 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-async def mcp_server(integration_config: Config) -> MCPDockerServer:
+async def mcp_server(integration_config: Config) -> AsyncGenerator[MCPDockerServer, None]:
     """Create MCP server instance."""
     server = MCPDockerServer(integration_config)
     await server.start()
@@ -59,7 +61,9 @@ class TestMCPServerE2E:
         # List prompts
         prompts = mcp_server.list_prompts()
         assert isinstance(prompts, list)
-        assert len(prompts) == 3  # troubleshoot_container, optimize_container, generate_compose
+        assert (
+            len(prompts) == 5
+        )  # troubleshoot_container, optimize_container, generate_compose, debug_networking, security_audit
 
     @pytest.mark.asyncio
     async def test_call_tool_list_containers(self, mcp_server: MCPDockerServer) -> None:
@@ -305,7 +309,7 @@ class TestMCPServerE2E:
         """Test prompts through MCP server."""
         # List prompts
         prompts = mcp_server.list_prompts()
-        assert len(prompts) == 3
+        assert len(prompts) == 5
 
         # Test generate_compose prompt
         compose_prompt = await mcp_server.get_prompt(

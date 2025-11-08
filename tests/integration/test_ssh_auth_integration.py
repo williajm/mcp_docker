@@ -3,6 +3,7 @@
 import base64
 import secrets
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -19,7 +20,7 @@ class TestSSHAuthIntegration:
     """Test SSH authentication through the MCP tool call interface."""
 
     @pytest.fixture
-    def setup_server_with_ssh_auth(self, tmp_path):
+    def setup_server_with_ssh_auth(self, tmp_path: Any) -> Any:
         """Setup MCP server with SSH authentication enabled."""
         # Generate SSH key pair
         from cryptography.hazmat.primitives import serialization
@@ -60,7 +61,7 @@ class TestSSHAuthIntegration:
 
         return server, private_key, "test-client"
 
-    def create_ssh_auth_data(self, client_id: str, private_key):
+    def create_ssh_auth_data(self, client_id: str, private_key: Any) -> Any:
         """Create SSH authentication data."""
         timestamp = datetime.now(UTC).isoformat()
         nonce = secrets.token_urlsafe(32)
@@ -77,7 +78,7 @@ class TestSSHAuthIntegration:
         }
 
     @pytest.mark.asyncio
-    async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth):
+    async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth: Any) -> None:
         """Test calling a tool with SSH authentication in arguments."""
         server, private_key, client_id = setup_server_with_ssh_auth
 
@@ -96,7 +97,7 @@ class TestSSHAuthIntegration:
         assert result.get("success") is True or "error_type" not in result
 
     @pytest.mark.asyncio
-    async def test_call_tool_with_api_key_auth(self, tmp_path):
+    async def test_call_tool_with_api_key_auth(self, tmp_path: Any) -> None:
         """Test calling a tool with API key authentication in arguments."""
         # Create API keys file
         import json
@@ -120,7 +121,7 @@ class TestSSHAuthIntegration:
         # For now, just demonstrate the interface
 
     @pytest.mark.asyncio
-    async def test_replay_attack_prevented(self, setup_server_with_ssh_auth):
+    async def test_replay_attack_prevented(self, setup_server_with_ssh_auth: Any) -> None:
         """Test that replay attacks are prevented (nonce reuse)."""
         server, private_key, client_id = setup_server_with_ssh_auth
 
@@ -150,7 +151,7 @@ class TestSSHAuthIntegration:
         assert "authentication" in error_msg or "nonce" in error_msg or "replay" in error_msg
 
     @pytest.mark.asyncio
-    async def test_fresh_auth_each_call_succeeds(self, setup_server_with_ssh_auth):
+    async def test_fresh_auth_each_call_succeeds(self, setup_server_with_ssh_auth: Any) -> None:
         """Test that generating fresh auth data for each call works."""
         server, private_key, client_id = setup_server_with_ssh_auth
 
@@ -175,7 +176,7 @@ class TestSSHAuthIntegration:
         assert result2.get("success") is True or "error_type" not in result2
 
     @pytest.mark.asyncio
-    async def test_auth_argument_removed_before_tool(self, setup_server_with_ssh_auth):
+    async def test_auth_argument_removed_before_tool(self, setup_server_with_ssh_auth: Any) -> None:
         """Test that _auth argument is removed before passing to tool."""
         server, private_key, client_id = setup_server_with_ssh_auth
 

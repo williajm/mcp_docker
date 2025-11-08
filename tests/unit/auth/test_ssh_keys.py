@@ -1,6 +1,7 @@
 """Unit tests for SSH public key management."""
 
 from textwrap import dedent
+from typing import Any
 
 import pytest
 
@@ -11,7 +12,7 @@ from mcp_docker.utils.errors import SSHKeyError
 class TestSSHPublicKey:
     """Unit tests for SSHPublicKey model."""
 
-    def test_from_authorized_keys_line_basic(self):
+    def test_from_authorized_keys_line_basic(self) -> None:
         """Test parsing basic authorized_keys line."""
         line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFoo client1:laptop"
         key = SSHPublicKey.from_authorized_keys_line(line, 1)
@@ -22,7 +23,7 @@ class TestSSHPublicKey:
         assert key.description == "laptop"
         assert key.enabled is True
 
-    def test_from_authorized_keys_line_no_description(self):
+    def test_from_authorized_keys_line_no_description(self) -> None:
         """Test parsing line without description."""
         line = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQDer client2"
         key = SSHPublicKey.from_authorized_keys_line(line, 2)
@@ -31,7 +32,7 @@ class TestSSHPublicKey:
         assert key.key_type == "ssh-rsa"
         assert key.description is None
 
-    def test_from_authorized_keys_line_no_comment(self):
+    def test_from_authorized_keys_line_no_comment(self) -> None:
         """Test parsing line without any comment."""
         line = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBar"
         key = SSHPublicKey.from_authorized_keys_line(line, 5)
@@ -39,12 +40,12 @@ class TestSSHPublicKey:
         assert key.client_id == "client-5"  # Auto-generated from line number
         assert key.description is None
 
-    def test_from_authorized_keys_line_invalid(self):
+    def test_from_authorized_keys_line_invalid(self) -> None:
         """Test parsing invalid line raises error."""
         with pytest.raises(SSHKeyError, match="Invalid authorized_keys line"):
             SSHPublicKey.from_authorized_keys_line("invalid", 1)
 
-    def test_multiple_keys_same_client(self):
+    def test_multiple_keys_same_client(self) -> None:
         """Test that multiple keys can exist for same client."""
         line1 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey1 client1:laptop"
         line2 = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey2 client1:desktop"
@@ -61,7 +62,7 @@ class TestSSHPublicKey:
 class TestSSHKeyManager:
     """Unit tests for SSHKeyManager."""
 
-    def test_load_keys_file_not_exists(self, tmp_path):
+    def test_load_keys_file_not_exists(self, tmp_path: Any) -> None:
         """Test loading keys when file doesn't exist."""
         keys_file = tmp_path / "nonexistent"
         manager = SSHKeyManager(keys_file)
@@ -69,7 +70,7 @@ class TestSSHKeyManager:
         assert manager.get_all_keys() == {}
         assert manager.get_keys("client1") == []
 
-    def test_load_single_key(self, tmp_path):
+    def test_load_single_key(self, tmp_path: Any) -> None:
         """Test loading single key from file."""
         keys_file = tmp_path / "authorized_keys"
         keys_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFoo client1:test-key\n")
@@ -81,7 +82,7 @@ class TestSSHKeyManager:
         assert keys[0].client_id == "client1"
         assert keys[0].key_type == "ssh-ed25519"
 
-    def test_load_multiple_keys_per_client(self, tmp_path):
+    def test_load_multiple_keys_per_client(self, tmp_path: Any) -> None:
         """Test loading multiple keys for same client (key rotation)."""
         keys_file = tmp_path / "authorized_keys"
         keys_file.write_text(
@@ -113,7 +114,7 @@ class TestSSHKeyManager:
         assert stats["total_clients"] == 2
         assert stats["total_keys"] == 3
 
-    def test_load_keys_skip_comments_and_empty_lines(self, tmp_path):
+    def test_load_keys_skip_comments_and_empty_lines(self, tmp_path: Any) -> None:
         """Test that comments and empty lines are ignored."""
         keys_file = tmp_path / "authorized_keys"
         keys_file.write_text(
@@ -134,7 +135,7 @@ class TestSSHKeyManager:
         assert "client1" in all_keys
         assert "client2" in all_keys
 
-    def test_reload_keys(self, tmp_path):
+    def test_reload_keys(self, tmp_path: Any) -> None:
         """Test hot-reloading keys from file."""
         keys_file = tmp_path / "authorized_keys"
         keys_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey1 client1:key1\n")
@@ -154,7 +155,7 @@ class TestSSHKeyManager:
         manager.reload_keys()
         assert len(manager.get_keys("client1")) == 2
 
-    def test_get_keys_unknown_client(self, tmp_path):
+    def test_get_keys_unknown_client(self, tmp_path: Any) -> None:
         """Test getting keys for unknown client returns empty list."""
         keys_file = tmp_path / "authorized_keys"
         keys_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKey1 client1:key1\n")

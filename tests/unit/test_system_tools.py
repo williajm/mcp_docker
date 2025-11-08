@@ -1,5 +1,6 @@
 """Unit tests for system tools."""
 
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -19,23 +20,161 @@ from mcp_docker.tools.system_tools import (
     SystemPruneTool,
     VersionInput,
     VersionTool,
+    parse_timestamp,
 )
 from mcp_docker.utils.errors import DockerOperationError
 
 
 @pytest.fixture
-def mock_docker_client():
+def mock_docker_client() -> Any:
     """Create a mock Docker client."""
     client = Mock(spec=DockerClientWrapper)
     client.client = MagicMock()
     return client
 
 
+class TestParseTimestamp:
+    """Tests for parse_timestamp function."""
+
+    def test_parse_unix_timestamp(self) -> None:
+        """Test parsing Unix timestamp."""
+        result = parse_timestamp("1699456800")
+        assert result == 1699456800
+
+    def test_parse_iso_format_with_z(self) -> None:
+        """Test parsing ISO format with Z suffix."""
+        result = parse_timestamp("2023-11-08T16:00:00Z")
+        # Should convert to Unix timestamp
+        assert isinstance(result, int)
+        assert result > 0
+
+    def test_parse_iso_format_with_timezone(self) -> None:
+        """Test parsing ISO format with timezone offset."""
+        result = parse_timestamp("2023-11-08T16:00:00+00:00")
+        # Should convert to Unix timestamp
+        assert isinstance(result, int)
+        assert result > 0
+
+    def test_parse_iso_format_with_timezone_offset(self) -> None:
+        """Test parsing ISO format with non-zero timezone offset."""
+        result = parse_timestamp("2023-11-08T16:00:00+05:00")
+        # Should convert to Unix timestamp
+        assert isinstance(result, int)
+        assert result > 0
+
+    def test_parse_relative_time_seconds(self) -> None:
+        """Test parsing relative time in seconds."""
+        from datetime import UTC, datetime
+
+        result = parse_timestamp("30s")
+        expected = int(datetime.now(UTC).timestamp() - 30)
+        # Allow 1 second tolerance for test execution time
+        assert abs(result - expected) <= 1
+
+    def test_parse_relative_time_minutes(self) -> None:
+        """Test parsing relative time in minutes."""
+        from datetime import UTC, datetime
+
+        result = parse_timestamp("5m")
+        expected = int(datetime.now(UTC).timestamp() - 5 * 60)
+        # Allow 1 second tolerance
+        assert abs(result - expected) <= 1
+
+    def test_parse_relative_time_hours(self) -> None:
+        """Test parsing relative time in hours."""
+        from datetime import UTC, datetime
+
+        result = parse_timestamp("1h")
+        expected = int(datetime.now(UTC).timestamp() - 1 * 3600)
+        # Allow 1 second tolerance
+        assert abs(result - expected) <= 1
+
+    def test_parse_relative_time_days(self) -> None:
+        """Test parsing relative time in days."""
+        from datetime import UTC, datetime
+
+        result = parse_timestamp("7d")
+        expected = int(datetime.now(UTC).timestamp() - 7 * 86400)
+        # Allow 1 second tolerance
+        assert abs(result - expected) <= 1
+
+    def test_parse_relative_time_24_hours(self) -> None:
+        """Test parsing 24 hours relative time."""
+        from datetime import UTC, datetime
+
+        result = parse_timestamp("24h")
+        expected = int(datetime.now(UTC).timestamp() - 24 * 3600)
+        # Allow 1 second tolerance
+        assert abs(result - expected) <= 1
+
+    def test_parse_relative_time_large_values(self) -> None:
+        """Test parsing large relative time values."""
+        from datetime import UTC, datetime
+
+        result = parse_timestamp("999d")
+        expected = int(datetime.now(UTC).timestamp() - 999 * 86400)
+        # Allow 1 second tolerance
+        assert abs(result - expected) <= 1
+
+    def test_parse_invalid_format(self) -> None:
+        """Test parsing invalid timestamp format raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid timestamp format"):
+            parse_timestamp("invalid-timestamp")
+
+    def test_parse_invalid_relative_time_unit(self) -> None:
+        """Test parsing invalid relative time unit raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid timestamp format"):
+            parse_timestamp("5x")  # 'x' is not a valid unit
+
+    def test_parse_invalid_relative_time_no_number(self) -> None:
+        """Test parsing relative time without number raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid timestamp format"):
+            parse_timestamp("h")  # Missing number
+
+    def test_parse_invalid_relative_time_negative(self) -> None:
+        """Test parsing negative relative time raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid timestamp format"):
+            parse_timestamp("-5m")  # Negative not allowed
+
+    def test_parse_empty_string(self) -> None:
+        """Test parsing empty string raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid timestamp format"):
+            parse_timestamp("")
+
+    def test_parse_iso_format_without_timezone(self) -> None:
+        """Test parsing ISO format without timezone."""
+        # This should work as datetime.fromisoformat handles it
+        result = parse_timestamp("2023-11-08T16:00:00")
+        assert isinstance(result, int)
+        assert result > 0
+
+    def test_parse_iso_format_with_milliseconds(self) -> None:
+        """Test parsing ISO format with milliseconds."""
+        result = parse_timestamp("2023-11-08T16:00:00.123456Z")
+        assert isinstance(result, int)
+        assert result > 0
+
+    def test_parse_date_only(self) -> None:
+        """Test parsing date only format."""
+        result = parse_timestamp("2023-11-08")
+        assert isinstance(result, int)
+        assert result > 0
+
+    def test_parse_zero_relative_time(self) -> None:
+        """Test parsing zero relative time."""
+        result = parse_timestamp("0s")
+        from datetime import UTC, datetime
+
+        expected = int(datetime.now(UTC).timestamp())
+        # Allow 1 second tolerance
+        assert abs(result - expected) <= 1
+
+
 class TestSystemInfoTool:
     """Tests for SystemInfoTool."""
 
     @pytest.mark.asyncio
-    async def test_system_info_success(self, mock_docker_client, safety_config):
+    async def test_system_info_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful system info retrieval."""
         system_info = {
             "Containers": 10,
@@ -59,7 +198,7 @@ class TestSystemInfoTool:
         mock_docker_client.client.info.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_system_info_api_error(self, mock_docker_client, safety_config):
+    async def test_system_info_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.info.side_effect = APIError("API error")
 
@@ -74,7 +213,7 @@ class TestSystemDfTool:
     """Tests for SystemDfTool."""
 
     @pytest.mark.asyncio
-    async def test_system_df_success(self, mock_docker_client, safety_config):
+    async def test_system_df_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful disk usage retrieval."""
         df_info = {
             "LayersSize": 1073741824,
@@ -109,7 +248,7 @@ class TestSystemDfTool:
         mock_docker_client.client.df.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_system_df_api_error(self, mock_docker_client, safety_config):
+    async def test_system_df_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.df.side_effect = APIError("API error")
 
@@ -124,7 +263,7 @@ class TestSystemPruneTool:
     """Tests for SystemPruneTool."""
 
     @pytest.mark.asyncio
-    async def test_system_prune_success(self, mock_docker_client, safety_config):
+    async def test_system_prune_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful system prune."""
         mock_docker_client.client.api.prune_containers.return_value = {
             "ContainersDeleted": ["container1", "container2"],
@@ -149,7 +288,9 @@ class TestSystemPruneTool:
         assert result.space_reclaimed == 104857600 + 536870912 + 0
 
     @pytest.mark.asyncio
-    async def test_system_prune_with_filters(self, mock_docker_client, safety_config):
+    async def test_system_prune_with_filters(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test system prune with filters."""
         mock_docker_client.client.api.prune_containers.return_value = {
             "ContainersDeleted": [],
@@ -174,7 +315,9 @@ class TestSystemPruneTool:
         )
 
     @pytest.mark.asyncio
-    async def test_system_prune_with_volumes(self, mock_docker_client, safety_config):
+    async def test_system_prune_with_volumes(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test system prune with volumes enabled."""
         mock_docker_client.client.api.prune_containers.return_value = {
             "ContainersDeleted": ["container1"],
@@ -202,7 +345,9 @@ class TestSystemPruneTool:
         mock_docker_client.client.volumes.prune.assert_called_once_with(filters=None)
 
     @pytest.mark.asyncio
-    async def test_system_prune_api_error(self, mock_docker_client, safety_config):
+    async def test_system_prune_api_error(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.api.prune_containers.side_effect = APIError("API error")
 
@@ -217,7 +362,7 @@ class TestVersionTool:
     """Tests for VersionTool."""
 
     @pytest.mark.asyncio
-    async def test_version_success(self, mock_docker_client, safety_config):
+    async def test_version_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful version retrieval."""
         version_info = {
             "Platform": {"Name": "Docker Engine - Community"},
@@ -250,7 +395,7 @@ class TestVersionTool:
         mock_docker_client.client.version.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_version_api_error(self, mock_docker_client, safety_config):
+    async def test_version_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.version.side_effect = APIError("API error")
 
@@ -265,7 +410,7 @@ class TestEventsTool:
     """Tests for EventsTool."""
 
     @pytest.mark.asyncio
-    async def test_events_success(self, mock_docker_client, safety_config):
+    async def test_events_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful events retrieval."""
         events = [
             {"status": "start", "id": "container1", "Type": "container"},
@@ -282,7 +427,7 @@ class TestEventsTool:
         assert result.events[0]["status"] == "start"
 
     @pytest.mark.asyncio
-    async def test_events_with_filters(self, mock_docker_client, safety_config):
+    async def test_events_with_filters(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test events with filters."""
         events = [{"status": "start", "id": "container1", "Type": "container"}]
         mock_docker_client.client.events.return_value = iter(events)
@@ -302,7 +447,7 @@ class TestEventsTool:
         assert "until" in call_kwargs
 
     @pytest.mark.asyncio
-    async def test_events_limit(self, mock_docker_client, safety_config):
+    async def test_events_limit(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test events limited to 100."""
         # Create 150 events
         events = [
@@ -318,7 +463,7 @@ class TestEventsTool:
         assert result.count == 100
 
     @pytest.mark.asyncio
-    async def test_events_api_error(self, mock_docker_client, safety_config):
+    async def test_events_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.events.side_effect = APIError("API error")
 
@@ -333,7 +478,7 @@ class TestHealthCheckTool:
     """Tests for HealthCheckTool."""
 
     @pytest.mark.asyncio
-    async def test_health_check_healthy(self, mock_docker_client, safety_config):
+    async def test_health_check_healthy(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful health check with healthy status."""
         health_status = {
             "status": "healthy",
@@ -352,11 +497,14 @@ class TestHealthCheckTool:
 
         assert result.healthy is True
         assert result.message == "Docker daemon is healthy"
+        assert result.details is not None
         assert result.details["containers"]["running"] == 3
         assert result.details["images"] == 10
 
     @pytest.mark.asyncio
-    async def test_health_check_unhealthy(self, mock_docker_client, safety_config):
+    async def test_health_check_unhealthy(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test health check with unhealthy status."""
         health_status = {
             "status": "unhealthy",
@@ -374,7 +522,9 @@ class TestHealthCheckTool:
         assert result.message == "Docker daemon is unhealthy"
 
     @pytest.mark.asyncio
-    async def test_health_check_exception(self, mock_docker_client, safety_config):
+    async def test_health_check_exception(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test health check with exception."""
         mock_docker_client.health_check.side_effect = Exception("Connection failed")
 

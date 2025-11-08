@@ -1,6 +1,7 @@
 """Pytest configuration and shared fixtures."""
 
 from collections.abc import Generator
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -112,7 +113,7 @@ def docker_client_wrapper(
 ) -> Generator[DockerClientWrapper, None, None]:
     """Create Docker client wrapper with mocked client."""
 
-    def mock_docker_client_init(*args: tuple, **kwargs: dict) -> Mock:
+    def mock_docker_client_init(*args: Any, **kwargs: Any) -> Mock:
         return mock_docker_client
 
     monkeypatch.setattr("docker.DockerClient", mock_docker_client_init)

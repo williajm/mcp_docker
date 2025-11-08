@@ -62,6 +62,7 @@ def generate_ed25519_key_pair(tmp_path: Path) -> tuple[ed25519.Ed25519PrivateKey
 
     # Load SSH private key
     _, private_key = load_private_key_from_file(private_key_path)
+    assert isinstance(private_key, ed25519.Ed25519PrivateKey), "Expected Ed25519 key"
 
     # Format public key for authorized_keys
     public_key_line = f"ssh-ed25519 {get_public_key_string(private_key)[1]}"
@@ -95,6 +96,7 @@ def generate_rsa_key_pair(tmp_path: Path) -> tuple[rsa.RSAPrivateKey, str]:
 
     # Load SSH private key
     _, private_key = load_private_key_from_file(private_key_path)
+    assert isinstance(private_key, rsa.RSAPrivateKey), "Expected RSA key"
 
     # Format public key for authorized_keys
     public_key_line = f"ssh-rsa {get_public_key_string(private_key)[1]}"
@@ -137,7 +139,7 @@ def create_ssh_auth_data(
 
 
 @pytest.fixture
-def ssh_test_env(tmp_path):
+def ssh_test_env(tmp_path: Any) -> Any:
     """Setup complete SSH test environment with server and keys.
 
     Returns:
@@ -186,7 +188,7 @@ def ssh_test_env(tmp_path):
 
 
 @pytest.fixture
-def docker_available():
+def docker_available() -> bool:
     """Check if Docker is available for integration tests."""
     try:
         import docker
@@ -206,7 +208,9 @@ def docker_available():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_complete_docker_workflow_with_ssh_auth(ssh_test_env, docker_available):
+async def test_complete_docker_workflow_with_ssh_auth(
+    ssh_test_env: Any, docker_available: Any
+) -> None:
     """Integration test: Complete Docker workflow authenticated with SSH keys.
 
     Scenario:
@@ -321,7 +325,7 @@ async def test_complete_docker_workflow_with_ssh_auth(ssh_test_env, docker_avail
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_key_rotation_without_downtime(ssh_test_env, docker_available):
+async def test_key_rotation_without_downtime(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Key rotation without service interruption.
 
     Scenario:
@@ -408,7 +412,7 @@ async def test_key_rotation_without_downtime(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_multi_device_setup(ssh_test_env, docker_available):
+async def test_multi_device_setup(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Multiple devices with different keys for same client.
 
     Scenario:
@@ -478,7 +482,7 @@ async def test_multi_device_setup(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mixed_authentication_environment(ssh_test_env, docker_available):
+async def test_mixed_authentication_environment(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Both API key and SSH auth working simultaneously.
 
     Scenario:
@@ -506,7 +510,7 @@ async def test_mixed_authentication_environment(ssh_test_env, docker_available):
     api_key = "test-api-key-12345"
 
     # Both clients perform operations concurrently
-    async def ssh_operation():
+    async def ssh_operation() -> tuple[Any, str]:
         ssh_auth = create_ssh_auth_data(ssh_client_id, ssh_key)
         result = await server.call_tool(
             tool_name="docker_list_containers",
@@ -515,7 +519,7 @@ async def test_mixed_authentication_environment(ssh_test_env, docker_available):
         )
         return result.get("success"), "ssh"
 
-    async def api_operation():
+    async def api_operation() -> tuple[Any, str]:
         result = await server.call_tool(
             tool_name="docker_list_containers",
             arguments={"all": True},
@@ -544,7 +548,7 @@ async def test_mixed_authentication_environment(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_replay_attack_prevention(ssh_test_env, docker_available):
+async def test_replay_attack_prevention(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Replay attack prevention with nonce reuse detection.
 
     Scenario:
@@ -605,7 +609,7 @@ async def test_replay_attack_prevention(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_timestamp_expiry(ssh_test_env, docker_available):
+async def test_timestamp_expiry(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Timestamp validation and expiry.
 
     Scenario:
@@ -671,7 +675,7 @@ async def test_timestamp_expiry(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_invalid_signature(ssh_test_env, docker_available):
+async def test_invalid_signature(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Invalid signature detection.
 
     Scenario:
@@ -719,7 +723,7 @@ async def test_invalid_signature(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_unauthorized_client(ssh_test_env, docker_available):
+async def test_unauthorized_client(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Unauthorized client rejection.
 
     Scenario:
@@ -761,7 +765,7 @@ async def test_unauthorized_client(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_concurrent_request_deduplication(ssh_test_env, docker_available):
+async def test_concurrent_request_deduplication(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Concurrent requests with same nonce are deduplicated.
 
     Scenario:
@@ -788,11 +792,12 @@ async def test_concurrent_request_deduplication(ssh_test_env, docker_available):
 
     # Function to call tool
     async def concurrent_call() -> dict[str, Any]:
-        return await server.call_tool(
+        result: dict[str, Any] = await server.call_tool(
             tool_name="docker_list_containers",
             arguments={"all": True},
             ssh_auth_data=ssh_auth,  # Same auth data!
         )
+        return result
 
     # Launch 10 concurrent requests
     results = await asyncio.gather(*[concurrent_call() for _ in range(10)])
@@ -819,7 +824,7 @@ async def test_concurrent_request_deduplication(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_hot_reload_authorized_keys(ssh_test_env, docker_available):
+async def test_hot_reload_authorized_keys(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Hot reload of authorized_keys file.
 
     Scenario:
@@ -885,7 +890,7 @@ async def test_hot_reload_authorized_keys(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_different_timestamp_windows(tmp_path, docker_available):
+async def test_different_timestamp_windows(tmp_path: Any, docker_available: Any) -> None:
     """Integration test: Different timestamp window configurations.
 
     Scenario:
@@ -948,7 +953,7 @@ async def test_different_timestamp_windows(tmp_path, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_disabled_ssh_auth(tmp_path, docker_available):
+async def test_disabled_ssh_auth(tmp_path: Any, docker_available: Any) -> None:
     """Integration test: SSH auth disabled falls back appropriately.
 
     Scenario:
@@ -1005,7 +1010,7 @@ async def test_disabled_ssh_auth(tmp_path, docker_available):
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_rate_limiting_with_ssh_auth(ssh_test_env, docker_available):
+async def test_rate_limiting_with_ssh_auth(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Rate limiting applies to SSH authenticated clients.
 
     Scenario:
@@ -1059,7 +1064,7 @@ async def test_rate_limiting_with_ssh_auth(ssh_test_env, docker_available):
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_nonce_store_memory_management(tmp_path, docker_available):
+async def test_nonce_store_memory_management(tmp_path: Any, docker_available: Any) -> None:
     """Integration test: Nonce store cleans up expired nonces.
 
     Scenario:
@@ -1120,6 +1125,9 @@ async def test_nonce_store_memory_management(tmp_path, docker_available):
         await asyncio.sleep(0.05)
 
     # Check nonce stats
+    assert (
+        server.auth_middleware.ssh_key_authenticator is not None
+    ), "SSH authenticator should be enabled"
     nonce_stats = server.auth_middleware.ssh_key_authenticator.protocol.get_nonce_stats()
     active_nonces = nonce_stats["active_nonces"]
 
@@ -1136,7 +1144,7 @@ async def test_nonce_store_memory_management(tmp_path, docker_available):
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.slow
-async def test_concurrent_clients(ssh_test_env, docker_available):
+async def test_concurrent_clients(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Multiple concurrent clients with different SSH keys.
 
     Scenario:
@@ -1176,8 +1184,8 @@ async def test_concurrent_clients(ssh_test_env, docker_available):
         client_id: str,
         private_key: ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey | ec.EllipticCurvePrivateKey,
         count: int,
-    ):
-        results = []
+    ) -> bool:
+        results: list[Any] = []
         for _ in range(count):
             ssh_auth = create_ssh_auth_data(client_id, private_key)
             result = await server.call_tool(
@@ -1204,7 +1212,7 @@ async def test_concurrent_clients(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_rsa_key_support(ssh_test_env, docker_available):
+async def test_rsa_key_support(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: RSA key support alongside Ed25519.
 
     Scenario:
@@ -1243,7 +1251,7 @@ async def test_rsa_key_support(ssh_test_env, docker_available):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mixed_key_types(ssh_test_env, docker_available):
+async def test_mixed_key_types(ssh_test_env: Any, docker_available: Any) -> None:
     """Integration test: Ed25519 and RSA keys for same client.
 
     Scenario:

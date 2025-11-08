@@ -3,6 +3,9 @@
 These tests require Docker to be running and will create/remove test volumes.
 """
 
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import pytest
 
 from mcp_docker.config import Config
@@ -22,7 +25,7 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-async def mcp_server(integration_config: Config) -> MCPDockerServer:
+async def mcp_server(integration_config: Config) -> AsyncGenerator[MCPDockerServer, None]:
     """Create MCP server instance."""
     server = MCPDockerServer(integration_config)
     await server.start()
@@ -37,7 +40,9 @@ def test_volume_name() -> str:
 
 
 @pytest.fixture
-async def cleanup_test_volume(mcp_server: MCPDockerServer, test_volume_name: str):
+async def cleanup_test_volume(
+    mcp_server: MCPDockerServer, test_volume_name: str
+) -> AsyncGenerator[None, None]:
     """Cleanup fixture to remove test volume after tests."""
     yield
     try:
@@ -58,7 +63,7 @@ class TestVolumeOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_volume_name: str,
-        cleanup_test_volume,
+        cleanup_test_volume: Any,
     ) -> None:
         """Test creating and removing a volume."""
         # Create volume
@@ -80,7 +85,7 @@ class TestVolumeOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_volume_name: str,
-        cleanup_test_volume,
+        cleanup_test_volume: Any,
     ) -> None:
         """Test listing volumes."""
         # Create a test volume
@@ -105,7 +110,7 @@ class TestVolumeOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_volume_name: str,
-        cleanup_test_volume,
+        cleanup_test_volume: Any,
     ) -> None:
         """Test inspecting a volume."""
         # Create volume
@@ -125,7 +130,7 @@ class TestVolumeOperations:
         self,
         mcp_server: MCPDockerServer,
         integration_config: Config,
-        cleanup_test_volume,
+        cleanup_test_volume: Any,
     ) -> None:
         """Test creating volume with specific driver."""
         volume_name = "mcp-docker-test-volume-custom"
@@ -158,7 +163,7 @@ class TestVolumeOperations:
         self,
         mcp_server: MCPDockerServer,
         integration_config: Config,
-        cleanup_test_volume,
+        cleanup_test_volume: Any,
     ) -> None:
         """Test creating volume with labels."""
         volume_name = "mcp-docker-test-volume-labels"
@@ -254,7 +259,7 @@ class TestVolumeOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_volume_name: str,
-        cleanup_test_volume,
+        cleanup_test_volume: Any,
     ) -> None:
         """Test listing volumes with filters."""
         # Create volume with label

@@ -269,5 +269,9 @@ class TestOperationSafety:
 
     def test_enum_comparison(self) -> None:
         """Test enum comparison."""
-        assert OperationSafety.SAFE != OperationSafety.DESTRUCTIVE
-        assert OperationSafety.MODERATE != OperationSafety.SAFE
+        # Use runtime comparison to avoid mypy literal type error
+        safe: OperationSafety = OperationSafety.SAFE
+        destructive: OperationSafety = OperationSafety.DESTRUCTIVE
+        moderate: OperationSafety = OperationSafety.MODERATE
+        assert safe != destructive
+        assert moderate != safe

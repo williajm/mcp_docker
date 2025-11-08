@@ -498,7 +498,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 
 ```json
 {
-  "dangling": false,
+  "all": false,
   "filters": {}
 }
 ```
@@ -517,6 +517,8 @@ After running many tests and builds, clean up unused Docker resources safely.
 
 **Claude:**
 > Removed 3 unused images, reclaimed 3.2 GB. Now cleaning volumes...
+>
+> Note: This removed only UNUSED images. If the user had asked to "remove all images" or "delete all images", I would use `force_all=true` instead, which removes EVERY image including tagged ones.
 
 *Claude uses: `docker_prune_volumes`*
 
@@ -614,6 +616,11 @@ After running many tests and builds, clean up unused Docker resources safely.
 - `volumes: true` in container removal also cleans anonymous volumes
 - Build cache cleanup affects future build performance
 - Running containers and their dependencies are automatically protected
+- **Prune operations by default only remove UNUSED resources**:
+  - `all=false` (default): Only removes dangling/unused resources
+  - `all=true`: Removes all unused resources (but still protects resources in use)
+  - `force_all=true`: Removes EVERYTHING including tagged images and named volumes (extremely destructive)
+- **Use `force_all=true` when user explicitly asks to "remove all" or "delete all"**
 
 ---
 

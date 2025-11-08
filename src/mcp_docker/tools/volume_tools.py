@@ -4,7 +4,6 @@ This module provides tools for managing Docker volumes, including
 creating, listing, inspecting, and removing volumes.
 """
 
-import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
@@ -12,39 +11,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.prune_helpers import force_remove_all_volumes
 from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
-
-
-def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
-    """Parse JSON strings to objects (workaround for MCP client serialization bug).
-
-    Args:
-        v: The value to parse (dict or JSON string)
-        field_name: Name of the field for error messages
-
-    Returns:
-        Parsed dict if v was a string, otherwise returns v unchanged
-
-    Raises:
-        ValueError: If v is a string but not valid JSON
-    """
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            logger.warning(
-                f"Received JSON string instead of object for {field_name}, auto-parsing. "
-                "This is a workaround for MCP client serialization issues."
-            )
-            return parsed
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Received invalid JSON string for {field_name}: {v[:100]}... "
-                f"Expected an object/dict, not a string. Error: {e}"
-            ) from e
-    return v
 
 
 # Input/Output Models
@@ -132,13 +104,25 @@ class RemoveVolumeOutput(BaseModel):
 
 
 class PruneVolumesInput(BaseModel):
-    """Input for pruning unused volumes."""
+    """Input for pruning Docker volumes (unused by default, all with force_all=true)."""
 
     filters: dict[str, str | list[str]] | None = Field(
         default=None,
         description=(
             "Filters to apply as key-value pairs. "
-            "Examples: {'label': ['env=test']}, {'dangling': ['true']}"
+            "Examples: {'label': ['env=test']}, {'dangling': ['true']}. "
+            "NOTE: Filters only apply when force_all=false (standard prune mode)."
+        ),
+    )
+    force_all: bool = Field(
+        default=False,
+        description=(
+            "Force remove ALL volumes, even if named or in use. "
+            "USE THIS when user asks to 'remove all volumes', 'delete all volumes', "
+            "or 'prune all volumes'. "
+            "When True, removes EVERY volume regardless of name or usage. "
+            "WARNING: This is extremely destructive and will delete all volumes. "
+            "Requires user confirmation."
         ),
     )
 
@@ -155,8 +139,6 @@ class PruneVolumesOutput(BaseModel):
 
 class ListVolumesTool(BaseTool):
     """List Docker volumes with optional filters."""
-
-    output_model = ListVolumesOutput
 
     @property
     def name(self) -> str:
@@ -216,8 +198,6 @@ class ListVolumesTool(BaseTool):
 class InspectVolumeTool(BaseTool):
     """Inspect a Docker volume to get detailed information."""
 
-    output_model = InspectVolumeOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -269,8 +249,6 @@ class InspectVolumeTool(BaseTool):
 
 class CreateVolumeTool(BaseTool):
     """Create a new Docker volume."""
-
-    output_model = CreateVolumeOutput
 
     @property
     def name(self) -> str:
@@ -334,8 +312,6 @@ class CreateVolumeTool(BaseTool):
 class RemoveVolumeTool(BaseTool):
     """Remove a Docker volume."""
 
-    output_model = RemoveVolumeOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -389,8 +365,6 @@ class RemoveVolumeTool(BaseTool):
 class PruneVolumesTool(BaseTool):
     """Remove unused Docker volumes."""
 
-    output_model = PruneVolumesOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -399,7 +373,12 @@ class PruneVolumesTool(BaseTool):
     @property
     def description(self) -> str:
         """Tool description."""
-        return "Remove unused Docker volumes"
+        return (
+            "Prune Docker volumes. By default, removes only UNUSED volumes. "
+            "To remove ALL volumes including named ones, use force_all=true. "
+            "IMPORTANT: When user asks to 'remove all volumes' or 'delete all volumes', "
+            "use force_all=true."
+        )
 
     @property
     def input_schema(self) -> type[PruneVolumesInput]:
@@ -424,10 +403,18 @@ class PruneVolumesTool(BaseTool):
             DockerOperationError: If pruning fails
         """
         try:
-            logger.info(f"Pruning volumes (filters={input_data.filters})")
+            logger.info(
+                f"Pruning volumes (force_all={input_data.force_all}, filters={input_data.filters})"
+            )
 
+            # Delegate to helper function based on mode
+            if input_data.force_all:
+                deleted = force_remove_all_volumes(self.docker.client)
+                logger.info(f"Successfully force-pruned {len(deleted)} volumes (force_all=True)")
+                return PruneVolumesOutput(deleted=deleted, space_reclaimed=0)
+
+            # Standard prune (only unused volumes)
             result = self.docker.client.volumes.prune(filters=input_data.filters)
-
             deleted = result.get("VolumesDeleted", []) or []
             space_reclaimed = result.get("SpaceReclaimed", 0)
 

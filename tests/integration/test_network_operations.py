@@ -3,6 +3,9 @@
 These tests require Docker to be running and will create/remove test networks.
 """
 
+from collections.abc import AsyncGenerator
+from typing import Any
+
 import pytest
 
 from mcp_docker.config import Config
@@ -21,7 +24,7 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-async def mcp_server(integration_config: Config) -> MCPDockerServer:
+async def mcp_server(integration_config: Config) -> AsyncGenerator[MCPDockerServer, None]:
     """Create MCP server instance."""
     server = MCPDockerServer(integration_config)
     await server.start()
@@ -36,7 +39,9 @@ def test_network_name() -> str:
 
 
 @pytest.fixture
-async def cleanup_test_network(mcp_server: MCPDockerServer, test_network_name: str):
+async def cleanup_test_network(
+    mcp_server: MCPDockerServer, test_network_name: str
+) -> AsyncGenerator[None, None]:
     """Cleanup fixture to remove test network after tests."""
     yield
     try:
@@ -55,7 +60,7 @@ class TestNetworkOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
-        cleanup_test_network,
+        cleanup_test_network: Any,
     ) -> None:
         """Test creating and removing a network."""
         # Create network
@@ -78,7 +83,7 @@ class TestNetworkOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
-        cleanup_test_network,
+        cleanup_test_network: Any,
     ) -> None:
         """Test listing networks."""
         # Create a test network
@@ -103,7 +108,7 @@ class TestNetworkOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
-        cleanup_test_network,
+        cleanup_test_network: Any,
     ) -> None:
         """Test inspecting a network."""
         # Create network
@@ -126,7 +131,7 @@ class TestNetworkOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
-        cleanup_test_network,
+        cleanup_test_network: Any,
     ) -> None:
         """Test connecting and disconnecting container to network."""
         # Create network
@@ -194,7 +199,7 @@ class TestNetworkOperations:
         self,
         mcp_server: MCPDockerServer,
         integration_config: Config,
-        cleanup_test_network,
+        cleanup_test_network: Any,
     ) -> None:
         """Test creating network with custom options."""
         network_name = "mcp-docker-test-network-custom"
@@ -259,7 +264,7 @@ class TestNetworkOperations:
         mcp_server: MCPDockerServer,
         integration_config: Config,
         test_network_name: str,
-        cleanup_test_network,
+        cleanup_test_network: Any,
     ) -> None:
         """Test listing networks with filters."""
         # Create a test network
