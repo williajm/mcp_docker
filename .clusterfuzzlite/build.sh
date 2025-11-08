@@ -4,31 +4,28 @@
 
 # Build script for ClusterFuzzLite fuzz targets
 
-# Install the project in development mode
-python3 -m pip install -e $SRC/mcp-docker
+# Install the project in development mode with proper flags
+pip3 install -e $SRC/mcp-docker
 
-# Build each fuzz target
+# Build each fuzz target following ClusterFuzzLite Python conventions
 for fuzzer in $SRC/mcp-docker/tests/fuzz/fuzz_*.py; do
     fuzzer_basename=$(basename -s .py "$fuzzer")
-    fuzzer_name="${fuzzer_basename}"
+    fuzzer_package="${fuzzer_basename}.pkg"
 
-    # Compile fuzzer using pyinstaller for better compatibility
-    pyinstaller --onefile \
-        --name "$fuzzer_name" \
-        --distpath "$OUT" \
-        --workpath "/tmp/$fuzzer_name" \
-        --specpath "/tmp" \
-        "$fuzzer"
+    echo "Building fuzzer: $fuzzer_basename"
 
-    # If pyinstaller fails, fall back to direct copy
-    if [ ! -f "$OUT/$fuzzer_name" ]; then
-        echo "PyInstaller failed for $fuzzer_name, using direct copy"
-        cp "$fuzzer" "$OUT/$fuzzer_name"
-        chmod +x "$OUT/$fuzzer_name"
+    # Create standalone package using pyinstaller
+    pyinstaller --distpath "$OUT" --onefile --name "$fuzzer_package" "$fuzzer"
 
-        # Add shebang if needed
-        sed -i '1i#!/usr/bin/env python3' "$OUT/$fuzzer_name"
-    fi
+    # Create execution wrapper (required by ClusterFuzzLite)
+    # Note: No LD_PRELOAD needed since we're fuzzing Python-only code without C extensions
+    cat > "$OUT/$fuzzer_basename" << EOF
+#!/bin/sh
+# Wrapper script for ClusterFuzzLite fuzzer execution
+this_dir=\$(dirname "\$0")
+"\$this_dir/$fuzzer_package" "\$@"
+EOF
+    chmod +x "$OUT/$fuzzer_basename"
 done
 
 echo "Fuzz targets built successfully:"
