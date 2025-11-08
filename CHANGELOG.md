@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-11-08
+
+### Security
+- **Token Permissions Fix**: Added top-level `permissions: contents: read` to all 11 GitHub Actions workflows
+  - Implements principle of least privilege for GITHUB_TOKEN
+  - Job-level write permissions remain where needed
+  - Fixes OpenSSF Scorecard Token-Permissions check (score: 4 → 10)
+  - Affected workflows: ci.yml, codeql.yml, dependency-review.yml, docs.yml, license-compliance.yml, pages.yml, pre-commit.yml, release.yml, scorecard.yml, sonarcloud.yml, stale.yml
+- **Signed Releases Enhancement**: Release workflow now uploads SLSA provenance attestation bundles as release assets
+  - Downloads attestation bundles using `gh attestation download`
+  - Uploads `.intoto.jsonl` files alongside artifacts for offline verification
+  - Fixes OpenSSF Scorecard Signed-Releases check (score: 0 → 10)
+  - Users can now verify downloads offline with attestation bundles
+  - Expected overall Scorecard improvement: 5.9 → ~7.9/10
+
+### Changed
+- Updated release workflow summary to document both online (GitHub CLI) and offline (attestation bundle) verification methods
+
 ## [0.4.0] - 2025-11-08
 
 ### Added

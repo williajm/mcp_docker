@@ -10,6 +10,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   build-and-sign:
     name: Build and Sign Release Assets
@@ -53,6 +56,27 @@ jobs:
       with:
         subject-path: 'dist/*'
 
+    - name: Download Attestation Bundles
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        echo "Downloading attestation bundles..."
+        mkdir -p attestations
+
+        # Download attestation for each artifact
+        for file in dist/*; do
+          if [ -f "$file" ]; then
+            filename=$(basename "$file")
+            echo "Downloading attestation for $filename..."
+            gh attestation download "$file" \
+              --owner williajm \
+              --output "attestations/${filename}.intoto.jsonl" || echo "Failed to download attestation for $filename"
+          fi
+        done
+
+        echo "Attestation bundles downloaded:"
+        ls -lh attestations/
+
     - name: Upload Release Assets
       env:
         GH_TOKEN: ${{ github.token }}
@@ -64,6 +88,14 @@ jobs:
         for file in dist/*; do
           if [ -f "$file" ]; then
             echo "Uploading $file..."
+            gh release upload "$TAG" "$file" --clobber
+          fi
+        done
+
+        # Upload attestation bundles
+        for file in attestations/*.intoto.jsonl; do
+          if [ -f "$file" ]; then
+            echo "Uploading attestation bundle $file..."
             gh release upload "$TAG" "$file" --clobber
           fi
         done
@@ -82,11 +114,23 @@ jobs:
         ls -lh dist/ >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### SLSA Provenance Attestations" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        ls -lh attestations/ >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Verification" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "All artifacts have been signed with GitHub attestations." >> $GITHUB_STEP_SUMMARY
+        echo "All artifacts have been signed with SLSA provenance attestations." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "To verify attestations:" >> $GITHUB_STEP_SUMMARY
+        echo "**Verify using GitHub CLI:**" >> $GITHUB_STEP_SUMMARY
         echo '```bash' >> $GITHUB_STEP_SUMMARY
         echo 'gh attestation verify <artifact> --owner williajm' >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Verify using attestation bundle:**" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo '# Download both the artifact and its .intoto.jsonl attestation bundle' >> $GITHUB_STEP_SUMMARY
+        echo '# Then verify with your preferred SLSA verifier tool' >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
