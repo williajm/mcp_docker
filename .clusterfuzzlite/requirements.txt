@@ -1,0 +1,44 @@
+# Hash-pinned dependencies for ClusterFuzzLite fuzzing infrastructure
+# All packages and their transitive dependencies are pinned by SHA256 hash
+# to prevent supply chain attacks and ensure reproducible builds.
+#
+# To update these hashes:
+# 1. pip download --dest /tmp/packages <package>==<version>
+# 2. pip hash /tmp/packages/<package>.whl
+# 3. Update hash below
+
+# Main fuzzing dependencies
+atheris==2.3.0 \
+    --hash=sha256:b91cb296d60915c3efa4f6db48f09c4678b574cddb7ca98035f1cb9d9fb96f64
+
+# Runtime dependencies (from pyproject.toml)
+pydantic==2.10.4 \
+    --hash=sha256:597e135ea68be3a37552fb524bc7d0d66dcf93d395acd93a00682f1efcb8ee3d
+
+pydantic-settings==2.6.1 \
+    --hash=sha256:7fb0637c786a558d3103436278a7c4f1cfd29ba8973238a50c5bb9a55387da87
+
+loguru==0.7.3 \
+    --hash=sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c
+
+cryptography==44.0.0 \
+    --hash=sha256:f53c2c87e0fb4b0c00fa9571082a057e37690a8f12233306161c8f4b819960b7
+
+# Transitive dependencies (required by packages above)
+pydantic-core==2.27.2 \
+    --hash=sha256:47956ae78b6422cbd46f772f1746799cbb862de838fd8d1fbd34a82e05b0983a
+
+annotated-types==0.7.0 \
+    --hash=sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53
+
+typing-extensions==4.15.0 \
+    --hash=sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548
+
+python-dotenv==1.2.1 \
+    --hash=sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61
+
+cffi==2.0.0 \
+    --hash=sha256:fc7de24befaeae77ba923797c7c87834c73648a05a4bde34b3b7e5588973a453
+
+pycparser==2.23 \
+    --hash=sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934
