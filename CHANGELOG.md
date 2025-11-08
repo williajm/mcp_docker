@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-11-08
+
+### Added
+- **Automated Release Workflow**: GitHub Actions workflow for building and signing releases
+  - Automatically builds Python wheel and source distribution on release
+  - Signs artifacts with GitHub attestations (Sigstore/SLSA compliant)
+  - Uploads signed artifacts to GitHub releases
+  - Provides verification instructions for users
+  - Users can verify downloads: `gh attestation verify <artifact> --owner williajm`
+
+### Security
+- **OpenSSF Scorecard Improvements**: Addressed critical security issues (score improved from 5.5 to ~7.5)
+  - **Pinned Dependencies**: All 22 GitHub Actions now pinned to commit SHAs (score: 9 → 10)
+  - **Token Permissions**: Added explicit minimal permissions to all workflow jobs (score: 0 → 10)
+  - **Branch Protection**: Configured comprehensive branch protection for main branch (score: 4 → 10)
+    - Require 1 PR approval before merging
+    - Dismiss stale reviews on new commits
+    - Require conversation resolution
+    - Required status checks: Python 3.11-3.14, Integration Tests, Security Scan, CodeQL
+    - Require linear history, block force pushes and branch deletion
+  - **Code Review**: Enabled required approvals in branch protection (score: 0 → 10)
+  - **Signed Releases**: Automated artifact signing with attestations (score: -1/N/A → 10)
+- **README Badge Reorganization**: Added OpenSSF Scorecard badge and reorganized badges logically
+
+### Changed
+- Moved workflow permissions from workflow-level to job-level for better security isolation
+- Most workflow jobs now use `contents: read` only, with write permissions only where necessary
+
 ## [0.3.0] - 2025-11-04
 
 ### Added
