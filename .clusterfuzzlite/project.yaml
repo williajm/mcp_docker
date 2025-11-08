@@ -1,0 +1,19 @@
+# ClusterFuzzLite configuration for MCP Docker
+# See: https://google.github.io/clusterfuzzlite/
+
+homepage: "https://github.com/williajm/mcp_docker"
+language: python
+primary_contact: ""
+auto_ccs: []
+
+# Sanitizers to use
+sanitizers:
+  - address
+  - undefined
+
+# Use Python's built-in fuzzing support
+fuzzing_engines:
+  - libfuzzer
+
+# File types to preserve for coverage
+file_github_issue_for_crashes: false
