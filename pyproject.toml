@@ -43,6 +43,7 @@ dev = [
     "httpx>=0.27.0",
     "httpx-sse>=0.4.0",
     "hypothesis>=6.0.0",
+    "atheris>=2.3.0",  # Fuzzing with ClusterFuzzLite (Apache-2.0)
 ]
 
 [project.scripts]
@@ -108,6 +109,11 @@ ignore = []
     "UP012",    # Unnecessary encoding (explicit encoding is clearer in examples)
     "UP031",    # Use format specifiers (% formatting is shown for comparison)
 ]
+# Fuzz tests use Atheris conventions (TestOneInput is required entry point)
+"tests/fuzz/**/*.py" = [
+    "N802",     # TestOneInput function name is required by Atheris fuzzing framework
+    "UP038",    # isinstance with tuples is more readable for multiple types
+]
 
 [tool.mypy]
 python_version = "3.11"
@@ -156,6 +162,10 @@ ignore_missing_imports = true
 module = "hypothesis.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "atheris.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -171,6 +181,7 @@ markers = [
     "integration: Integration tests requiring Docker",
     "e2e: End-to-end tests with realistic scenarios",
     "slow: Slow running tests",
+    "fuzz: Fuzz tests (run by ClusterFuzzLite)",
 ]
 
 [tool.coverage.run]
