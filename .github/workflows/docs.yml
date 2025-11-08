@@ -14,6 +14,9 @@ on:
       - 'README.md'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 # Allow one concurrent deployment
 concurrency:
   group: "pages"
