@@ -12,9 +12,10 @@ WORKDIR $SRC/mcp-docker
 
 # Install Python dependencies with cryptographic hash verification
 # Pin pip to a specific version for reproducibility
-RUN python3 -m pip install --upgrade pip==24.3.1 && \
+RUN python3 -m pip install --upgrade pip==24.3.1 \
+        --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed && \
     python3 -m pip install --require-hashes --no-deps -r .clusterfuzzlite/requirements.txt && \
-    python3 -m pip install -e .
+    python3 -m pip install --no-deps -e .
 
 # Copy build script
 COPY .clusterfuzzlite/build.sh $SRC/
