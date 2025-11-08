@@ -39,14 +39,15 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         uv run pip-licenses --format=markdown --order=license >> $GITHUB_STEP_SUMMARY
 
-    - name: Check for GPL/AGPL licenses
+    - name: Check for GPL/AGPL/LGPL licenses
       run: |
-        # Check for GPL-like licenses that might be incompatible with MIT
+        # Check for GPL-like licenses that are incompatible with MIT
         if uv run pip-licenses --format=json | grep -iE '"License":\s*"(GPL|AGPL|LGPL)"'; then
-          echo "::warning::Found GPL/AGPL licensed dependencies. Please review for compatibility."
-          exit 0  # Don't fail, just warn
+          echo "::error::Found GPL/AGPL/LGPL licensed Python dependencies. These are not allowed."
+          echo "Python dependencies must use MIT-compatible licenses (MIT, Apache-2.0, BSD, ISC, Python-2.0)."
+          exit 1  # Fail the build
         else
-          echo "No GPL/AGPL licenses found."
+          echo "✅ No GPL/AGPL/LGPL licenses found in Python dependencies."
         fi
 
     - name: Generate license report
