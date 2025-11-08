@@ -365,10 +365,14 @@ jobs:
 
         # Parse JUnit XML files
         results = {}
-        xml_files = list(Path('.').glob('junit/**/*.xml'))
+        # Find XML files in both junit/ directory and root (for merged artifacts)
+        xml_files = list(Path('.').glob('junit/**/*.xml')) + list(Path('.').glob('*.xml'))
+        # Filter out coverage.xml which is not a test results file
+        xml_files = [f for f in xml_files if 'coverage' not in f.name]
         print(f"Found {len(xml_files)} XML files: {[str(f) for f in xml_files]}")
 
         for xml_file in xml_files:
+            # Parse suite name: integration-results -> integration, e2e-results -> e2e, test-results-3.11 -> 3.11
             suite_name = xml_file.stem.replace('-results', '').replace('test-', '')
             xml = JUnitXml.fromfile(str(xml_file))
 
