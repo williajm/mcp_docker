@@ -25,7 +25,6 @@ title: MCP Docker Server
 [![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://williajm.github.io/mcp_docker/)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/williajm/mcp_docker/badge)](https://securityscorecards.dev/viewer/?uri=github.com/williajm/mcp_docker)
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
