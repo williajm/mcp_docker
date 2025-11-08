@@ -352,7 +352,7 @@ jobs:
     - name: Generate test summary
       id: summary
       run: |
-        python3 << 'EOF'
+        uv run python3 << 'EOF'
         import json
         import os
         from pathlib import Path
