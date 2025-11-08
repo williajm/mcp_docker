@@ -1125,9 +1125,9 @@ async def test_nonce_store_memory_management(tmp_path: Any, docker_available: An
         await asyncio.sleep(0.05)
 
     # Check nonce stats
-    assert server.auth_middleware.ssh_key_authenticator is not None, (
-        "SSH authenticator should be enabled"
-    )
+    assert (
+        server.auth_middleware.ssh_key_authenticator is not None
+    ), "SSH authenticator should be enabled"
     nonce_stats = server.auth_middleware.ssh_key_authenticator.protocol.get_nonce_stats()
     active_nonces = nonce_stats["active_nonces"]
 
