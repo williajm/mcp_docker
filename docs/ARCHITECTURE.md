@@ -639,7 +639,7 @@ async def get_container_logs(
 ```
 
 **Type Checker Coverage**:
-- **Core modules**: 100% type coverage
+- **Core modules**: Full type coverage
 - **Tests**: Pragmatic typing (mocks may use Any)
 - **External libraries**: Type stubs where available
 
@@ -846,7 +846,7 @@ logger.critical(f"Cannot connect to Docker daemon: {e}")
 - Mock all external dependencies (Docker client, filesystem)
 - Test one component at a time
 - Fast execution (<1ms per test)
-- 90%+ code coverage target
+- High code coverage target
 
 **Example: Unit Test with Mocks**:
 ```python
@@ -982,9 +982,9 @@ async def test_container(docker_client_wrapper):
 ### 5.5 Coverage Strategy
 
 **Coverage Targets**:
-- **Overall**: 90%+ coverage
-- **Core modules** (`server.py`, `tools/`, `docker/`): 95%+ coverage
-- **Utilities** (`utils/`): 95%+ coverage
+- **Overall**: High coverage maintained
+- **Core modules** (`server.py`, `tools/`, `docker/`): Comprehensive coverage
+- **Utilities** (`utils/`): Comprehensive coverage
 - **Tests**: No coverage requirement
 
 **Coverage Configuration**:

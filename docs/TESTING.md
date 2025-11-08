@@ -702,7 +702,7 @@ The mcp-docker testing strategy provides:
 ✅ **Fast feedback** with unit tests (<5s)
 ✅ **Component validation** with integration tests (~10s)
 ✅ **Production confidence** with E2E tests (~30-60s)
-✅ **High coverage** (88%+ overall)
+✅ **High coverage** across all modules
 ✅ **CI/CD ready** with automated testing
 
 Choose the right test level for the job:
