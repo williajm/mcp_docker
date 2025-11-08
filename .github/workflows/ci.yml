@@ -352,6 +352,11 @@ jobs:
     - name: Generate test summary
       id: summary
       run: |
+        # Debug: List all downloaded files
+        echo "=== Files in current directory ==="
+        find . -name "*.xml" -type f
+        echo "==================================="
+
         uv run python3 << 'EOF'
         import json
         import os
@@ -360,7 +365,10 @@ jobs:
 
         # Parse JUnit XML files
         results = {}
-        for xml_file in Path('.').glob('junit/**/*.xml'):
+        xml_files = list(Path('.').glob('junit/**/*.xml'))
+        print(f"Found {len(xml_files)} XML files: {[str(f) for f in xml_files]}")
+
+        for xml_file in xml_files:
             suite_name = xml_file.stem.replace('-results', '').replace('test-', '')
             xml = JUnitXml.fromfile(str(xml_file))
 
