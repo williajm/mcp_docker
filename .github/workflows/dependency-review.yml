@@ -22,8 +22,8 @@ jobs:
       with:
         # Fail the build if vulnerabilities are found
         fail-on-severity: moderate
-        # Allow licenses (MIT, Apache-2.0, BSD-3-Clause, etc.)
-        allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Python-2.0
+        # Allow licenses (MIT, Apache-2.0, BSD-3-Clause, LGPL-3.0 for GitHub Actions, etc.)
+        allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, Python-2.0, LGPL-3.0
         # Deny specific licenses if needed
         # deny-licenses: GPL-3.0, AGPL-3.0
         comment-summary-in-pr: on-failure
