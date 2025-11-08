@@ -8,8 +8,10 @@
 # 3. Update hash below
 
 # Main fuzzing dependencies
+# Note: Binary wheels (atheris, cffi, pydantic-core) have Python-version-specific hashes
+# These hashes are for Python 3.11 (used by gcr.io/oss-fuzz-base/base-builder-python)
 atheris==2.3.0 \
-    --hash=sha256:b91cb296d60915c3efa4f6db48f09c4678b574cddb7ca98035f1cb9d9fb96f64
+    --hash=sha256:e4e43d1ee4760916a84ff73c9c6cf9ac6eee80fc030479bbed43fe0b8e994981
 
 # Runtime dependencies (from pyproject.toml)
 pydantic==2.10.4 \
@@ -26,7 +28,7 @@ cryptography==44.0.0 \
 
 # Transitive dependencies (required by packages above)
 pydantic-core==2.27.2 \
-    --hash=sha256:47956ae78b6422cbd46f772f1746799cbb862de838fd8d1fbd34a82e05b0983a
+    --hash=sha256:1c1fd185014191700554795c99b347d64f2bb637966c4cfc16998a0ca700d048
 
 annotated-types==0.7.0 \
     --hash=sha256:1f02e8b43a8fbbc3f3e0d4f0f4bfc8131bcb4eebe8849b8e5c773f3a1c582a53
@@ -38,7 +40,7 @@ python-dotenv==1.2.1 \
     --hash=sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61
 
 cffi==2.0.0 \
-    --hash=sha256:fc7de24befaeae77ba923797c7c87834c73648a05a4bde34b3b7e5588973a453
+    --hash=sha256:8941aaadaf67246224cee8c3803777eed332a19d909b47e29c9842ef1e79ac26
 
 pycparser==2.23 \
     --hash=sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934
