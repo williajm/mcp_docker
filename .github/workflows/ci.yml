@@ -343,6 +343,9 @@ jobs:
     - name: Set up Python 3.11
       run: uv python install 3.11
 
+    - name: Create virtual environment
+      run: uv venv
+
     - name: Install pytest for result parsing
       run: uv pip install pytest junitparser
 
