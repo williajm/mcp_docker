@@ -5,6 +5,7 @@ server.call_tool() directly with API key auth, bypassing the MCP transport layer
 """
 
 import json
+from typing import Any
 
 import pytest
 
@@ -13,7 +14,7 @@ from mcp_docker.server import MCPDockerServer
 
 
 @pytest.fixture
-def api_key_test_env(tmp_path):
+def api_key_test_env(tmp_path: Any) -> Any:
     """Setup API key authentication environment for testing.
 
     Returns:
@@ -50,7 +51,7 @@ def api_key_test_env(tmp_path):
 
 
 @pytest.fixture
-def skip_if_no_docker():
+def skip_if_no_docker() -> Any:
     """Fail test if Docker is not available."""
     try:
         import docker
@@ -67,7 +68,9 @@ class TestAPIKeyAuthIntegration:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_valid_api_key_authentication(self, api_key_test_env, skip_if_no_docker):
+    async def test_valid_api_key_authentication(
+        self, api_key_test_env: Any, skip_if_no_docker: Any
+    ) -> None:
         """Integration test: Valid API key authenticates successfully.
 
         Scenario:
@@ -89,7 +92,9 @@ class TestAPIKeyAuthIntegration:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_invalid_api_key_authentication(self, api_key_test_env, skip_if_no_docker):
+    async def test_invalid_api_key_authentication(
+        self, api_key_test_env: Any, skip_if_no_docker: Any
+    ) -> None:
         """Integration test: Invalid API key is rejected.
 
         Scenario:
@@ -109,13 +114,15 @@ class TestAPIKeyAuthIntegration:
         # Should fail
         assert result.get("success") is False, "Invalid API key should be rejected"
         error_msg = result.get("error", "").lower()
-        assert (
-            "authentication" in error_msg or "api key" in error_msg or "invalid" in error_msg
-        ), f"Expected authentication error, got: {result.get('error')}"
+        assert "authentication" in error_msg or "api key" in error_msg or "invalid" in error_msg, (
+            f"Expected authentication error, got: {result.get('error')}"
+        )
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_missing_api_key_authentication(self, api_key_test_env, skip_if_no_docker):
+    async def test_missing_api_key_authentication(
+        self, api_key_test_env: Any, skip_if_no_docker: Any
+    ) -> None:
         """Integration test: Missing API key is rejected.
 
         Scenario:
@@ -135,13 +142,15 @@ class TestAPIKeyAuthIntegration:
         # Should fail
         assert result.get("success") is False, "Missing API key should be rejected"
         error_msg = result.get("error", "").lower()
-        assert (
-            "authentication" in error_msg or "api key" in error_msg or "required" in error_msg
-        ), f"Expected authentication error, got: {result.get('error')}"
+        assert "authentication" in error_msg or "api key" in error_msg or "required" in error_msg, (
+            f"Expected authentication error, got: {result.get('error')}"
+        )
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_disabled_api_key_authentication(self, tmp_path, skip_if_no_docker):
+    async def test_disabled_api_key_authentication(
+        self, tmp_path: Any, skip_if_no_docker: Any
+    ) -> None:
         """Integration test: Disabled API key is rejected.
 
         Scenario:
@@ -185,7 +194,7 @@ class TestAPIKeyAuthIntegration:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_multiple_api_keys(self, tmp_path, skip_if_no_docker):
+    async def test_multiple_api_keys(self, tmp_path: Any, skip_if_no_docker: Any) -> None:
         """Integration test: Multiple API keys work independently.
 
         Scenario:
@@ -242,7 +251,7 @@ class TestAPIKeyAuthIntegration:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_api_key_reload(self, tmp_path, skip_if_no_docker):
+    async def test_api_key_reload(self, tmp_path: Any, skip_if_no_docker: Any) -> None:
         """Integration test: API keys can be reloaded without restart.
 
         Scenario:
@@ -317,7 +326,9 @@ class TestAPIKeyAuthIntegration:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_api_key_docker_operations(self, api_key_test_env, skip_if_no_docker):
+    async def test_api_key_docker_operations(
+        self, api_key_test_env: Any, skip_if_no_docker: Any
+    ) -> None:
         """Integration test: API key auth works for multiple Docker operations.
 
         Scenario:

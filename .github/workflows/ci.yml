@@ -46,8 +46,10 @@ jobs:
           -v \
           --cov=mcp_docker \
           --cov-report=xml \
+          --cov-report=html \
           --cov-report=term-missing \
-          --cov-fail-under=85
+          --cov-fail-under=85 \
+          --junitxml=junit/test-results-${{ matrix.python-version }}.xml
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
@@ -59,6 +61,44 @@ jobs:
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
       continue-on-error: true
+
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: |
+          junit/test-results-${{ matrix.python-version }}.xml
+        check_name: Unit Test Results (Python ${{ matrix.python-version }})
+        comment_mode: off
+
+    - name: Upload coverage HTML report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: htmlcov/
+        retention-days: 30
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}
+        path: |
+          junit/
+          coverage.xml
+        retention-days: 30
+
+    - name: Generate coverage report
+      id: coverage
+      if: matrix.python-version == '3.11'
+      run: |
+        echo "coverage=$(uv run coverage report | grep TOTAL | awk '{print $4}')" >> $GITHUB_OUTPUT
+        echo "## 📊 Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        uv run coverage report >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
 
   integration-test:
     name: Integration Tests
@@ -101,7 +141,25 @@ jobs:
           -m "integration" \
           --tb=short \
           --maxfail=5 \
+          --junitxml=junit/integration-results.xml \
           --no-cov
+
+    - name: Publish integration test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: |
+          junit/integration-results.xml
+        check_name: Integration Test Results
+        comment_mode: off
+
+    - name: Upload integration test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: integration-test-results
+        path: junit/
+        retention-days: 30
 
     - name: Cleanup Docker resources
       if: always()
@@ -146,6 +204,7 @@ jobs:
           -m "e2e and not slow" \
           --tb=short \
           --maxfail=3 \
+          --junitxml=junit/e2e-results.xml \
           --no-cov
 
     - name: Run E2E tests (full - for main branch)
@@ -156,7 +215,25 @@ jobs:
           -m "e2e" \
           --tb=short \
           --maxfail=5 \
+          --junitxml=junit/e2e-results.xml \
           --no-cov
+
+    - name: Publish E2E test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: |
+          junit/e2e-results.xml
+        check_name: E2E Test Results
+        comment_mode: off
+
+    - name: Upload E2E test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: e2e-test-results
+        path: junit/
+        retention-days: 30
 
     - name: Cleanup Docker resources
       if: always()
@@ -223,3 +300,154 @@ jobs:
         name: dist-packages
         path: dist/
         retention-days: 7
+
+  pr-comment:
+    name: PR Test Summary
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: [test, integration-test, e2e-test]
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+    - name: Download all test results
+      uses: actions/download-artifact@v4
+      with:
+        pattern: '*-results*'
+        merge-multiple: true
+
+    - name: Download coverage reports
+      uses: actions/download-artifact@v4
+      with:
+        name: coverage-report-3.11
+        path: htmlcov/
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
+      with:
+        version: "latest"
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install pytest for result parsing
+      run: uv pip install pytest junitparser
+
+    - name: Generate test summary
+      id: summary
+      run: |
+        python3 << 'EOF'
+        import json
+        import os
+        from pathlib import Path
+        from junitparser import JUnitXml
+
+        # Parse JUnit XML files
+        results = {}
+        for xml_file in Path('.').glob('junit/**/*.xml'):
+            suite_name = xml_file.stem.replace('-results', '').replace('test-', '')
+            xml = JUnitXml.fromfile(str(xml_file))
+
+            total = xml.tests
+            failures = xml.failures
+            errors = xml.errors
+            skipped = xml.skipped
+            passed = total - failures - errors - skipped
+            time = xml.time
+
+            results[suite_name] = {
+                'total': total,
+                'passed': passed,
+                'failed': failures + errors,
+                'skipped': skipped,
+                'time': time
+            }
+
+        # Write summary
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"results={json.dumps(results)}\n")
+        EOF
+
+    - name: Comment PR
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const results = JSON.parse('${{ steps.summary.outputs.results }}');
+
+          // Build results table
+          let tableRows = '';
+          let allPassed = true;
+
+          for (const [suite, data] of Object.entries(results)) {
+            const status = data.failed === 0 ? '✅' : '❌';
+            if (data.failed > 0) allPassed = false;
+            const suiteName = suite.charAt(0).toUpperCase() + suite.slice(1);
+            const duration = data.time < 60 ? `${data.time.toFixed(0)}s` : `${(data.time / 60).toFixed(1)}m`;
+
+            tableRows += `| ${suiteName} | ${status} | ${data.passed} | ${data.failed} | ${data.skipped} | ${duration} |\n`;
+          }
+
+          const totalTests = Object.values(results).reduce((sum, r) => sum + r.total, 0);
+          const totalPassed = Object.values(results).reduce((sum, r) => sum + r.passed, 0);
+          const totalFailed = Object.values(results).reduce((sum, r) => sum + r.failed, 0);
+          const totalSkipped = Object.values(results).reduce((sum, r) => sum + r.skipped, 0);
+
+          const body = `## 🧪 Test Results for \`${context.payload.pull_request.head.sha.substring(0, 7)}\`
+
+          ### Summary
+          ${allPassed ? '✅ **All tests passed!**' : '❌ **Some tests failed**'}
+
+          | Test Suite | Status | Passed | Failed | Skipped | Duration |
+          |------------|--------|--------|--------|---------|----------|
+          ${tableRows}
+          | **Total** | ${allPassed ? '✅' : '❌'} | **${totalPassed}** | **${totalFailed}** | **${totalSkipped}** | - |
+
+          ### 📊 Coverage
+
+          Coverage reports are available in the [workflow artifacts](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}).
+
+          <details>
+          <summary>📦 Download Reports</summary>
+
+          - [Coverage HTML Report (Python 3.11)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+          - [Coverage HTML Report (Python 3.12)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+          - [Coverage HTML Report (Python 3.13)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+          - [Test Results (JUnit XML)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+
+          </details>
+
+          ---
+
+          [📊 View Full Report](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) |
+          [📝 All Checks](https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.payload.pull_request.number}/checks)`;
+
+          // Find existing comment
+          const comments = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.payload.pull_request.number,
+          });
+
+          const botComment = comments.data.find(comment =>
+            comment.user.type === 'Bot' &&
+            comment.body.includes('🧪 Test Results for')
+          );
+
+          if (botComment) {
+            // Update existing comment
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: botComment.id,
+              body: body
+            });
+          } else {
+            // Create new comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: body
+            });
+          }

@@ -4,7 +4,6 @@ This module provides tools for inspecting and debugging Docker containers:
 list, inspect, logs, exec, and stats operations.
 """
 
-import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
@@ -12,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
@@ -20,33 +20,9 @@ from mcp_docker.utils.validation import validate_command
 logger = get_logger(__name__)
 
 
-def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
-    """Parse JSON strings to objects (workaround for MCP client serialization bug).
-
-    Args:
-        v: The value to parse (dict or JSON string)
-        field_name: Name of the field for error messages
-
-    Returns:
-        Parsed dict if v was a string, otherwise returns v unchanged
-
-    Raises:
-        ValueError: If v is a string but not valid JSON
-    """
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            logger.warning(
-                f"Received JSON string instead of object for {field_name}, auto-parsing. "
-                "This is a workaround for MCP client serialization issues."
-            )
-            return parsed
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Received invalid JSON string for {field_name}: {v[:100]}... "
-                f"Expected an object/dict, not a string. Error: {e}"
-            ) from e
-    return v
+# Constants for container inspection operations
+# Safety limit for log streaming to prevent memory exhaustion in follow mode
+MAX_STREAMING_LOG_LINES = 10000  # Prevents OOM when collecting streaming logs
 
 
 # Input/Output Models
@@ -156,9 +132,6 @@ class ContainerStatsOutput(BaseModel):
 class ListContainersTool(BaseTool):
     """List Docker containers with optional filters."""
 
-    # Keep output_model for documentation (not used by BaseTool but helpful)
-    output_model = ListContainersOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -220,8 +193,6 @@ class ListContainersTool(BaseTool):
 class InspectContainerTool(BaseTool):
     """Inspect a Docker container to get detailed information."""
 
-    output_model = InspectContainerOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -276,8 +247,6 @@ class InspectContainerTool(BaseTool):
 class ContainerLogsTool(BaseTool):
     """Get logs from a Docker container."""
 
-    output_model = ContainerLogsOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -297,6 +266,46 @@ class ContainerLogsTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.SAFE
+
+    @staticmethod
+    def _decode_static_logs(logs: bytes | str) -> str:
+        """Decode static logs (non-streaming mode).
+
+        Args:
+            logs: Logs as bytes or string
+
+        Returns:
+            Decoded log string
+
+        """
+        return logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
+
+    @staticmethod
+    def _collect_streaming_logs(logs: Any) -> str:
+        """Collect streaming logs with safety limits.
+
+        Args:
+            logs: Generator returning log lines
+
+        Returns:
+            Collected and decoded log string
+
+        """
+        log_lines = []
+        try:
+            for line in logs:
+                log_lines.append(line)
+                if len(log_lines) >= MAX_STREAMING_LOG_LINES:
+                    logger.warning(
+                        f"Reached max line limit ({MAX_STREAMING_LOG_LINES}) for follow mode, "
+                        "stopping collection"
+                    )
+                    break
+            logs_bytes = b"".join(log_lines)
+            return logs_bytes.decode("utf-8")
+        except Exception as e:
+            logger.error(f"Error collecting logs in follow mode: {e}")
+            return f"Error collecting logs: {e}"
 
     async def execute(self, input_data: ContainerLogsInput) -> ContainerLogsOutput:
         """Execute the get container logs operation.
@@ -331,28 +340,11 @@ class ContainerLogsTool(BaseTool):
             logs = container.logs(**kwargs)
 
             # Handle different return types based on follow mode
+            # Use guard clause pattern for cleaner flow
             if input_data.follow:
-                # When follow=True, logs returns a generator
-                # Collect logs with a reasonable limit to avoid memory issues
-                log_lines = []
-                max_lines = 10000  # Safety limit
-                try:
-                    for line in logs:
-                        log_lines.append(line)
-                        if len(log_lines) >= max_lines:
-                            logger.warning(
-                                f"Reached max line limit ({max_lines}) for follow mode, "
-                                "stopping collection"
-                            )
-                            break
-                    logs_bytes = b"".join(log_lines)
-                    logs_str = logs_bytes.decode("utf-8")
-                except Exception as e:
-                    logger.error(f"Error collecting logs in follow mode: {e}")
-                    logs_str = f"Error collecting logs: {e}"
+                logs_str = self._collect_streaming_logs(logs)
             else:
-                # When follow=False, logs returns bytes or string directly
-                logs_str = logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
+                logs_str = self._decode_static_logs(logs)
 
             logger.info(f"Successfully retrieved logs for container: {input_data.container_id}")
             return ContainerLogsOutput(logs=logs_str, container_id=str(container.id))
@@ -369,8 +361,6 @@ class ContainerLogsTool(BaseTool):
 
 class ExecCommandTool(BaseTool):
     """Execute a command in a running Docker container."""
-
-    output_model = ExecCommandOutput
 
     @property
     def name(self) -> str:
@@ -391,6 +381,23 @@ class ExecCommandTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    def check_privileged_arguments(self, arguments: dict[str, Any]) -> None:
+        """Check if privileged exec command is allowed.
+
+        Args:
+            arguments: Tool arguments
+
+        Raises:
+            PermissionError: If privileged exec is not allowed
+        """
+        privileged = arguments.get("privileged", False)
+        if privileged and not self.safety.allow_privileged_containers:
+            logger.warning("Privileged exec command blocked by safety config")
+            raise PermissionError(
+                "Privileged containers are not allowed. "
+                "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
+            )
 
     async def execute(self, input_data: ExecCommandInput) -> ExecCommandOutput:
         """Execute the exec command operation.
@@ -453,8 +460,6 @@ class ExecCommandTool(BaseTool):
 class ContainerStatsTool(BaseTool):
     """Get resource usage statistics for a Docker container."""
 
-    output_model = ContainerStatsOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -497,13 +502,13 @@ class ContainerStatsTool(BaseTool):
             # When stream=True, returns a generator of dicts
             if input_data.stream:
                 # Get first stats snapshot from the stream
-                stats_gen = container.stats(stream=True, decode=True)  # type: ignore[no-untyped-call]
+                stats_gen = container.stats(stream=True, decode=True)
                 stats = next(stats_gen)
                 # Close the generator to avoid resource leaks
                 stats_gen.close()
             else:
                 # Returns a dict directly when stream=False (decode not supported here)
-                stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
+                stats = container.stats(stream=False)
 
             logger.info(f"Successfully retrieved stats for container: {input_data.container_id}")
             return ContainerStatsOutput(stats=stats, container_id=str(container.id))

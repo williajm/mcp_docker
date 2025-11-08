@@ -28,9 +28,9 @@ Ein [Model Context Protocol (MCP)](https://modelcontextprotocol.io) Server, der 
 
 ## Funktionen
 
-- **36 Docker-Tools**: Vollständige Verwaltung von Containern, Images, Netzwerken, Volumes, System und **Docker Compose**
-- **3 KI-Prompts**: Intelligente Fehlersuche und Optimierung für Container und Compose-Stacks
-- **2 Ressourcen**: Echtzeit-Container-Logs, Statistiken und Compose-Projektinformationen
+- **36 Docker-Tools**: Vollständige Verwaltung von Containern, Images, Netzwerken, Volumes und System
+- **5 KI-Prompts**: Intelligente Fehlersuche, Optimierung, Netzwerk-Debugging und Sicherheitsanalyse
+- **2 Ressourcen**: Echtzeit-Container-Logs und Ressourcenstatistiken
 - **Typsicherheit**: Vollständige Type-Hints mit Pydantic-Validierung und mypy strict mode
 - **Sicherheitskontrollen**: Dreistufiges Sicherheitssystem (sicher/moderat/destruktiv) mit konfigurierbaren Einschränkungen
 - **Umfassende Tests**: 88%+ Testabdeckung mit Unit- und Integrationstests
@@ -265,16 +265,13 @@ Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 
 ## Prompts
 
-Fünf Prompts helfen KI-Assistenten bei der Arbeit mit Docker und Compose:
+Fünf Prompts helfen KI-Assistenten bei der Arbeit mit Docker:
 
-### Container-Prompts
 - **troubleshoot_container** - Container-Probleme mit Log- und Konfigurationsanalyse diagnostizieren
 - **optimize_container** - Optimierungsvorschläge für Ressourcennutzung und Sicherheit erhalten
 - **generate_compose** - docker-compose.yml aus Containern oder Beschreibungen generieren
-
-### Compose-Prompts
-- **troubleshoot_compose_stack** - Docker Compose-Projektprobleme und Service-Abhängigkeiten diagnostizieren
-- **optimize_compose_config** - Compose-Konfiguration für Leistung, Zuverlässigkeit und Sicherheit optimieren
+- **debug_networking** - Tiefgehende Netzwerkproblemanalyse mit systematischer L3-L7-Fehlersuche
+- **security_audit** - Umfassende Sicherheitsanalyse nach CIS Docker Benchmark mit Compliance-Mapping
 
 ## Ressourcen
 

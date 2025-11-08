@@ -3,6 +3,8 @@
 These tests verify the complete MCP protocol integration with Docker operations.
 """
 
+from collections.abc import AsyncGenerator
+
 import pytest
 
 from mcp_docker.config import Config
@@ -21,7 +23,7 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-async def mcp_server(integration_config: Config) -> MCPDockerServer:
+async def mcp_server(integration_config: Config) -> AsyncGenerator[MCPDockerServer, None]:
     """Create MCP server instance."""
     server = MCPDockerServer(integration_config)
     await server.start()

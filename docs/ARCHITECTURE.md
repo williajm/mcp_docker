@@ -33,7 +33,7 @@ title: Architecture
 |                      MCPDockerServer                            |
 |  +--------------+  +--------------+  +--------------+         |
 |  |   Tools      |  |  Resources   |  |   Prompts    |         |
-|  |  (37 tools)  |  |  (logs/stats)|  | (templates)  |         |
+|  |  (36 tools)  |  |  (logs/stats)|  | (5 prompts)  |         |
 |  +------+-------+  +------+-------+  +------+-------+         |
 |         |                  |                  |                  |
 |         +------------------+------------------+                  |
@@ -85,7 +85,7 @@ src/mcp_docker/
 |   +-- image_tools.py     # 9 image management tools
 |   +-- network_tools.py   # 6 network management tools
 |   +-- volume_tools.py    # 5 volume management tools
-|   +-- system_tools.py    # 7 system-level tools
+|   +-- system_tools.py    # 6 system-level tools
 |
 +-- resources/
 |   +-- providers.py       # MCP resource providers
@@ -97,6 +97,8 @@ src/mcp_docker/
 |       +-- TroubleshootContainerPrompt  # Diagnostic assistance
 |       +-- OptimizeContainerPrompt      # Optimization suggestions
 |       +-- GenerateComposePrompt        # docker-compose.yml generation
+|       +-- DebugNetworkingPrompt        # Network troubleshooting
+|       +-- SecurityAuditPrompt          # Container security audit
 |
 +-- utils/
     +-- errors.py          # Exception hierarchy

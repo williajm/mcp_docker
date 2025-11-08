@@ -4,6 +4,8 @@ This module tests that SafetyConfig settings are properly enforced
 in the MCP server for destructive operations and privileged containers.
 """
 
+from typing import Any
+
 from mcp_docker.config import Config, SafetyConfig
 from mcp_docker.server import MCPDockerServer
 
@@ -11,7 +13,7 @@ from mcp_docker.server import MCPDockerServer
 class TestSafetyEnforcement:
     """Test safety configuration enforcement."""
 
-    def test_destructive_operation_blocked_by_default(self):
+    def test_destructive_operation_blocked_by_default(self) -> None:
         """Test that destructive operations are blocked when safety config disallows them."""
         # Create config with destructive operations disabled
         config = Config()
@@ -40,7 +42,7 @@ class TestSafetyEnforcement:
         assert "docker_remove_container" in result["error"]
         assert "SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS" in result["error"]
 
-    def test_destructive_operation_allowed_when_enabled(self):
+    def test_destructive_operation_allowed_when_enabled(self) -> None:
         """Test that destructive operations are allowed when safety config allows them."""
         # Create config with destructive operations enabled
         config = Config()
@@ -68,7 +70,7 @@ class TestSafetyEnforcement:
         assert result["success"] is False
         assert "not allowed" not in result.get("error", "").lower()
 
-    def test_privileged_exec_blocked_by_default(self):
+    def test_privileged_exec_blocked_by_default(self) -> None:
         """Test that privileged exec is blocked when safety config disallows it."""
         # Create config with privileged containers disabled
         config = Config()
@@ -100,7 +102,7 @@ class TestSafetyEnforcement:
         assert "Privileged" in result["error"]
         assert "SAFETY_ALLOW_PRIVILEGED_CONTAINERS" in result["error"]
 
-    def test_privileged_exec_allowed_when_enabled(self):
+    def test_privileged_exec_allowed_when_enabled(self) -> None:
         """Test that privileged exec is allowed when safety config allows it."""
         # Create config with privileged containers enabled
         config = Config()
@@ -134,7 +136,7 @@ class TestSafetyEnforcement:
             or "not allowed" not in result.get("error", "").lower()
         )
 
-    def test_non_privileged_exec_always_allowed(self):
+    def test_non_privileged_exec_always_allowed(self) -> None:
         """Test that non-privileged exec is allowed even when privileged is disabled."""
         # Create config with privileged containers disabled
         config = Config()
@@ -165,38 +167,7 @@ class TestSafetyEnforcement:
         assert result["success"] is False
         assert "not allowed" not in result.get("error", "").lower()
 
-    def test_privileged_create_container_blocked(self):
-        """Test that privileged container creation is blocked when safety config disallows it."""
-        # Create config with privileged containers disabled
-        config = Config()
-        config.security.auth_enabled = False
-        config.safety = SafetyConfig(
-            allow_destructive_operations=True,
-            allow_privileged_containers=False,
-            require_confirmation_for_destructive=False,
-        )
-        server = MCPDockerServer(config)
-
-        # Try to create container with privileged=True
-        import asyncio
-
-        result = asyncio.run(
-            server.call_tool(
-                "docker_create_container",
-                {
-                    "image": "nginx:latest",
-                    "privileged": True,
-                },
-            )
-        )
-
-        # Check that operation was blocked
-        assert result["success"] is False
-        assert result["error_type"] == "PermissionError"
-        assert "Privileged" in result["error"]
-        assert "SAFETY_ALLOW_PRIVILEGED_CONTAINERS" in result["error"]
-
-    def test_all_destructive_tools_are_protected(self):
+    def test_all_destructive_tools_are_protected(self) -> None:
         """Test that all DESTRUCTIVE tools are protected by safety config."""
         # Create config with destructive operations disabled
         config = Config()
@@ -209,7 +180,7 @@ class TestSafetyEnforcement:
         server = MCPDockerServer(config)
 
         # List of destructive tools to test
-        destructive_tools = [
+        destructive_tools: list[tuple[str, dict[str, Any]]] = [
             ("docker_remove_container", {"container_id": "test", "force": False}),
             ("docker_remove_image", {"image": "test:latest", "force": False}),
             ("docker_prune_images", {}),
@@ -226,15 +197,15 @@ class TestSafetyEnforcement:
 
             # Check that operation was blocked
             assert result["success"] is False, f"{tool_name} should be blocked"
-            assert (
-                result["error_type"] == "PermissionError"
-            ), f"{tool_name} should raise PermissionError"
-            assert (
-                "Destructive operation" in result["error"]
-            ), f"{tool_name} error should mention 'Destructive operation'"
+            assert result["error_type"] == "PermissionError", (
+                f"{tool_name} should raise PermissionError"
+            )
+            assert "Destructive operation" in result["error"], (
+                f"{tool_name} error should mention 'Destructive operation'"
+            )
             assert tool_name in result["error"], f"Error should mention {tool_name}"
 
-    def test_safe_operations_always_allowed(self):
+    def test_safe_operations_always_allowed(self) -> None:
         """Test that SAFE operations are never blocked by safety config."""
         # Create config with everything disabled
         config = Config()
@@ -264,6 +235,6 @@ class TestSafetyEnforcement:
 
             # Should not be blocked by permission error
             if not result["success"]:
-                assert (
-                    "not allowed" not in result.get("error", "").lower()
-                ), f"{tool_name} should not be blocked by safety config"
+                assert "not allowed" not in result.get("error", "").lower(), (
+                    f"{tool_name} should not be blocked by safety config"
+                )

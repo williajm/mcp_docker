@@ -22,19 +22,42 @@ from mcp_docker.utils.stats_formatter import calculate_memory_usage
 logger = get_logger(__name__)
 
 
+# Constants for prompt template display limits with rationale
+# These limits balance detail vs. readability and prevent token limit exhaustion
+
+# Environment variable display limits
+MAX_DISPLAYED_ENV_VARS = 5  # Show top 5 env vars before truncating (balance detail vs clutter)
+
+# Port mapping display limits
+MAX_DISPLAYED_PORTS = 3  # Show top 3 port mappings before truncating (most critical ports)
+
+# Volume mount display limits
+MAX_DISPLAYED_VOLUMES = 3  # Show top 3 volume mounts before truncating (key mounts only)
+
+# Container audit limits
+MAX_AUDIT_CONTAINERS = 20  # Max containers in security audit (prevent timeout and token limits)
+
+# Log line display limits
+MAX_NETWORK_LOG_LINES = 20  # Max network-related log lines shown (balance context vs noise)
+MAX_TROUBLESHOOT_LOG_LINES = 50  # Log tail for troubleshooting (enough context for diagnosis)
+MAX_DEBUG_LOG_LINES = 100  # Log tail for network debugging (deeper analysis needed)
+MAX_STREAMING_LOG_LINES = 10000  # Safety limit for follow mode (prevent memory exhaustion)
+
+
 # Display truncation limits for prompt templates
 @dataclass(frozen=True)
 class PromptDisplayLimits:
     """Display truncation limits for prompt templates.
 
     Using frozen=True makes this immutable to prevent accidental modification.
+    These limits balance detail vs. readability and prevent token limit exhaustion.
     """
 
-    env_vars: int = 5  # Maximum environment variables to show before truncating
-    ports: int = 3  # Maximum port mappings to show before truncating
-    volumes: int = 3  # Maximum volume mounts to show before truncating
-    audit_containers: int = 20  # Maximum containers to audit in security_audit prompt
-    network_log_lines: int = 20  # Maximum network-related log lines to show in debug_networking
+    env_vars: int = MAX_DISPLAYED_ENV_VARS
+    ports: int = MAX_DISPLAYED_PORTS
+    volumes: int = MAX_DISPLAYED_VOLUMES
+    audit_containers: int = MAX_AUDIT_CONTAINERS
+    network_log_lines: int = MAX_NETWORK_LOG_LINES
 
 
 DISPLAY_LIMITS = PromptDisplayLimits()
@@ -159,7 +182,7 @@ class TroubleshootContainerPrompt(BasePromptHelper):
                 self._fetch_container_base_data_blocking,
                 options.container_id,
                 include_logs=True,
-                log_tail=50,
+                log_tail=MAX_TROUBLESHOOT_LOG_LINES,
             )
 
             # Extract data from helper
@@ -543,7 +566,7 @@ class DebugNetworkingPrompt(BasePromptHelper):
             "name": container.name,
             "status": container.status,
             "attrs": container_attrs,
-            "logs": container.logs(tail=100).decode("utf-8", errors="replace"),
+            "logs": container.logs(tail=MAX_DEBUG_LOG_LINES).decode("utf-8", errors="replace"),
         }
 
     async def generate(self, options: DebugNetworkingOptions) -> PromptResult:
@@ -796,7 +819,7 @@ class SecurityAuditPrompt(BasePromptHelper):
         ]
 
         # Get system info (blocking I/O)
-        system_info: dict[str, Any] = self.docker.client.info()  # type: ignore[no-untyped-call]
+        system_info: dict[str, Any] = self.docker.client.info()
 
         return container_attrs_list, truncated, total_count, system_info
 
@@ -1051,49 +1074,18 @@ Container Security Audit:
 {combined_reports}
 """
 
-    async def generate(self, options: SecurityAuditOptions) -> PromptResult:
-        """Generate security audit prompt for container(s).
-
-        Args:
-            options: Security audit options with optional container_id
+    @staticmethod
+    def _get_security_audit_system_message() -> str:
+        """Get the system message for security audit prompts.
 
         Returns:
-            Prompt result with security audit guidance
+            System message with security analysis guidelines
 
         """
-        try:
-            # Offload blocking Docker I/O to thread pool
-            container_attrs_list, truncated, total_count, system_info = await asyncio.to_thread(
-                self._get_containers_and_system_info_blocking, options.container_id
-            )
-
-            if not container_attrs_list:
-                return PromptResult(
-                    description="No containers to audit",
-                    messages=[
-                        PromptMessage(
-                            role="user",
-                            content="No containers found to audit.",
-                        )
-                    ],
-                )
-
-            # Generate truncation warning if applicable
-            truncation_warning = ""
-            if not options.container_id and truncated:
-                max_containers = DISPLAY_LIMITS.audit_containers
-                truncation_warning = (
-                    f"\n\n⚠️ NOTE: Only showing first {max_containers} of {total_count} "
-                    f"containers. Specify a container_id to audit a specific container.\n"
-                )
-
-            # Compile comprehensive audit report
-            full_context = self._compile_audit_report(container_attrs_list, system_info)
-
-            system_message = (
-                """You are a Docker security expert specializing in container hardening and """
-                """vulnerability assessment. Analyze the security configuration and identify """
-                """vulnerabilities following industry best practices:
+        return (
+            """You are a Docker security expert specializing in container hardening and """
+            """vulnerability assessment. Analyze the security configuration and identify """
+            """vulnerabilities following industry best practices:
 
 1. **Privileged Containers & Capabilities**
    - Identify privileged containers (full host access - CRITICAL)
@@ -1136,17 +1128,86 @@ Container Security Audit:
    - Prioritize findings (Critical, High, Medium, Low)
 
 Provide specific, actionable recommendations to harden the security posture. """
-                """Prioritize findings by severity."""
-            )
+            """Prioritize findings by severity."""
+        )
 
-            user_message = (
-                f"""Please perform a comprehensive security audit of the following """
-                f"""containers:
+    def _generate_truncation_warning(
+        self, container_id: str | None, truncated: bool, total_count: int
+    ) -> str:
+        """Generate truncation warning if applicable.
+
+        Args:
+            container_id: Container ID if auditing specific container
+            truncated: Whether results were truncated
+            total_count: Total number of containers
+
+        Returns:
+            Truncation warning string or empty string
+
+        """
+        if container_id or not truncated:
+            return ""
+
+        max_containers = DISPLAY_LIMITS.audit_containers
+        return (
+            f"\n\n⚠️ NOTE: Only showing first {max_containers} of {total_count} "
+            f"containers. Specify a container_id to audit a specific container.\n"
+        )
+
+    def _create_security_audit_user_message(
+        self, full_context: str, truncation_warning: str
+    ) -> str:
+        """Create user message for security audit.
+
+        Args:
+            full_context: Full audit context with container data
+            truncation_warning: Truncation warning string
+
+        Returns:
+            Formatted user message
+
+        """
+        return (
+            f"""Please perform a comprehensive security audit of the following """
+            f"""containers:
 
 {full_context}
 {truncation_warning}
 What security vulnerabilities and misconfigurations do you identify? """
-                f"""Prioritize by severity and provide remediation steps."""
+            f"""Prioritize by severity and provide remediation steps."""
+        )
+
+    async def generate(self, options: SecurityAuditOptions) -> PromptResult:
+        """Generate security audit prompt for container(s).
+
+        Args:
+            options: Security audit options with optional container_id
+
+        Returns:
+            Prompt result with security audit guidance
+
+        """
+        try:
+            # Fetch container and system data
+            container_attrs_list, truncated, total_count, system_info = await asyncio.to_thread(
+                self._get_containers_and_system_info_blocking, options.container_id
+            )
+
+            # Handle no containers case
+            if not container_attrs_list:
+                return PromptResult(
+                    description="No containers to audit",
+                    messages=[PromptMessage(role="user", content="No containers found to audit.")],
+                )
+
+            # Compile audit context and messages
+            full_context = self._compile_audit_report(container_attrs_list, system_info)
+            truncation_warning = self._generate_truncation_warning(
+                options.container_id, truncated, total_count
+            )
+            system_message = self._get_security_audit_system_message()
+            user_message = self._create_security_audit_user_message(
+                full_context, truncation_warning
             )
 
             logger.debug(

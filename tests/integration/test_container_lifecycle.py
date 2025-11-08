@@ -4,6 +4,9 @@ These tests require Docker to be running and will create/remove test containers.
 Tests use MCPServer.call_tool() pattern for realistic integration testing.
 """
 
+from collections.abc import AsyncGenerator, Generator
+from typing import Any
+
 import pytest
 
 from mcp_docker.config import Config
@@ -22,7 +25,7 @@ def integration_config() -> Config:
 
 
 @pytest.fixture
-def mcp_server(integration_config: Config) -> MCPDockerServer:
+def mcp_server(integration_config: Config) -> Generator[MCPDockerServer, None, None]:
     """Create MCP server instance."""
     server = MCPDockerServer(integration_config)
     yield server
@@ -36,7 +39,9 @@ def test_container_name() -> str:
 
 
 @pytest.fixture
-async def cleanup_test_container(mcp_server: MCPDockerServer, test_container_name: str):
+async def cleanup_test_container(
+    mcp_server: MCPDockerServer, test_container_name: str
+) -> AsyncGenerator[None, None]:
     """Cleanup fixture to remove test container after tests."""
     yield
     # Cleanup after test
@@ -54,10 +59,7 @@ class TestContainerLifecycle:
 
     @pytest.mark.asyncio
     async def test_create_start_stop_remove_container(
-        self,
-        mcp_server: MCPDockerServer,
-        test_container_name: str,
-        cleanup_test_container,
+        self, mcp_server: MCPDockerServer, test_container_name: str, cleanup_test_container: Any
     ) -> None:
         """Test complete container lifecycle: create, start, stop, remove."""
         # Create container
@@ -119,7 +121,7 @@ class TestContainerLifecycle:
         self,
         mcp_server: MCPDockerServer,
         test_container_name: str,
-        cleanup_test_container,
+        cleanup_test_container: Any,
     ) -> None:
         """Test container restart operation."""
         # Create and start container
@@ -160,7 +162,7 @@ class TestContainerLifecycle:
         self,
         mcp_server: MCPDockerServer,
         test_container_name: str,
-        cleanup_test_container,
+        cleanup_test_container: Any,
     ) -> None:
         """Test retrieving container logs."""
         # Create container that produces output
@@ -193,7 +195,7 @@ class TestContainerLifecycle:
         self,
         mcp_server: MCPDockerServer,
         test_container_name: str,
-        cleanup_test_container,
+        cleanup_test_container: Any,
     ) -> None:
         """Test retrieving container statistics."""
         # Create and start container
@@ -231,7 +233,7 @@ class TestContainerLifecycle:
         self,
         mcp_server: MCPDockerServer,
         test_container_name: str,
-        cleanup_test_container,
+        cleanup_test_container: Any,
     ) -> None:
         """Test executing commands in container."""
         # Create and start container
@@ -259,7 +261,7 @@ class TestContainerLifecycle:
         self,
         mcp_server: MCPDockerServer,
         test_container_name: str,
-        cleanup_test_container,
+        cleanup_test_container: Any,
     ) -> None:
         """Test listing containers."""
         # Create container
@@ -291,7 +293,7 @@ class TestContainerLifecycle:
         self,
         mcp_server: MCPDockerServer,
         test_container_name: str,
-        cleanup_test_container,
+        cleanup_test_container: Any,
     ) -> None:
         """Test creating container with environment variables."""
         # Create container with environment variables
@@ -317,10 +319,7 @@ class TestContainerLifecycle:
         assert "test_value" in exec_result["result"]["output"]
 
     @pytest.mark.asyncio
-    async def test_container_error_handling(
-        self,
-        mcp_server: MCPDockerServer,
-    ) -> None:
+    async def test_container_error_handling(self, mcp_server: MCPDockerServer) -> None:
         """Test error handling for invalid operations."""
         # Try to inspect non-existent container
         inspect_result = await mcp_server.call_tool(

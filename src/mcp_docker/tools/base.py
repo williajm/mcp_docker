@@ -142,6 +142,22 @@ class BaseTool(ABC):
                     "This would normally prompt for user confirmation."
                 )
 
+    def check_privileged_arguments(self, arguments: dict[str, Any]) -> None:  # noqa: B027
+        """Check if privileged operation arguments are allowed.
+
+        This method can be overridden by tools that support privileged operations
+        to enforce safety restrictions on privileged mode.
+
+        Args:
+            arguments: Tool arguments to check
+
+        Raises:
+            PermissionError: If privileged operation is not allowed
+
+        """
+        # Default implementation: no privileged argument checks
+        pass
+
     @abstractmethod
     async def execute(self, input_data: Any) -> Any:
         """Execute the tool with validated arguments.
@@ -170,8 +186,9 @@ class BaseTool(ABC):
             Exception: Re-raises exceptions from execute() for server to handle
 
         """
-        # Safety check
+        # Safety checks
         self.check_safety()
+        self.check_privileged_arguments(arguments)
 
         # Validate input
         validated_input = self.input_schema(**arguments)

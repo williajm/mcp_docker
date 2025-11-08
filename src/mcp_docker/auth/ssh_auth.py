@@ -104,11 +104,11 @@ class SSHSignatureValidator:
         # RSA: Parse the key data
         key_msg = SSHWireMessage(key_data)
         _ = key_msg.get_text()  # Skip key type
-        e = key_msg.get_mpint()  # Public exponent
-        n = key_msg.get_mpint()  # Modulus
+        public_exponent = key_msg.get_mpint()  # Public exponent (e)
+        modulus = key_msg.get_mpint()  # Modulus (n)
 
         # Create cryptography RSA public key
-        public_numbers = rsa.RSAPublicNumbers(e, n)
+        public_numbers = rsa.RSAPublicNumbers(public_exponent, modulus)
         crypto_public_key = public_numbers.public_key()
 
         # Verify with PKCS1v15 padding and SHA-1 (SSH-RSA default)

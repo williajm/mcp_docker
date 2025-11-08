@@ -50,11 +50,11 @@ class DockerConfig(BaseSettings):
 
     @field_validator("tls_ca_cert", "tls_client_cert", "tls_client_key")
     @classmethod
-    def validate_cert_paths(cls, v: Path | None) -> Path | None:
+    def validate_cert_paths(cls, cert_path: Path | None) -> Path | None:
         """Validate that certificate paths exist if provided."""
-        if v is not None and not v.exists():
-            raise ValueError(f"Certificate file not found: {v}")
-        return v
+        if cert_path is not None and not cert_path.exists():
+            raise ValueError(f"Certificate file not found: {cert_path}")
+        return cert_path
 
 
 class SafetyConfig(BaseSettings):
@@ -167,19 +167,19 @@ class SecurityConfig(BaseSettings):
 
     @field_validator("api_keys_file")
     @classmethod
-    def validate_keys_file_parent_exists(cls, v: Path) -> Path:
+    def validate_keys_file_parent_exists(cls, keys_file_path: Path) -> Path:
         """Validate that parent directory exists for API keys file."""
-        if not v.parent.exists():
-            raise ValueError(f"Parent directory does not exist for keys file: {v}")
-        return v
+        if not keys_file_path.parent.exists():
+            raise ValueError(f"Parent directory does not exist for keys file: {keys_file_path}")
+        return keys_file_path
 
     @field_validator("audit_log_file")
     @classmethod
-    def validate_audit_log_parent_exists(cls, v: Path) -> Path:
+    def validate_audit_log_parent_exists(cls, audit_log_path: Path) -> Path:
         """Validate that parent directory exists for audit log file."""
-        if not v.parent.exists():
-            raise ValueError(f"Parent directory does not exist for audit log: {v}")
-        return v
+        if not audit_log_path.parent.exists():
+            raise ValueError(f"Parent directory does not exist for audit log: {audit_log_path}")
+        return audit_log_path
 
 
 class ServerConfig(BaseSettings):
@@ -216,13 +216,13 @@ class ServerConfig(BaseSettings):
 
     @field_validator("log_level")
     @classmethod
-    def validate_log_level(cls, v: str) -> str:
+    def validate_log_level(cls, level: str) -> str:
         """Validate log level."""
         valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        v_upper = v.upper()
-        if v_upper not in valid_levels:
-            raise ValueError(f"Invalid log level: {v}. Must be one of {valid_levels}")
-        return v_upper
+        level_upper = level.upper()
+        if level_upper not in valid_levels:
+            raise ValueError(f"Invalid log level: {level}. Must be one of {valid_levels}")
+        return level_upper
 
 
 class Config:

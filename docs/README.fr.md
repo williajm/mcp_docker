@@ -29,7 +29,7 @@ Un serveur [Model Context Protocol (MCP)](https://modelcontextprotocol.io) qui e
 ## Fonctionnalités
 
 - **36 Outils Docker** : Gestion complète des conteneurs, images, réseaux, volumes et système
-- **3 Prompts IA** : Dépannage et optimisation intelligents pour les conteneurs
+- **5 Prompts IA** : Dépannage intelligent, optimisation, débogage réseau et analyse de sécurité
 - **2 Ressources** : Logs en temps réel et statistiques des ressources des conteneurs
 - **Sécurité des Types** : Annotations de type complètes avec validation Pydantic et mode strict mypy
 - **Contrôles de Sécurité** : Système de sécurité à trois niveaux (sûr/modéré/destructif) avec restrictions configurables
@@ -251,11 +251,13 @@ Le serveur fournit 36 outils organisés en 5 catégories :
 
 ## Prompts
 
-Trois prompts aident les assistants IA à travailler avec Docker :
+Cinq prompts aident les assistants IA à travailler avec Docker :
 
 - **troubleshoot_container** - Diagnostiquer les problèmes de conteneur avec analyse des logs et de la configuration
 - **optimize_container** - Obtenir des suggestions d'optimisation pour l'utilisation des ressources et la sécurité
 - **generate_compose** - Générer docker-compose.yml à partir de conteneurs ou de descriptions
+- **debug_networking** - Analyse approfondie des problèmes réseau avec dépannage systématique L3-L7
+- **security_audit** - Analyse de sécurité complète suivant le CIS Docker Benchmark avec mapping de conformité
 
 ## Ressources
 

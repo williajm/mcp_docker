@@ -53,7 +53,7 @@ class BasePromptHelper:
             data["logs"] = container.logs(tail=log_tail).decode("utf-8", errors="replace")
 
         if include_stats and container.status == "running":
-            data["stats"] = container.stats(stream=False)  # type: ignore[no-untyped-call]
+            data["stats"] = container.stats(stream=False)
         elif include_stats:
             data["stats"] = None
 

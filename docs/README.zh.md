@@ -29,7 +29,7 @@
 ## 功能特性
 
 - **36个Docker工具**：完整管理容器、镜像、网络、卷、系统和**Docker Compose**
-- **3个AI提示**：为容器和compose堆栈提供智能故障排除和优化
+- **5个AI提示**：智能故障排查、优化、网络调试和安全分析
 - **2个资源**：实时容器日志、统计信息和compose项目信息
 - **类型安全**：完整的类型提示，配合Pydantic验证和mypy严格模式
 - **安全控制**：三级安全系统(安全/中等/破坏性)，具有可配置的限制
@@ -265,16 +265,13 @@ mcp-docker
 
 ## 提示
 
-五个提示帮助AI助手使用Docker和Compose：
+五个提示帮助AI助手使用Docker：
 
-### 容器提示
 - **troubleshoot_container** - 通过日志和配置分析诊断容器问题
 - **optimize_container** - 获取资源使用和安全性的优化建议
 - **generate_compose** - 从容器或描述生成docker-compose.yml
-
-### Compose提示
-- **troubleshoot_compose_stack** - 诊断Docker Compose项目问题和服务依赖关系
-- **optimize_compose_config** - 优化compose配置以提高性能、可靠性和安全性
+- **debug_networking** - 通过系统化L3-L7故障排除深入分析网络问题
+- **security_audit** - 遵循CIS Docker Benchmark的全面安全分析和合规性映射
 
 ## 资源
 
