@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to create release for'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-and-sign:
+    name: Build and Sign Release Assets
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      with:
+        ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@eb1897b8dc4b5d5bfe39a428a8f2304605e0983c # v7.0.0
+      with:
+        version: "latest"
+
+    - name: Set up Python 3.11
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Build package
+      run: uv build
+
+    - name: Generate artifact list
+      id: artifacts
+      run: |
+        echo "Building artifact list..."
+        ls -la dist/
+        echo "artifacts<<EOF" >> $GITHUB_OUTPUT
+        find dist/ -type f \( -name "*.whl" -o -name "*.tar.gz" \) -printf "%p\n" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Attest Build Provenance
+      uses: actions/attest-build-provenance@1c608d11d69870c2092266b3f9a6f3abbf17002c # v1.4.3
+      with:
+        subject-path: 'dist/*'
+
+    - name: Upload Release Assets
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        TAG="${{ github.event.release.tag_name || inputs.tag }}"
+        echo "Uploading assets for release $TAG..."
+
+        # Upload all built artifacts
+        for file in dist/*; do
+          if [ -f "$file" ]; then
+            echo "Uploading $file..."
+            gh release upload "$TAG" "$file" --clobber
+          fi
+        done
+
+        echo "✅ All assets uploaded successfully"
+
+    - name: Generate Release Summary
+      run: |
+        echo "## 📦 Release Build Complete" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Tag**: ${{ github.event.release.tag_name || inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Built Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        ls -lh dist/ >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Verification" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "All artifacts have been signed with GitHub attestations." >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "To verify attestations:" >> $GITHUB_STEP_SUMMARY
+        echo '```bash' >> $GITHUB_STEP_SUMMARY
+        echo 'gh attestation verify <artifact> --owner williajm' >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
