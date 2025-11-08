@@ -40,7 +40,8 @@ class DockerClientWrapper:
         """
         if self._client is None:
             self._connect()
-        return self._client  # type: ignore[return-value]
+        assert self._client is not None  # _connect() raises on failure, so client is set
+        return self._client
 
     def _connect(self) -> None:
         """Establish connection to Docker daemon with health check.

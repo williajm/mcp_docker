@@ -169,6 +169,37 @@ def validate_memory_string(memory: str) -> str:
     return memory.lower()
 
 
+def _validate_command_structure(command: str | list[str]) -> str | list[str]:
+    """Validate command structure (string or list) without sanitization.
+
+    This is a shared helper for command validation logic used by both
+    sanitize_command and validate_command.
+
+    Args:
+        command: Command string or list
+
+    Returns:
+        Validated command (same type as input)
+
+    Raises:
+        ValidationError: If command structure is invalid
+
+    """
+    if isinstance(command, str):
+        if not command.strip():
+            raise ValidationError("Command cannot be empty")
+        return command
+
+    if isinstance(command, list):
+        if not command:
+            raise ValidationError("Command list cannot be empty")
+        if not all(isinstance(item, str) for item in command):
+            raise ValidationError("All command items must be strings")
+        return command
+
+    raise ValidationError("Command must be a string or list of strings")
+
+
 def sanitize_command(command: str | list[str]) -> list[str]:
     """Sanitize command for Docker execution.
 
@@ -182,55 +213,36 @@ def sanitize_command(command: str | list[str]) -> list[str]:
         ValidationError: If command is invalid
 
     """
-    if isinstance(command, str):
-        # Basic shell command splitting (not perfect, but safe)
-        if not command.strip():
-            raise ValidationError("Command cannot be empty")
-        return [command]
-
-    if isinstance(command, list):
-        if not command:
-            raise ValidationError("Command list cannot be empty")
-        if not all(isinstance(item, str) for item in command):
-            raise ValidationError("All command items must be strings")
-        return command
-
-    raise ValidationError("Command must be a string or list of strings")
+    validated = _validate_command_structure(command)
+    # Always return as list for Docker API
+    return [validated] if isinstance(validated, str) else validated
 
 
 def validate_command(command: str | list[str]) -> str | list[str]:
-    """Validate command for Docker execution.
+    """Validate command for Docker execution with security checks.
 
     Args:
         command: Command string or list
 
     Returns:
-        Validated command
+        Validated command (same type as input)
 
     Raises:
-        ValidationError: If command is invalid
+        ValidationError: If command is invalid or contains dangerous patterns
 
     """
-    if isinstance(command, str):
-        if not command.strip():
-            raise ValidationError("Command cannot be empty")
-        # Check for potentially dangerous patterns
-        dangerous_patterns = [";", "&&", "||", "|", "`", "$(", "$("]
-        if any(pattern in command for pattern in dangerous_patterns):
+    validated = _validate_command_structure(command)
+
+    # Additional security checks for string commands
+    if isinstance(validated, str):
+        dangerous_patterns = [";", "&&", "||", "|", "`", "$("]
+        if any(pattern in validated for pattern in dangerous_patterns):
             raise ValidationError(
                 "Command contains potentially dangerous patterns. "
                 "Use list format for commands with special characters."
             )
-        return command
 
-    if isinstance(command, list):
-        if not command:
-            raise ValidationError("Command list cannot be empty")
-        if not all(isinstance(item, str) for item in command):
-            raise ValidationError("All command items must be strings")
-        return command
-
-    raise ValidationError("Command must be a string or list of strings")
+    return validated
 
 
 def validate_memory(memory: str) -> str:

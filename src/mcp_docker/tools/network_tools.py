@@ -4,7 +4,6 @@ This module provides tools for managing Docker networks, including
 creating, listing, inspecting, connecting, and removing networks.
 """
 
-import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
@@ -12,39 +11,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, NetworkNotFound
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
-
-
-def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
-    """Parse JSON strings to objects (workaround for MCP client serialization bug).
-
-    Args:
-        v: The value to parse (dict or JSON string)
-        field_name: Name of the field for error messages
-
-    Returns:
-        Parsed dict if v was a string, otherwise returns v unchanged
-
-    Raises:
-        ValueError: If v is a string but not valid JSON
-    """
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            logger.warning(
-                f"Received JSON string instead of object for {field_name}, auto-parsing. "
-                "This is a workaround for MCP client serialization issues."
-            )
-            return parsed
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Received invalid JSON string for {field_name}: {v[:100]}... "
-                f"Expected an object/dict, not a string. Error: {e}"
-            ) from e
-    return v
 
 
 # Input/Output Models
@@ -181,8 +153,6 @@ class RemoveNetworkOutput(BaseModel):
 class ListNetworksTool(BaseTool):
     """List Docker networks with optional filters."""
 
-    output_model = ListNetworksOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -242,8 +212,6 @@ class ListNetworksTool(BaseTool):
 class InspectNetworkTool(BaseTool):
     """Inspect a Docker network to get detailed information."""
 
-    output_model = InspectNetworkOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -295,8 +263,6 @@ class InspectNetworkTool(BaseTool):
 
 class CreateNetworkTool(BaseTool):
     """Create a new Docker network."""
-
-    output_model = CreateNetworkOutput
 
     @property
     def name(self) -> str:
@@ -363,8 +329,6 @@ class CreateNetworkTool(BaseTool):
 
 class ConnectContainerTool(BaseTool):
     """Connect a container to a network."""
-
-    output_model = ConnectContainerOutput
 
     @property
     def name(self) -> str:
@@ -436,8 +400,10 @@ class ConnectContainerTool(BaseTool):
             if "network" in error_msg:
                 logger.error(f"Network not found: {input_data.network_id}")
                 raise NetworkNotFound(f"Network not found: {input_data.network_id}") from e
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to connect container: {e}")
             raise DockerOperationError(f"Failed to connect container: {e}") from e
@@ -445,8 +411,6 @@ class ConnectContainerTool(BaseTool):
 
 class DisconnectContainerTool(BaseTool):
     """Disconnect a container from a network."""
-
-    output_model = DisconnectContainerOutput
 
     @property
     def name(self) -> str:
@@ -507,8 +471,10 @@ class DisconnectContainerTool(BaseTool):
             if "network" in error_msg:
                 logger.error(f"Network not found: {input_data.network_id}")
                 raise NetworkNotFound(f"Network not found: {input_data.network_id}") from e
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to disconnect container: {e}")
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e
@@ -516,8 +482,6 @@ class DisconnectContainerTool(BaseTool):
 
 class RemoveNetworkTool(BaseTool):
     """Remove a Docker network."""
-
-    output_model = RemoveNetworkOutput
 
     @property
     def name(self) -> str:

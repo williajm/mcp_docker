@@ -26,7 +26,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ## Features
 
 - **36 Docker Tools**: Complete container, image, network, volume, and system management
-- **3 AI Prompts**: Intelligent troubleshooting and optimization for containers
+- **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
@@ -198,11 +198,13 @@ export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
 - Event monitoring
 - Health checks
 
-### 3 AI Prompts
+### 5 AI Prompts
 
-1. **troubleshoot_container** - Diagnose container issues
-2. **optimize_container** - Suggest performance improvements
-3. **generate_compose** - Create docker-compose.yml files
+1. **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
+2. **optimize_container** - Suggest performance improvements and security best practices
+3. **generate_compose** - Create docker-compose.yml files from containers or descriptions
+4. **debug_networking** - Deep-dive network troubleshooting with systematic L3-L7 analysis
+5. **security_audit** - Comprehensive security analysis following CIS Docker Benchmark
 
 ### 2 Resources
 

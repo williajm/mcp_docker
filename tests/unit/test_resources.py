@@ -332,3 +332,24 @@ class TestResourceProvider:
         """Test getting metadata for unknown resource scheme."""
         with pytest.raises(ValueError, match="Unknown resource URI scheme"):
             resource_provider.get_resource_metadata("unknown://resource")
+
+
+class TestBaseResourceHelper:
+    """Tests for BaseResourceHelper class."""
+
+    def test_fetch_container_blocking(self, mock_docker_client: DockerClientWrapper) -> None:
+        """Test fetching container object."""
+        from mcp_docker.resources.base import BaseResourceHelper
+
+        # Setup mock container
+        mock_container = MagicMock()
+        mock_container.id = "test123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        # Create helper and fetch container
+        helper = BaseResourceHelper(mock_docker_client)
+        result = helper._fetch_container_blocking("test123")
+
+        # Verify
+        assert result == mock_container
+        mock_docker_client.client.containers.get.assert_called_once_with("test123")

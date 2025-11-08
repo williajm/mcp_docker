@@ -26,13 +26,13 @@ title: API Reference
 
 ## Introduction
 
-The Docker MCP Server provides 37 tools, 3 prompts, and 2 resource types for comprehensive Docker management through the Model Context Protocol (MCP). This API reference documents all available functionality, input parameters, output formats, and usage examples.
+The Docker MCP Server provides 36 tools, 5 prompts, and 2 resource types for comprehensive Docker management through the Model Context Protocol (MCP). This API reference documents all available functionality, input parameters, output formats, and usage examples.
 
 ### Key Features
 
-- **37 Docker Tools**: Complete container, image, network, volume, and system management
+- **36 Docker Tools**: Complete container, image, network, volume, and system management
 - **Safety System**: Three-tier safety classification (SAFE, MODERATE, DESTRUCTIVE)
-- **3 AI Prompts**: Troubleshooting, optimization, and compose file generation
+- **5 AI Prompts**: Troubleshooting, optimization, compose generation, network debugging, and security auditing
 - **2 Resource Types**: Real-time container logs and statistics via URI
 - **Full Validation**: Input validation and error handling for all operations
 
@@ -809,7 +809,9 @@ Remove unused Docker images.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `filters` | object | No | `null` | Filters (e.g., `{'dangling': ['true']}`) |
+| `all` | boolean | No | `false` | Remove all unused images, not just dangling ones. Equivalent to 'docker image prune -a'. When False (default), only removes dangling images (untagged intermediate layers). When True, removes all images not used by any container. NOTE: This still only removes UNUSED images. To remove ALL images including tagged ones, use force_all=true. |
+| `filters` | object | No | `null` | Filters to apply as key-value pairs. Examples: {'dangling': ['true']}, {'until': '24h'}, {'label': ['env=test']} |
+| `force_all` | boolean | No | `false` | Force remove ALL images, even if tagged or in use. USE THIS when user asks to 'remove all images', 'delete all images', or 'prune all images'. When True, removes EVERY image regardless of tags, names, or container usage. WARNING: This is extremely destructive and will delete all images. Requires user confirmation. |
 
 **Output Format:**
 
@@ -828,14 +830,28 @@ Remove unused Docker images.
 {
   "tool": "docker_prune_images",
   "arguments": {
+    "all": false,
     "filters": {"dangling": ["true"]}
   }
 }
 ```
 
+**Example: Remove ALL images**
+
+```json
+{
+  "tool": "docker_prune_images",
+  "arguments": {
+    "force_all": true
+  }
+}
+```
+
 **Warnings:**
-- Removes all unused images by default
-- Use filters to limit scope
+- By default, removes only UNUSED/dangling images
+- Use `all=true` to remove all unused images (not just dangling)
+- Use `force_all=true` to remove ALL images including tagged ones (extremely destructive)
+- When user says "remove all images" or "delete all images", use `force_all=true`
 
 ---
 
@@ -1298,7 +1314,8 @@ Remove unused Docker volumes.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `filters` | object | No | `null` | Filters to apply |
+| `filters` | object | No | `null` | Filters to apply as key-value pairs. Examples: {'label': ['env=test']}, {'dangling': ['true']}. NOTE: Filters only apply when force_all=false (standard prune mode). |
+| `force_all` | boolean | No | `false` | Force remove ALL volumes, even if named or in use. USE THIS when user asks to 'remove all volumes', 'delete all volumes', or 'prune all volumes'. When True, removes EVERY volume regardless of name or usage. WARNING: This is extremely destructive and will delete all volumes. Requires user confirmation. |
 
 **Output Format:**
 
@@ -1315,13 +1332,26 @@ Remove unused Docker volumes.
 {
   "tool": "docker_prune_volumes",
   "arguments": {
-    "filters": {}
+    "filters": {"label": ["env=test"]}
+  }
+}
+```
+
+**Example: Remove ALL volumes**
+
+```json
+{
+  "tool": "docker_prune_volumes",
+  "arguments": {
+    "force_all": true
   }
 }
 ```
 
 **Warnings:**
-- Removes all unused volumes by default
+- By default, removes only UNUSED volumes
+- Use `force_all=true` to remove ALL volumes including named ones (extremely destructive)
+- When user says "remove all volumes" or "delete all volumes", use `force_all=true`
 - This operation permanently deletes data
 
 ---
@@ -1408,7 +1438,7 @@ Get Docker disk usage statistics.
 
 #### docker_system_prune
 
-Prune all unused Docker resources (containers, images, networks, volumes).
+Prune Docker resources. By default, removes only UNUSED resources (stopped containers, dangling images, unused networks).
 
 **Safety Level:** DESTRUCTIVE
 
@@ -1416,7 +1446,10 @@ Prune all unused Docker resources (containers, images, networks, volumes).
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `filters` | object | No | `null` | Filters to apply |
+| `all` | boolean | No | `false` | Remove all unused images, not just dangling ones. Equivalent to 'docker system prune -a'. When False (default), only removes dangling images. When True, removes all images not used by any container. NOTE: This still only removes UNUSED images. To remove ALL images including tagged ones, use force_all=true. |
+| `filters` | object | No | `null` | Filters to apply as key-value pairs. Examples: {'until': '24h'}, {'label': ['env=test']} |
+| `volumes` | boolean | No | `false` | Include volumes in the prune operation. When False (default), volumes are not pruned. When True, prunes unused volumes. NOTE: This still only removes UNUSED volumes. To remove ALL volumes including named ones, use force_all=true. |
+| `force_all` | boolean | No | `false` | Force remove ALL images and volumes, even if tagged/named or in use. USE THIS when user asks to 'remove all', 'delete all', 'clean everything', or 'prune all volumes/images'. When True, removes EVERY image and volume regardless of tags, names, or usage. WARNING: This is extremely destructive and will delete everything. Requires user confirmation. |
 
 **Output Format:**
 
@@ -1436,15 +1469,33 @@ Prune all unused Docker resources (containers, images, networks, volumes).
 {
   "tool": "docker_system_prune",
   "arguments": {
+    "all": false,
+    "volumes": false,
     "filters": {}
   }
 }
 ```
 
+**Example: Remove ALL resources (extremely destructive)**
+
+```json
+{
+  "tool": "docker_system_prune",
+  "arguments": {
+    "all": true,
+    "volumes": true,
+    "force_all": true
+  }
+}
+```
+
 **Warnings:**
-- This operation removes all unused resources
-- Irreversible - use with extreme caution
-- Does NOT remove volumes by default (must use specific filter)
+- By default, removes only UNUSED resources (stopped containers, dangling images, unused networks)
+- Use `all=true` to include all unused images (not just dangling)
+- Use `volumes=true` to include unused volumes
+- Use `force_all=true` to remove ALL images and volumes including tagged/named ones (extremely destructive)
+- When user says "remove all" or "delete everything", use `force_all=true`
+- This operation is irreversible - use with extreme caution
 
 ---
 
@@ -1566,7 +1617,7 @@ Check Docker daemon health.
 
 ## Prompts
 
-The Docker MCP Server provides 3 AI-powered prompts for common tasks.
+The Docker MCP Server provides 5 AI-powered prompts for common tasks.
 
 ### troubleshoot_container
 
@@ -1686,6 +1737,147 @@ Follows best practices:
 Returns a prompt with:
 - System message: Docker Compose expert context
 - User message: Container config or service requirements
+
+---
+
+### debug_networking
+
+Deep-dive analysis of container networking problems.
+
+**Arguments:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `container_id` | string | Yes | Container ID or name to debug networking for |
+| `target_host` | string | No | Optional target host/container to test connectivity to |
+
+**Description:**
+
+Generates an AI prompt with comprehensive network configuration analysis and systematic troubleshooting guidance. Provides:
+
+**Network Configuration Extraction:**
+- IP addresses, gateways, and MAC addresses for all attached networks
+- Port mappings (published and unpublished)
+- Container hostname and DNS settings
+- Network-related log entries (connection refused, timeout, DNS errors)
+
+**Systematic Troubleshooting Approach (6 Layers):**
+1. **Network Layer (L3)**: IP connectivity, subnet configuration, gateway accessibility
+2. **Transport Layer (L4)**: Port mappings, bindings, conflicts
+3. **DNS Resolution**: Hostname configuration, service discovery, name resolution
+4. **Network Driver Issues**: Bridge/overlay/host mode, network isolation
+5. **Common Problems**: Firewall interference, MTU misconfigurations, namespace issues
+6. **Debugging Commands**: Suggests docker exec commands (ping, nc, nslookup, curl)
+
+**Example:**
+
+```json
+{
+  "prompt": "debug_networking",
+  "arguments": {
+    "container_id": "my-webapp",
+    "target_host": "database"
+  }
+}
+```
+
+**Output:**
+
+Returns a prompt with:
+- System message: Docker networking expert with systematic L3-L7 troubleshooting approach
+- User message: Complete network configuration, port mappings, and relevant error logs
+
+**Use Cases:**
+- Container cannot reach external services
+- Port mapping issues and conflicts
+- DNS resolution failures
+- Inter-container communication problems
+- Network driver or firewall interference
+
+---
+
+### security_audit
+
+Comprehensive security analysis of containers and configurations.
+
+**Arguments:**
+
+| Argument | Type | Required | Description |
+|----------|------|----------|-------------|
+| `container_id` | string | No | Container ID or name to audit (audits all containers including stopped ones if not provided) |
+
+**Description:**
+
+Generates an AI prompt with comprehensive security analysis following CIS Docker Benchmark best practices. Analyzes:
+
+**Security Configuration:**
+- Privileged mode detection
+- Linux capabilities assessment
+- User configuration (root vs. non-root)
+- Exposed ports and network exposure
+- Volume mounts (sensitive paths like /etc/passwd, /root/.ssh)
+- Environment variables (secrets detection)
+
+**Security Controls:**
+- Read-only root filesystem
+- Security options (AppArmor, SELinux profiles)
+- Resource limits (memory, CPU)
+- Restart policies
+- Network isolation
+
+**Security Checklist (8-Point CIS Benchmark):**
+1. Container runs as non-root user
+2. Root filesystem is read-only
+3. No privileged mode
+4. Capabilities are dropped/limited
+5. No sensitive host mounts
+6. Security profiles active (AppArmor/SELinux)
+7. Resource limits configured
+8. No secrets in environment variables
+
+**Compliance Mapping:**
+- PCI-DSS requirements
+- HIPAA security rules
+- SOC2 controls
+
+**Risk Prioritization:**
+- Critical: Privileged containers, root user, sensitive mounts
+- High: Missing security profiles, excessive capabilities
+- Medium: Missing resource limits, exposed ports
+- Low: Minor configuration improvements
+
+**Example:**
+
+```json
+{
+  "prompt": "security_audit",
+  "arguments": {
+    "container_id": "production-webapp"
+  }
+}
+```
+
+Or audit all containers (including stopped ones):
+
+```json
+{
+  "prompt": "security_audit",
+  "arguments": {}
+}
+```
+
+**Output:**
+
+Returns a prompt with:
+- System message: Docker security expert with CIS Benchmark and compliance knowledge
+- User message: Complete security configuration analysis with prioritized findings
+
+**Use Cases:**
+- Pre-production security review
+- Compliance auditing (PCI-DSS, HIPAA, SOC2)
+- Security hardening recommendations
+- Identifying privilege escalation risks
+- Detecting exposed secrets and sensitive data
 
 ---
 

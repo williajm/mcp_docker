@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -93,7 +94,7 @@ class TestSetupLogger:
 
     @patch("mcp_docker.utils.logger.logger")
     def test_setup_logger_removes_default_handler(
-        self, mock_logger, server_config: ServerConfig
+        self, mock_logger: Any, server_config: ServerConfig
     ) -> None:
         """Test that default handler is removed."""
         setup_logger(server_config)

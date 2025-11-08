@@ -7,9 +7,11 @@ and communication stack.
 
 import os
 import secrets
+from typing import Any
 
 import pytest
 
+from tests.e2e.helpers import get_tool_result_text
 from tests.e2e.test_ssh_auth_true_e2e import (
     MCP_CLIENT_AVAILABLE,
     create_ssh_auth_data,
@@ -27,15 +29,15 @@ if MCP_CLIENT_AVAILABLE:
 # ============================================================================
 
 
-def safe_parse_json(result, operation_name: str):
+def safe_parse_json(result: Any, operation_name: str) -> Any:
     """Safely parse JSON from MCP call result with error handling."""
     import json
 
     if hasattr(result, "isError") and result.isError:
-        error_msg = result.content[0].text if result.content else "Unknown error"
+        error_msg = get_tool_result_text(result) if result.content else "Unknown error"
         raise AssertionError(f"{operation_name} failed: {error_msg}")
 
-    result_text = result.content[0].text if result.content else ""
+    result_text = get_tool_result_text(result) if result.content else ""
     if not result_text or not result_text.strip():
         raise AssertionError(f"Empty response from {operation_name}")
 
@@ -51,14 +53,14 @@ def safe_parse_json(result, operation_name: str):
 
 
 @pytest.fixture
-def skip_if_no_mcp_client():
+def skip_if_no_mcp_client() -> Any:
     """Fail test if MCP client library is not available."""
     if not MCP_CLIENT_AVAILABLE:
         pytest.fail("MCP client library is required for E2E tests (pip install mcp)")
 
 
 @pytest.fixture
-def skip_if_no_docker():
+def skip_if_no_docker() -> Any:
     """Fail test if Docker is not available."""
     try:
         import docker
@@ -71,7 +73,7 @@ def skip_if_no_docker():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_docker_resources(request):
+def cleanup_docker_resources(request: Any) -> Any:
     """Automatically cleanup Docker resources after each test.
 
     This fixture uses autouse=True to run after every test, cleaning up
@@ -116,7 +118,7 @@ def cleanup_docker_resources(request):
 
 
 @pytest.fixture
-def ssh_server_env(tmp_path):
+def ssh_server_env(tmp_path: Any) -> Any:
     """Setup SSH authentication environment for MCP server.
 
     Returns:
@@ -148,8 +150,8 @@ def ssh_server_env(tmp_path):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_volume_basic_lifecycle_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Basic volume lifecycle through stdio transport.
 
     Workflow:
@@ -260,8 +262,8 @@ async def test_volume_basic_lifecycle_via_stdio(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_volume_with_container_mount_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Volume mounted in container through stdio transport.
 
     Workflow:
@@ -338,7 +340,7 @@ async def test_volume_with_container_mount_via_stdio(
                     },
                 )
                 container_text = (
-                    create_container_result.content[0].text if create_container_result else ""
+                    get_tool_result_text(create_container_result) if create_container_result else ""
                 )
                 container_data = json.loads(container_text)
                 container_id = container_data.get("container_id")
@@ -427,8 +429,8 @@ async def test_volume_with_container_mount_via_stdio(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_multiple_volumes_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Multiple volume management through stdio transport.
 
     Workflow:
@@ -538,8 +540,8 @@ async def test_multiple_volumes_via_stdio(
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_volume_prune_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Volume pruning through stdio transport.
 
     Workflow:
@@ -667,8 +669,8 @@ async def test_volume_prune_via_stdio(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_volume_error_handling_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Volume error handling through stdio transport.
 
     Workflow:

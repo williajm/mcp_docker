@@ -1,5 +1,6 @@
 """Unit tests for image tools."""
 
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -31,7 +32,7 @@ from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
 
 
 @pytest.fixture
-def mock_docker_client():
+def mock_docker_client() -> Any:
     """Create a mock Docker client."""
     client = Mock(spec=DockerClientWrapper)
     client.client = MagicMock()
@@ -39,7 +40,7 @@ def mock_docker_client():
 
 
 @pytest.fixture
-def mock_image():
+def mock_image() -> Any:
     """Create a mock image."""
     image = MagicMock()
     image.id = "sha256:abc123"
@@ -54,7 +55,9 @@ class TestListImagesTool:
     """Tests for ListImagesTool."""
 
     @pytest.mark.asyncio
-    async def test_list_images_success(self, mock_docker_client, safety_config, mock_image):
+    async def test_list_images_success(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test successful image listing."""
         mock_docker_client.client.images.list.return_value = [mock_image]
 
@@ -69,7 +72,9 @@ class TestListImagesTool:
         mock_docker_client.client.images.list.assert_called_once_with(all=True, filters=None)
 
     @pytest.mark.asyncio
-    async def test_list_images_with_filters(self, mock_docker_client, safety_config, mock_image):
+    async def test_list_images_with_filters(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test listing images with filters."""
         mock_docker_client.client.images.list.return_value = [mock_image]
 
@@ -83,7 +88,7 @@ class TestListImagesTool:
         )
 
     @pytest.mark.asyncio
-    async def test_list_images_api_error(self, mock_docker_client, safety_config):
+    async def test_list_images_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.images.list.side_effect = APIError("API error")
 
@@ -98,7 +103,9 @@ class TestInspectImageTool:
     """Tests for InspectImageTool."""
 
     @pytest.mark.asyncio
-    async def test_inspect_image_success(self, mock_docker_client, safety_config, mock_image):
+    async def test_inspect_image_success(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test successful image inspection."""
         mock_docker_client.client.images.get.return_value = mock_image
 
@@ -110,7 +117,9 @@ class TestInspectImageTool:
         mock_docker_client.client.images.get.assert_called_once_with("ubuntu:latest")
 
     @pytest.mark.asyncio
-    async def test_inspect_image_not_found(self, mock_docker_client, safety_config):
+    async def test_inspect_image_not_found(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test handling of image not found."""
         mock_docker_client.client.images.get.side_effect = DockerImageNotFound("Image not found")
 
@@ -121,7 +130,9 @@ class TestInspectImageTool:
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
-    async def test_inspect_image_api_error(self, mock_docker_client, safety_config):
+    async def test_inspect_image_api_error(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.images.get.side_effect = APIError("API error")
 
@@ -136,7 +147,9 @@ class TestPullImageTool:
     """Tests for PullImageTool."""
 
     @pytest.mark.asyncio
-    async def test_pull_image_success(self, mock_docker_client, safety_config, mock_image):
+    async def test_pull_image_success(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test successful image pull."""
         mock_docker_client.client.images.pull.return_value = mock_image
 
@@ -150,7 +163,9 @@ class TestPullImageTool:
         mock_docker_client.client.images.pull.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_pull_image_with_platform(self, mock_docker_client, safety_config, mock_image):
+    async def test_pull_image_with_platform(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test pulling image with platform specification."""
         mock_docker_client.client.images.pull.return_value = mock_image
 
@@ -163,7 +178,7 @@ class TestPullImageTool:
         assert call_kwargs["platform"] == "linux/amd64"
 
     @pytest.mark.asyncio
-    async def test_pull_image_api_error(self, mock_docker_client, safety_config):
+    async def test_pull_image_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.images.pull.side_effect = APIError("API error")
 
@@ -178,7 +193,9 @@ class TestBuildImageTool:
     """Tests for BuildImageTool."""
 
     @pytest.mark.asyncio
-    async def test_build_image_success(self, mock_docker_client, safety_config, mock_image):
+    async def test_build_image_success(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test successful image build."""
         build_logs = [
             {"stream": "Step 1/2 : FROM ubuntu\n"},
@@ -196,7 +213,9 @@ class TestBuildImageTool:
         mock_docker_client.client.images.build.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_build_image_with_args(self, mock_docker_client, safety_config, mock_image):
+    async def test_build_image_with_args(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test building image with build arguments."""
         mock_docker_client.client.images.build.return_value = (mock_image, [])
 
@@ -215,7 +234,7 @@ class TestBuildImageTool:
         assert call_kwargs["nocache"] is True
 
     @pytest.mark.asyncio
-    async def test_build_image_api_error(self, mock_docker_client, safety_config):
+    async def test_build_image_api_error(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.images.build.side_effect = APIError("API error")
 
@@ -230,7 +249,7 @@ class TestPushImageTool:
     """Tests for PushImageTool."""
 
     @pytest.mark.asyncio
-    async def test_push_image_success(self, mock_docker_client, safety_config):
+    async def test_push_image_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful image push."""
         mock_docker_client.client.images.push.return_value = "pushed"
 
@@ -243,7 +262,7 @@ class TestPushImageTool:
         mock_docker_client.client.images.push.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_push_image_not_found(self, mock_docker_client, safety_config):
+    async def test_push_image_not_found(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of image not found."""
         mock_docker_client.client.images.push.side_effect = DockerImageNotFound("Image not found")
 
@@ -258,7 +277,9 @@ class TestTagImageTool:
     """Tests for TagImageTool."""
 
     @pytest.mark.asyncio
-    async def test_tag_image_success(self, mock_docker_client, safety_config, mock_image):
+    async def test_tag_image_success(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test successful image tagging."""
         mock_docker_client.client.images.get.return_value = mock_image
 
@@ -271,7 +292,7 @@ class TestTagImageTool:
         mock_image.tag.assert_called_once_with(repository="myrepo/ubuntu", tag="v1")
 
     @pytest.mark.asyncio
-    async def test_tag_image_not_found(self, mock_docker_client, safety_config):
+    async def test_tag_image_not_found(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test handling of image not found."""
         mock_docker_client.client.images.get.side_effect = DockerImageNotFound("Image not found")
 
@@ -286,7 +307,7 @@ class TestRemoveImageTool:
     """Tests for RemoveImageTool."""
 
     @pytest.mark.asyncio
-    async def test_remove_image_success(self, mock_docker_client, safety_config):
+    async def test_remove_image_success(self, mock_docker_client: Any, safety_config: Any) -> None:
         """Test successful image removal."""
         mock_docker_client.client.images.remove.return_value = None
 
@@ -300,7 +321,9 @@ class TestRemoveImageTool:
         )
 
     @pytest.mark.asyncio
-    async def test_remove_image_not_found(self, mock_docker_client, safety_config):
+    async def test_remove_image_not_found(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test handling of image not found."""
         mock_docker_client.client.images.remove.side_effect = DockerImageNotFound("Image not found")
 
@@ -315,8 +338,8 @@ class TestPruneImagesTool:
     """Tests for PruneImagesTool."""
 
     @pytest.mark.asyncio
-    async def test_prune_images_success(self, mock_docker_client, safety_config):
-        """Test successful image pruning."""
+    async def test_prune_images_success(self, mock_docker_client: Any, safety_config: Any) -> None:
+        """Test successful image pruning (dangling only by default)."""
         mock_docker_client.client.images.prune.return_value = {
             "ImagesDeleted": [{"Deleted": "sha256:abc123"}],
             "SpaceReclaimed": 72800000,
@@ -333,7 +356,165 @@ class TestPruneImagesTool:
         )
 
     @pytest.mark.asyncio
-    async def test_prune_images_api_error(self, mock_docker_client, safety_config):
+    async def test_prune_images_with_all_flag(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test pruning images with all=True removes all unused images."""
+        # Create mock images
+        mock_image1 = MagicMock()
+        mock_image1.id = "sha256:abc123"
+        mock_image1.attrs = {"Size": 1000000}
+
+        mock_image2 = MagicMock()
+        mock_image2.id = "sha256:def456"
+        mock_image2.attrs = {"Size": 2000000}
+
+        mock_docker_client.client.images.list.return_value = [mock_image1, mock_image2]
+
+        # Mock container list with one image in use
+        mock_container = MagicMock()
+        mock_container.image = MagicMock()
+        mock_container.image.id = "sha256:abc123"
+        mock_docker_client.client.containers.list.return_value = [mock_container]
+
+        # Mock image removal - only unused image should be removed
+        mock_docker_client.client.images.remove.return_value = None
+
+        tool = PruneImagesTool(mock_docker_client, safety_config)
+        input_data = PruneImagesInput(all=True)
+        result = await tool.execute(input_data)
+
+        # Should only remove the unused image (def456)
+        assert len(result.deleted) == 1
+        assert result.deleted[0]["Deleted"] == "sha256:def456"
+        assert result.space_reclaimed == 2000000
+        mock_docker_client.client.images.remove.assert_called_once_with(
+            "sha256:def456", force=False
+        )
+
+    @pytest.mark.asyncio
+    async def test_prune_images_force_all(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test pruning images with force_all=True removes ALL images."""
+        # Create mock images
+        mock_image1 = MagicMock()
+        mock_image1.id = "sha256:abc123"
+        mock_image1.attrs = {"Size": 1000000}
+
+        mock_image2 = MagicMock()
+        mock_image2.id = "sha256:def456"
+        mock_image2.attrs = {"Size": 2000000}
+
+        mock_image3 = MagicMock()
+        mock_image3.id = "sha256:ghi789"
+        mock_image3.attrs = {"Size": 3000000}
+
+        mock_docker_client.client.images.list.return_value = [
+            mock_image1,
+            mock_image2,
+            mock_image3,
+        ]
+        mock_docker_client.client.images.remove.return_value = None
+
+        tool = PruneImagesTool(mock_docker_client, safety_config)
+        input_data = PruneImagesInput(force_all=True)
+        result = await tool.execute(input_data)
+
+        # Should remove ALL images with force=True
+        assert len(result.deleted) == 3
+        assert result.space_reclaimed == 6000000
+        assert mock_docker_client.client.images.remove.call_count == 3
+        # Verify force=True was used
+        for call in mock_docker_client.client.images.remove.call_args_list:
+            assert call[1]["force"] is True
+
+    @pytest.mark.asyncio
+    async def test_prune_images_force_all_handles_errors(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test pruning with force_all=True continues on errors."""
+        # Create mock images
+        mock_image1 = MagicMock()
+        mock_image1.id = "sha256:abc123"
+        mock_image1.attrs = {"Size": 1000000}
+
+        mock_image2 = MagicMock()
+        mock_image2.id = "sha256:def456"
+        mock_image2.attrs = {"Size": 2000000}
+
+        mock_docker_client.client.images.list.return_value = [mock_image1, mock_image2]
+
+        # First removal fails, second succeeds
+        mock_docker_client.client.images.remove.side_effect = [
+            APIError("Failed to remove"),
+            None,
+        ]
+
+        tool = PruneImagesTool(mock_docker_client, safety_config)
+        input_data = PruneImagesInput(force_all=True)
+        result = await tool.execute(input_data)
+
+        # Should continue despite error and remove the second image
+        assert len(result.deleted) == 1
+        assert result.deleted[0]["Deleted"] == "sha256:def456"
+        assert result.space_reclaimed == 2000000
+
+    @pytest.mark.asyncio
+    async def test_prune_images_all_with_filters(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test pruning images with all=True and filters."""
+        # Create mock images matching filter
+        mock_image1 = MagicMock()
+        mock_image1.id = "sha256:abc123"
+        mock_image1.attrs = {"Size": 1000000}
+
+        mock_docker_client.client.images.list.return_value = [mock_image1]
+
+        # No containers using images
+        mock_docker_client.client.containers.list.return_value = []
+
+        mock_docker_client.client.images.remove.return_value = None
+
+        tool = PruneImagesTool(mock_docker_client, safety_config)
+        input_data = PruneImagesInput(all=True, filters={"label": ["env=test"]})
+        result = await tool.execute(input_data)
+
+        # Should remove filtered unused image
+        assert len(result.deleted) == 1
+        mock_docker_client.client.images.list.assert_called_once_with(
+            all=True, filters={"label": ["env=test"]}
+        )
+
+    @pytest.mark.asyncio
+    async def test_prune_images_skips_images_without_id(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test pruning skips images without an ID."""
+        # Create mock images, one without ID
+        mock_image1 = MagicMock()
+        mock_image1.id = None  # No ID
+
+        mock_image2 = MagicMock()
+        mock_image2.id = "sha256:def456"
+        mock_image2.attrs = {"Size": 2000000}
+
+        mock_docker_client.client.images.list.return_value = [mock_image1, mock_image2]
+        mock_docker_client.client.images.remove.return_value = None
+
+        tool = PruneImagesTool(mock_docker_client, safety_config)
+        input_data = PruneImagesInput(force_all=True)
+        result = await tool.execute(input_data)
+
+        # Should only remove image with ID
+        assert len(result.deleted) == 1
+        assert result.deleted[0]["Deleted"] == "sha256:def456"
+
+    @pytest.mark.asyncio
+    async def test_prune_images_api_error(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.images.prune.side_effect = APIError("API error")
 
@@ -348,7 +529,9 @@ class TestImageHistoryTool:
     """Tests for ImageHistoryTool."""
 
     @pytest.mark.asyncio
-    async def test_image_history_success(self, mock_docker_client, safety_config, mock_image):
+    async def test_image_history_success(
+        self, mock_docker_client: Any, safety_config: Any, mock_image: Any
+    ) -> None:
         """Test successful image history retrieval."""
         history = [
             {"Id": "sha256:abc123", "Created": 1234567890, "Size": 1000},
@@ -366,7 +549,9 @@ class TestImageHistoryTool:
         mock_docker_client.client.images.get.assert_called_once_with("ubuntu:latest")
 
     @pytest.mark.asyncio
-    async def test_image_history_not_found(self, mock_docker_client, safety_config):
+    async def test_image_history_not_found(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
         """Test handling of image not found."""
         mock_docker_client.client.images.get.side_effect = DockerImageNotFound("Image not found")
 

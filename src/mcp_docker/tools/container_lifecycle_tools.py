@@ -4,7 +4,6 @@ This module provides tools for managing the lifecycle of Docker containers:
 create, start, stop, restart, and remove operations.
 """
 
-import json
 from typing import Any
 
 from docker.errors import APIError, NotFound
@@ -12,7 +11,9 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import (
     validate_command,
@@ -22,35 +23,6 @@ from mcp_docker.utils.validation import (
 )
 
 logger = get_logger(__name__)
-
-
-def parse_json_string_field(v: Any, field_name: str = "field") -> Any:
-    """Parse JSON strings to objects (workaround for MCP client serialization bug).
-
-    Args:
-        v: The value to parse (dict or JSON string)
-        field_name: Name of the field for error messages
-
-    Returns:
-        Parsed dict if v was a string, otherwise returns v unchanged
-
-    Raises:
-        ValueError: If v is a string but not valid JSON
-    """
-    if isinstance(v, str):
-        try:
-            parsed = json.loads(v)
-            logger.warning(
-                f"Received JSON string instead of object for {field_name}, auto-parsing. "
-                "This is a workaround for MCP client serialization issues."
-            )
-            return parsed
-        except json.JSONDecodeError as e:
-            raise ValueError(
-                f"Received invalid JSON string for {field_name}: {v[:100]}... "
-                f"Expected an object/dict, not a string. Error: {e}"
-            ) from e
-    return v
 
 
 # Input/Output Models
@@ -168,8 +140,6 @@ class RemoveContainerOutput(BaseModel):
 class CreateContainerTool(BaseTool):
     """Create a new Docker container."""
 
-    output_model = CreateContainerOutput
-
     @property
     def name(self) -> str:
         """Tool name."""
@@ -190,9 +160,65 @@ class CreateContainerTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
-    async def execute(  # noqa: PLR0912
-        self, input_data: CreateContainerInput
-    ) -> CreateContainerOutput:
+    def _validate_inputs(self, input_data: CreateContainerInput) -> None:
+        """Validate all input parameters.
+
+        Args:
+            input_data: Input parameters to validate
+
+        Raises:
+            ValidationError: If validation fails
+        """
+        if input_data.name:
+            validate_container_name(input_data.name)
+        if input_data.command and isinstance(input_data.command, str):
+            validate_command(input_data.command)
+        if input_data.mem_limit:
+            validate_memory(input_data.mem_limit)
+        if input_data.ports:
+            # After field validation, ports is always a dict or None (never str)
+            assert isinstance(input_data.ports, dict)
+            for container_port, host_port in input_data.ports.items():
+                if isinstance(host_port, int):
+                    validate_port_mapping(container_port, host_port)
+
+    def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
+        """Prepare kwargs dictionary for container creation.
+
+        Args:
+            input_data: Input parameters
+
+        Returns:
+            kwargs dictionary for Docker API
+        """
+        kwargs: dict[str, Any] = {"image": input_data.image}
+
+        if input_data.name:
+            kwargs["name"] = input_data.name
+        if input_data.command:
+            kwargs["command"] = input_data.command
+        if input_data.environment:
+            # After field validation, environment is always a dict or None (never str)
+            assert isinstance(input_data.environment, dict)
+            kwargs["environment"] = input_data.environment
+        if input_data.ports:
+            # After field validation, ports is always a dict or None (never str)
+            assert isinstance(input_data.ports, dict)
+            kwargs["ports"] = input_data.ports
+        if input_data.volumes:
+            # After field validation, volumes is always a dict or None (never str)
+            assert isinstance(input_data.volumes, dict)
+            kwargs["volumes"] = input_data.volumes
+        if input_data.mem_limit:
+            kwargs["mem_limit"] = input_data.mem_limit
+        if input_data.cpu_shares:
+            kwargs["cpu_shares"] = input_data.cpu_shares
+        if input_data.remove:
+            kwargs["auto_remove"] = input_data.remove
+
+        return kwargs
+
+    async def execute(self, input_data: CreateContainerInput) -> CreateContainerOutput:
         """Execute the create container operation.
 
         Args:
@@ -206,57 +232,17 @@ class CreateContainerTool(BaseTool):
         """
         try:
             # Validate inputs
-            if input_data.name:
-                validate_container_name(input_data.name)
-            if input_data.command and isinstance(input_data.command, str):
-                validate_command(input_data.command)
-            if input_data.mem_limit:
-                validate_memory(input_data.mem_limit)
-            if input_data.ports:
-                # After field validation, ports is always a dict or None (never str)
-                assert isinstance(input_data.ports, dict)
-                for container_port, host_port in input_data.ports.items():
-                    if isinstance(host_port, int):
-                        validate_port_mapping(container_port, host_port)
+            self._validate_inputs(input_data)
 
             logger.info(f"Creating container from image: {input_data.image}")
 
             # Prepare kwargs for container creation
-            # Note: containers.create() does not support 'detach' or 'remove' - those are for run()
-            kwargs: dict[str, Any] = {
-                "image": input_data.image,
-            }
+            kwargs = self._prepare_kwargs(input_data)
 
-            if input_data.name:
-                kwargs["name"] = input_data.name
-            if input_data.command:
-                kwargs["command"] = input_data.command
-            if input_data.environment:
-                # After field validation, environment is always a dict or None (never str)
-                assert isinstance(input_data.environment, dict)
-                kwargs["environment"] = input_data.environment
-
-            # Port mappings for binding to host
-            if input_data.ports:
-                # Assertion already added above
-                kwargs["ports"] = input_data.ports
-
-            if input_data.volumes:
-                # After field validation, volumes is always a dict or None (never str)
-                assert isinstance(input_data.volumes, dict)
-                kwargs["volumes"] = input_data.volumes
-            if input_data.mem_limit:
-                kwargs["mem_limit"] = input_data.mem_limit
-            if input_data.cpu_shares:
-                kwargs["cpu_shares"] = input_data.cpu_shares
-            # auto_remove parameter replaces 'remove' for create()
-            if input_data.remove:
-                kwargs["auto_remove"] = input_data.remove
-
+            # Create the container
             container = self.docker.client.containers.create(**kwargs)
 
             logger.info(f"Successfully created container: {container.id}")
-            # container.id and container.name are always present for created containers
             return CreateContainerOutput(
                 container_id=str(container.id), name=container.name, warnings=None
             )
@@ -268,8 +254,6 @@ class CreateContainerTool(BaseTool):
 
 class StartContainerTool(BaseTool):
     """Start a Docker container."""
-
-    output_model = StartContainerOutput
 
     @property
     def name(self) -> str:
@@ -314,8 +298,10 @@ class StartContainerTool(BaseTool):
             return StartContainerOutput(container_id=str(container.id), status=container.status)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to start container: {e}")
             raise DockerOperationError(f"Failed to start container: {e}") from e
@@ -323,8 +309,6 @@ class StartContainerTool(BaseTool):
 
 class StopContainerTool(BaseTool):
     """Stop a running Docker container."""
-
-    output_model = StopContainerOutput
 
     @property
     def name(self) -> str:
@@ -371,8 +355,10 @@ class StopContainerTool(BaseTool):
             return StopContainerOutput(container_id=str(container.id), status=container.status)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to stop container: {e}")
             raise DockerOperationError(f"Failed to stop container: {e}") from e
@@ -380,8 +366,6 @@ class StopContainerTool(BaseTool):
 
 class RestartContainerTool(BaseTool):
     """Restart a Docker container."""
-
-    output_model = RestartContainerOutput
 
     @property
     def name(self) -> str:
@@ -428,8 +412,10 @@ class RestartContainerTool(BaseTool):
             return RestartContainerOutput(container_id=str(container.id), status=container.status)
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to restart container: {e}")
             raise DockerOperationError(f"Failed to restart container: {e}") from e
@@ -437,8 +423,6 @@ class RestartContainerTool(BaseTool):
 
 class RemoveContainerTool(BaseTool):
     """Remove a Docker container."""
-
-    output_model = RemoveContainerOutput
 
     @property
     def name(self) -> str:
@@ -488,8 +472,10 @@ class RemoveContainerTool(BaseTool):
             )
 
         except NotFound as e:
-            logger.error(f"Container not found: {input_data.container_id}")
-            raise ContainerNotFound(f"Container not found: {input_data.container_id}") from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
+            raise ContainerNotFound(
+                ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
+            ) from e
         except APIError as e:
             logger.error(f"Failed to remove container: {e}")
             raise DockerOperationError(f"Failed to remove container: {e}") from e

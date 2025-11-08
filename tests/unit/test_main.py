@@ -12,7 +12,7 @@ class TestMCPServerHandlers:
     """Tests for MCP server handler functions."""
 
     @pytest.mark.asyncio
-    async def test_handle_list_tools(self):
+    async def test_handle_list_tools(self) -> None:
         """Test list_tools handler."""
         # Mock the docker_server
         with patch.object(main_module, "docker_server") as mock_server:
@@ -31,7 +31,7 @@ class TestMCPServerHandlers:
             assert result[0].description == "Test tool"
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_success(self):
+    async def test_handle_call_tool_success(self) -> None:
         """Test call_tool handler with successful result."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.call_tool = AsyncMock(
@@ -45,7 +45,7 @@ class TestMCPServerHandlers:
             assert "test output" in result[0]["text"]
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_error(self):
+    async def test_handle_call_tool_error(self) -> None:
         """Test call_tool handler with error result."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.call_tool = AsyncMock(
@@ -59,7 +59,7 @@ class TestMCPServerHandlers:
             assert "Error: Test error message" in result[0]["text"]
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_with_null_auth(self):
+    async def test_handle_call_tool_with_null_auth(self) -> None:
         """Test call_tool handler with null _auth doesn't crash (security fix)."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.call_tool = AsyncMock(
@@ -78,7 +78,7 @@ class TestMCPServerHandlers:
             assert call_kwargs["ssh_auth_data"] is None
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_with_string_auth(self):
+    async def test_handle_call_tool_with_string_auth(self) -> None:
         """Test call_tool handler with string _auth doesn't crash (security fix)."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.call_tool = AsyncMock(
@@ -96,7 +96,7 @@ class TestMCPServerHandlers:
             assert call_kwargs["ssh_auth_data"] is None
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_with_number_auth(self):
+    async def test_handle_call_tool_with_number_auth(self) -> None:
         """Test call_tool handler with number _auth doesn't crash (security fix)."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.call_tool = AsyncMock(
@@ -114,7 +114,7 @@ class TestMCPServerHandlers:
             assert call_kwargs["ssh_auth_data"] is None
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_with_valid_auth(self):
+    async def test_handle_call_tool_with_valid_auth(self) -> None:
         """Test call_tool handler with valid _auth dict works correctly."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.call_tool = AsyncMock(
@@ -142,7 +142,7 @@ class TestMCPServerHandlers:
             assert call_args[1]["arg"] == "value"
 
     @pytest.mark.asyncio
-    async def test_handle_call_tool_no_credential_leakage_in_logs(self):
+    async def test_handle_call_tool_no_credential_leakage_in_logs(self) -> None:
         """Test that _auth is not logged (prevents credential leakage)."""
         with (
             patch.object(main_module, "docker_server") as mock_server,
@@ -173,7 +173,7 @@ class TestMCPServerHandlers:
                     assert "auth redacted" in log_message.lower()
 
     @pytest.mark.asyncio
-    async def test_handle_list_resources(self):
+    async def test_handle_list_resources(self) -> None:
         """Test list_resources handler."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.list_resources.return_value = [
@@ -186,7 +186,7 @@ class TestMCPServerHandlers:
             assert result[0]["uri"] == "docker://container/test"
 
     @pytest.mark.asyncio
-    async def test_handle_read_resource_with_text(self):
+    async def test_handle_read_resource_with_text(self) -> None:
         """Test read_resource handler with text content."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.read_resource = AsyncMock(return_value={"text": "Resource content"})
@@ -196,7 +196,7 @@ class TestMCPServerHandlers:
             assert result == "Resource content"
 
     @pytest.mark.asyncio
-    async def test_handle_read_resource_without_text(self):
+    async def test_handle_read_resource_without_text(self) -> None:
         """Test read_resource handler without text field."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.read_resource = AsyncMock(return_value={"data": "some data"})
@@ -206,7 +206,7 @@ class TestMCPServerHandlers:
             assert "data" in result
 
     @pytest.mark.asyncio
-    async def test_handle_list_prompts(self):
+    async def test_handle_list_prompts(self) -> None:
         """Test list_prompts handler."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.list_prompts.return_value = [
@@ -219,7 +219,7 @@ class TestMCPServerHandlers:
             assert result[0]["name"] == "test_prompt"
 
     @pytest.mark.asyncio
-    async def test_handle_get_prompt(self):
+    async def test_handle_get_prompt(self) -> None:
         """Test get_prompt handler."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.get_prompt = AsyncMock(
@@ -235,7 +235,7 @@ class TestMCPServerHandlers:
             mock_server.get_prompt.assert_called_once_with("test_prompt", {})
 
     @pytest.mark.asyncio
-    async def test_handle_get_prompt_with_arguments(self):
+    async def test_handle_get_prompt_with_arguments(self) -> None:
         """Test get_prompt handler with arguments."""
         with patch.object(main_module, "docker_server") as mock_server:
             mock_server.get_prompt = AsyncMock(return_value={"name": "test_prompt"})
@@ -250,7 +250,7 @@ class TestServerRunFunction:
     """Tests for run_stdio function."""
 
     @pytest.mark.asyncio
-    async def test_run_stdio(self):
+    async def test_run_stdio(self) -> None:
         """Test run_stdio function."""
         # Mock all the async components
         mock_read_stream = AsyncMock()
@@ -282,7 +282,7 @@ class TestServerRunFunction:
                     mock_docker_server.stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_stdio_cleanup_on_error(self):
+    async def test_run_stdio_cleanup_on_error(self) -> None:
         """Test run_stdio cleans up on error."""
         with patch.object(main_module, "docker_server") as mock_docker_server:
             mock_docker_server.start = AsyncMock()
@@ -308,7 +308,7 @@ class TestServerRunFunction:
                     mock_docker_server.stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_sse(self):
+    async def test_run_sse(self) -> None:
         """Test run_sse function."""
         with patch.object(main_module, "docker_server") as mock_docker_server:
             mock_docker_server.start = AsyncMock()
@@ -350,7 +350,7 @@ class TestServerRunFunction:
                     mock_docker_server.stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_sse_cleanup_on_error(self):
+    async def test_run_sse_cleanup_on_error(self) -> None:
         """Test run_sse cleans up on error."""
         with patch.object(main_module, "docker_server") as mock_docker_server:
             mock_docker_server.start = AsyncMock()
@@ -370,7 +370,7 @@ class TestServerRunFunction:
 class TestMainFunction:
     """Tests for main function."""
 
-    def test_main_stdio_default(self):
+    def test_main_stdio_default(self) -> None:
         """Test main function defaults to stdio transport."""
         with patch("asyncio.run") as mock_asyncio_run, patch("sys.argv", ["mcp-docker"]):
             main_module.main()
@@ -379,7 +379,7 @@ class TestMainFunction:
             call_arg = mock_asyncio_run.call_args[0][0]
             assert call_arg.__name__ == "run_stdio"
 
-    def test_main_sse_transport(self):
+    def test_main_sse_transport(self) -> None:
         """Test main function with SSE transport."""
         with (
             patch("asyncio.run") as mock_asyncio_run,
@@ -391,7 +391,7 @@ class TestMainFunction:
             call_arg = mock_asyncio_run.call_args[0][0]
             assert call_arg.__name__ == "run_sse"
 
-    def test_main_sse_custom_port(self):
+    def test_main_sse_custom_port(self) -> None:
         """Test main function with custom SSE port."""
         with (
             patch("asyncio.run") as mock_asyncio_run,
@@ -400,7 +400,7 @@ class TestMainFunction:
             main_module.main()
             mock_asyncio_run.assert_called_once()
 
-    def test_main_keyboard_interrupt(self):
+    def test_main_keyboard_interrupt(self) -> None:
         """Test main function handles KeyboardInterrupt."""
         with (
             patch("asyncio.run", side_effect=KeyboardInterrupt()),
@@ -409,7 +409,7 @@ class TestMainFunction:
             # Should not raise, just log
             main_module.main()
 
-    def test_main_exception(self):
+    def test_main_exception(self) -> None:
         """Test main function handles exceptions."""
         with (
             patch("asyncio.run", side_effect=Exception("Test error")),
@@ -422,7 +422,7 @@ class TestMainFunction:
 class TestLogPathConfiguration:
     """Tests for log path configuration."""
 
-    def test_custom_log_path_from_env(self):
+    def test_custom_log_path_from_env(self) -> None:
         """Test custom log path from environment variable."""
         # Test that MCP_DOCKER_LOG_PATH environment variable is respected
         # This is tested via the main module's log_file variable

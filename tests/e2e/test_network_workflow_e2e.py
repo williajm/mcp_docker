@@ -7,9 +7,11 @@ and communication stack.
 
 import os
 import secrets
+from typing import Any
 
 import pytest
 
+from tests.e2e.helpers import get_tool_result_text
 from tests.e2e.test_ssh_auth_true_e2e import (
     MCP_CLIENT_AVAILABLE,
     create_ssh_auth_data,
@@ -28,14 +30,14 @@ if MCP_CLIENT_AVAILABLE:
 
 
 @pytest.fixture
-def skip_if_no_mcp_client():
+def skip_if_no_mcp_client() -> Any:
     """Fail test if MCP client library is not available."""
     if not MCP_CLIENT_AVAILABLE:
         pytest.fail("MCP client library is required for E2E tests (pip install mcp)")
 
 
 @pytest.fixture
-def skip_if_no_docker():
+def skip_if_no_docker() -> Any:
     """Fail test if Docker is not available."""
     try:
         import docker
@@ -48,7 +50,7 @@ def skip_if_no_docker():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_docker_resources(request):
+def cleanup_docker_resources(request: Any) -> Any:
     """Automatically cleanup Docker resources after each test.
 
     This fixture uses autouse=True to run after every test, cleaning up
@@ -93,7 +95,7 @@ def cleanup_docker_resources(request):
 
 
 @pytest.fixture
-def ssh_server_env(tmp_path):
+def ssh_server_env(tmp_path: Any) -> Any:
     """Setup SSH authentication environment for MCP server.
 
     Returns:
@@ -125,8 +127,8 @@ def ssh_server_env(tmp_path):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_network_basic_lifecycle_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Basic network lifecycle through stdio transport.
 
     Workflow:
@@ -175,7 +177,7 @@ async def test_network_basic_lifecycle_via_stdio(
                 assert create_result is not None
                 # Extract network_id from MCP result
                 # Result structure: [TextContent(type='text', text='...JSON...')]
-                result_text = create_result.content[0].text if create_result else ""
+                result_text = get_tool_result_text(create_result) if create_result else ""
                 import json
 
                 result_data = json.loads(result_text)
@@ -192,7 +194,7 @@ async def test_network_basic_lifecycle_via_stdio(
                     },
                 )
                 assert inspect_result is not None
-                inspect_text = inspect_result.content[0].text if inspect_result else ""
+                inspect_text = get_tool_result_text(inspect_result) if inspect_result else ""
                 inspect_data = json.loads(inspect_text)
                 assert inspect_data.get("details") is not None
                 details = inspect_data["details"]
@@ -209,7 +211,7 @@ async def test_network_basic_lifecycle_via_stdio(
                     },
                 )
                 assert list_result is not None
-                list_text = list_result.content[0].text if list_result else ""
+                list_text = get_tool_result_text(list_result) if list_result else ""
                 list_data = json.loads(list_text)
                 assert list_data.get("count", 0) >= 1
                 networks = list_data.get("networks", [])
@@ -244,8 +246,8 @@ async def test_network_basic_lifecycle_via_stdio(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_network_with_container_connectivity_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Network with container connectivity through stdio transport.
 
     Workflow:
@@ -296,7 +298,7 @@ async def test_network_with_container_connectivity_via_stdio(
                         "driver": "bridge",
                     },
                 )
-                net_text = create_net_result.content[0].text if create_net_result else ""
+                net_text = get_tool_result_text(create_net_result) if create_net_result else ""
                 net_data = json.loads(net_text)
                 network_id = net_data.get("network_id")
 
@@ -323,7 +325,7 @@ async def test_network_with_container_connectivity_via_stdio(
                     },
                 )
                 container_text = (
-                    create_container_result.content[0].text if create_container_result else ""
+                    get_tool_result_text(create_container_result) if create_container_result else ""
                 )
                 container_data = json.loads(container_text)
                 container_id = container_data.get("container_id")
@@ -353,7 +355,7 @@ async def test_network_with_container_connectivity_via_stdio(
                 assert connect_result is not None
                 if hasattr(connect_result, "isError") and connect_result.isError:
                     error_msg = (
-                        connect_result.content[0].text
+                        get_tool_result_text(connect_result)
                         if connect_result.content
                         else "Unknown error"
                     )
@@ -374,13 +376,13 @@ async def test_network_with_container_connectivity_via_stdio(
                     and inspect_container_result.isError
                 ):
                     error_msg = (
-                        inspect_container_result.content[0].text
+                        get_tool_result_text(inspect_container_result)
                         if inspect_container_result.content
                         else "Unknown error"
                     )
                     raise AssertionError(f"Container inspect failed: {error_msg}")
                 container_inspect_text = (
-                    inspect_container_result.content[0].text
+                    get_tool_result_text(inspect_container_result)
                     if inspect_container_result.content
                     else ""
                 )
@@ -466,8 +468,8 @@ async def test_network_with_container_connectivity_via_stdio(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_multiple_networks_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Multiple network management through stdio transport.
 
     Workflow:
@@ -516,7 +518,7 @@ async def test_multiple_networks_via_stdio(
                             "labels": {"test": "e2e-multi"},
                         },
                     )
-                    net_text = create_result.content[0].text if create_result else ""
+                    net_text = get_tool_result_text(create_result) if create_result else ""
                     net_data = json.loads(net_text)
                     network_ids.append(net_data.get("network_id"))
 
@@ -529,7 +531,7 @@ async def test_multiple_networks_via_stdio(
                         "filters": {"label": ["test=e2e-multi"]},
                     },
                 )
-                list_text = list_result.content[0].text if list_result else ""
+                list_text = get_tool_result_text(list_result) if list_result else ""
                 list_data = json.loads(list_text)
                 assert list_data.get("count", 0) == 2
 
@@ -579,8 +581,8 @@ async def test_multiple_networks_via_stdio(
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_network_with_ipam_config_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Network with custom IPAM configuration through stdio transport.
 
     Workflow:
@@ -634,11 +636,13 @@ async def test_network_with_ipam_config_via_stdio(
                 # Check if operation succeeded before parsing
                 if hasattr(create_result, "isError") and create_result.isError:
                     error_msg = (
-                        create_result.content[0].text if create_result.content else "Unknown error"
+                        get_tool_result_text(create_result)
+                        if create_result.content
+                        else "Unknown error"
                     )
                     raise AssertionError(f"Network creation failed: {error_msg}")
 
-                net_text = create_result.content[0].text if create_result.content else ""
+                net_text = get_tool_result_text(create_result) if create_result.content else ""
                 if not net_text or not net_text.strip():
                     raise AssertionError("Empty response from docker_create_network")
 
@@ -654,7 +658,7 @@ async def test_network_with_ipam_config_via_stdio(
                         "network_id": network_id,
                     },
                 )
-                inspect_text = inspect_result.content[0].text if inspect_result else ""
+                inspect_text = get_tool_result_text(inspect_result) if inspect_result else ""
                 inspect_data = json.loads(inspect_text)
                 details = inspect_data["details"]
                 ipam = details.get("IPAM", {})
@@ -691,8 +695,8 @@ async def test_network_with_ipam_config_via_stdio(
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_network_error_handling_via_stdio(
-    tmp_path, skip_if_no_mcp_client, skip_if_no_docker, ssh_server_env
-):
+    tmp_path: Any, skip_if_no_mcp_client: Any, skip_if_no_docker: Any, ssh_server_env: Any
+) -> None:
     """TRUE E2E: Network error handling through stdio transport.
 
     Workflow:
