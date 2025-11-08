@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - name: Checkout code
@@ -415,7 +415,7 @@ jobs:
             if (suite === 'e2e') {
               suiteName = 'E2E';
             } else if (suite.match(/^\d+\.\d+$/)) {
-              // Python version numbers (3.11, 3.12, 3.13) -> "Unit Tests - Python X.XX"
+              // Python version numbers (3.11, 3.12, 3.13, 3.14) -> "Unit Tests - Python X.XX"
               suiteName = `Unit Tests - Python ${suite}`;
             } else {
               // Capitalize first letter for others (integration -> Integration)
@@ -452,6 +452,7 @@ jobs:
           - [Coverage HTML Report (Python 3.11)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
           - [Coverage HTML Report (Python 3.12)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
           - [Coverage HTML Report (Python 3.13)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+          - [Coverage HTML Report (Python 3.14)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
           - [Test Results (JUnit XML)](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
 
           </details>
