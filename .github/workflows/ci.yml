@@ -409,7 +409,19 @@ jobs:
           for (const [suite, data] of Object.entries(results)) {
             const status = data.failed === 0 ? '✅' : '❌';
             if (data.failed > 0) allPassed = false;
-            const suiteName = suite.charAt(0).toUpperCase() + suite.slice(1);
+
+            // Format suite name with special handling
+            let suiteName;
+            if (suite === 'e2e') {
+              suiteName = 'E2E';
+            } else if (suite.match(/^\d+\.\d+$/)) {
+              // Python version numbers (3.11, 3.12, 3.13) -> "Unit Tests - Python X.XX"
+              suiteName = `Unit Tests - Python ${suite}`;
+            } else {
+              // Capitalize first letter for others (integration -> Integration)
+              suiteName = suite.charAt(0).toUpperCase() + suite.slice(1);
+            }
+
             const duration = data.time < 60 ? `${data.time.toFixed(0)}s` : `${(data.time / 60).toFixed(1)}m`;
 
             tableRows += `| ${suiteName} | ${status} | ${data.passed} | ${data.failed} | ${data.skipped} | ${duration} |\n`;
