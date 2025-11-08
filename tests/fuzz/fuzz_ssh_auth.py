@@ -5,14 +5,13 @@ Tests the SSH authentication system with malformed and edge-case inputs
 to find potential security vulnerabilities or crashes.
 """
 
-import sys
-
-import atheris
-
 # Import without instrumentation
 import base64
 import struct
+import sys
 from datetime import UTC, datetime
+
+import atheris
 
 from mcp_docker.auth.ssh_auth import SSHAuthRequest, SSHSignatureValidator
 from mcp_docker.auth.ssh_wire import SSHWireMessage

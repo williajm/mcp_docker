@@ -6,20 +6,18 @@ with malformed and edge-case inputs to ensure robust error handling.
 """
 
 import sys
-import re
 
 import atheris
 
 # Import functions without instrumentation to avoid complex dependency issues
+from mcp_docker.utils.errors import ValidationError
 from mcp_docker.utils.validation import (
     validate_container_name,
     validate_image_name,
     validate_label,
     validate_memory_string,
     validate_port,
-    validate_command,
 )
-from mcp_docker.utils.errors import ValidationError
 
 # Instrument all code after imports
 atheris.instrument_all()
