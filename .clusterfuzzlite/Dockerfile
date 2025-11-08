@@ -11,11 +11,10 @@ COPY . $SRC/mcp-docker
 WORKDIR $SRC/mcp-docker
 
 # Install Python dependencies with cryptographic hash verification
-# Download and verify pip wheel with hash before installing
-RUN wget -q https://files.pythonhosted.org/packages/ef/7d/500c9ad20238fcfcb4cb9243eede163594d7020ce87bd9610c9e02771876/pip-24.3.1-py3-none-any.whl && \
-    echo "3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed  pip-24.3.1-py3-none-any.whl" | sha256sum -c && \
-    python3 -m pip install pip-24.3.1-py3-none-any.whl && \
-    rm pip-24.3.1-py3-none-any.whl && \
+# Upgrade pip using hash-pinned approach that Scorecard recognizes
+RUN python3 -m pip install --require-hashes --no-deps \
+        pip==24.3.1 \
+        --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed && \
     python3 -m pip install --require-hashes --no-deps -r .clusterfuzzlite/requirements.txt && \
     python3 -m pip install --no-deps -e .
 
