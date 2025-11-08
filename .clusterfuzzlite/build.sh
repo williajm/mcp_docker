@@ -3,7 +3,10 @@
 # Build script for ClusterFuzzLite fuzz targets
 
 # Install the project in development mode with proper flags
-pip3 install -e $SRC/mcp-docker
+# Note: The project itself is installed in editable mode from local source,
+# not from a package repository, so version pinning is not applicable here.
+# All external dependencies are pinned in Dockerfile and pyproject.toml.
+pip3 install --no-deps -e $SRC/mcp-docker
 
 # Build each fuzz target using the compile_python_fuzzer helper
 for fuzzer in $SRC/mcp-docker/tests/fuzz/fuzz_*.py; do
