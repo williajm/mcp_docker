@@ -9,7 +9,6 @@ to find potential security vulnerabilities or crashes.
 import base64
 import struct
 import sys
-from datetime import UTC, datetime
 
 import atheris
 

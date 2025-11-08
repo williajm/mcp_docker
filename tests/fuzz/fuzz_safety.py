@@ -9,13 +9,14 @@ import sys
 
 import atheris
 
+from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
+
 # Import without instrumentation to avoid complex dependencies
 from mcp_docker.utils.safety import (
     sanitize_command,
     validate_mount_path,
     validate_port_binding,
 )
-from mcp_docker.utils.errors import ValidationError, UnsafeOperationError
 
 # Instrument all code after imports
 atheris.instrument_all()
@@ -43,9 +44,7 @@ def fuzz_command_sanitization(data: bytes) -> None:
         pass
 
     # Test list commands
-    cmd_parts = [
-        fdp.ConsumeUnicodeNoSurrogates(50) for _ in range(fdp.ConsumeIntInRange(1, 10))
-    ]
+    cmd_parts = [fdp.ConsumeUnicodeNoSurrogates(50) for _ in range(fdp.ConsumeIntInRange(1, 10))]
     try:
         result = sanitize_command(cmd_parts)
         assert isinstance(result, list)

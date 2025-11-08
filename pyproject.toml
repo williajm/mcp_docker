@@ -109,6 +109,11 @@ ignore = []
     "UP012",    # Unnecessary encoding (explicit encoding is clearer in examples)
     "UP031",    # Use format specifiers (% formatting is shown for comparison)
 ]
+# Fuzz tests use Atheris conventions (TestOneInput is required entry point)
+"tests/fuzz/**/*.py" = [
+    "N802",     # TestOneInput function name is required by Atheris fuzzing framework
+    "UP038",    # isinstance with tuples is more readable for multiple types
+]
 
 [tool.mypy]
 python_version = "3.11"

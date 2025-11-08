@@ -33,6 +33,7 @@ jobs:
       with:
         language: python
         sanitizer: ${{ matrix.sanitizer }}
+        keep-unaffected-fuzz-targets: true
 
     - name: Run Fuzzers (${{ matrix.sanitizer }})
       id: run
@@ -72,6 +73,7 @@ jobs:
       with:
         language: python
         sanitizer: ${{ matrix.sanitizer }}
+        keep-unaffected-fuzz-targets: true
 
     - name: Run Fuzzers (${{ matrix.sanitizer }})
       id: run

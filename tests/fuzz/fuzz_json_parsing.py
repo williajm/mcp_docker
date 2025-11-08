@@ -5,12 +5,12 @@ Tests JSON parsing with malformed and edge-case inputs to ensure
 robust error handling and prevent crashes.
 """
 
+# Import without instrumentation
+import json
 import sys
 
 import atheris
 
-# Import without instrumentation
-import json
 from mcp_docker.utils.json_parsing import parse_json_string_field
 
 # Instrument all code after imports
@@ -37,7 +37,7 @@ def fuzz_json_parse(data: bytes) -> None:
 
     # Test parse_json_string_field wrapper
     try:
-        json_str = data.decode('utf-8', errors='ignore')
+        json_str = data.decode("utf-8", errors="ignore")
         result = parse_json_string_field(json_str, "test_field")
         if result is not None:
             assert isinstance(result, (dict, list, str, int, float, bool))
@@ -92,9 +92,8 @@ def fuzz_nested_json(data: bytes) -> None:
                 fdp.ConsumeUnicodeNoSurrogates(10): create_nested(depth - 1, fdp)
                 for _ in range(fdp.ConsumeIntInRange(1, 5))
             }
-        else:
-            # Create nested list
-            return [create_nested(depth - 1, fdp) for _ in range(fdp.ConsumeIntInRange(1, 5))]
+        # Create nested list
+        return [create_nested(depth - 1, fdp) for _ in range(fdp.ConsumeIntInRange(1, 5))]
 
     try:
         nested = create_nested(fdp.ConsumeIntInRange(1, 20), fdp)
