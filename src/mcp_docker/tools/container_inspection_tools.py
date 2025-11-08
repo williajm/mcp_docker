@@ -502,13 +502,13 @@ class ContainerStatsTool(BaseTool):
             # When stream=True, returns a generator of dicts
             if input_data.stream:
                 # Get first stats snapshot from the stream
-                stats_gen = container.stats(stream=True, decode=True)
+                stats_gen = container.stats(stream=True, decode=True)  # type: ignore[no-untyped-call]
                 stats = next(stats_gen)
                 # Close the generator to avoid resource leaks
                 stats_gen.close()
             else:
                 # Returns a dict directly when stream=False (decode not supported here)
-                stats = container.stats(stream=False)
+                stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
 
             logger.info(f"Successfully retrieved stats for container: {input_data.container_id}")
             return ContainerStatsOutput(stats=stats, container_id=str(container.id))

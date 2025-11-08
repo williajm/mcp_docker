@@ -819,7 +819,7 @@ class SecurityAuditPrompt(BasePromptHelper):
         ]
 
         # Get system info (blocking I/O)
-        system_info: dict[str, Any] = self.docker.client.info()
+        system_info: dict[str, Any] = self.docker.client.info()  # type: ignore[no-untyped-call]
 
         return container_attrs_list, truncated, total_count, system_info
 

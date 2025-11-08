@@ -200,7 +200,7 @@ class ContainerStatsResource(BaseResourceHelper):
         container = self.docker.client.containers.get(container_id)
         # Get stats (stream=False for single snapshot)
         # Note: decode parameter can only be used with stream=True
-        stats: dict[str, Any] = container.stats(stream=False)
+        stats: dict[str, Any] = container.stats(stream=False)  # type: ignore[no-untyped-call]
         return stats
 
     async def read(self, container_id: str) -> ResourceContent:
