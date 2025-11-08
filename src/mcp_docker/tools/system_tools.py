@@ -237,7 +237,7 @@ class SystemInfoTool(BaseTool):
         """
         try:
             logger.info("Getting Docker system information")
-            info = self.docker.client.info()
+            info = self.docker.client.info()  # type: ignore[no-untyped-call]
 
             logger.info("Successfully retrieved system information")
             return SystemInfoOutput(info=info)
@@ -284,7 +284,7 @@ class SystemDfTool(BaseTool):
         """
         try:
             logger.info("Getting Docker disk usage statistics")
-            df_info = self.docker.client.df()
+            df_info = self.docker.client.df()  # type: ignore[no-untyped-call]
 
             # Summarize the output to avoid token limit issues
             summary = {
@@ -363,13 +363,13 @@ class SystemPruneTool(BaseTool):
 
             # System prune removes stopped containers, unused networks,
             # dangling images, and optionally volumes
-            result = self.docker.client.api.prune_containers(filters=input_data.filters)
+            result = self.docker.client.api.prune_containers(filters=input_data.filters)  # type: ignore[no-untyped-call]
             containers_deleted = result.get("ContainersDeleted", []) or []
 
             result_images = self.docker.client.images.prune(filters=input_data.filters)
             images_deleted = result_images.get("ImagesDeleted", []) or []
 
-            result_networks = self.docker.client.api.prune_networks(filters=input_data.filters)
+            result_networks = self.docker.client.api.prune_networks(filters=input_data.filters)  # type: ignore[no-untyped-call]
             networks_deleted = result_networks.get("NetworksDeleted", []) or []
 
             # Only prune volumes if explicitly requested
@@ -444,7 +444,7 @@ class VersionTool(BaseTool):
         """
         try:
             logger.info("Getting Docker version information")
-            version = self.docker.client.version()
+            version = self.docker.client.version()  # type: ignore[no-untyped-call]
 
             logger.info("Successfully retrieved version information")
             return VersionOutput(version=version)
@@ -519,7 +519,7 @@ class EventsTool(BaseTool):
                 kwargs["filters"] = input_data.filters
 
             # Get events generator (non-streaming for now)
-            events_gen = self.docker.client.events(**kwargs)
+            events_gen = self.docker.client.events(**kwargs)  # type: ignore[no-untyped-call]
 
             # Collect events (limit to prevent infinite loops)
             events = []

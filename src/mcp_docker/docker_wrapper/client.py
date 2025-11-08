@@ -40,6 +40,7 @@ class DockerClientWrapper:
         """
         if self._client is None:
             self._connect()
+        assert self._client is not None  # _connect() raises on failure, so client is set
         return self._client
 
     def _connect(self) -> None:
@@ -74,7 +75,7 @@ class DockerClientWrapper:
             )
 
             # Health check
-            self._client.ping()
+            self._client.ping()  # type: ignore[no-untyped-call]
             logger.success("Successfully connected to Docker daemon")
 
         except DockerException as e:
@@ -96,11 +97,11 @@ class DockerClientWrapper:
         """
         try:
             # Ping daemon
-            self.client.ping()
+            self.client.ping()  # type: ignore[no-untyped-call]
 
             # Get daemon info
-            info = self.client.info()
-            version = self.client.version()
+            info = self.client.info()  # type: ignore[no-untyped-call]
+            version = self.client.version()  # type: ignore[no-untyped-call]
 
             health_status = {
                 "status": "healthy",
@@ -133,7 +134,7 @@ class DockerClientWrapper:
         """Close the Docker client connection."""
         if self._client is not None:
             try:
-                self._client.close()
+                self._client.close()  # type: ignore[no-untyped-call]
                 logger.debug("Docker client connection closed")
             except Exception as e:
                 logger.warning(f"Error closing Docker client: {e}")
