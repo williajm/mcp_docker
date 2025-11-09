@@ -62,7 +62,7 @@ def test_validate_timestamp_expired(self):
     timestamp = datetime.fromtimestamp(old_timestamp, UTC).isoformat()
 
     assert protocol.validate_timestamp(timestamp) is False
-```
+```text
 
 **Characteristics:**
 
@@ -107,7 +107,7 @@ async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth):
     )
 
     assert result.get("success") is True
-```
+```text
 
 **Characteristics:**
 
@@ -165,7 +165,7 @@ async def test_complete_docker_workflow_with_ssh_auth(tmp_path):
                 arguments={"_auth": {"ssh": ssh_auth2}, "image": "nginx:alpine"}
             )
             # ... more operations ...
-```
+```text
 
 **Characteristics:**
 
@@ -212,7 +212,7 @@ uv run pytest
 
 # Run with coverage report
 uv run pytest --cov=mcp_docker --cov-report=html
-```
+```text
 
 ### Running by Test Level
 
@@ -228,7 +228,7 @@ uv run pytest tests/e2e/ -v -m e2e
 
 # E2E excluding slow tests (faster feedback)
 uv run pytest tests/e2e/ -v -m "e2e and not slow"
-```
+```text
 
 ### Running Specific Tests
 
@@ -244,7 +244,7 @@ uv run pytest -k "ssh_auth" -v
 
 # Run tests for specific component
 uv run pytest tests/unit/auth/ -v
-```
+```text
 
 ### Using Pytest Markers
 
@@ -263,7 +263,7 @@ pytest -m "e2e and not slow"
 
 # Run all tests except slow ones
 pytest -m "not slow"
-```
+```text
 
 ### Coverage Analysis
 
@@ -280,7 +280,7 @@ uv run pytest --cov=mcp_docker --cov-report=term-missing
 
 # Fail if coverage below threshold
 uv run pytest --cov=mcp_docker --cov-fail-under=85
-```
+```text
 
 ### Execution Time Examples
 
@@ -304,7 +304,7 @@ $ pytest tests/e2e/ -v -m e2e
 # All tests - Comprehensive
 $ pytest
 ====== 267+ tests in 65.7s ======
-```
+```text
 
 ---
 
@@ -353,7 +353,7 @@ class TestSSHAuthProtocol:
 
         # Assert
         assert result is False
-```
+```text
 
 ### Integration Test Example
 
@@ -402,7 +402,7 @@ class TestSSHAuthIntegration:
 
         # Verify
         assert result.get("success") is True
-```
+```text
 
 ### E2E Test Example
 
@@ -467,7 +467,7 @@ async def test_complete_docker_workflow_with_ssh_auth(tmp_path):
     finally:
         # Cleanup
         cleanup_containers(container_id)
-```
+```text
 
 ---
 
@@ -503,7 +503,7 @@ integration-test:
         uv run pytest tests/integration/ \
           -m "integration" \
           --maxfail=5
-```
+```text
 
 ### Recommended CI Strategy
 
@@ -523,7 +523,7 @@ e2e-tests-quick:
 e2e-tests-full:
   if: github.ref == 'refs/heads/main'
   pytest tests/e2e/ -m e2e
-```
+```text
 
 This provides:
 
@@ -536,7 +536,7 @@ This provides:
 
 ### Test Organization
 
-```
+```text
 tests/
 ├── unit/                    # Unit tests (fast, isolated)
 │   ├── auth/               # Auth component tests
@@ -552,7 +552,7 @@ tests/
 │   └── test_ssh_auth_e2e.py
 ├── fixtures/               # Shared fixtures
 └── conftest.py            # Pytest configuration
-```
+```text
 
 ### Test Naming Conventions
 
@@ -566,7 +566,7 @@ def test_replay_attack_prevention()
 def test_timestamp()        # Not specific
 def test_feature()          # Too vague
 def test_1()               # No description
-```
+```text
 
 ### Fixture Usage
 
@@ -583,7 +583,7 @@ def tmp_ssh_keys(tmp_path):
 def test_ssh_authentication(tmp_ssh_keys):
     private_key, public_key = tmp_ssh_keys
     # Test logic here
-```
+```text
 
 ### Cleanup and Resource Management
 
@@ -607,7 +607,7 @@ async def test_container(mcp_server):
                 "docker_remove_container",
                 {"container_id": container_id, "force": True}
             )
-```
+```text
 
 ### Test Markers
 
@@ -626,7 +626,7 @@ async def test_container(mcp_server):
 async def test_concurrent_clients():
     """E2E: Test 10 concurrent clients."""
     # Test logic
-```
+```text
 
 ### When to Write Each Test Level
 
@@ -681,7 +681,7 @@ sudo chmod 666 /var/run/docker.sock
 
 # Solution 3: Skip integration/E2E tests
 pytest tests/unit/ -v
-```
+```text
 
 ### Slow Test Execution
 
@@ -691,7 +691,7 @@ pytest -m "not slow" -v
 
 # Run tests in parallel (requires pytest-xdist)
 pytest -n auto
-```
+```text
 
 ### Test Failures in CI
 
@@ -699,7 +699,7 @@ pytest -n auto
 # Run with same settings as CI
 pytest tests/unit/ --cov=mcp_docker --cov-fail-under=85
 pytest tests/integration/ -m integration --maxfail=5
-```
+```text
 
 ---
 

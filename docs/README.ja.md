@@ -34,7 +34,7 @@
 ```bash
 # インストールせずに直接実行
 uvx mcp-docker
-```
+```text
 
 #### オプション2: uvを使用
 
@@ -44,7 +44,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```
+```text
 
 #### オプション3: pipを使用
 
@@ -54,7 +54,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```
+```text
 
 ### 設定
 
@@ -68,19 +68,19 @@ mcp-docker
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```
+```text
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```
+```text
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```
+```text
 
 #### すべての設定オプション
 
@@ -105,7 +105,7 @@ export MCP_SERVER_NAME="mcp-docker"  # MCPサーバー名 (デフォルト: mcp-
 export MCP_SERVER_VERSION="0.1.0"  # MCPサーバーバージョン (デフォルト: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # ログレベル: DEBUG, INFO, WARNING, ERROR, CRITICAL (デフォルト: INFO)
 export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # ログファイルパス (オプション、デフォルトは作業ディレクトリのmcp_docker.log)
-```
+```text
 
 #### .envファイルを使用
 
@@ -115,13 +115,13 @@ export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # ログファイルパス
 # .envファイルの例 (Linux/macOS)
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 ```bash
 # .envファイルの例 (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 ### Claude Desktopの設定
 
@@ -145,7 +145,7 @@ Claude Desktop設定に追加:
     }
   }
 }
-```
+```text
 
 **Windows設定:**
 
@@ -161,7 +161,7 @@ Claude Desktop設定に追加:
     }
   }
 }
-```
+```text
 
 ### 高度な使用方法
 
@@ -172,7 +172,7 @@ Claude Desktop設定に追加:
 ```bash
 # SSEトランスポートで実行
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```
+```text
 
 **コマンドラインオプション:**
 
@@ -187,7 +187,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```bash
 export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
 mcp-docker
-```
+```text
 
 ## ツール概要
 
@@ -306,7 +306,7 @@ uv run ruff format src tests
 
 # 型チェックを実行
 uv run mypy src tests
-```
+```text
 
 ### テストの実行
 
@@ -319,11 +319,11 @@ uv run pytest tests/unit/ -v
 
 # 統合テストを実行(Dockerが必要)
 uv run pytest tests/integration/ -v -m integration
-```
+```text
 
 ### プロジェクト構造
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/
@@ -338,7 +338,7 @@ mcp_docker/
 ├── tests/                       # テストスイート
 ├── docs/                        # ドキュメント
 └── pyproject.toml              # プロジェクト設定
-```
+```text
 
 ## 要件
 

@@ -34,7 +34,7 @@
 ```bash
 # 无需安装直接运行
 uvx mcp-docker
-```
+```text
 
 #### 选项2：使用uv
 
@@ -44,7 +44,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```
+```text
 
 #### 选项3：使用pip
 
@@ -54,7 +54,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```
+```text
 
 ### 配置
 
@@ -68,19 +68,19 @@ mcp-docker
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```
+```text
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```
+```text
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```
+```text
 
 #### 所有配置选项
 
@@ -105,7 +105,7 @@ export MCP_SERVER_NAME="mcp-docker"  # MCP服务器名称 (默认: mcp-docker)
 export MCP_SERVER_VERSION="0.1.0"  # MCP服务器版本 (默认: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL (默认: INFO)
 export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # 日志文件路径 (可选，默认为工作目录中的mcp_docker.log)
-```
+```text
 
 #### 使用.env文件
 
@@ -115,13 +115,13 @@ export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # 日志文件路径 (可�
 # .env文件示例 (Linux/macOS)
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 ```bash
 # .env文件示例 (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 ### Claude Desktop配置
 
@@ -145,7 +145,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
     }
   }
 }
-```
+```text
 
 **Windows配置:**
 
@@ -161,7 +161,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
     }
   }
 }
-```
+```text
 
 ### 高级用法
 
@@ -172,7 +172,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 # 使用SSE传输运行
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```
+```text
 
 **命令行选项:**
 
@@ -187,7 +187,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```bash
 export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
 mcp-docker
-```
+```text
 
 ## 工具概览
 
@@ -314,7 +314,7 @@ mcp-docker
     }
   }
 }
-```
+```text
 
 ### 安全功能
 
@@ -383,7 +383,7 @@ uv run ruff format src tests
 
 # 运行类型检查
 uv run mypy src tests
-```
+```text
 
 ### 运行测试
 
@@ -396,11 +396,11 @@ uv run pytest tests/unit/ -v
 
 # 运行集成测试(需要Docker)
 uv run pytest tests/integration/ -v -m integration
-```
+```text
 
 ### 项目结构
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/
@@ -415,7 +415,7 @@ mcp_docker/
 ├── tests/                       # 测试套件
 ├── docs/                        # 文档
 └── pyproject.toml              # 项目配置
-```
+```text
 
 ## 要求
 

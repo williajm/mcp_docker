@@ -111,7 +111,7 @@ uvx --python 3.11 mcp-docker
 
 # Run with environment variables
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true uvx mcp-docker
-```
+```text
 
 **Advantages:**
 
@@ -141,7 +141,7 @@ uv run mcp-docker
 source .venv/bin/activate  # macOS/Linux
 # .venv\Scripts\activate   # Windows
 mcp-docker
-```
+```text
 
 **Advantages:**
 
@@ -171,7 +171,7 @@ pip install -e .
 
 # Run the server
 mcp-docker
-```
+```text
 
 **Advantages:**
 
@@ -196,7 +196,7 @@ pip install mcp-docker
 
 # Run the server
 mcp-docker
-```
+```text
 
 ## Claude Desktop Configuration
 
@@ -225,7 +225,7 @@ Add this to your `claude_desktop_config.json`:
     }
   }
 }
-```
+```text
 
 #### Using uv from Source
 
@@ -240,7 +240,7 @@ If you cloned the repository:
     }
   }
 }
-```
+```text
 
 Replace `/absolute/path/to/mcp_docker` with the actual path to your cloned repository.
 
@@ -256,7 +256,7 @@ If you installed with pip in a virtual environment:
     }
   }
 }
-```
+```text
 
 ### Configuration with Environment Variables
 
@@ -277,7 +277,7 @@ Add environment variables to customize behavior:
     }
   }
 }
-```
+```text
 
 ### Platform-Specific Configuration
 
@@ -295,7 +295,7 @@ Add environment variables to customize behavior:
     }
   }
 }
-```
+```text
 
 #### Windows
 
@@ -313,7 +313,7 @@ For Docker Desktop on Windows:
     }
   }
 }
-```
+```text
 
 #### Linux
 
@@ -329,7 +329,7 @@ For Docker Desktop on Windows:
     }
   }
 }
-```
+```text
 
 ### Advanced Configuration Examples
 
@@ -349,7 +349,7 @@ Connect to a remote Docker daemon over TCP:
     }
   }
 }
-```
+```text
 
 #### Docker with TLS
 
@@ -371,7 +371,7 @@ Connect to a TLS-secured Docker daemon:
     }
   }
 }
-```
+```text
 
 #### Maximum Safety Mode
 
@@ -392,7 +392,7 @@ Most restrictive settings (read-only operations only):
     }
   }
 }
-```
+```text
 
 #### Development Mode
 
@@ -413,7 +413,7 @@ More permissive settings for development:
     }
   }
 }
-```
+```text
 
 ## Environment Variables
 
@@ -440,25 +440,25 @@ Control how the server connects to Docker:
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```
+```text
 
 **macOS:**
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```
+```text
 
 **Windows (CMD):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```
+```text
 
 **Windows (PowerShell):**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```
+```text
 
 #### Other Configuration Examples
 
@@ -466,7 +466,7 @@ $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 
 ```bash
 export DOCKER_BASE_URL="tcp://192.168.1.100:2375"
-```
+```text
 
 **Remote Docker with TLS:**
 
@@ -476,13 +476,13 @@ export DOCKER_TLS_VERIFY="true"
 export DOCKER_TLS_CA_CERT="/path/to/ca.pem"
 export DOCKER_TLS_CLIENT_CERT="/path/to/cert.pem"
 export DOCKER_TLS_CLIENT_KEY="/path/to/key.pem"
-```
+```text
 
 **Increase timeout for slow operations:**
 
 ```bash
 export DOCKER_TIMEOUT="120"
-```
+```text
 
 ### Safety Configuration
 
@@ -527,7 +527,7 @@ export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE="false"
 
 # Limit concurrent operations
 export SAFETY_MAX_CONCURRENT_OPERATIONS="5"
-```
+```text
 
 ### Server Configuration
 
@@ -542,9 +542,9 @@ Configure logging and server metadata:
 
 **Default Log Format:**
 
-```
+```text
 <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>
-```
+```text
 
 **Examples:**
 
@@ -557,7 +557,7 @@ export MCP_LOG_LEVEL="WARNING"
 
 # Custom server name
 export MCP_SERVER_NAME="my-docker-server"
-```
+```text
 
 ### Using .env File
 
@@ -572,7 +572,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false
 
 MCP_LOG_LEVEL=INFO
-```
+```text
 
 The server will automatically load these variables on startup.
 
@@ -593,7 +593,7 @@ ls -la /var/run/docker.sock
 
 # Test Docker info
 docker info
-```
+```text
 
 ### Step 2: Test Server Standalone
 
@@ -609,14 +609,14 @@ uv run mcp-docker
 
 # Using pip
 mcp-docker
-```
+```text
 
 The server should start without errors. You'll see log output similar to:
 
-```
+```text
 2025-10-24 10:30:15 | INFO     | mcp_docker.server:main:45 - Starting MCP Docker server
 2025-10-24 10:30:15 | INFO     | mcp_docker.server:main:48 - Docker client initialized successfully
-```
+```text
 
 Press `Ctrl+C` to stop the server.
 
@@ -636,9 +636,9 @@ Press `Ctrl+C` to stop the server.
 
 4. Test with a simple query:
 
-   ```
+   ```text
    List all Docker containers
-   ```
+   ```text
 
    Claude should respond with a list of containers or confirm that no containers exist.
 
@@ -648,33 +648,33 @@ Try these commands in Claude to verify functionality:
 
 1. **Check Docker version:**
 
-   ```
+   ```text
    What version of Docker am I running?
-   ```
+   ```text
 
 2. **List images:**
 
-   ```
+   ```text
    Show me all Docker images on my system
-   ```
+   ```text
 
 3. **System information:**
 
-   ```
+   ```text
    Get Docker system information
-   ```
+   ```text
 
 4. **Test a safe operation:**
 
-   ```
+   ```text
    Create a simple nginx container named test-container
-   ```
+   ```text
 
 5. **Test logs (if container exists):**
 
-   ```
+   ```text
    Show me the logs for the test-container
-   ```
+   ```text
 
 ### Verification Checklist
 
@@ -704,7 +704,7 @@ Common issues and their solutions.
 
    ```bash
    docker ps
-   ```
+   ```text
 
 2. **Start Docker:**
    - **macOS**: Open Docker Desktop application
@@ -725,7 +725,7 @@ Common issues and their solutions.
 
    # Windows (PowerShell)
    Test-Path \\.\pipe\docker_engine
-   ```
+   ```text
 
 4. **Check Docker Desktop settings:**
    - Ensure "Use the Docker Compose CLI" is enabled
@@ -754,7 +754,7 @@ ls -la /var/run/docker.sock
 
 # If needed, fix socket permissions
 sudo chmod 666 /var/run/docker.sock
-```
+```text
 
 **macOS/Windows:**
 
@@ -776,7 +776,7 @@ sudo chmod 666 /var/run/docker.sock
     }
   }
 }
-```
+```text
 
 ### Python Version Issues
 
@@ -794,7 +794,7 @@ sudo chmod 666 /var/run/docker.sock
    python --version
    python3 --version
    python3.11 --version
-   ```
+   ```text
 
 2. **Install Python 3.11+:**
 
@@ -808,19 +808,19 @@ sudo chmod 666 /var/run/docker.sock
 
    # Windows
    # Download from python.org
-   ```
+   ```text
 
 3. **Use specific Python version with uvx:**
 
    ```bash
    uvx --python 3.11 mcp-docker
-   ```
+   ```text
 
 4. **Use specific Python version with uv:**
 
    ```bash
    uv venv --python 3.11
-   ```
+   ```text
 
 5. **Update Claude Desktop config to use specific Python:**
 
@@ -833,7 +833,7 @@ sudo chmod 666 /var/run/docker.sock
        }
      }
    }
-   ```
+   ```text
 
 ### Connection Issues
 
@@ -859,7 +859,7 @@ sudo chmod 666 /var/run/docker.sock
        }
      }
    }
-   ```
+   ```text
 
 2. **Check Claude Desktop logs:**
    - **macOS**: `~/Library/Logs/Claude/`
@@ -870,7 +870,7 @@ sudo chmod 666 /var/run/docker.sock
 
    ```bash
    MCP_LOG_LEVEL=DEBUG uvx mcp-docker
-   ```
+   ```text
 
 4. **Restart both server and Claude:**
    - Completely quit Claude (not just close window)
@@ -882,7 +882,7 @@ sudo chmod 666 /var/run/docker.sock
    ```bash
    # If using TCP
    netstat -an | grep 2375
-   ```
+   ```text
 
 ### Platform-Specific Problems
 
@@ -895,7 +895,7 @@ sudo chmod 666 /var/run/docker.sock
 rm -rf ~/Library/Group\ Containers/group.com.docker
 rm -rf ~/Library/Containers/com.docker.docker
 # Reinstall Docker Desktop
-```
+```text
 
 **Permission issues with socket:**
 
@@ -904,14 +904,14 @@ rm -rf ~/Library/Containers/com.docker.docker
 ls -la /var/run/docker.sock
 
 # Should show: srw-rw---- 1 root docker
-```
+```text
 
 **Rosetta 2 on Apple Silicon:**
 
 ```bash
 # If using x86_64 Docker on ARM Mac
 export DOCKER_DEFAULT_PLATFORM=linux/amd64
-```
+```text
 
 #### Windows Issues
 
@@ -929,7 +929,7 @@ export DOCKER_DEFAULT_PLATFORM=linux/amd64
     }
   }
 }
-```
+```text
 
 **WSL2 Docker:**
 
@@ -939,7 +939,7 @@ export DOCKER_HOST=unix:///var/run/docker.sock
 
 # Or connect to Windows Docker from WSL2
 export DOCKER_HOST=tcp://localhost:2375
-```
+```text
 
 **Path issues:**
 
@@ -952,7 +952,7 @@ export DOCKER_HOST=tcp://localhost:2375
     }
   }
 }
-```
+```text
 
 #### Linux Issues
 
@@ -967,7 +967,7 @@ sudo setenforce 0
 
 # Permanent fix: Add policy for Docker socket
 sudo chcon -t docker_socket_t /var/run/docker.sock
-```
+```text
 
 **AppArmor issues:**
 
@@ -977,7 +977,7 @@ sudo aa-status
 
 # Disable for Docker (if needed)
 sudo aa-complain /usr/bin/docker
-```
+```text
 
 **Systemd socket activation:**
 
@@ -985,7 +985,7 @@ sudo aa-complain /usr/bin/docker
 # Enable Docker socket
 sudo systemctl enable docker.socket
 sudo systemctl start docker.socket
-```
+```text
 
 ### Debugging Tips
 
@@ -1005,7 +1005,7 @@ Add debug logging to see detailed information:
     }
   }
 }
-```
+```text
 
 #### Check Server Output
 
@@ -1016,7 +1016,7 @@ Run the server manually to see error messages:
 MCP_LOG_LEVEL=DEBUG uvx mcp-docker
 
 # Watch for errors in output
-```
+```text
 
 #### Validate Configuration
 
@@ -1030,13 +1030,13 @@ config = Config()
 print("Docker:", config.docker)
 print("Safety:", config.safety)
 print("Server:", config.server)
-```
+```text
 
 Run with:
 
 ```bash
 uv run python test_config.py
-```
+```text
 
 #### Test Docker Connection
 
@@ -1049,7 +1049,7 @@ from docker import DockerClient
 client = DockerClient(base_url="unix:///var/run/docker.sock")
 print("Docker version:", client.version())
 print("Docker info:", client.info())
-```
+```text
 
 #### Common Error Messages
 
@@ -1091,7 +1091,7 @@ Detailed information for each operating system.
 
 ```bash
 /var/run/docker.sock
-```
+```text
 
 #### Installation
 
@@ -1107,7 +1107,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install MCP Docker
 uvx mcp-docker
-```
+```text
 
 #### Configuration
 
@@ -1123,7 +1123,7 @@ uvx mcp-docker
     }
   }
 }
-```
+```text
 
 #### Special Considerations
 
@@ -1143,15 +1143,15 @@ uvx mcp-docker
 
 #### Docker Socket Location
 
-```
+```text
 npipe:////./pipe/docker_engine
-```
+```text
 
 Or with WSL2:
 
-```
+```text
 unix:///var/run/docker.sock
-```
+```text
 
 #### Installation
 
@@ -1170,7 +1170,7 @@ irm https://astral.sh/uv/install.ps1 | iex
 
 # Install MCP Docker
 uvx mcp-docker
-```
+```text
 
 #### Configuration
 
@@ -1188,7 +1188,7 @@ uvx mcp-docker
     }
   }
 }
-```
+```text
 
 **WSL2:**
 
@@ -1204,7 +1204,7 @@ uvx mcp-docker
     }
   }
 }
-```
+```text
 
 #### Special Considerations
 
@@ -1230,7 +1230,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install MCP Docker
 uvx mcp-docker
-```
+```text
 
 ### Linux
 
@@ -1244,7 +1244,7 @@ uvx mcp-docker
 
 ```bash
 /var/run/docker.sock
-```
+```text
 
 #### Installation
 
@@ -1265,7 +1265,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install MCP Docker
 uvx mcp-docker
-```
+```text
 
 **Fedora/RHEL:**
 
@@ -1285,7 +1285,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install MCP Docker
 uvx mcp-docker
-```
+```text
 
 **Arch Linux:**
 
@@ -1304,7 +1304,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install MCP Docker
 uvx mcp-docker
-```
+```text
 
 #### Configuration
 
@@ -1320,7 +1320,7 @@ uvx mcp-docker
     }
   }
 }
-```
+```text
 
 #### Special Considerations
 
@@ -1340,7 +1340,7 @@ dockerd-rootless-setuptool.sh install
 
 # Configure MCP Docker
 export DOCKER_BASE_URL="unix://$XDG_RUNTIME_DIR/docker.sock"
-```
+```text
 
 Update Claude config:
 
@@ -1356,7 +1356,7 @@ Update Claude config:
     }
   }
 }
-```
+```text
 
 ## Uninstallation
 
@@ -1375,7 +1375,7 @@ How to completely remove the MCP Docker server.
 ```bash
 # uvx doesn't install permanently, but you can clear cache
 uv cache clean mcp-docker
-```
+```text
 
 #### If installed with uv from source
 
@@ -1385,7 +1385,7 @@ rm -rf /path/to/mcp_docker
 
 # Optional: Remove virtual environment
 rm -rf .venv
-```
+```text
 
 #### If installed with pip
 
@@ -1398,7 +1398,7 @@ pip uninstall mcp-docker
 
 # Remove virtual environment
 rm -rf /path/to/venv
-```
+```text
 
 ### Clean Up Configuration
 
@@ -1410,7 +1410,7 @@ rm /path/to/mcp_docker/.env
 
 # Clear Docker credentials if configured
 rm ~/.docker/config.json  # Be careful, this removes all Docker credentials
-```
+```text
 
 ### Verify Removal
 
@@ -1420,7 +1420,7 @@ which mcp-docker  # Should return nothing
 
 # Check pip list
 pip list | grep mcp-docker  # Should return nothing
-```
+```text
 
 ### Keep Your Docker Data
 

@@ -57,7 +57,7 @@ Safety settings can be configured via environment variables:
 ```bash
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
-```
+```text
 
 ### Errors
 
@@ -99,7 +99,7 @@ List Docker containers with optional filters.
   ],
   "count": 1
 }
-```
+```text
 
 **Example Usage:**
 
@@ -111,7 +111,7 @@ List Docker containers with optional filters.
     "filters": {"status": ["running", "exited"]}
   }
 }
-```
+```text
 
 ---
 
@@ -139,7 +139,7 @@ Get detailed information about a Docker container.
     "NetworkSettings": {...}
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -150,7 +150,7 @@ Get detailed information about a Docker container.
     "container_id": "my-container"
   }
 }
-```
+```text
 
 ---
 
@@ -183,7 +183,7 @@ Create a new Docker container from an image.
   "name": "my-container",
   "warnings": null
 }
-```
+```text
 
 **Example Usage:**
 
@@ -198,7 +198,7 @@ Create a new Docker container from an image.
     "mem_limit": "512m"
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -227,7 +227,7 @@ Start a stopped Docker container.
   "container_id": "abc123...",
   "status": "running"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -238,7 +238,7 @@ Start a stopped Docker container.
     "container_id": "my-container"
   }
 }
-```
+```text
 
 ---
 
@@ -262,7 +262,7 @@ Stop a running Docker container gracefully.
   "container_id": "abc123...",
   "status": "exited"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -274,7 +274,7 @@ Stop a running Docker container gracefully.
     "timeout": 30
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -303,7 +303,7 @@ Restart a Docker container.
   "container_id": "abc123...",
   "status": "running"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -315,7 +315,7 @@ Restart a Docker container.
     "timeout": 15
   }
 }
-```
+```text
 
 ---
 
@@ -340,7 +340,7 @@ Remove a Docker container.
   "container_id": "abc123...",
   "removed_volumes": false
 }
-```
+```text
 
 **Example Usage:**
 
@@ -353,7 +353,7 @@ Remove a Docker container.
     "volumes": true
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -387,7 +387,7 @@ Get logs from a Docker container.
   "logs": "Log line 1\nLog line 2\n...",
   "container_id": "abc123..."
 }
-```
+```text
 
 **Example Usage:**
 
@@ -401,7 +401,7 @@ Get logs from a Docker container.
     "since": "1h"
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -434,7 +434,7 @@ Execute a command in a running Docker container.
   "exit_code": 0,
   "output": "Command output here..."
 }
-```
+```text
 
 **Example Usage:**
 
@@ -448,7 +448,7 @@ Execute a command in a running Docker container.
     "workdir": "/app"
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -483,7 +483,7 @@ Get resource usage statistics for a Docker container.
   },
   "container_id": "abc123..."
 }
-```
+```text
 
 **Example Usage:**
 
@@ -495,7 +495,7 @@ Get resource usage statistics for a Docker container.
     "stream": false
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -535,7 +535,7 @@ List Docker images with optional filters.
   ],
   "count": 1
 }
-```
+```text
 
 **Example Usage:**
 
@@ -547,7 +547,7 @@ List Docker images with optional filters.
     "filters": {"dangling": ["false"]}
   }
 }
-```
+```text
 
 ---
 
@@ -575,7 +575,7 @@ Get detailed information about a Docker image.
     "RootFS": {...}
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -586,7 +586,7 @@ Get detailed information about a Docker image.
     "image_name": "nginx:latest"
   }
 }
-```
+```text
 
 ---
 
@@ -613,7 +613,7 @@ Pull a Docker image from a registry.
   "id": "sha256:abc123...",
   "tags": ["ubuntu:22.04"]
 }
-```
+```text
 
 **Example Usage:**
 
@@ -626,7 +626,7 @@ Pull a Docker image from a registry.
     "platform": "linux/amd64"
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -662,7 +662,7 @@ Build a Docker image from a Dockerfile.
   "tags": ["my-app:latest"],
   "logs": ["Step 1/5 : FROM node:18", "..."]
 }
-```
+```text
 
 **Example Usage:**
 
@@ -677,7 +677,7 @@ Build a Docker image from a Dockerfile.
     "nocache": true
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -707,7 +707,7 @@ Push a Docker image to a registry.
   "image": "myregistry/my-app:latest",
   "status": "pushed"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -719,7 +719,7 @@ Push a Docker image to a registry.
     "tag": "latest"
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -749,7 +749,7 @@ Tag a Docker image.
   "source": "nginx:latest",
   "target": "myregistry/nginx:v1.0"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -762,7 +762,7 @@ Tag a Docker image.
     "tag": "v1.0"
   }
 }
-```
+```text
 
 ---
 
@@ -788,7 +788,7 @@ Remove a Docker image.
     {"Deleted": "sha256:abc123..."}
   ]
 }
-```
+```text
 
 **Example Usage:**
 
@@ -800,7 +800,7 @@ Remove a Docker image.
     "force": true
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -832,7 +832,7 @@ Remove unused Docker images.
   ],
   "space_reclaimed": 1234567890
 }
-```
+```text
 
 **Example Usage:**
 
@@ -844,7 +844,7 @@ Remove unused Docker images.
     "filters": {"dangling": ["true"]}
   }
 }
-```
+```text
 
 ##### Example: Remove ALL images
 
@@ -855,7 +855,7 @@ Remove unused Docker images.
     "force_all": true
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -891,7 +891,7 @@ View the history of a Docker image.
     }
   ]
 }
-```
+```text
 
 **Example Usage:**
 
@@ -902,7 +902,7 @@ View the history of a Docker image.
     "image": "nginx:latest"
   }
 }
-```
+```text
 
 ---
 
@@ -936,7 +936,7 @@ List Docker networks with optional filters.
   ],
   "count": 1
 }
-```
+```text
 
 **Example Usage:**
 
@@ -947,7 +947,7 @@ List Docker networks with optional filters.
     "filters": {"driver": ["bridge"]}
   }
 }
-```
+```text
 
 ---
 
@@ -975,7 +975,7 @@ Get detailed information about a Docker network.
     "IPAM": {...}
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -986,7 +986,7 @@ Get detailed information about a Docker network.
     "network_id": "bridge"
   }
 }
-```
+```text
 
 ---
 
@@ -1017,7 +1017,7 @@ Create a new Docker network.
   "name": "my-network",
   "warnings": null
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1031,7 +1031,7 @@ Create a new Docker network.
     "labels": {"project": "myapp"}
   }
 }
-```
+```text
 
 ---
 
@@ -1060,7 +1060,7 @@ Connect a container to a Docker network.
   "container_id": "abc123...",
   "status": "connected"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1073,7 +1073,7 @@ Connect a container to a Docker network.
     "aliases": ["web", "frontend"]
   }
 }
-```
+```text
 
 ---
 
@@ -1099,7 +1099,7 @@ Disconnect a container from a Docker network.
   "container_id": "abc123...",
   "status": "disconnected"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1112,7 +1112,7 @@ Disconnect a container from a Docker network.
     "force": false
   }
 }
-```
+```text
 
 ---
 
@@ -1134,7 +1134,7 @@ Remove a Docker network.
 {
   "network_id": "net123..."
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1145,7 +1145,7 @@ Remove a Docker network.
     "network_id": "old-network"
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -1183,7 +1183,7 @@ List Docker volumes with optional filters.
   ],
   "count": 1
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1194,7 +1194,7 @@ List Docker volumes with optional filters.
     "filters": {"dangling": ["false"]}
   }
 }
-```
+```text
 
 ---
 
@@ -1222,7 +1222,7 @@ Get detailed information about a Docker volume.
     "Scope": "local"
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1233,7 +1233,7 @@ Get detailed information about a Docker volume.
     "volume_name": "my-volume"
   }
 }
-```
+```text
 
 ---
 
@@ -1260,7 +1260,7 @@ Create a new Docker volume.
   "driver": "local",
   "mountpoint": "/var/lib/docker/volumes/my-volume/_data"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1273,7 +1273,7 @@ Create a new Docker volume.
     "labels": {"project": "myapp"}
   }
 }
-```
+```text
 
 ---
 
@@ -1296,7 +1296,7 @@ Remove a Docker volume.
 {
   "volume_name": "my-volume"
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1308,7 +1308,7 @@ Remove a Docker volume.
     "force": true
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -1337,7 +1337,7 @@ Remove unused Docker volumes.
   "deleted": ["volume1", "volume2"],
   "space_reclaimed": 1234567890
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1348,7 +1348,7 @@ Remove unused Docker volumes.
     "filters": {"label": ["env=test"]}
   }
 }
-```
+```text
 
 ##### Example: Remove ALL volumes
 
@@ -1359,7 +1359,7 @@ Remove unused Docker volumes.
     "force_all": true
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -1395,7 +1395,7 @@ Get Docker system information.
     "ServerVersion": "24.0.0"
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1404,7 +1404,7 @@ Get Docker system information.
   "tool": "docker_system_info",
   "arguments": {}
 }
-```
+```text
 
 ---
 
@@ -1437,7 +1437,7 @@ Get Docker disk usage statistics.
   },
   "build_cache": {...}
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1446,7 +1446,7 @@ Get Docker disk usage statistics.
   "tool": "docker_system_df",
   "arguments": {}
 }
-```
+```text
 
 ---
 
@@ -1475,7 +1475,7 @@ Prune Docker resources. By default, removes only UNUSED resources (stopped conta
   "volumes_deleted": ["vol1", "vol2"],
   "space_reclaimed": 1234567890
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1488,7 +1488,7 @@ Prune Docker resources. By default, removes only UNUSED resources (stopped conta
     "filters": {}
   }
 }
-```
+```text
 
 ##### Example: Remove ALL resources (extremely destructive)
 
@@ -1501,7 +1501,7 @@ Prune Docker resources. By default, removes only UNUSED resources (stopped conta
     "force_all": true
   }
 }
-```
+```text
 
 **Warnings:**
 
@@ -1535,7 +1535,7 @@ Get Docker version information.
     "KernelVersion": "5.15.0"
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1544,7 +1544,7 @@ Get Docker version information.
   "tool": "docker_version",
   "arguments": {}
 }
-```
+```text
 
 ---
 
@@ -1577,7 +1577,7 @@ Stream Docker events (limited to recent events).
   ],
   "count": 1
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1589,7 +1589,7 @@ Stream Docker events (limited to recent events).
     "filters": {"type": ["container"]}
   }
 }
-```
+```text
 
 **Notes:**
 
@@ -1618,7 +1618,7 @@ Check Docker daemon health.
     "images": 10
   }
 }
-```
+```text
 
 **Example Usage:**
 
@@ -1627,7 +1627,7 @@ Check Docker daemon health.
   "tool": "docker_healthcheck",
   "arguments": {}
 }
-```
+```text
 
 ---
 
@@ -1664,7 +1664,7 @@ Generates an AI prompt with container state, configuration, logs, and expert tro
     "container_id": "my-failing-container"
   }
 }
-```
+```text
 
 **Output:**
 
@@ -1705,7 +1705,7 @@ Generates an AI prompt with container configuration, resource usage, and optimiz
     "container_id": "my-container"
   }
 }
-```
+```text
 
 **Output:**
 
@@ -1752,7 +1752,7 @@ Follows best practices:
     "service_description": "Web app with Redis cache"
   }
 }
-```
+```text
 
 **Output:**
 
@@ -1804,7 +1804,7 @@ Generates an AI prompt with comprehensive network configuration analysis and sys
     "target_host": "database"
   }
 }
-```
+```text
 
 **Output:**
 
@@ -1887,7 +1887,7 @@ Generates an AI prompt with comprehensive security analysis following CIS Docker
     "container_id": "production-webapp"
   }
 }
-```
+```text
 
 Or audit all containers (including stopped ones):
 
@@ -1896,7 +1896,7 @@ Or audit all containers (including stopped ones):
   "prompt": "security_audit",
   "arguments": {}
 }
-```
+```text
 
 **Output:**
 
@@ -1934,17 +1934,17 @@ The Docker MCP Server exposes 2 resource types accessible via URI.
 
 **Example URI:**
 
-```
+```text
 container://logs/my-container
-```
+```text
 
 **Example Response:**
 
-```
+```text
 2024-01-01 12:00:00 [INFO] Application started
 2024-01-01 12:00:01 [INFO] Listening on port 8080
 ...
-```
+```text
 
 **Notes:**
 
@@ -1964,13 +1964,13 @@ container://logs/my-container
 
 **Example URI:**
 
-```
+```text
 container://stats/my-container
-```
+```text
 
 **Example Response:**
 
-```
+```text
 Container Statistics for abc123
 ==========================================
 
@@ -1989,7 +1989,7 @@ Network:
 
 Block I/O:
   {...}
-```
+```text
 
 **Notes:**
 
@@ -2005,7 +2005,7 @@ Block I/O:
 
 All errors inherit from `MCPDockerError`:
 
-```
+```text
 MCPDockerError (base)
 ├── DockerConnectionError
 ├── DockerHealthCheckError
@@ -2017,7 +2017,7 @@ MCPDockerError (base)
 ├── ImageNotFound
 ├── NetworkNotFound
 └── VolumeNotFound
-```
+```text
 
 ### Common Error Codes
 
@@ -2043,7 +2043,7 @@ All tool errors return:
   "error": "Error message here",
   "error_type": "ContainerNotFound"
 }
-```
+```text
 
 ### Best Practices
 
@@ -2074,7 +2074,7 @@ if not result["success"]:
     else:
         # Unknown error
         print(f"Error: {result['error']}")
-```
+```text
 
 ---
 

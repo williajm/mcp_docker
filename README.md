@@ -37,7 +37,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ```bash
 # Run directly without installation
 uvx mcp-docker
-```
+```text
 
 #### Option 2: Using uv
 
@@ -47,7 +47,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```
+```text
 
 #### Option 3: Using pip
 
@@ -57,7 +57,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```
+```text
 
 ### Configuration
 
@@ -71,19 +71,19 @@ The server can be configured via environment variables or a `.env` file.
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```
+```text
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```
+```text
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```
+```text
 
 #### All Configuration Options
 
@@ -108,7 +108,7 @@ export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations (default
 export MCP_SERVER_NAME="mcp-docker"  # MCP server name (default: mcp-docker)
 export MCP_LOG_LEVEL="INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
 export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # Log file path (optional, defaults to mcp_docker.log in working directory)
-```
+```text
 
 #### Using a .env File
 
@@ -119,14 +119,14 @@ Alternatively, create a `.env` file in your project directory:
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 ```bash
 # .env file example (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 ### Claude Desktop Setup
 
@@ -150,7 +150,7 @@ Add to your Claude Desktop configuration:
     }
   }
 }
-```
+```text
 
 **Windows configuration:**
 
@@ -166,7 +166,7 @@ Add to your Claude Desktop configuration:
     }
   }
 }
-```
+```text
 
 ### Advanced Usage
 
@@ -177,7 +177,7 @@ The server supports SSE (Server-Sent Events) transport over HTTP in addition to 
 ```bash
 # Run with SSE transport
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```
+```text
 
 **Command-line options:**
 
@@ -192,7 +192,7 @@ Set a custom log file location using the `MCP_DOCKER_LOG_PATH` environment varia
 ```bash
 export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
 mcp-docker
-```
+```text
 
 ## Tools Overview
 
@@ -297,7 +297,7 @@ Configure the safety mode using environment variables:
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 - ✅ List, inspect, logs, stats
 - ❌ Create, start, stop, pull
@@ -308,7 +308,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # or omit (default)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+```text
 
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
@@ -319,7 +319,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-```
+```text
 
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
@@ -355,7 +355,7 @@ uv run ruff format src tests
 
 # Run type checking
 uv run mypy src tests
-```
+```text
 
 ### Running Tests
 
@@ -394,7 +394,7 @@ uv run pytest tests/e2e/ -v -m "e2e and not slow"
 # Run fuzz tests locally (requires atheris)
 python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
 python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
-```
+```text
 
 #### Fuzzing
 
@@ -402,7 +402,7 @@ The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) fo
 
 ### Project Structure
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/
@@ -417,7 +417,7 @@ mcp_docker/
 ├── tests/                       # Test suite
 ├── docs/                        # Documentation
 └── pyproject.toml              # Project configuration
-```
+```text
 
 ## Requirements
 
