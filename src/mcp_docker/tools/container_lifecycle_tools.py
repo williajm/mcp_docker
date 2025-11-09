@@ -24,6 +24,9 @@ from mcp_docker.utils.validation import (
 
 logger = get_logger(__name__)
 
+# Constants
+CONTAINER_ID_DESCRIPTION = "Container ID or name"
+
 
 # Input/Output Models
 
@@ -81,7 +84,7 @@ class CreateContainerOutput(BaseModel):
 class StartContainerInput(BaseModel):
     """Input for starting a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
 
 
 class StartContainerOutput(BaseModel):
@@ -94,7 +97,7 @@ class StartContainerOutput(BaseModel):
 class StopContainerInput(BaseModel):
     """Input for stopping a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
     timeout: int = Field(default=10, description="Timeout in seconds before killing")
 
 
@@ -108,7 +111,7 @@ class StopContainerOutput(BaseModel):
 class RestartContainerInput(BaseModel):
     """Input for restarting a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
     timeout: int = Field(default=10, description="Timeout in seconds before killing")
 
 
@@ -122,7 +125,7 @@ class RestartContainerOutput(BaseModel):
 class RemoveContainerInput(BaseModel):
     """Input for removing a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
     force: bool = Field(default=False, description="Force removal of running container")
     volumes: bool = Field(default=False, description="Remove associated volumes")
 

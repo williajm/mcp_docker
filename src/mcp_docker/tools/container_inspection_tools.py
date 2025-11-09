@@ -23,6 +23,7 @@ logger = get_logger(__name__)
 # Constants for container inspection operations
 # Safety limit for log streaming to prevent memory exhaustion in follow mode
 MAX_STREAMING_LOG_LINES = 10000  # Prevents OOM when collecting streaming logs
+CONTAINER_ID_DESCRIPTION = "Container ID or name"
 
 
 # Input/Output Models
@@ -52,7 +53,7 @@ class ListContainersOutput(BaseModel):
 class InspectContainerInput(BaseModel):
     """Input for inspecting a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
 
 
 class InspectContainerOutput(BaseModel):
@@ -64,7 +65,7 @@ class InspectContainerOutput(BaseModel):
 class ContainerLogsInput(BaseModel):
     """Input for getting container logs."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
     tail: int | str = Field(default="all", description="Number of lines to show from end")
     since: str | None = Field(
         default=None, description="Show logs since timestamp or relative (e.g., '1h')"
@@ -84,7 +85,7 @@ class ContainerLogsOutput(BaseModel):
 class ExecCommandInput(BaseModel):
     """Input for executing a command in a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
     command: str | list[str] = Field(description="Command to execute")
     workdir: str | None = Field(default=None, description="Working directory for command")
     user: str | None = Field(default=None, description="User to run command as")
@@ -115,7 +116,7 @@ class ExecCommandOutput(BaseModel):
 class ContainerStatsInput(BaseModel):
     """Input for getting container stats."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=CONTAINER_ID_DESCRIPTION)
     stream: bool = Field(default=False, description="Stream stats continuously")
 
 

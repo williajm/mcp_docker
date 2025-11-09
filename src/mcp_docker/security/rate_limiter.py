@@ -77,9 +77,9 @@ class RateLimiter:
 
         async with self._lock:
             # Check RPM limit
-            await self._check_rpm_limit(client_id)
+            self._check_rpm_limit(client_id)
 
-    async def _check_rpm_limit(self, client_id: str) -> None:
+    def _check_rpm_limit(self, client_id: str) -> None:
         """Check requests per minute limit using sliding window.
 
         Args:
@@ -137,7 +137,7 @@ class RateLimiter:
             f"{self._concurrent_requests[client_id]}/{self.max_concurrent}"
         )
 
-    async def release_concurrent_slot(self, client_id: str) -> None:
+    def release_concurrent_slot(self, client_id: str) -> None:
         """Release a concurrent request slot for a client.
 
         Args:
@@ -192,13 +192,16 @@ class RateLimiter:
             window_start = current_time - 120.0  # Keep 2 minutes of history
 
             # Clean up old timestamps
-            for client_id in list(self._request_times.keys()):
-                self._request_times[client_id] = [
-                    ts for ts in self._request_times[client_id] if ts > window_start
-                ]
+            clients_to_remove = []
+            for client_id, timestamps in self._request_times.items():
+                self._request_times[client_id] = [ts for ts in timestamps if ts > window_start]
 
-                # Remove empty entries
+                # Mark empty entries for removal
                 if not self._request_times[client_id]:
-                    del self._request_times[client_id]
+                    clients_to_remove.append(client_id)
+
+            # Remove empty entries
+            for client_id in clients_to_remove:
+                del self._request_times[client_id]
 
             logger.debug(f"Cleaned up rate limiter data for {len(self._request_times)} clients")
