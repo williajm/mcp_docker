@@ -18,6 +18,9 @@ from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
+# Constants
+NETWORK_ID_DESCRIPTION = "Network ID or name"
+
 
 # Input/Output Models
 
@@ -45,7 +48,7 @@ class ListNetworksOutput(BaseModel):
 class InspectNetworkInput(BaseModel):
     """Input for inspecting a network."""
 
-    network_id: str = Field(description="Network ID or name")
+    network_id: str = Field(description=NETWORK_ID_DESCRIPTION)
 
 
 class InspectNetworkOutput(BaseModel):
@@ -103,7 +106,7 @@ class CreateNetworkOutput(BaseModel):
 class ConnectContainerInput(BaseModel):
     """Input for connecting a container to a network."""
 
-    network_id: str = Field(description="Network ID or name")
+    network_id: str = Field(description=NETWORK_ID_DESCRIPTION)
     container_id: str = Field(description="Container ID or name")
     aliases: list[str] | None = Field(default=None, description="Network-scoped aliases")
     ipv4_address: str | None = Field(default=None, description="IPv4 address")
@@ -122,7 +125,7 @@ class ConnectContainerOutput(BaseModel):
 class DisconnectContainerInput(BaseModel):
     """Input for disconnecting a container from a network."""
 
-    network_id: str = Field(description="Network ID or name")
+    network_id: str = Field(description=NETWORK_ID_DESCRIPTION)
     container_id: str = Field(description="Container ID or name")
     force: bool = Field(default=False, description="Force disconnection")
 
@@ -138,7 +141,7 @@ class DisconnectContainerOutput(BaseModel):
 class RemoveNetworkInput(BaseModel):
     """Input for removing a network."""
 
-    network_id: str = Field(description="Network ID or name")
+    network_id: str = Field(description=NETWORK_ID_DESCRIPTION)
 
 
 class RemoveNetworkOutput(BaseModel):

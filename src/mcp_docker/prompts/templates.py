@@ -1386,7 +1386,7 @@ class PromptProvider:
         return [
             prompt.get_metadata()
             for prompt in self.prompts.values()
-            if isinstance(  # noqa: UP038 - isinstance requires tuple, not union type
+            if isinstance(
                 prompt,
                 (
                     TroubleshootContainerPrompt,

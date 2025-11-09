@@ -24,6 +24,9 @@ from mcp_docker.utils.stats_formatter import (
 
 logger = get_logger(__name__)
 
+# Constants
+MIME_TYPE_TEXT_PLAIN = "text/plain"
+
 
 class ResourceMetadata(BaseModel):
     """Metadata for a resource."""
@@ -31,7 +34,7 @@ class ResourceMetadata(BaseModel):
     uri: str = Field(description="Resource URI")
     name: str = Field(description="Resource display name")
     description: str = Field(description="Resource description")
-    mime_type: str = Field(default="text/plain", description="MIME type of the resource")
+    mime_type: str = Field(default=MIME_TYPE_TEXT_PLAIN, description="MIME type of the resource")
 
 
 class ResourceContent(BaseModel):
@@ -74,7 +77,7 @@ class ContainerLogsResource(BaseResourceHelper):
             uri=self.get_uri(container_id),
             name=f"Logs for {container_id}",
             description=f"Real-time logs from container {container_id}",
-            mime_type="text/plain",
+            mime_type=MIME_TYPE_TEXT_PLAIN,
         )
 
     def _fetch_logs_blocking(self, container_id: str, tail: int, follow: bool) -> str:
@@ -139,7 +142,7 @@ class ContainerLogsResource(BaseResourceHelper):
 
             return ResourceContent(
                 uri=self.get_uri(container_id),
-                mime_type="text/plain",
+                mime_type=MIME_TYPE_TEXT_PLAIN,
                 text=log_text,
             )
 
@@ -249,7 +252,7 @@ Block I/O:
 
             return ResourceContent(
                 uri=self.get_uri(container_id),
-                mime_type="text/plain",
+                mime_type=MIME_TYPE_TEXT_PLAIN,
                 text=stats_text,
             )
 

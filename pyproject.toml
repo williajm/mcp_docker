@@ -79,7 +79,9 @@ select = [
     "PL",    # pylint
     "PERF",  # perflint
 ]
-ignore = []
+ignore = [
+    "UP038",  # isinstance requires tuple syntax, not union types (X | Y only for annotations)
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests need flexibility for fixtures, long assertions, and test-specific patterns

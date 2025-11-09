@@ -180,7 +180,7 @@ class MCPDockerServer:
             return await self._execute_tool_safely(tool_name, arguments, client_info)
         finally:
             # Always release the concurrent slot
-            await self.rate_limiter.release_concurrent_slot(client_info["client_id"])
+            self.rate_limiter.release_concurrent_slot(client_info["client_id"])
 
     def _authenticate_client(
         self,
@@ -308,7 +308,7 @@ class MCPDockerServer:
 
         # Check Docker daemon health
         try:
-            health_status = self.docker_client.health_check()
+            health_status = await asyncio.to_thread(self.docker_client.health_check)
             status = health_status.get("status", "unknown")
             if status == "healthy":
                 logger.info("Docker daemon is healthy")
@@ -320,7 +320,7 @@ class MCPDockerServer:
     async def stop(self) -> None:
         """Stop the MCP server."""
         logger.info("Stopping MCP Docker server")
-        self.docker_client.close()
+        await asyncio.to_thread(self.docker_client.close)
         logger.info("MCP Docker server stopped")
 
     def list_resources(self) -> list[dict[str, Any]]:

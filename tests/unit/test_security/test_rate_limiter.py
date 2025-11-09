@@ -100,7 +100,7 @@ class TestRateLimiter:
 
         # Should not raise error
         await limiter.acquire_concurrent_slot("test-client")
-        await limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
 
     @pytest.mark.asyncio
     async def test_acquire_concurrent_slot_within_limit(self) -> None:
@@ -113,9 +113,9 @@ class TestRateLimiter:
         await limiter.acquire_concurrent_slot("test-client")
 
         # Release all slots
-        await limiter.release_concurrent_slot("test-client")
-        await limiter.release_concurrent_slot("test-client")
-        await limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
 
     @pytest.mark.asyncio
     async def test_acquire_concurrent_slot_exceeded(self) -> None:
@@ -144,10 +144,10 @@ class TestRateLimiter:
         await limiter.acquire_concurrent_slot("client2")
 
         # Release all
-        await limiter.release_concurrent_slot("client1")
-        await limiter.release_concurrent_slot("client1")
-        await limiter.release_concurrent_slot("client2")
-        await limiter.release_concurrent_slot("client2")
+        limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client2")
+        limiter.release_concurrent_slot("client2")
 
     @pytest.mark.asyncio
     async def test_release_concurrent_slot(self) -> None:
@@ -162,11 +162,11 @@ class TestRateLimiter:
             await limiter.acquire_concurrent_slot("test-client")
 
         # Release slot
-        await limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
 
         # Now should be able to acquire again
         await limiter.acquire_concurrent_slot("test-client")
-        await limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
 
     @pytest.mark.asyncio
     async def test_get_client_stats(self) -> None:
@@ -187,7 +187,7 @@ class TestRateLimiter:
         assert stats["concurrent_limit"] == 3
 
         # Release slot
-        await limiter.release_concurrent_slot("test-client")
+        limiter.release_concurrent_slot("test-client")
 
     @pytest.mark.asyncio
     async def test_get_client_stats_no_activity(self) -> None:

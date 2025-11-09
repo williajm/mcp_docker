@@ -219,7 +219,7 @@ class SSHSignatureValidator:
             logger.warning(f"Unsupported key type: {public_key.key_type}")
             return False
 
-        except (InvalidSignature, Exception) as e:
+        except Exception as e:
             error_msg = "invalid signature" if isinstance(e, InvalidSignature) else str(e)
             logger.debug(f"Signature verification failed: {error_msg}")
             return False
