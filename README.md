@@ -103,7 +103,6 @@ export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations (default
 
 # Server Configuration
 export MCP_SERVER_NAME="mcp-docker"  # MCP server name (default: mcp-docker)
-export MCP_SERVER_VERSION="0.1.0"  # MCP server version (default: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
 export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # Log file path (optional, defaults to mcp_docker.log in working directory)
 ```
