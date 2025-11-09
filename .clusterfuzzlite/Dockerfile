@@ -1,32 +1,17 @@
-FROM python:3.14-slim
+FROM gcr.io/oss-fuzz-base/base-builder-python@sha256:122afa48603810a0c6b495ab2e1cfdc5a88e4378ab051d3a83f666bd69b4eb0b
 
-# Set up OSS-Fuzz environment variables expected by build.sh
-ENV SRC=/src
-ENV OUT=/out
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Create OSS-Fuzz directories
-RUN mkdir -p $SRC $OUT
+# Note: This image provides Python 3.11.13 with pip 25.3 and all OSS-Fuzz infrastructure
+# Environment variables $SRC and $OUT are already set by the base image
 
 # Copy project files
 COPY . $SRC/mcp-docker
 WORKDIR $SRC/mcp-docker
 
 # Install Python dependencies with cryptographic hash verification
-# Python 3.14 comes with modern pip that supports --require-hashes
-RUN python3 -m pip install --require-hashes --no-deps \
-        pip==24.3.1 \
-        --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed && \
-    python3 -m pip install --require-hashes --no-deps -r .clusterfuzzlite/requirements.txt && \
+# The base image has pip 25.3 which supports --require-hashes
+# Note: --hash option only works in requirements files, not on command line
+RUN python3 -m pip install --require-hashes --no-deps -r .clusterfuzzlite/requirements.txt && \
     python3 -m pip install --no-deps -e .
-
-# Install Atheris for fuzzing
-RUN python3 -m pip install atheris
 
 # Create compile_python_fuzzer helper function (OSS-Fuzz compatibility)
 RUN echo '#!/bin/bash\n\
