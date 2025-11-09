@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://williajm.github.io/mcp_docker/
+    about: Full documentation for mcp-docker
+  - name: GitHub Discussions
+    url: https://github.com/williajm/mcp_docker/discussions
+    about: Ask questions and discuss features with the community
+  - name: Security Policy
+    url: https://github.com/williajm/mcp_docker/blob/main/SECURITY.md
+    about: Learn how to responsibly report security vulnerabilities
