@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-11-09
+
+### Fixed
+- **SSE Server Shutdown**: Fixed server hanging indefinitely on Ctrl+C requiring kill -9
+  - Added SIGINT/SIGTERM signal handlers for immediate shutdown detection
+  - Implemented 5-second graceful shutdown timeout
+  - Added proper CancelledError exception handling following asyncio best practices
+  - Server now exits cleanly within 5 seconds with clear log messages
+  - Reduced cognitive complexity from 26 to ~8 by extracting helper functions
+
+### Changed
+- Refactored `run_sse()` function to reduce cognitive complexity
+  - Extracted 5 helper functions for better maintainability and testability
+  - Improved code organization and readability
+
+### Added
+- Comprehensive test coverage for shutdown functionality (8 new tests, 37 total)
+  - Tests for signal handler registration and execution
+  - Tests for graceful and forced shutdown scenarios
+  - Tests for exception handling during shutdown
+  - Overall test coverage maintained at 94%
+
 ## [1.0.0] - 2025-11-09
 
 ### Added

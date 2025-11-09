@@ -529,7 +529,7 @@ wheels = [
 
 [[package]]
 name = "mcp-docker"
-version = "0.4.1"
+version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "cryptography" },
