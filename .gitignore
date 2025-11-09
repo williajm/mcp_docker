@@ -240,3 +240,4 @@ codex_*.md
 
 # Manual testing guide (git-ignored for local notes)
 MANUAL_SSH_TESTING.md
+PYPI_SETUP.md
