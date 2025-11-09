@@ -244,7 +244,7 @@ class TestSignMessageRSA:
     """Test sign_message_rsa function."""
 
     def test_sign_message_rsa(self, rsa_private_key: rsa.RSAPrivateKey) -> None:
-        """Test RSA message signing."""
+        """Test RSA message signing with default algorithm (rsa-sha2-512)."""
         message = b"test message"
         signature = sign_message_rsa(rsa_private_key, message)
 
@@ -252,8 +252,38 @@ class TestSignMessageRSA:
         assert len(signature) > 0
 
         # Signature should be in SSH wire format
-        # Should start with length prefix for "ssh-rsa"
+        # Default is rsa-sha2-512
+        assert signature[:4] == b"\x00\x00\x00\x0c"  # Length of "rsa-sha2-512" = 12
+
+    def test_sign_message_rsa_sha2_256(self, rsa_private_key: rsa.RSAPrivateKey) -> None:
+        """Test RSA message signing with rsa-sha2-256."""
+        message = b"test message"
+        signature = sign_message_rsa(rsa_private_key, message, algorithm="rsa-sha2-256")
+
+        assert isinstance(signature, bytes)
+        assert len(signature) > 0
+
+        # Should use rsa-sha2-256
+        assert signature[:4] == b"\x00\x00\x00\x0c"  # Length of "rsa-sha2-256" = 12
+
+    def test_sign_message_rsa_legacy_sha1(self, rsa_private_key: rsa.RSAPrivateKey) -> None:
+        """Test RSA message signing with legacy ssh-rsa (SHA-1)."""
+        message = b"test message"
+        signature = sign_message_rsa(rsa_private_key, message, algorithm="ssh-rsa")
+
+        assert isinstance(signature, bytes)
+        assert len(signature) > 0
+
+        # Should use legacy ssh-rsa
         assert signature[:4] == b"\x00\x00\x00\x07"  # Length of "ssh-rsa" = 7
+
+    def test_sign_message_rsa_unsupported_algorithm(
+        self, rsa_private_key: rsa.RSAPrivateKey
+    ) -> None:
+        """Test RSA message signing with unsupported algorithm."""
+        message = b"test message"
+        with pytest.raises(ValueError, match="Unsupported RSA signature algorithm"):
+            sign_message_rsa(rsa_private_key, message, algorithm="invalid")
 
 
 class TestSignMessageECDSA:

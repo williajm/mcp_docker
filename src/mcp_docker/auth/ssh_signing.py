@@ -92,21 +92,52 @@ def sign_message_ed25519(private_key: ed25519.Ed25519PrivateKey, message: bytes)
     return create_ssh_signature("ssh-ed25519", signature_data)
 
 
-def sign_message_rsa(private_key: rsa.RSAPrivateKey, message: bytes) -> bytes:
-    """Sign message with RSA private key.
+def sign_message_rsa(
+    private_key: rsa.RSAPrivateKey,
+    message: bytes,
+    algorithm: str = "rsa-sha2-512",
+) -> bytes:
+    """Sign message with RSA private key using specified hash algorithm.
 
     Args:
         private_key: RSA private key
         message: Message to sign
+        algorithm: Signature algorithm to use. One of:
+            - "rsa-sha2-512" (default, recommended - uses SHA-512)
+            - "rsa-sha2-256" (recommended - uses SHA-256)
+            - "ssh-rsa" (legacy - uses SHA-1, deprecated)
 
     Returns:
         SSH wire format signature
-    """
-    # Sign with PKCS1v15 padding and SHA-1 (standard for ssh-rsa)
-    signature_data = private_key.sign(message, asym_padding.PKCS1v15(), hashes.SHA1())
 
-    # Create SSH wire format signature
-    return create_ssh_signature("ssh-rsa", signature_data)
+    Raises:
+        ValueError: If algorithm is not supported
+
+    Note:
+        Defaults to rsa-sha2-512 for maximum security. The legacy ssh-rsa algorithm
+        using SHA-1 is deprecated and should only be used for compatibility with
+        old systems that don't support the modern algorithms.
+    """
+    # Select hash algorithm based on requested signature type
+    hash_algo: hashes.SHA512 | hashes.SHA256 | hashes.SHA1
+    if algorithm == "rsa-sha2-512":
+        hash_algo = hashes.SHA512()
+    elif algorithm == "rsa-sha2-256":
+        hash_algo = hashes.SHA256()
+    elif algorithm == "ssh-rsa":
+        # SHA-1 is deprecated but included for legacy compatibility
+        hash_algo = hashes.SHA1()
+    else:
+        raise ValueError(
+            f"Unsupported RSA signature algorithm: {algorithm}. "
+            "Use 'rsa-sha2-512', 'rsa-sha2-256', or 'ssh-rsa'"
+        )
+
+    # Sign with PKCS1v15 padding and selected hash algorithm
+    signature_data = private_key.sign(message, asym_padding.PKCS1v15(), hash_algo)
+
+    # Create SSH wire format signature with the specified algorithm
+    return create_ssh_signature(algorithm, signature_data)
 
 
 def sign_message_ecdsa(private_key: ec.EllipticCurvePrivateKey, message: bytes) -> bytes:
@@ -144,23 +175,30 @@ def sign_message_ecdsa(private_key: ec.EllipticCurvePrivateKey, message: bytes) 
 def sign_message(
     private_key: SSHPrivateKey,
     message: bytes,
+    rsa_algorithm: str = "rsa-sha2-512",
 ) -> bytes:
     """Sign message with private key (auto-detect key type).
 
     Args:
         private_key: SSH private key
         message: Message to sign
+        rsa_algorithm: RSA signature algorithm (only used for RSA keys).
+            One of "rsa-sha2-512" (default), "rsa-sha2-256", or "ssh-rsa" (legacy)
 
     Returns:
         SSH wire format signature
 
     Raises:
         ValueError: If key type is unsupported
+
+    Note:
+        For RSA keys, defaults to rsa-sha2-512 for maximum security.
+        Ed25519 and ECDSA keys use their built-in hash algorithms.
     """
     if isinstance(private_key, ed25519.Ed25519PrivateKey):
         return sign_message_ed25519(private_key, message)
     if isinstance(private_key, rsa.RSAPrivateKey):
-        return sign_message_rsa(private_key, message)
+        return sign_message_rsa(private_key, message, algorithm=rsa_algorithm)
     if isinstance(private_key, ec.EllipticCurvePrivateKey):
         return sign_message_ecdsa(private_key, message)
     raise ValueError(f"Unsupported key type: {type(private_key)}")
