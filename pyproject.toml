@@ -65,6 +65,7 @@ dev = [
 Homepage = "https://github.com/williajm/mcp_docker"
 Documentation = "https://williajm.github.io/mcp_docker/"
 Repository = "https://github.com/williajm/mcp_docker"
+PyPI = "https://pypi.org/project/mcp-docker/"
 Issues = "https://github.com/williajm/mcp_docker/issues"
 Changelog = "https://github.com/williajm/mcp_docker/releases"
 

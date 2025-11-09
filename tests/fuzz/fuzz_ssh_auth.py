@@ -11,6 +11,7 @@ import struct
 import sys
 
 import atheris
+from cryptography.exceptions import InvalidSignature
 
 from mcp_docker.auth.ssh_auth import SSHAuthRequest, SSHSignatureValidator
 from mcp_docker.auth.ssh_wire import SSHWireMessage
@@ -49,11 +50,12 @@ def fuzz_ssh_signature_parsing(data: bytes) -> None:
         if len(key_data) >= 32 and len(sig_data) >= 64:
             try:
                 validator._verify_ed25519_signature(key_data, message, sig_data)
-            except Exception:
+            except (InvalidSignature, ValueError, IndexError, struct.error):
+                # Expected errors for invalid signatures or malformed data
                 pass
 
-    except Exception:
-        # Catch any unexpected exceptions (potential bugs)
+    except (ValueError, IndexError, struct.error, AttributeError):
+        # Expected errors for malformed wire format
         pass
 
 
@@ -86,8 +88,8 @@ def fuzz_ssh_auth_request(data: bytes) -> None:
         _ = request.signature
         _ = request.timestamp
         _ = request.nonce
-    except Exception:
-        # Expected for invalid inputs
+    except (ValueError, TypeError, AttributeError):
+        # Expected errors for invalid dataclass field types
         pass
 
 
@@ -120,13 +122,9 @@ def TestOneInput(data: bytes) -> None:
     Args:
         data: Random fuzz input
     """
-    try:
-        fuzz_ssh_signature_parsing(data)
-        fuzz_ssh_auth_request(data)
-        fuzz_base64_signature(data)
-    except Exception:
-        # Catch any uncaught exceptions to prevent fuzzer exit
-        pass
+    fuzz_ssh_signature_parsing(data)
+    fuzz_ssh_auth_request(data)
+    fuzz_base64_signature(data)
 
 
 def main() -> None:
