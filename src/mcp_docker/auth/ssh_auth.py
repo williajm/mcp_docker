@@ -87,10 +87,13 @@ class SSHSignatureValidator:
         logger.debug("Ed25519 signature verification succeeded")
         return True
 
-    def _verify_rsa_signature(self, key_data: bytes, message: bytes, sig_data: bytes) -> bool:
-        """Verify RSA signature.
+    def _verify_rsa_signature(
+        self, sig_type: str, key_data: bytes, message: bytes, sig_data: bytes
+    ) -> bool:
+        """Verify RSA signature with appropriate hash algorithm.
 
         Args:
+            sig_type: Signature algorithm type (ssh-rsa, rsa-sha2-256, rsa-sha2-512)
             key_data: SSH wire format public key data
             message: Original message that was signed
             sig_data: Signature data (without SSH wire format wrapper)
@@ -111,10 +114,28 @@ class SSHSignatureValidator:
         public_numbers = rsa.RSAPublicNumbers(public_exponent, modulus)
         crypto_public_key = public_numbers.public_key()
 
-        # Verify with PKCS1v15 padding and SHA-1 (SSH-RSA default)
-        # Note: ssh-rsa uses SHA-1, rsa-sha2-256 uses SHA-256, rsa-sha2-512 uses SHA-512
-        crypto_public_key.verify(sig_data, message, asym_padding.PKCS1v15(), hashes.SHA1())
-        logger.debug("RSA signature verification succeeded")
+        # Select hash algorithm based on signature type
+        hash_algo: hashes.SHA512 | hashes.SHA256 | hashes.SHA1
+        if sig_type == "rsa-sha2-512":
+            hash_algo = hashes.SHA512()
+            logger.debug("Using SHA-512 for RSA signature verification")
+        elif sig_type == "rsa-sha2-256":
+            hash_algo = hashes.SHA256()
+            logger.debug("Using SHA-256 for RSA signature verification")
+        elif sig_type == "ssh-rsa":
+            # SHA-1 is deprecated but still part of SSH spec for legacy compatibility
+            hash_algo = hashes.SHA1()
+            logger.warning(
+                "Using deprecated SHA-1 for RSA signature verification. "
+                "Consider upgrading to rsa-sha2-256 or rsa-sha2-512 for better security."
+            )
+        else:
+            logger.warning(f"Unsupported RSA signature type: {sig_type}")
+            return False
+
+        # Verify with PKCS1v15 padding and appropriate hash algorithm
+        crypto_public_key.verify(sig_data, message, asym_padding.PKCS1v15(), hash_algo)
+        logger.debug(f"RSA signature verification succeeded with {sig_type}")
         return True
 
     def _verify_ecdsa_signature(
@@ -169,11 +190,57 @@ class SSHSignatureValidator:
         logger.debug("ECDSA signature verification succeeded")
         return True
 
+    def _validate_signature_type(self, key_type: str, sig_type: str) -> bool:
+        """Validate that signature type is compatible with key type.
+
+        Args:
+            key_type: SSH public key type
+            sig_type: Signature algorithm type from signature data
+
+        Returns:
+            True if signature type is valid for the given key type
+        """
+        # For RSA keys, allow ssh-rsa, rsa-sha2-256, and rsa-sha2-512
+        if key_type == "ssh-rsa":
+            return sig_type in ("ssh-rsa", "rsa-sha2-256", "rsa-sha2-512")
+        # For other key types, signature type must match exactly
+        return sig_type == key_type
+
+    def _verify_by_key_type(
+        self, key_type: str, sig_type: str, key_data: bytes, message: bytes, sig_data: bytes
+    ) -> bool:
+        """Delegate signature verification to key-type-specific method.
+
+        Args:
+            key_type: SSH public key type
+            sig_type: Signature algorithm type
+            key_data: SSH wire format public key data
+            message: Original message that was signed
+            sig_data: Signature data
+
+        Returns:
+            True if signature is valid, False otherwise
+        """
+        if key_type == "ssh-ed25519":
+            return self._verify_ed25519_signature(key_data, message, sig_data)
+        if key_type == "ssh-rsa":
+            return self._verify_rsa_signature(sig_type, key_data, message, sig_data)
+        if key_type.startswith("ecdsa-sha2-"):
+            return self._verify_ecdsa_signature(key_type, key_data, message, sig_data)
+
+        logger.warning(f"Unsupported key type: {key_type}")
+        return False
+
     def verify_signature(self, public_key: SSHPublicKey, message: bytes, signature: bytes) -> bool:
         """Verify SSH signature using public key.
 
         Delegates to key-type-specific verification methods for better maintainability
         and testability. Each key type (Ed25519, RSA, ECDSA) has its own verification method.
+
+        Supports modern RSA signature algorithms:
+        - rsa-sha2-512 (recommended, uses SHA-512)
+        - rsa-sha2-256 (recommended, uses SHA-256)
+        - ssh-rsa (legacy, uses SHA-1, deprecated)
 
         Args:
             public_key: SSH public key to verify with
@@ -189,35 +256,24 @@ class SSHSignatureValidator:
             sig_type = sig_msg.get_text()
             sig_data = sig_msg.get_binary()
 
-            # Verify signature type matches key type and no trailing data
-            if sig_type != public_key.key_type:
-                logger.debug(f"Signature type mismatch: {sig_type} != {public_key.key_type}")
-                return False
-            if sig_msg.get_remainder():
-                logger.debug("Signature has unexpected trailing data")
+            # Verify signature type is compatible with key type
+            is_valid_sig_type = self._validate_signature_type(public_key.key_type, sig_type)
+            if not is_valid_sig_type or sig_msg.get_remainder():
+                if not is_valid_sig_type:
+                    logger.debug(
+                        f"Invalid signature type: {sig_type} for key: {public_key.key_type}"
+                    )
+                else:
+                    logger.debug("Signature has unexpected trailing data")
                 return False
 
             # Decode public key data
             key_data = base64.b64decode(public_key.public_key)
 
             # Delegate to key-type-specific verification method
-            verifier_map = {
-                "ssh-ed25519": self._verify_ed25519_signature,
-                "ssh-rsa": self._verify_rsa_signature,
-            }
-
-            # Check exact match first
-            if public_key.key_type in verifier_map:
-                return verifier_map[public_key.key_type](key_data, message, sig_data)
-
-            # Check ECDSA prefix match
-            if public_key.key_type.startswith("ecdsa-sha2-"):
-                return self._verify_ecdsa_signature(
-                    public_key.key_type, key_data, message, sig_data
-                )
-
-            logger.warning(f"Unsupported key type: {public_key.key_type}")
-            return False
+            return self._verify_by_key_type(
+                public_key.key_type, sig_type, key_data, message, sig_data
+            )
 
         except Exception as e:
             error_msg = "invalid signature" if isinstance(e, InvalidSignature) else str(e)
