@@ -50,16 +50,19 @@ See `examples/ssh_auth_client.py` for a complete Python example.
 ### Challenge-Response Flow
 
 1. **Client generates challenge**:
+
    ```
    message = "{client_id}|{timestamp}|{nonce}"
    ```
 
 2. **Client signs challenge**:
+
    ```python
    signature = private_key.sign_ssh_data(message.encode())
    ```
 
 3. **Client sends authentication request**:
+
    ```json
    {
      "client_id": "my-client",
@@ -77,17 +80,21 @@ See `examples/ssh_auth_client.py` for a complete Python example.
 ### Security Features
 
 #### Timestamp Validation
+
 - Prevents long-term replay attacks
 - Configurable window (default: 5 minutes)
 - Allows for reasonable clock skew
 
 #### Nonce Deduplication
+
 - Prevents replay attacks within timestamp window
 - Thread-safe nonce store
 - Automatic cleanup of expired nonces
 
 #### Multiple Keys Per Client
+
 Supports key rotation and multi-device scenarios:
+
 ```
 # authorized_keys format
 ssh-ed25519 AAAAC3Nza... client1:laptop
@@ -111,6 +118,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB... client2:server
 ```
 
 **Fields**:
+
 - `key-type`: SSH key algorithm (ssh-ed25519, ssh-rsa, ecdsa-sha2-nistp256)
 - `public-key`: Base64-encoded public key
 - `client-id`: Unique client identifier (before colon)
@@ -231,6 +239,7 @@ result = await session.call_tool(
 ### Important Notes
 
 **Generate Fresh Auth Data for Each Tool Call**:
+
 ```python
 # ❌ WRONG - Don't reuse auth data
 ssh_auth = create_ssh_auth_data(...)
@@ -246,6 +255,7 @@ await session.call_tool("inspect_container", {"_auth": {"ssh": ssh_auth2}, ...})
 ```
 
 **Why?**
+
 - Each auth data has a unique nonce
 - Nonces are tracked to prevent replay attacks
 - Reusing the same nonce will be rejected
@@ -257,6 +267,7 @@ await session.call_tool("inspect_container", {"_auth": {"ssh": ssh_auth2}, ...})
 To rotate keys without downtime:
 
 1. **Add new key** while keeping old key:
+
    ```bash
    # Old key still in authorized_keys
    ssh-ed25519 AAAAC3Nza...old client1:old-key
@@ -268,6 +279,7 @@ To rotate keys without downtime:
 2. **Update client** to use new key
 
 3. **Remove old key** after transition:
+
    ```bash
    # Remove old key line from authorized_keys
    ```
@@ -299,6 +311,7 @@ All devices can authenticate as the same client using different keys.
 **Cause**: Timestamp too old or clock skew
 
 **Solution**:
+
 ```bash
 # Check system time
 timedatectl status
@@ -315,6 +328,7 @@ SECURITY_SSH_SIGNATURE_MAX_AGE=600  # 10 minutes
 **Cause**: Replay attack detected or duplicate request
 
 **Solution**:
+
 - Don't reuse authentication requests
 - Generate new nonce for each request
 - Check for network issues causing request duplication
@@ -324,6 +338,7 @@ SECURITY_SSH_SIGNATURE_MAX_AGE=600  # 10 minutes
 **Cause**: Public key not in authorized_keys
 
 **Solution**:
+
 ```bash
 # Add public key
 cat ~/.ssh/mcp_client_key.pub >> ~/.ssh/mcp_authorized_keys
@@ -337,6 +352,7 @@ cat ~/.ssh/mcp_authorized_keys
 **Cause**: Wrong key, wrong message format, or corrupted signature
 
 **Solution**:
+
 1. Verify message format: `{client_id}|{timestamp}|{nonce}`
 2. Ensure using correct private key
 3. Check signature is base64-encoded
@@ -431,6 +447,7 @@ def authenticate(
 ### Testing
 
 Run tests:
+
 ```bash
 # Unit tests
 uv run pytest tests/unit/auth/test_ssh_keys.py -v
@@ -453,12 +470,14 @@ uv run pytest tests/unit/auth/ -v
 | Industry Standard | Yes (SSH) | Yes (API keys) |
 
 **When to use SSH keys**:
+
 - Multi-device setups
 - Frequent key rotation required
 - Integration with SSH infrastructure
 - Higher security requirements
 
 **When to use API keys**:
+
 - Simpler setup needed
 - Single-device scenarios
 - Quick prototyping

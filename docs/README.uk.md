@@ -65,16 +65,19 @@ mcp-docker
 **ВАЖЛИВО**: `DOCKER_BASE_URL` має бути правильно налаштований для вашої платформи:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -123,11 +126,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Налаштування Claude Desktop
 
 Додайте до вашої конфігурації Claude Desktop:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **Базова конфігурація (транспорт stdio - рекомендовано):**
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +148,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
 **Конфігурація Windows:**
+
 ```json
 {
   "mcpServers": {
@@ -169,6 +175,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **Опції командного рядка:**
+
 - `--transport`: Тип транспорту (`stdio` або `sse`, за замовчуванням: `stdio`)
 - `--host`: Хост для прив'язки SSE сервера (за замовчуванням: `127.0.0.1`)
 - `--port`: Порт для прив'язки SSE сервера (за замовчуванням: `8000`)
@@ -187,6 +194,7 @@ mcp-docker
 Сервер надає 48 інструментів, організованих у 6 категорій:
 
 ### Управління контейнерами (10 інструментів)
+
 - `docker_list_containers` - Список контейнерів з фільтрами
 - `docker_inspect_container` - Отримати детальну інформацію про контейнер
 - `docker_create_container` - Створити новий контейнер
@@ -199,6 +207,7 @@ mcp-docker
 - `docker_container_stats` - Отримати статистику використання ресурсів
 
 ### Управління Docker Compose (12 інструментів)
+
 - `docker_compose_up` - Запустити сервіси compose проекту
 - `docker_compose_down` - Зупинити та видалити compose сервіси
 - `docker_compose_restart` - Перезапустити compose сервіси
@@ -213,6 +222,7 @@ mcp-docker
 - `docker_compose_config` - Отримати розв'язану конфігурацію compose
 
 ### Управління образами (9 інструментів)
+
 - `docker_list_images` - Список образів
 - `docker_inspect_image` - Отримати деталі образу
 - `docker_pull_image` - Завантажити з реєстру
@@ -224,6 +234,7 @@ mcp-docker
 - `docker_image_history` - Переглянути історію шарів
 
 ### Управління мережами (6 інструментів)
+
 - `docker_list_networks` - Список мереж
 - `docker_inspect_network` - Отримати деталі мережі
 - `docker_create_network` - Створити мережу
@@ -232,6 +243,7 @@ mcp-docker
 - `docker_remove_network` - Видалити мережу
 
 ### Управління томами (5 інструментів)
+
 - `docker_list_volumes` - Список томів
 - `docker_inspect_volume` - Отримати деталі тому
 - `docker_create_volume` - Створити том
@@ -239,6 +251,7 @@ mcp-docker
 - `docker_prune_volumes` - Очистити невикористані томи
 
 ### Системні інструменти (6 інструментів)
+
 - `docker_system_info` - Отримати інформацію про систему Docker
 - `docker_system_df` - Статистика використання диска
 - `docker_system_prune` - Очистити всі невикористані ресурси
@@ -257,6 +270,7 @@ mcp-docker
 - **security_audit** - Комплексний аналіз безпеки за CIS Docker Benchmark з картою відповідності
 
 ### Промпти для Compose
+
 - **troubleshoot_compose_stack** - Діагностувати проблеми Docker Compose проектів та залежностей сервісів
 - **optimize_compose_config** - Оптимізувати конфігурацію compose для продуктивності, надійності та безпеки
 
@@ -265,10 +279,12 @@ mcp-docker
 П'ять ресурсів надають доступ у реальному часі до даних контейнерів та compose:
 
 ### Ресурси контейнерів
+
 - **container://logs/{container_id}** - Транслювати логи контейнера
 - **container://stats/{container_id}** - Отримати статистику використання ресурсів
 
 ### Ресурси Compose
+
 - **compose://config/{project_name}** - Отримати розв'язану конфігурацію compose проекту
 - **compose://services/{project_name}** - Список сервісів у compose проекті
 - **compose://logs/{project_name}/{service_name}** - Отримати логи з compose сервісу
@@ -280,6 +296,7 @@ mcp-docker
 ### Приклади файлів
 
 Включено три готових до використання приклади файлів:
+
 - `nginx-redis.yml` - Багатосервісний веб-стек (nginx + redis)
 - `postgres-pgadmin.yml` - Стек бази даних з адміністративним UI
 - `simple-webapp.yml` - Мінімальний приклад з одним сервісом
@@ -307,6 +324,7 @@ mcp-docker
 ### Функції безпеки
 
 Всі compose файли, записані через інструмент:
+
 - ✅ Обмежені лише каталогом `compose_files/`
 - ✅ Автоматично з префіксом `user-` для відрізнення від прикладів
 - ✅ Перевірені на синтаксис і структуру YAML

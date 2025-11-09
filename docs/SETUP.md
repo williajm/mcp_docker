@@ -28,11 +28,13 @@ Before installing the MCP Docker server, ensure your system meets these requirem
 
 1. **Python 3.11 or Higher**
    - Check your Python version:
+
      ```bash
      python --version
      # or
      python3 --version
      ```
+
    - If you need to install or upgrade Python:
      - **macOS**: Use Homebrew: `brew install python@3.11`
      - **Windows**: Download from [python.org](https://www.python.org/downloads/)
@@ -42,10 +44,12 @@ Before installing the MCP Docker server, ensure your system meets these requirem
    - Docker must be installed and running
    - Minimum version: Docker 20.10+ (tested with 20.10+)
    - Check Docker installation:
+
      ```bash
      docker --version
      docker ps
      ```
+
    - Install Docker:
      - **macOS**: [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/)
      - **Windows**: [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/)
@@ -53,12 +57,14 @@ Before installing the MCP Docker server, ensure your system meets these requirem
 
 3. **Package Manager** (recommended)
    - **uv** (recommended): Fast Python package manager
+
      ```bash
      # Install uv
      curl -LsSf https://astral.sh/uv/install.sh | sh
      # or on Windows (PowerShell)
      irm https://astral.sh/uv/install.ps1 | iex
      ```
+
    - **pip**: Comes with Python, fallback option
 
 #### Hardware Requirements
@@ -73,6 +79,7 @@ Before installing the MCP Docker server, ensure your system meets these requirem
 - **Docker Socket Access**: User must have permission to access the Docker daemon
   - **macOS/Windows**: Granted by Docker Desktop
   - **Linux**: Add user to `docker` group:
+
     ```bash
     sudo usermod -aG docker $USER
     # Log out and back in for changes to take effect
@@ -107,6 +114,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true uvx mcp-docker
 ```
 
 **Advantages:**
+
 - No installation or setup required
 - Automatically manages dependencies
 - Isolates the server in its own environment
@@ -136,6 +144,7 @@ mcp-docker
 ```
 
 **Advantages:**
+
 - Full access to source code
 - Easy to modify and test changes
 - Includes development dependencies
@@ -165,6 +174,7 @@ mcp-docker
 ```
 
 **Advantages:**
+
 - Works with any Python environment
 - Familiar to all Python developers
 - No new tools to learn
@@ -427,21 +437,25 @@ Control how the server connects to Docker:
 **IMPORTANT**: The default value (`unix:///var/run/docker.sock`) only works on Linux/macOS. You **MUST** set the correct value for your platform.
 
 **Linux:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (CMD):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **Windows (PowerShell):**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -449,11 +463,13 @@ $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 #### Other Configuration Examples
 
 **Remote Docker over TCP:**
+
 ```bash
 export DOCKER_BASE_URL="tcp://192.168.1.100:2375"
 ```
 
 **Remote Docker with TLS:**
+
 ```bash
 export DOCKER_BASE_URL="tcp://192.168.1.100:2376"
 export DOCKER_TLS_VERIFY="true"
@@ -463,6 +479,7 @@ export DOCKER_TLS_CLIENT_KEY="/path/to/key.pem"
 ```
 
 **Increase timeout for slow operations:**
+
 ```bash
 export DOCKER_TIMEOUT="120"
 ```
@@ -524,6 +541,7 @@ Configure logging and server metadata:
 | `MCP_LOG_FORMAT` | (see below) | Custom log format string for loguru |
 
 **Default Log Format:**
+
 ```
 <green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>
 ```
@@ -617,6 +635,7 @@ Press `Ctrl+C` to stop the server.
    - Status should show "Connected" or "Running"
 
 4. Test with a simple query:
+
    ```
    List all Docker containers
    ```
@@ -628,26 +647,31 @@ Press `Ctrl+C` to stop the server.
 Try these commands in Claude to verify functionality:
 
 1. **Check Docker version:**
+
    ```
    What version of Docker am I running?
    ```
 
 2. **List images:**
+
    ```
    Show me all Docker images on my system
    ```
 
 3. **System information:**
+
    ```
    Get Docker system information
    ```
 
 4. **Test a safe operation:**
+
    ```
    Create a simple nginx container named test-container
    ```
 
 5. **Test logs (if container exists):**
+
    ```
    Show me the logs for the test-container
    ```
@@ -677,6 +701,7 @@ Common issues and their solutions.
 **Solutions:**
 
 1. **Check if Docker is running:**
+
    ```bash
    docker ps
    ```
@@ -685,6 +710,7 @@ Common issues and their solutions.
    - **macOS**: Open Docker Desktop application
    - **Windows**: Start Docker Desktop from Start Menu
    - **Linux**:
+
      ```bash
      sudo systemctl start docker
      # or
@@ -692,6 +718,7 @@ Common issues and their solutions.
      ```
 
 3. **Verify Docker socket exists:**
+
    ```bash
    # macOS/Linux
    ls -la /var/run/docker.sock
@@ -714,6 +741,7 @@ Common issues and their solutions.
 **Solutions:**
 
 **Linux:**
+
 ```bash
 # Add your user to the docker group
 sudo usermod -aG docker $USER
@@ -729,11 +757,13 @@ sudo chmod 666 /var/run/docker.sock
 ```
 
 **macOS/Windows:**
+
 - Docker Desktop should handle permissions automatically
 - Try restarting Docker Desktop
 - Reinstall Docker Desktop if issues persist
 
 **Claude Desktop specific:**
+
 ```json
 {
   "mcpServers": {
@@ -759,6 +789,7 @@ sudo chmod 666 /var/run/docker.sock
 **Solutions:**
 
 1. **Check Python version:**
+
    ```bash
    python --version
    python3 --version
@@ -766,6 +797,7 @@ sudo chmod 666 /var/run/docker.sock
    ```
 
 2. **Install Python 3.11+:**
+
    ```bash
    # macOS
    brew install python@3.11
@@ -779,16 +811,19 @@ sudo chmod 666 /var/run/docker.sock
    ```
 
 3. **Use specific Python version with uvx:**
+
    ```bash
    uvx --python 3.11 mcp-docker
    ```
 
 4. **Use specific Python version with uv:**
+
    ```bash
    uv venv --python 3.11
    ```
 
 5. **Update Claude Desktop config to use specific Python:**
+
    ```json
    {
      "mcpServers": {
@@ -811,6 +846,7 @@ sudo chmod 666 /var/run/docker.sock
 **Solutions:**
 
 1. **Increase timeout:**
+
    ```json
    {
      "mcpServers": {
@@ -831,6 +867,7 @@ sudo chmod 666 /var/run/docker.sock
    - **Linux**: `~/.config/Claude/logs/`
 
 3. **Test server manually:**
+
    ```bash
    MCP_LOG_LEVEL=DEBUG uvx mcp-docker
    ```
@@ -841,6 +878,7 @@ sudo chmod 666 /var/run/docker.sock
    - Server will restart automatically
 
 5. **Check for port conflicts:**
+
    ```bash
    # If using TCP
    netstat -an | grep 2375
@@ -851,6 +889,7 @@ sudo chmod 666 /var/run/docker.sock
 #### macOS Issues
 
 **Docker Desktop not starting:**
+
 ```bash
 # Reset Docker Desktop
 rm -rf ~/Library/Group\ Containers/group.com.docker
@@ -859,6 +898,7 @@ rm -rf ~/Library/Containers/com.docker.docker
 ```
 
 **Permission issues with socket:**
+
 ```bash
 # Check socket location
 ls -la /var/run/docker.sock
@@ -867,6 +907,7 @@ ls -la /var/run/docker.sock
 ```
 
 **Rosetta 2 on Apple Silicon:**
+
 ```bash
 # If using x86_64 Docker on ARM Mac
 export DOCKER_DEFAULT_PLATFORM=linux/amd64
@@ -875,6 +916,7 @@ export DOCKER_DEFAULT_PLATFORM=linux/amd64
 #### Windows Issues
 
 **Named pipe connection:**
+
 ```json
 {
   "mcpServers": {
@@ -890,6 +932,7 @@ export DOCKER_DEFAULT_PLATFORM=linux/amd64
 ```
 
 **WSL2 Docker:**
+
 ```bash
 # Inside WSL2
 export DOCKER_HOST=unix:///var/run/docker.sock
@@ -899,6 +942,7 @@ export DOCKER_HOST=tcp://localhost:2375
 ```
 
 **Path issues:**
+
 ```json
 {
   "mcpServers": {
@@ -913,6 +957,7 @@ export DOCKER_HOST=tcp://localhost:2375
 #### Linux Issues
 
 **SELinux blocking access:**
+
 ```bash
 # Check SELinux status
 getenforce
@@ -925,6 +970,7 @@ sudo chcon -t docker_socket_t /var/run/docker.sock
 ```
 
 **AppArmor issues:**
+
 ```bash
 # Check AppArmor status
 sudo aa-status
@@ -934,6 +980,7 @@ sudo aa-complain /usr/bin/docker
 ```
 
 **Systemd socket activation:**
+
 ```bash
 # Enable Docker socket
 sudo systemctl enable docker.socket
@@ -986,6 +1033,7 @@ print("Server:", config.server)
 ```
 
 Run with:
+
 ```bash
 uv run python test_config.py
 ```
@@ -1034,16 +1082,19 @@ Detailed information for each operating system.
 ### macOS
 
 #### Prerequisites
+
 - macOS 10.15 (Catalina) or later
 - Docker Desktop for Mac 4.0 or later
 - Python 3.11+ (install via Homebrew recommended)
 
 #### Docker Socket Location
+
 ```bash
 /var/run/docker.sock
 ```
 
 #### Installation
+
 ```bash
 # Install Python 3.11
 brew install python@3.11
@@ -1059,6 +1110,7 @@ uvx mcp-docker
 ```
 
 #### Configuration
+
 ```json
 {
   "mcpServers": {
@@ -1074,6 +1126,7 @@ uvx mcp-docker
 ```
 
 #### Special Considerations
+
 - **Apple Silicon (M1/M2/M3)**: Docker Desktop runs natively on ARM. Some x86_64 images may run slower through Rosetta 2.
 - **Gatekeeper**: First run may prompt for security permission. Go to System Settings > Privacy & Security and allow.
 - **Docker Desktop must be running**: Check menu bar for Docker icon.
@@ -1081,6 +1134,7 @@ uvx mcp-docker
 ### Windows
 
 #### Prerequisites
+
 - Windows 10 64-bit: Pro, Enterprise, or Education (Build 19041 or higher)
 - Or Windows 11
 - Docker Desktop for Windows 4.0 or later
@@ -1088,11 +1142,13 @@ uvx mcp-docker
 - WSL2 (recommended) or Hyper-V
 
 #### Docker Socket Location
+
 ```
 npipe:////./pipe/docker_engine
 ```
 
 Or with WSL2:
+
 ```
 unix:///var/run/docker.sock
 ```
@@ -1100,6 +1156,7 @@ unix:///var/run/docker.sock
 #### Installation
 
 **PowerShell:**
+
 ```powershell
 # Install Python 3.11 (download from python.org)
 # Or use winget
@@ -1118,6 +1175,7 @@ uvx mcp-docker
 #### Configuration
 
 **Native Windows:**
+
 ```json
 {
   "mcpServers": {
@@ -1133,6 +1191,7 @@ uvx mcp-docker
 ```
 
 **WSL2:**
+
 ```json
 {
   "mcpServers": {
@@ -1148,6 +1207,7 @@ uvx mcp-docker
 ```
 
 #### Special Considerations
+
 - **WSL2 vs Hyper-V**: WSL2 is recommended for better performance and Linux compatibility
 - **Path separators**: Use forward slashes (/) or escape backslashes (\\\\) in JSON
 - **Docker Desktop settings**: Enable "Expose daemon on tcp://localhost:2375 without TLS" if needed
@@ -1175,11 +1235,13 @@ uvx mcp-docker
 ### Linux
 
 #### Prerequisites
+
 - Modern Linux distribution (Ubuntu 20.04+, Debian 11+, Fedora 34+, etc.)
 - Docker Engine or Docker Desktop for Linux
 - Python 3.11+
 
 #### Docker Socket Location
+
 ```bash
 /var/run/docker.sock
 ```
@@ -1187,6 +1249,7 @@ uvx mcp-docker
 #### Installation
 
 **Ubuntu/Debian:**
+
 ```bash
 # Install Python 3.11
 sudo apt update
@@ -1205,6 +1268,7 @@ uvx mcp-docker
 ```
 
 **Fedora/RHEL:**
+
 ```bash
 # Install Python 3.11
 sudo dnf install python3.11
@@ -1224,6 +1288,7 @@ uvx mcp-docker
 ```
 
 **Arch Linux:**
+
 ```bash
 # Install Python and Docker
 sudo pacman -S python docker
@@ -1242,6 +1307,7 @@ uvx mcp-docker
 ```
 
 #### Configuration
+
 ```json
 {
   "mcpServers": {
@@ -1257,6 +1323,7 @@ uvx mcp-docker
 ```
 
 #### Special Considerations
+
 - **User permissions**: Must be in `docker` group or use `sudo`
 - **SELinux**: May need to adjust policies on Fedora/RHEL
 - **AppArmor**: May need to adjust profiles on Ubuntu/Debian
@@ -1276,6 +1343,7 @@ export DOCKER_BASE_URL="unix://$XDG_RUNTIME_DIR/docker.sock"
 ```
 
 Update Claude config:
+
 ```json
 {
   "mcpServers": {
@@ -1303,12 +1371,14 @@ How to completely remove the MCP Docker server.
 ### Uninstall Package
 
 #### If installed with uvx
+
 ```bash
 # uvx doesn't install permanently, but you can clear cache
 uv cache clean mcp-docker
 ```
 
 #### If installed with uv from source
+
 ```bash
 # Remove the cloned repository
 rm -rf /path/to/mcp_docker
@@ -1318,6 +1388,7 @@ rm -rf .venv
 ```
 
 #### If installed with pip
+
 ```bash
 # Deactivate virtual environment if active
 deactivate

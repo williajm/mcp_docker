@@ -65,16 +65,19 @@ Le serveur peut être configuré via des variables d'environnement ou un fichier
 **IMPORTANT** : Le `DOCKER_BASE_URL` doit être correctement défini pour votre plateforme :
 
 **Linux / macOS :**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop) :**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell :**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -123,11 +126,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Configuration de Claude Desktop
 
 Ajoutez à votre configuration Claude Desktop :
+
 - macOS : `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows : `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux : `~/.config/Claude/claude_desktop_config.json`
 
 **Configuration de base (transport stdio - recommandé) :**
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +148,7 @@ Ajoutez à votre configuration Claude Desktop :
 ```
 
 **Configuration Windows :**
+
 ```json
 {
   "mcpServers": {
@@ -169,6 +175,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **Options en ligne de commande :**
+
 - `--transport` : Type de transport (`stdio` ou `sse`, par défaut : `stdio`)
 - `--host` : Hôte pour lier le serveur SSE (par défaut : `127.0.0.1`)
 - `--port` : Port pour lier le serveur SSE (par défaut : `8000`)
@@ -187,6 +194,7 @@ mcp-docker
 Le serveur fournit 36 outils organisés en 5 catégories :
 
 ### Gestion des Conteneurs (10 outils)
+
 - `docker_list_containers` - Lister les conteneurs avec filtres
 - `docker_inspect_container` - Obtenir les informations détaillées du conteneur
 - `docker_create_container` - Créer un nouveau conteneur
@@ -199,6 +207,7 @@ Le serveur fournit 36 outils organisés en 5 catégories :
 - `docker_container_stats` - Obtenir les statistiques d'utilisation des ressources
 
 ### Gestion des Images (9 outils)
+
 - `docker_list_images` - Lister les images
 - `docker_inspect_image` - Obtenir les détails de l'image
 - `docker_pull_image` - Récupérer depuis le registre
@@ -210,6 +219,7 @@ Le serveur fournit 36 outils organisés en 5 catégories :
 - `docker_image_history` - Voir l'historique des couches
 
 ### Gestion des Réseaux (6 outils)
+
 - `docker_list_networks` - Lister les réseaux
 - `docker_inspect_network` - Obtenir les détails du réseau
 - `docker_create_network` - Créer un réseau
@@ -218,6 +228,7 @@ Le serveur fournit 36 outils organisés en 5 catégories :
 - `docker_remove_network` - Supprimer le réseau
 
 ### Gestion des Volumes (5 outils)
+
 - `docker_list_volumes` - Lister les volumes
 - `docker_inspect_volume` - Obtenir les détails du volume
 - `docker_create_volume` - Créer un volume
@@ -225,6 +236,7 @@ Le serveur fournit 36 outils organisés en 5 catégories :
 - `docker_prune_volumes` - Nettoyer les volumes inutilisés
 
 ### Outils Système (6 outils)
+
 - `docker_system_info` - Obtenir les informations système Docker
 - `docker_system_df` - Statistiques d'utilisation du disque
 - `docker_system_prune` - Nettoyer toutes les ressources inutilisées

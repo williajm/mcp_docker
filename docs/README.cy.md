@@ -66,16 +66,19 @@ Gellir ffurfweddu'r gweinydd trwy newidynnau amgylchedd neu ffeil `.env`.
 **PWYSIG**: Rhaid gosod `DOCKER_BASE_URL` yn gywir ar gyfer eich platfform:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -127,11 +130,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Gosodiad Claude Desktop
 
 Ychwanegwch at eich ffurfweddiad Claude Desktop:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **Ffurfweddiad sylfaenol (cludiant stdio - argymhelledig):**
+
 ```json
 {
   "mcpServers": {
@@ -147,6 +152,7 @@ Ychwanegwch at eich ffurfweddiad Claude Desktop:
 ```
 
 **Ffurfweddiad Windows:**
+
 ```json
 {
   "mcpServers": {
@@ -166,6 +172,7 @@ Ychwanegwch at eich ffurfweddiad Claude Desktop:
 Mae'r gweinydd yn darparu 36 o offer wedi'u trefnu mewn 5 categori:
 
 ### Rheoli Cynwysyddion (10 erfyn)
+
 - `docker_list_containers` - Rhestru cynwysyddion gyda hidlwyr
 - `docker_inspect_container` - Cael gwybodaeth fanwl am gynwysydd
 - `docker_create_container` - Creu cynwysydd newydd
@@ -178,6 +185,7 @@ Mae'r gweinydd yn darparu 36 o offer wedi'u trefnu mewn 5 categori:
 - `docker_container_stats` - Cael ystadegau defnydd adnoddau
 
 ### Rheoli Delweddau (9 erfyn)
+
 - `docker_list_images` - Rhestru delweddau
 - `docker_inspect_image` - Cael manylion delwedd
 - `docker_pull_image` - Tynnu o gofrestrfa
@@ -189,6 +197,7 @@ Mae'r gweinydd yn darparu 36 o offer wedi'u trefnu mewn 5 categori:
 - `docker_image_history` - Gweld hanes haenau
 
 ### Rheoli Rhwydweithiau (6 erfyn)
+
 - `docker_list_networks` - Rhestru rhwydweithiau
 - `docker_inspect_network` - Cael manylion rhwydwaith
 - `docker_create_network` - Creu rhwydwaith
@@ -197,6 +206,7 @@ Mae'r gweinydd yn darparu 36 o offer wedi'u trefnu mewn 5 categori:
 - `docker_remove_network` - Dileu rhwydwaith
 
 ### Rheoli Cyfrolau (5 erfyn)
+
 - `docker_list_volumes` - Rhestru cyfrolau
 - `docker_inspect_volume` - Cael manylion cyfrol
 - `docker_create_volume` - Creu cyfrol
@@ -204,6 +214,7 @@ Mae'r gweinydd yn darparu 36 o offer wedi'u trefnu mewn 5 categori:
 - `docker_prune_volumes` - Glanhau cyfrolau heb eu defnyddio
 
 ### Offer System (6 erfyn)
+
 - `docker_system_info` - Cael gwybodaeth system Docker
 - `docker_system_df` - Ystadegau defnydd disg
 - `docker_system_prune` - Glanhau pob adnodd heb ei ddefnyddio
@@ -255,28 +266,34 @@ Mae'r gweinydd yn gweithredu system diogelwch tri lefel gyda moddau gweithredu f
 Ffurfweddwch y modd diogelwch gan ddefnyddio newidynnau amgylchedd:
 
 **Modd Darllen-yn-Unig (Mwyaf Diogel)** - Monitro ac arsylladwyedd yn unig
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
+
 - ✅ Rhestr, arolygu, cofnodion, ystadegau
 - ❌ Creu, cychwyn, stopio, tynnu
 - ❌ Dileu, prune
 
 **Modd Rhagosodedig (Cytbwys)** - Datblygiad a gweithrediadau
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # neu hepgor (rhagosodiad)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
+
 - ✅ Rhestr, arolygu, cofnodion, ystadegau
 - ✅ Creu, cychwyn, stopio, tynnu
 - ❌ Dileu, prune
 
 **Modd Llawn (Lleiaf Cyfyngol)** - Rheoli seilwaith
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 ```
+
 - ✅ Rhestr, arolygu, cofnodion, ystadegau
 - ✅ Creu, cychwyn, stopio, tynnu
 - ✅ Dileu, prune
