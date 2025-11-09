@@ -407,6 +407,13 @@ class TestServerRunFunction:
                 assert signal_module.SIGINT in signal_handlers
                 assert signal_module.SIGTERM in signal_handlers
 
+                # Test calling the signal handler directly
+                handler = signal_handlers[signal_module.SIGINT]
+                # Handler should be callable
+                assert callable(handler)
+                # Call it with signal and frame (the signature signal handlers expect)
+                handler(signal_module.SIGINT, None)
+
                 # Cancel the task to clean up
                 task.cancel()
                 try:
