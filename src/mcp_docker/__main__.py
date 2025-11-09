@@ -7,6 +7,7 @@ import argparse
 import asyncio
 import json
 import os
+import signal
 from collections.abc import Awaitable, Callable, MutableMapping
 from pathlib import Path
 from typing import Any
@@ -181,12 +182,24 @@ async def run_stdio() -> None:
         logger.info("MCP server shutdown complete")
 
 
-async def run_sse(host: str, port: int) -> None:
+async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
     """Run the MCP server with SSE transport over HTTP."""
     logger.info(f"Starting MCP server with SSE transport on {host}:{port}")
 
     # Initialize Docker server
     await docker_server.start()
+
+    # Shutdown event for graceful termination
+    shutdown_event = asyncio.Event()
+
+    def signal_handler(sig: int, frame: Any) -> None:  # noqa: ARG001
+        """Handle shutdown signals."""
+        logger.info(f"Received signal {sig}, initiating shutdown...")
+        shutdown_event.set()
+
+    # Install signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     try:
         # Create SSE transport
@@ -219,18 +232,30 @@ async def run_sse(host: str, port: int) -> None:
             # For /sse GET requests, create a persistent SSE connection
             if path.startswith("/sse") and method == "GET":
                 logger.debug("Creating persistent SSE connection")
-                async with sse.connect_sse(scope, log_receive, log_send) as streams:
-                    logger.debug("SSE connection established, running MCP server")
-                    await mcp_server.run(
-                        streams[0], streams[1], mcp_server.create_initialization_options()
-                    )
-                    logger.debug("MCP server completed")
+                try:
+                    async with sse.connect_sse(scope, log_receive, log_send) as streams:
+                        logger.debug("SSE connection established, running MCP server")
+                        await mcp_server.run(
+                            streams[0], streams[1], mcp_server.create_initialization_options()
+                        )
+                        logger.debug("MCP server completed")
+                except asyncio.CancelledError:
+                    # Expected during shutdown - log at debug level and exit cleanly
+                    logger.debug("SSE connection cancelled during shutdown")
+                    # Don't re-raise to avoid traceback noise
+                    return
 
             # For /messages POST requests, use the dedicated handler
             elif path.startswith("/messages") and method == "POST":
                 logger.debug("Handling /messages POST")
-                await sse.handle_post_message(scope, log_receive, log_send)
-                logger.debug("/messages POST handled")
+                try:
+                    await sse.handle_post_message(scope, log_receive, log_send)
+                    logger.debug("/messages POST handled")
+                except asyncio.CancelledError:
+                    # Expected during shutdown - log at debug level and exit cleanly
+                    logger.debug("POST message handling cancelled during shutdown")
+                    # Don't re-raise to avoid traceback noise
+                    return
 
             else:
                 logger.warning(f"Unhandled request: {method} {path}")
@@ -249,12 +274,40 @@ async def run_sse(host: str, port: int) -> None:
             routes=[Mount("/", app=sse_handler)],
         )
 
-        # Run server
-        config_uvicorn = uvicorn.Config(app, host=host, port=port, log_level="info")
+        # Run server with timeout configuration
+        config_uvicorn = uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            log_level="info",
+            timeout_graceful_shutdown=5,  # 5 second timeout for graceful shutdown
+        )
         server = uvicorn.Server(config_uvicorn)
 
         logger.info(f"MCP server listening on http://{host}:{port}/sse")
-        await server.serve()
+
+        # Run server with shutdown monitoring
+        server_task = asyncio.create_task(server.serve())
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
+        # Wait for either server completion or shutdown signal
+        done, pending = await asyncio.wait(
+            {server_task, shutdown_task}, return_when=asyncio.FIRST_COMPLETED
+        )
+
+        # If shutdown was signaled, force server shutdown
+        if shutdown_task in done:
+            logger.info("Shutdown signal received, stopping server...")
+            server.should_exit = True
+
+            # Wait for graceful shutdown with timeout
+            try:
+                await asyncio.wait_for(server_task, timeout=5.0)
+            except TimeoutError:
+                logger.warning("Graceful shutdown timeout, forcing exit...")
+                # Cancel any remaining tasks
+                for task in pending:
+                    task.cancel()
 
     finally:
         await docker_server.stop()
