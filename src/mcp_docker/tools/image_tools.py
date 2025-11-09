@@ -21,6 +21,9 @@ from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
 
+# Constants
+IMAGE_NAME_OR_ID_DESCRIPTION = "Image name or ID"
+
 
 # Input/Output Models
 
@@ -49,7 +52,7 @@ class ListImagesOutput(BaseModel):
 class InspectImageInput(BaseModel):
     """Input for inspecting an image."""
 
-    image_name: str = Field(description="Image name or ID")
+    image_name: str = Field(description=IMAGE_NAME_OR_ID_DESCRIPTION)
 
 
 class InspectImageOutput(BaseModel):
@@ -140,7 +143,7 @@ class TagImageOutput(BaseModel):
 class RemoveImageInput(BaseModel):
     """Input for removing an image."""
 
-    image: str = Field(description="Image name or ID")
+    image: str = Field(description=IMAGE_NAME_OR_ID_DESCRIPTION)
     force: bool = Field(default=False, description="Force removal")
     noprune: bool = Field(default=False, description="Do not delete untagged parents")
 
@@ -196,7 +199,7 @@ class PruneImagesOutput(BaseModel):
 class ImageHistoryInput(BaseModel):
     """Input for viewing image history."""
 
-    image: str = Field(description="Image name or ID")
+    image: str = Field(description=IMAGE_NAME_OR_ID_DESCRIPTION)
 
 
 class ImageHistoryOutput(BaseModel):

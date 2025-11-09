@@ -212,7 +212,7 @@ class AuditLogger:
             "auth",
         }
 
-        for key in list(sanitized.keys()):
+        for key in sanitized:
             if any(sensitive in key.lower() for sensitive in sensitive_keys):
                 sanitized[key] = "***REDACTED***"
 
