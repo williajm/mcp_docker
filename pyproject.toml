@@ -35,13 +35,6 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-[project.urls]
-Homepage = "https://github.com/williajm/mcp_docker"
-Documentation = "https://williajm.github.io/mcp_docker/"
-Repository = "https://github.com/williajm/mcp_docker"
-Issues = "https://github.com/williajm/mcp_docker/issues"
-Changelog = "https://github.com/williajm/mcp_docker/releases"
-
 dependencies = [
     "mcp>=1.2.0",
     "docker>=7.1.0",
@@ -67,6 +60,13 @@ dev = [
     "hypothesis>=6.0.0",
     "atheris>=2.3.0",  # Fuzzing with ClusterFuzzLite (Apache-2.0)
 ]
+
+[project.urls]
+Homepage = "https://github.com/williajm/mcp_docker"
+Documentation = "https://williajm.github.io/mcp_docker/"
+Repository = "https://github.com/williajm/mcp_docker"
+Issues = "https://github.com/williajm/mcp_docker/issues"
+Changelog = "https://github.com/williajm/mcp_docker/releases"
 
 [project.scripts]
 mcp-docker = "mcp_docker.__main__:main"
