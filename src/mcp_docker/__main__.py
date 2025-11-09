@@ -164,6 +164,104 @@ async def handle_get_prompt(name: str, arguments: dict[str, Any] | None = None) 
 logger.info("MCP server handlers registered")
 
 
+def _create_logging_wrappers(
+    receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+    send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+) -> tuple[
+    Callable[[], Awaitable[MutableMapping[str, Any]]],
+    Callable[[MutableMapping[str, Any]], Awaitable[None]],
+]:
+    """Create logging wrapper functions for SSE receive/send."""
+
+    async def log_receive() -> MutableMapping[str, Any]:
+        msg = await receive()
+        if msg.get("type") == "http.request" and msg.get("body"):
+            logger.debug(f"<<< HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
+        return msg
+
+    async def log_send(msg: MutableMapping[str, Any]) -> None:
+        if msg.get("type") == "http.response.body" and msg.get("body"):
+            logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
+        await send(msg)
+
+    return log_receive, log_send
+
+
+async def _handle_sse_connection(
+    sse: SseServerTransport,
+    scope: MutableMapping[str, Any],
+    log_receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+    log_send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+) -> None:
+    """Handle SSE GET requests with persistent connection."""
+    logger.debug("Creating persistent SSE connection")
+    try:
+        async with sse.connect_sse(scope, log_receive, log_send) as streams:
+            logger.debug("SSE connection established, running MCP server")
+            await mcp_server.run(streams[0], streams[1], mcp_server.create_initialization_options())
+            logger.debug("MCP server completed")
+    except asyncio.CancelledError:
+        logger.debug("SSE connection cancelled during shutdown")
+        raise  # Re-raise to properly propagate cancellation
+
+
+async def _handle_post_message(
+    sse: SseServerTransport,
+    scope: MutableMapping[str, Any],
+    log_receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+    log_send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+) -> None:
+    """Handle POST requests to /messages endpoint."""
+    logger.debug("Handling /messages POST")
+    try:
+        await sse.handle_post_message(scope, log_receive, log_send)
+        logger.debug("/messages POST handled")
+    except asyncio.CancelledError:
+        logger.debug("POST message handling cancelled during shutdown")
+        raise  # Re-raise to properly propagate cancellation
+
+
+async def _handle_404(
+    send: Callable[[MutableMapping[str, Any]], Awaitable[None]], method: str, path: str
+) -> None:
+    """Handle unrecognized requests with 404."""
+    logger.warning(f"Unhandled request: {method} {path}")
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 404,
+            "headers": [[b"content-type", b"text/plain"]],
+        }
+    )
+    await send({"type": "http.response.body", "body": b"Not Found"})
+
+
+async def _monitor_shutdown(
+    server_task: asyncio.Task[None],
+    shutdown_task: asyncio.Task[Any],
+    server: uvicorn.Server,
+) -> None:
+    """Monitor for shutdown signal and handle graceful shutdown."""
+    # Wait for either server completion or shutdown signal
+    done, pending = await asyncio.wait(
+        {server_task, shutdown_task}, return_when=asyncio.FIRST_COMPLETED
+    )
+
+    # If shutdown was signaled, force server shutdown
+    if shutdown_task in done:
+        logger.info("Shutdown signal received, stopping server...")
+        server.should_exit = True
+
+        # Wait for graceful shutdown with timeout
+        try:
+            await asyncio.wait_for(server_task, timeout=5.0)
+        except TimeoutError:
+            logger.warning("Graceful shutdown timeout, forcing exit...")
+            # Cancel any remaining tasks
+            for task in pending:
+                task.cancel()
+
+
 async def run_stdio() -> None:
     """Run the MCP server with stdio transport."""
     logger.info("Starting MCP server with stdio transport")
@@ -182,7 +280,7 @@ async def run_stdio() -> None:
         logger.info("MCP server shutdown complete")
 
 
-async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
+async def run_sse(host: str, port: int) -> None:
     """Run the MCP server with SSE transport over HTTP."""
     logger.info(f"Starting MCP server with SSE transport on {host}:{port}")
 
@@ -205,8 +303,6 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
         # Create SSE transport
         sse = SseServerTransport("/messages")
 
-        # Simplified approach: let connect_sse handle everything
-        # It manages sessions internally via session_id
         async def sse_handler(
             scope: MutableMapping[str, Any],
             receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
@@ -217,56 +313,16 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
             method = scope.get("method", "")
             logger.debug(f"Request: {method} {path}")
 
-            # Logging wrappers for debugging
-            async def log_receive() -> MutableMapping[str, Any]:
-                msg = await receive()
-                if msg.get("type") == "http.request" and msg.get("body"):
-                    logger.debug(f"<<< HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
-                return msg
+            # Create logging wrappers
+            log_receive, log_send = _create_logging_wrappers(receive, send)
 
-            async def log_send(msg: MutableMapping[str, Any]) -> None:
-                if msg.get("type") == "http.response.body" and msg.get("body"):
-                    logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
-                await send(msg)
-
-            # For /sse GET requests, create a persistent SSE connection
+            # Route based on path and method
             if path.startswith("/sse") and method == "GET":
-                logger.debug("Creating persistent SSE connection")
-                try:
-                    async with sse.connect_sse(scope, log_receive, log_send) as streams:
-                        logger.debug("SSE connection established, running MCP server")
-                        await mcp_server.run(
-                            streams[0], streams[1], mcp_server.create_initialization_options()
-                        )
-                        logger.debug("MCP server completed")
-                except asyncio.CancelledError:
-                    # Expected during shutdown - log at debug level and exit cleanly
-                    logger.debug("SSE connection cancelled during shutdown")
-                    # Don't re-raise to avoid traceback noise
-                    return
-
-            # For /messages POST requests, use the dedicated handler
+                await _handle_sse_connection(sse, scope, log_receive, log_send)
             elif path.startswith("/messages") and method == "POST":
-                logger.debug("Handling /messages POST")
-                try:
-                    await sse.handle_post_message(scope, log_receive, log_send)
-                    logger.debug("/messages POST handled")
-                except asyncio.CancelledError:
-                    # Expected during shutdown - log at debug level and exit cleanly
-                    logger.debug("POST message handling cancelled during shutdown")
-                    # Don't re-raise to avoid traceback noise
-                    return
-
+                await _handle_post_message(sse, scope, log_receive, log_send)
             else:
-                logger.warning(f"Unhandled request: {method} {path}")
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": 404,
-                        "headers": [[b"content-type", b"text/plain"]],
-                    }
-                )
-                await send({"type": "http.response.body", "body": b"Not Found"})
+                await _handle_404(send, method, path)
 
         # Mount handler at root
         app = Starlette(
@@ -290,24 +346,8 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
         server_task = asyncio.create_task(server.serve())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
 
-        # Wait for either server completion or shutdown signal
-        done, pending = await asyncio.wait(
-            {server_task, shutdown_task}, return_when=asyncio.FIRST_COMPLETED
-        )
-
-        # If shutdown was signaled, force server shutdown
-        if shutdown_task in done:
-            logger.info("Shutdown signal received, stopping server...")
-            server.should_exit = True
-
-            # Wait for graceful shutdown with timeout
-            try:
-                await asyncio.wait_for(server_task, timeout=5.0)
-            except TimeoutError:
-                logger.warning("Graceful shutdown timeout, forcing exit...")
-                # Cancel any remaining tasks
-                for task in pending:
-                    task.cancel()
+        # Monitor shutdown and handle gracefully
+        await _monitor_shutdown(server_task, shutdown_task, server)
 
     finally:
         await docker_server.stop()

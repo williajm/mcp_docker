@@ -562,6 +562,163 @@ class TestServerRunFunction:
                 mock_docker_server.stop.assert_called_once()
 
 
+class TestHelperFunctions:
+    """Tests for helper functions."""
+
+    @pytest.mark.asyncio
+    async def test_create_logging_wrappers(self) -> None:
+        """Test _create_logging_wrappers creates proper wrapper functions."""
+        mock_receive = AsyncMock(return_value={"type": "http.request", "body": b"test"})
+        mock_send = AsyncMock()
+
+        log_receive, log_send = main_module._create_logging_wrappers(mock_receive, mock_send)
+
+        # Test log_receive
+        result = await log_receive()
+        assert result == {"type": "http.request", "body": b"test"}
+        mock_receive.assert_called_once()
+
+        # Test log_send
+        await log_send({"type": "http.response.body", "body": b"response"})
+        mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_sse_connection(self) -> None:
+        """Test _handle_sse_connection handles SSE connections."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/sse"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        # Mock SSE connection
+        mock_streams = (AsyncMock(), AsyncMock())
+        mock_sse.connect_sse = Mock()
+        mock_sse.connect_sse.return_value.__aenter__ = AsyncMock(return_value=mock_streams)
+        mock_sse.connect_sse.return_value.__aexit__ = AsyncMock()
+
+        with patch.object(main_module, "mcp_server") as mock_mcp_server:
+            mock_mcp_server.run = AsyncMock()
+            mock_mcp_server.create_initialization_options = Mock(return_value={})
+
+            await main_module._handle_sse_connection(mock_sse, mock_scope, mock_receive, mock_send)
+
+            mock_mcp_server.run.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_sse_connection_cancelled(self) -> None:
+        """Test _handle_sse_connection re-raises CancelledError."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/sse"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        # Mock SSE connection to raise CancelledError
+        mock_sse.connect_sse = Mock()
+        mock_sse.connect_sse.return_value.__aenter__ = AsyncMock(
+            side_effect=asyncio.CancelledError()
+        )
+        mock_sse.connect_sse.return_value.__aexit__ = AsyncMock()
+
+        with pytest.raises(asyncio.CancelledError):
+            await main_module._handle_sse_connection(mock_sse, mock_scope, mock_receive, mock_send)
+
+    @pytest.mark.asyncio
+    async def test_handle_post_message(self) -> None:
+        """Test _handle_post_message handles POST requests."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/messages", "method": "POST"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        mock_sse.handle_post_message = AsyncMock()
+
+        await main_module._handle_post_message(mock_sse, mock_scope, mock_receive, mock_send)
+
+        mock_sse.handle_post_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_handle_post_message_cancelled(self) -> None:
+        """Test _handle_post_message re-raises CancelledError."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/messages"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        mock_sse.handle_post_message = AsyncMock(side_effect=asyncio.CancelledError())
+
+        with pytest.raises(asyncio.CancelledError):
+            await main_module._handle_post_message(mock_sse, mock_scope, mock_receive, mock_send)
+
+    @pytest.mark.asyncio
+    async def test_handle_404(self) -> None:
+        """Test _handle_404 sends 404 response."""
+        mock_send = AsyncMock()
+
+        await main_module._handle_404(mock_send, "GET", "/unknown")
+
+        assert mock_send.call_count == 2
+        # First call is the response start
+        assert mock_send.call_args_list[0][0][0]["status"] == 404
+        # Second call is the response body
+        assert mock_send.call_args_list[1][0][0]["body"] == b"Not Found"
+
+    @pytest.mark.asyncio
+    async def test_monitor_shutdown_signal_received(self) -> None:
+        """Test _monitor_shutdown handles shutdown signal."""
+        mock_server = Mock()
+        mock_server.should_exit = False
+
+        # Mock server task (not done)
+        server_task = AsyncMock()
+        server_task.__name__ = "serve"
+
+        # Mock shutdown task (done)
+        shutdown_task = AsyncMock()
+
+        with (
+            patch("mcp_docker.__main__.asyncio.wait") as mock_wait,
+            patch("mcp_docker.__main__.asyncio.wait_for") as mock_wait_for,
+        ):
+            # Mock wait to return shutdown task as done
+            async def mock_wait_impl(tasks: set, **kwargs: object) -> tuple[set, set]:  # noqa: ARG001
+                return {shutdown_task}, {server_task}
+
+            mock_wait.side_effect = mock_wait_impl
+            mock_wait_for.return_value = None
+
+            await main_module._monitor_shutdown(server_task, shutdown_task, mock_server)
+
+            # Verify should_exit was set
+            assert mock_server.should_exit is True
+            mock_wait_for.assert_called_once_with(server_task, timeout=5.0)
+
+    @pytest.mark.asyncio
+    async def test_monitor_shutdown_timeout(self) -> None:
+        """Test _monitor_shutdown handles timeout."""
+        mock_server = Mock()
+        mock_server.should_exit = False
+
+        server_task = AsyncMock()
+        server_task.cancel = Mock()
+        shutdown_task = AsyncMock()
+
+        with (
+            patch("mcp_docker.__main__.asyncio.wait") as mock_wait,
+            patch("mcp_docker.__main__.asyncio.wait_for") as mock_wait_for,
+        ):
+            # Mock wait to return shutdown task as done
+            async def mock_wait_impl(tasks: set, **kwargs: object) -> tuple[set, set]:  # noqa: ARG001
+                return {shutdown_task}, {server_task}
+
+            mock_wait.side_effect = mock_wait_impl
+            mock_wait_for.side_effect = TimeoutError()
+
+            await main_module._monitor_shutdown(server_task, shutdown_task, mock_server)
+
+            # Verify task was cancelled
+            server_task.cancel.assert_called_once()
+
+
 class TestMainFunction:
     """Tests for main function."""
 
