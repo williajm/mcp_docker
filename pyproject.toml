@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "0.4.1"
+version = "1.0.0"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -19,7 +19,7 @@ keywords = [
     "llm",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
@@ -77,6 +77,21 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_docker"]
+
+[tool.hatch.build.targets.sdist]
+# Include only essential files in source distribution
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/CHANGELOG.md",
+    "/SECURITY.md",
+    "/pyproject.toml",
+    "/.env.example",
+    "/.mcp_keys.json.example",
+]
 
 [tool.ruff]
 line-length = 100

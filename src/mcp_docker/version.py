@@ -4,8 +4,8 @@ Increment the build number each time the code changes to help identify
 which version is running in Claude Desktop.
 """
 
-__version__ = "0.4.1"
-__build__ = 13  # v0.4.1: Fixed token permissions and signed releases
+__version__ = "1.0.0"
+__build__ = 1  # v1.0.0: First stable release with PyPI publishing
 
 
 def get_full_version() -> str:
