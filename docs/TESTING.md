@@ -46,12 +46,14 @@ Each level serves a specific purpose and catches different types of bugs.
 #### Unit Tests (`tests/unit/`)
 
 **What they test:**
+
 - Individual functions and classes in isolation
 - Algorithm correctness (timestamp validation, signature verification)
 - Edge cases and error handling
 - Data model validation
 
 **Example:**
+
 ```python
 def test_validate_timestamp_expired(self):
     """Test validating expired timestamp."""
@@ -63,12 +65,14 @@ def test_validate_timestamp_expired(self):
 ```
 
 **Characteristics:**
+
 - No external dependencies (Docker, network)
 - Heavy use of mocking and fixtures
 - Tests single responsibility
 - Very fast execution (<5s for all unit tests)
 
 **When to use:**
+
 - Testing business logic
 - Testing error conditions
 - Testing edge cases
@@ -79,12 +83,14 @@ def test_validate_timestamp_expired(self):
 #### Integration Tests (`tests/integration/`)
 
 **What they test:**
+
 - Multiple components working together
 - Server-level tool execution
 - Docker operations with real Docker daemon
 - Component interaction and data flow
 
 **Example:**
+
 ```python
 @pytest.mark.asyncio
 async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth):
@@ -104,12 +110,14 @@ async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth):
 ```
 
 **Characteristics:**
+
 - Requires Docker daemon
 - Real Docker operations (create, start, stop containers)
 - Direct server method calls (bypasses MCP protocol)
 - Moderate execution time (~10s for all integration tests)
 
 **When to use:**
+
 - Testing component integration
 - Verifying Docker operations work
 - Testing middleware and authentication flow
@@ -120,6 +128,7 @@ async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth):
 #### E2E Tests (`tests/e2e/`)
 
 **What they test:**
+
 - Complete user workflows
 - Real MCP client connections
 - Full transport layer (stdio/SSE)
@@ -127,6 +136,7 @@ async def test_call_tool_with_ssh_auth(self, setup_server_with_ssh_auth):
 - Performance and stress testing
 
 **Example:**
+
 ```python
 @pytest.mark.e2e
 @pytest.mark.asyncio
@@ -158,6 +168,7 @@ async def test_complete_docker_workflow_with_ssh_auth(tmp_path):
 ```
 
 **Characteristics:**
+
 - Requires Docker daemon
 - Real MCP client (ClientSession)
 - Real transport protocols (stdio, SSE)
@@ -165,6 +176,7 @@ async def test_complete_docker_workflow_with_ssh_auth(tmp_path):
 - Slower execution (~30-60s for all E2E tests)
 
 **When to use:**
+
 - Validating production scenarios
 - Testing complete user workflows
 - Performance and stress testing
@@ -178,11 +190,13 @@ async def test_complete_docker_workflow_with_ssh_auth(tmp_path):
 ### Prerequisites
 
 **For Unit Tests:**
+
 - Python 3.11+
 - uv package manager
 - No Docker required ✅
 
 **For Integration and E2E Tests:**
+
 - Python 3.11+
 - uv package manager
 - Docker daemon running ✅
@@ -512,6 +526,7 @@ e2e-tests-full:
 ```
 
 This provides:
+
 - **Fast PR feedback** (~20s) with unit + integration + quick E2E
 - **Full validation** (~60s) on main branch before releases
 
@@ -521,7 +536,7 @@ This provides:
 
 ### Test Organization
 
-```
+```text
 tests/
 ├── unit/                    # Unit tests (fast, isolated)
 │   ├── auth/               # Auth component tests
@@ -616,6 +631,7 @@ async def test_concurrent_clients():
 ### When to Write Each Test Level
 
 **Write Unit Tests when:**
+
 - ✅ Testing business logic
 - ✅ Testing edge cases
 - ✅ Testing error handling
@@ -623,12 +639,14 @@ async def test_concurrent_clients():
 - ✅ Need fast feedback
 
 **Write Integration Tests when:**
+
 - ✅ Testing component interaction
 - ✅ Verifying Docker operations
 - ✅ Testing middleware flow
 - ✅ Smoke testing features
 
 **Write E2E Tests when:**
+
 - ✅ Testing user workflows
 - ✅ Validating transport layers
 - ✅ Testing security in realistic scenarios
@@ -706,6 +724,7 @@ The mcp-docker testing strategy provides:
 ✅ **CI/CD ready** with automated testing
 
 Choose the right test level for the job:
+
 - **Unit** for logic and edge cases
 - **Integration** for component interaction
 - **E2E** for complete workflows

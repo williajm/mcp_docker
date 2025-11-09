@@ -65,16 +65,19 @@ O servidor pode ser configurado através de variáveis de ambiente ou um arquivo
 **IMPORTANTE**: O `DOCKER_BASE_URL` deve ser definido corretamente para sua plataforma:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -123,11 +126,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Configuração do Claude Desktop
 
 Adicione à sua configuração do Claude Desktop:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **Configuração básica (transporte stdio - recomendado):**
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +148,7 @@ Adicione à sua configuração do Claude Desktop:
 ```
 
 **Configuração Windows:**
+
 ```json
 {
   "mcpServers": {
@@ -169,6 +175,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **Opções de linha de comando:**
+
 - `--transport`: Tipo de transporte (`stdio` ou `sse`, padrão: `stdio`)
 - `--host`: Host para vincular o servidor SSE (padrão: `127.0.0.1`)
 - `--port`: Porta para vincular o servidor SSE (padrão: `8000`)
@@ -187,6 +194,7 @@ mcp-docker
 O servidor fornece 48 ferramentas organizadas em 6 categorias:
 
 ### Gerenciamento de Contêineres (10 ferramentas)
+
 - `docker_list_containers` - Listar contêineres com filtros
 - `docker_inspect_container` - Obter informações detalhadas do contêiner
 - `docker_create_container` - Criar novo contêiner
@@ -199,6 +207,7 @@ O servidor fornece 48 ferramentas organizadas em 6 categorias:
 - `docker_container_stats` - Obter estatísticas de uso de recursos
 
 ### Gerenciamento Docker Compose (12 ferramentas)
+
 - `docker_compose_up` - Iniciar serviços do projeto compose
 - `docker_compose_down` - Parar e remover serviços compose
 - `docker_compose_restart` - Reiniciar serviços compose
@@ -213,6 +222,7 @@ O servidor fornece 48 ferramentas organizadas em 6 categorias:
 - `docker_compose_config` - Obter configuração compose resolvida
 
 ### Gerenciamento de Imagens (9 ferramentas)
+
 - `docker_list_images` - Listar imagens
 - `docker_inspect_image` - Obter detalhes da imagem
 - `docker_pull_image` - Baixar do registro
@@ -224,6 +234,7 @@ O servidor fornece 48 ferramentas organizadas em 6 categorias:
 - `docker_image_history` - Ver histórico de camadas
 
 ### Gerenciamento de Redes (6 ferramentas)
+
 - `docker_list_networks` - Listar redes
 - `docker_inspect_network` - Obter detalhes da rede
 - `docker_create_network` - Criar rede
@@ -232,6 +243,7 @@ O servidor fornece 48 ferramentas organizadas em 6 categorias:
 - `docker_remove_network` - Remover rede
 
 ### Gerenciamento de Volumes (5 ferramentas)
+
 - `docker_list_volumes` - Listar volumes
 - `docker_inspect_volume` - Obter detalhes do volume
 - `docker_create_volume` - Criar volume
@@ -239,6 +251,7 @@ O servidor fornece 48 ferramentas organizadas em 6 categorias:
 - `docker_prune_volumes` - Limpar volumes não utilizados
 
 ### Ferramentas do Sistema (6 ferramentas)
+
 - `docker_system_info` - Obter informações do sistema Docker
 - `docker_system_df` - Estatísticas de uso de disco
 - `docker_system_prune` - Limpar todos os recursos não utilizados
@@ -261,10 +274,12 @@ Cinco prompts ajudam assistentes de IA a trabalhar com Docker:
 Cinco recursos fornecem acesso em tempo real aos dados de contêineres e compose:
 
 ### Recursos de Contêineres
+
 - **container://logs/{container_id}** - Transmitir logs do contêiner
 - **container://stats/{container_id}** - Obter estatísticas de uso de recursos
 
 ### Recursos de Compose
+
 - **compose://config/{project_name}** - Obter configuração do projeto compose resolvida
 - **compose://services/{project_name}** - Listar serviços em um projeto compose
 - **compose://logs/{project_name}/{service_name}** - Obter logs de um serviço compose
@@ -276,6 +291,7 @@ O diretório `compose_files/` fornece um ambiente seguro para criar e testar con
 ### Arquivos de Exemplo
 
 Três arquivos de exemplo prontos para uso estão incluídos:
+
 - `nginx-redis.yml` - Stack web multi-serviço (nginx + redis)
 - `postgres-pgadmin.yml` - Stack de banco de dados com UI admin
 - `simple-webapp.yml` - Exemplo mínimo de serviço único
@@ -303,6 +319,7 @@ Use a ferramenta `docker_compose_write_file` para criar arquivos compose persona
 ### Funcionalidades de Segurança
 
 Todos os arquivos compose escritos através da ferramenta são:
+
 - ✅ Restritos apenas ao diretório `compose_files/`
 - ✅ Automaticamente prefixados com `user-` para distinguir dos exemplos
 - ✅ Validados para sintaxe e estrutura YAML
@@ -383,7 +400,7 @@ uv run pytest tests/integration/ -v -m integration
 
 ### Estrutura do Projeto
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/

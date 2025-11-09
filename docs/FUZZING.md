@@ -20,6 +20,7 @@ We currently have **4 fuzz test harnesses** targeting critical security-sensitiv
 ### 1. SSH Authentication (`fuzz_ssh_auth.py`)
 
 Tests SSH signature verification and authentication parsing:
+
 - SSH wire format parsing (`SSHWireMessage`)
 - Ed25519/RSA/ECDSA signature verification
 - Base64 decoding of signatures
@@ -30,6 +31,7 @@ Tests SSH signature verification and authentication parsing:
 ### 2. Input Validation (`fuzz_validation.py`)
 
 Tests Docker name and parameter validation:
+
 - Container name validation
 - Image name validation
 - Port number validation
@@ -42,6 +44,7 @@ Tests Docker name and parameter validation:
 ### 3. Command Sanitization (`fuzz_safety.py`)
 
 Tests safety checks and dangerous command detection:
+
 - Command sanitization (string and list formats)
 - Dangerous pattern detection (rm -rf, fork bombs, etc.)
 - Mount path validation (prevents sensitive file access)
@@ -54,6 +57,7 @@ Tests safety checks and dangerous command detection:
 ### 4. JSON Parsing (`fuzz_json_parsing.py`)
 
 Tests JSON parsing utilities:
+
 - Generic JSON parsing
 - Docker stats JSON parsing
 - Deeply nested structures
@@ -139,6 +143,7 @@ To optimize PR check performance, the fuzzing workflow implements intelligent ca
 ### How It Works
 
 ClusterFuzzLite uses PyInstaller to package Python fuzz targets into standalone executables. This build process:
+
 - Analyzes all Python dependencies
 - Bundles them with the fuzz test code
 - Creates executable binaries for libFuzzer
@@ -149,6 +154,7 @@ The caching system skips this expensive build step when the code hasn't changed.
 ### Cache Strategy
 
 **Cache Key**: Hash-based composite key that invalidates when any of these change:
+
 ```yaml
 fuzz-builds-${{ runner.os }}-${{ hashFiles(
   'tests/fuzz/*.py',           # Fuzz test files
@@ -159,12 +165,14 @@ fuzz-builds-${{ runner.os }}-${{ hashFiles(
 ```
 
 **Cache Storage**:
+
 - Location: GitHub Actions cloud cache
 - Size limit: 10 GB per repository
 - Retention: 7 days of inactivity or until size limit reached
 - Scope: Per-branch (PRs cache independently)
 
 **Cache Behavior**:
+
 - **Cache miss** (code changed): Build targets (~8-10 min) → Save to cache → Run fuzzing (2 min)
 - **Cache hit** (code unchanged): Restore from cache (~5 sec) → Run fuzzing (2 min)
 
@@ -176,6 +184,7 @@ fuzz-builds-${{ runner.os }}-${{ hashFiles(
 | Cache hit (subsequent) | ~5 sec | 2 min | ~2-3 min | ~8-10 min |
 
 **Expected behavior:**
+
 - First PR commit: Normal build time (~10-12 minutes total)
 - Subsequent commits without code changes: Fast (~2-3 minutes total)
 - Code changes: Cache invalidates, rebuild required
@@ -194,13 +203,15 @@ The cache is automatically managed by GitHub Actions:
 Check if the cache is working in the PR fuzzing workflow logs:
 
 **Cache hit** (good):
-```
+
+```text
 Cache hit! Restoring PyInstaller builds...
 Restored 4 fuzz targets from cache
 ```
 
 **Cache miss** (expected on first run or after code changes):
-```
+
+```text
 Cache not found, will build fuzz targets
 Building fuzz targets...
 ```
@@ -208,6 +219,7 @@ Building fuzz targets...
 ### When Cache Invalidates
 
 The cache automatically rebuilds when:
+
 - ✅ Fuzz test files are modified (`tests/fuzz/*.py`)
 - ✅ Source code changes (`src/**/*.py`)
 - ✅ Dependencies change (`pyproject.toml`)
@@ -216,6 +228,7 @@ The cache automatically rebuilds when:
 - ✅ Cache size exceeds 10 GB limit
 
 The cache does NOT rebuild when:
+
 - ❌ Documentation changes
 - ❌ Test files change (except fuzz tests)
 - ❌ CI workflow changes (except build.sh)
@@ -240,6 +253,7 @@ on:
 ### `.clusterfuzzlite/Dockerfile`
 
 Defines the build environment:
+
 - Based on `gcr.io/oss-fuzz-base/base-builder-python`
 - Installs project dependencies
 - Includes Atheris for fuzzing
@@ -247,6 +261,7 @@ Defines the build environment:
 ### `.clusterfuzzlite/build.sh`
 
 Build script that compiles fuzz targets:
+
 - Installs the project in development mode
 - Compiles each `fuzz_*.py` file as a standalone fuzzer
 - Uses PyInstaller for better compatibility
@@ -254,6 +269,7 @@ Build script that compiles fuzz targets:
 ### `.clusterfuzzlite/project.yaml`
 
 Project metadata for ClusterFuzzLite:
+
 - Language: Python
 - Sanitizers: address, undefined
 - Fuzzing engine: libfuzzer
@@ -265,6 +281,7 @@ To add a new fuzz test:
 1. **Create a new file** in `tests/fuzz/` named `fuzz_<component>.py`
 
 2. **Import Atheris** and your component:
+
 ```python
 import sys
 import atheris
@@ -274,6 +291,7 @@ with atheris.instrument_imports():
 ```
 
 3. **Write test functions** that exercise your component:
+
 ```python
 def fuzz_your_component(data: bytes) -> None:
     """Fuzz test for your component."""
@@ -293,6 +311,7 @@ def fuzz_your_component(data: bytes) -> None:
 ```
 
 4. **Add main entry point**:
+
 ```python
 def TestOneInput(data: bytes) -> None:
     """Main fuzz test entry point."""
@@ -308,6 +327,7 @@ if __name__ == "__main__":
 ```
 
 5. **Test locally**:
+
 ```bash
 python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
 ```
@@ -316,7 +336,8 @@ python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
 
 ## Best Practices
 
-### Do:
+### Do
+
 - ✅ Test components that handle external input
 - ✅ Focus on security-critical code paths
 - ✅ Catch and ignore expected exceptions
@@ -324,7 +345,8 @@ python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
 - ✅ Add early returns for insufficient input (`if len(data) < N: return`)
 - ✅ Assert invariants to catch unexpected behavior
 
-### Don't:
+### Don't
+
 - ❌ Test pure business logic (use unit tests instead)
 - ❌ Allow uncaught exceptions (indicates potential bugs)
 - ❌ Perform slow operations (fuzzing should be fast)
@@ -334,20 +356,24 @@ python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
 ## Interpreting Results
 
 ### Clean Run
-```
+
+```text
 #1000    pulse  cov: 234 ft: 456 corp: 12/234Kb exec/s: 100
 ```
+
 - `cov`: Code coverage (higher is better)
 - `ft`: Features covered
 - `corp`: Corpus size (test cases)
 - `exec/s`: Executions per second
 
 ### Finding a Bug
-```
+
+```text
 ==12345==ERROR: AddressSanitizer: heap-buffer-overflow
 ```
 
 ClusterFuzzLite will:
+
 1. Create a GitHub Security alert (SARIF)
 2. Save the failing input as an artifact
 3. Report the issue on the PR or main branch
@@ -359,16 +385,19 @@ If a fuzzer finds a crash:
 1. **Download the failing input** from GitHub Actions artifacts
 
 2. **Reproduce locally**:
+
 ```bash
 python3 tests/fuzz/fuzz_component.py failing_input_file
 ```
 
 3. **Debug with GDB** (if needed):
+
 ```bash
 gdb --args python3 tests/fuzz/fuzz_component.py failing_input_file
 ```
 
 4. **Fix the bug** and verify:
+
 ```bash
 # Run with the same input - should not crash
 python3 tests/fuzz/fuzz_component.py failing_input_file
@@ -382,6 +411,7 @@ python3 tests/fuzz/fuzz_component.py -atheris_runs=100000
 ### GitHub Actions
 
 View fuzzing results in:
+
 - **Actions tab** → ClusterFuzzLite workflow
 - **Security tab** → Code scanning alerts
 
@@ -401,6 +431,7 @@ Coverage reports are generated for each run and available as artifacts.
 ### Q: Why use ClusterFuzzLite instead of OSS-Fuzz?
 
 **A:** ClusterFuzzLite is designed for continuous fuzzing in CI/CD without requiring acceptance into OSS-Fuzz. It provides:
+
 - Faster integration (no application process)
 - Full control over configuration
 - Integration with GitHub Security alerts
@@ -409,6 +440,7 @@ Coverage reports are generated for each run and available as artifacts.
 ### Q: How long does fuzzing take?
 
 **A:**
+
 - PR fuzzing: 2 minutes fuzzing + build time
   - First run (cache miss): ~10-12 minutes total
   - Subsequent runs (cache hit): ~2-3 minutes total
@@ -419,6 +451,7 @@ Coverage reports are generated for each run and available as artifacts.
 ### Q: What if fuzzing finds a security vulnerability?
 
 **A:**
+
 1. GitHub will create a Security Alert
 2. The PR will show a failing check
 3. Fix the vulnerability before merging
@@ -427,6 +460,7 @@ Coverage reports are generated for each run and available as artifacts.
 ### Q: Can I run fuzzing locally?
 
 **A:** Yes! Install Atheris and run any fuzzer:
+
 ```bash
 uv sync --all-extras
 python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
@@ -435,6 +469,7 @@ python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
 ### Q: How do I exclude false positives?
 
 **A:** Update the fuzzer to catch and ignore the exception:
+
 ```python
 try:
     result = your_function(input)

@@ -65,16 +65,19 @@ mcp-docker
 **重要**：必须为您的平台正确设置`DOCKER_BASE_URL`：
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -123,11 +126,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Claude Desktop配置
 
 添加到您的Claude Desktop配置：
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **基本配置(stdio传输 - 推荐):**
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +148,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
 **Windows配置:**
+
 ```json
 {
   "mcpServers": {
@@ -169,6 +175,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **命令行选项:**
+
 - `--transport`: 传输类型(`stdio`或`sse`，默认: `stdio`)
 - `--host`: SSE服务器绑定主机 (默认: `127.0.0.1`)
 - `--port`: SSE服务器绑定端口 (默认: `8000`)
@@ -187,6 +194,7 @@ mcp-docker
 服务器提供36个工具，分为6个类别：
 
 ### 容器管理(10个工具)
+
 - `docker_list_containers` - 使用过滤器列出容器
 - `docker_inspect_container` - 获取详细的容器信息
 - `docker_create_container` - 创建新容器
@@ -199,6 +207,7 @@ mcp-docker
 - `docker_container_stats` - 获取资源使用统计
 
 ### Docker Compose管理(12个工具)
+
 - `docker_compose_up` - 启动compose项目服务
 - `docker_compose_down` - 停止并删除compose服务
 - `docker_compose_restart` - 重启compose服务
@@ -213,6 +222,7 @@ mcp-docker
 - `docker_compose_config` - 获取已解析的compose配置
 
 ### 镜像管理(9个工具)
+
 - `docker_list_images` - 列出镜像
 - `docker_inspect_image` - 获取镜像详情
 - `docker_pull_image` - 从仓库拉取
@@ -224,6 +234,7 @@ mcp-docker
 - `docker_image_history` - 查看层历史
 
 ### 网络管理(6个工具)
+
 - `docker_list_networks` - 列出网络
 - `docker_inspect_network` - 获取网络详情
 - `docker_create_network` - 创建网络
@@ -232,6 +243,7 @@ mcp-docker
 - `docker_remove_network` - 删除网络
 
 ### 卷管理(5个工具)
+
 - `docker_list_volumes` - 列出卷
 - `docker_inspect_volume` - 获取卷详情
 - `docker_create_volume` - 创建卷
@@ -239,6 +251,7 @@ mcp-docker
 - `docker_prune_volumes` - 清理未使用的卷
 
 ### 系统工具(6个工具)
+
 - `docker_system_info` - 获取Docker系统信息
 - `docker_system_df` - 磁盘使用统计
 - `docker_system_prune` - 清理所有未使用的资源
@@ -261,10 +274,12 @@ mcp-docker
 五个资源提供对容器和compose数据的实时访问：
 
 ### 容器资源
+
 - **container://logs/{container_id}** - 流式传输容器日志
 - **container://stats/{container_id}** - 获取资源使用统计
 
 ### Compose资源
+
 - **compose://config/{project_name}** - 获取已解析的compose项目配置
 - **compose://services/{project_name}** - 列出compose项目中的服务
 - **compose://logs/{project_name}/{service_name}** - 从compose服务获取日志
@@ -276,6 +291,7 @@ mcp-docker
 ### 示例文件
 
 包含三个即用型示例文件：
+
 - `nginx-redis.yml` - 多服务Web堆栈(nginx + redis)
 - `postgres-pgadmin.yml` - 带管理UI的数据库堆栈
 - `simple-webapp.yml` - 最小单服务示例
@@ -303,6 +319,7 @@ mcp-docker
 ### 安全功能
 
 通过工具编写的所有compose文件：
+
 - ✅ 仅限于`compose_files/`目录
 - ✅ 自动添加`user-`前缀以区别于示例
 - ✅ 验证YAML语法和结构
@@ -383,7 +400,7 @@ uv run pytest tests/integration/ -v -m integration
 
 ### 项目结构
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/

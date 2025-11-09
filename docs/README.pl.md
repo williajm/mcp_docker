@@ -65,16 +65,19 @@ Serwer można skonfigurować za pomocą zmiennych środowiskowych lub pliku `.en
 **WAŻNE**: Wartość `DOCKER_BASE_URL` musi być poprawnie ustawiona dla Twojej platformy:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -126,11 +129,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Konfiguracja Claude Desktop
 
 Dodaj do konfiguracji Claude Desktop:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **Konfiguracja podstawowa (transport stdio - zalecana):**
+
 ```json
 {
   "mcpServers": {
@@ -146,6 +151,7 @@ Dodaj do konfiguracji Claude Desktop:
 ```
 
 **Konfiguracja Windows:**
+
 ```json
 {
   "mcpServers": {
@@ -172,6 +178,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **Opcje linii poleceń:**
+
 - `--transport`: Typ transportu (`stdio` lub `sse`, domyślnie: `stdio`)
 - `--host`: Host dla serwera SSE (domyślnie: `127.0.0.1`)
 - `--port`: Port dla serwera SSE (domyślnie: `8000`)
@@ -190,6 +197,7 @@ mcp-docker
 Serwer udostępnia 36 narzędzi zorganizowanych w 5 kategorii:
 
 ### Zarządzanie Kontenerami (10 narzędzi)
+
 - `docker_list_containers` - Wyświetl kontenery z filtrami
 - `docker_inspect_container` - Pobierz szczegółowe informacje o kontenerze
 - `docker_create_container` - Utwórz nowy kontener
@@ -202,6 +210,7 @@ Serwer udostępnia 36 narzędzi zorganizowanych w 5 kategorii:
 - `docker_container_stats` - Pobierz statystyki zużycia zasobów
 
 ### Zarządzanie Obrazami (9 narzędzi)
+
 - `docker_list_images` - Wyświetl obrazy
 - `docker_inspect_image` - Pobierz szczegóły obrazu
 - `docker_pull_image` - Pobierz z rejestru
@@ -213,6 +222,7 @@ Serwer udostępnia 36 narzędzi zorganizowanych w 5 kategorii:
 - `docker_image_history` - Zobacz historię warstw
 
 ### Zarządzanie Sieciami (6 narzędzi)
+
 - `docker_list_networks` - Wyświetl sieci
 - `docker_inspect_network` - Pobierz szczegóły sieci
 - `docker_create_network` - Utwórz sieć
@@ -221,6 +231,7 @@ Serwer udostępnia 36 narzędzi zorganizowanych w 5 kategorii:
 - `docker_remove_network` - Usuń sieć
 
 ### Zarządzanie Wolumenami (5 narzędzi)
+
 - `docker_list_volumes` - Wyświetl wolumeny
 - `docker_inspect_volume` - Pobierz szczegóły wolumenu
 - `docker_create_volume` - Utwórz wolumen
@@ -228,6 +239,7 @@ Serwer udostępnia 36 narzędzi zorganizowanych w 5 kategorii:
 - `docker_prune_volumes` - Wyczyść nieużywane wolumeny
 
 ### Narzędzia Systemowe (6 narzędzi)
+
 - `docker_system_info` - Pobierz informacje o systemie Docker
 - `docker_system_df` - Statystyki użycia dysku
 - `docker_system_prune` - Wyczyść wszystkie nieużywane zasoby
@@ -279,28 +291,34 @@ Serwer implementuje trójpoziomowy system bezpieczeństwa z konfigurowalnymi try
 Skonfiguruj tryb bezpieczeństwa za pomocą zmiennych środowiskowych:
 
 **Tryb Tylko do Odczytu (Najbezpieczniejszy)** - Tylko monitorowanie i obserwacja
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
+
 - ✅ List, inspect, logs, stats
 - ❌ Create, start, stop, pull
 - ❌ Remove, prune
 
 **Tryb Domyślny (Zrównoważony)** - Rozwój i operacje
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # lub pomiń (domyślnie)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
+
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
 - ❌ Remove, prune
 
 **Tryb Pełny (Najmniej Restrykcyjny)** - Zarządzanie infrastrukturą
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 ```
+
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
 - ✅ Remove, prune
@@ -373,7 +391,7 @@ uv run pytest tests/e2e/ -v -m "e2e and not slow"
 
 ### Struktura Projektu
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/
