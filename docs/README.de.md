@@ -65,16 +65,19 @@ Der Server kann über Umgebungsvariablen oder eine `.env`-Datei konfiguriert wer
 **WICHTIG**: Die `DOCKER_BASE_URL` muss für Ihre Plattform korrekt gesetzt sein:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -123,11 +126,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Claude Desktop Einrichtung
 
 Fügen Sie dies zu Ihrer Claude Desktop-Konfiguration hinzu:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **Basis-Konfiguration (stdio Transport - empfohlen):**
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +148,7 @@ Fügen Sie dies zu Ihrer Claude Desktop-Konfiguration hinzu:
 ```
 
 **Windows-Konfiguration:**
+
 ```json
 {
   "mcpServers": {
@@ -169,6 +175,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **Befehlszeilenoptionen:**
+
 - `--transport`: Transporttyp (`stdio` oder `sse`, Standard: `stdio`)
 - `--host`: Host für SSE-Server-Bindung (Standard: `127.0.0.1`)
 - `--port`: Port für SSE-Server-Bindung (Standard: `8000`)
@@ -187,6 +194,7 @@ mcp-docker
 Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 
 ### Container-Verwaltung (10 Tools)
+
 - `docker_list_containers` - Container mit Filtern auflisten
 - `docker_inspect_container` - Detaillierte Container-Informationen abrufen
 - `docker_create_container` - Neuen Container erstellen
@@ -199,6 +207,7 @@ Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 - `docker_container_stats` - Ressourcennutzungsstatistiken abrufen
 
 ### Docker Compose Verwaltung (12 Tools)
+
 - `docker_compose_up` - Compose-Projekt-Services starten
 - `docker_compose_down` - Compose-Services stoppen und entfernen
 - `docker_compose_restart` - Compose-Services neu starten
@@ -213,6 +222,7 @@ Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 - `docker_compose_config` - Aufgelöste Compose-Konfiguration abrufen
 
 ### Image-Verwaltung (9 Tools)
+
 - `docker_list_images` - Images auflisten
 - `docker_inspect_image` - Image-Details abrufen
 - `docker_pull_image` - Aus Registry abrufen
@@ -224,6 +234,7 @@ Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 - `docker_image_history` - Layer-Historie anzeigen
 
 ### Netzwerk-Verwaltung (6 Tools)
+
 - `docker_list_networks` - Netzwerke auflisten
 - `docker_inspect_network` - Netzwerk-Details abrufen
 - `docker_create_network` - Netzwerk erstellen
@@ -232,6 +243,7 @@ Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 - `docker_remove_network` - Netzwerk entfernen
 
 ### Volume-Verwaltung (5 Tools)
+
 - `docker_list_volumes` - Volumes auflisten
 - `docker_inspect_volume` - Volume-Details abrufen
 - `docker_create_volume` - Volume erstellen
@@ -239,6 +251,7 @@ Der Server bietet 48 Tools, die in 6 Kategorien organisiert sind:
 - `docker_prune_volumes` - Ungenutzte Volumes bereinigen
 
 ### System-Tools (6 Tools)
+
 - `docker_system_info` - Docker-Systeminformationen abrufen
 - `docker_system_df` - Festplattennutzungsstatistiken
 - `docker_system_prune` - Alle ungenutzten Ressourcen bereinigen
@@ -261,10 +274,12 @@ Fünf Prompts helfen KI-Assistenten bei der Arbeit mit Docker:
 Fünf Ressourcen bieten Echtzeitzugriff auf Container- und Compose-Daten:
 
 ### Container-Ressourcen
+
 - **container://logs/{container_id}** - Container-Logs streamen
 - **container://stats/{container_id}** - Ressourcennutzungsstatistiken abrufen
 
 ### Compose-Ressourcen
+
 - **compose://config/{project_name}** - Aufgelöste Compose-Projektkonfiguration abrufen
 - **compose://services/{project_name}** - Services in einem Compose-Projekt auflisten
 - **compose://logs/{project_name}/{service_name}** - Logs von einem Compose-Service abrufen
@@ -276,6 +291,7 @@ Das Verzeichnis `compose_files/` bietet eine sichere Sandbox zum Erstellen und T
 ### Beispieldateien
 
 Drei einsatzbereite Beispieldateien sind enthalten:
+
 - `nginx-redis.yml` - Multi-Service-Web-Stack (nginx + redis)
 - `postgres-pgadmin.yml` - Datenbank-Stack mit Admin-UI
 - `simple-webapp.yml` - Minimales Single-Service-Beispiel
@@ -303,6 +319,7 @@ Verwenden Sie das Tool `docker_compose_write_file`, um benutzerdefinierte Compos
 ### Sicherheitsfunktionen
 
 Alle über das Tool geschriebenen Compose-Dateien sind:
+
 - ✅ Nur auf das Verzeichnis `compose_files/` beschränkt
 - ✅ Automatisch mit `user-` präfixiert, um sie von Beispielen zu unterscheiden
 - ✅ Auf YAML-Syntax und -Struktur validiert
@@ -383,7 +400,7 @@ uv run pytest tests/integration/ -v -m integration
 
 ### Projektstruktur
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/

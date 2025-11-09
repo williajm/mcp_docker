@@ -5,8 +5,8 @@ title: API Reference
 
 # Docker MCP Server - API Reference
 
-**Version:** 0.2.0
-**Last Updated:** 2025-10-28
+**Version:** 1.0.1
+**Last Updated:** 2025-11-09
 
 ## Table of Contents
 
@@ -201,6 +201,7 @@ Create a new Docker container from an image.
 ```
 
 **Notes:**
+
 - Container name must follow Docker naming conventions (alphanumeric, hyphens, underscores)
 - Memory limit accepts units: b, k, m, g (e.g., "512m", "2g")
 - Port mappings support both integer and tuple formats
@@ -276,6 +277,7 @@ Stop a running Docker container gracefully.
 ```
 
 **Notes:**
+
 - Sends SIGTERM, then SIGKILL after timeout
 - Timeout of 0 means immediate SIGKILL
 
@@ -354,6 +356,7 @@ Remove a Docker container.
 ```
 
 **Warnings:**
+
 - This operation is irreversible
 - Using `force=true` on running containers may cause data loss
 - Using `volumes=true` permanently deletes volume data
@@ -401,6 +404,7 @@ Get logs from a Docker container.
 ```
 
 **Notes:**
+
 - `since` accepts ISO 8601 timestamps or relative time (e.g., "1h", "30m")
 - `follow=true` streams logs continuously (use with caution)
 
@@ -447,6 +451,7 @@ Execute a command in a running Docker container.
 ```
 
 **Notes:**
+
 - Command can be a string or array of strings
 - Non-zero exit codes indicate command failure
 - `privileged=true` requires special permissions
@@ -493,6 +498,7 @@ Get resource usage statistics for a Docker container.
 ```
 
 **Notes:**
+
 - Container must be running to get stats
 - `stream=false` returns single snapshot
 - Stats include CPU, memory, network, and block I/O
@@ -623,6 +629,7 @@ Pull a Docker image from a registry.
 ```
 
 **Notes:**
+
 - Image name must be valid registry format
 - Platform selection useful for multi-arch images
 - Large images may take time to download
@@ -673,6 +680,7 @@ Build a Docker image from a Dockerfile.
 ```
 
 **Notes:**
+
 - Path must be accessible to Docker daemon
 - Build logs are returned for debugging
 - Build args override Dockerfile ARG instructions
@@ -714,6 +722,7 @@ Push a Docker image to a registry.
 ```
 
 **Notes:**
+
 - Requires authentication to registry
 - Image must be properly tagged for registry
 
@@ -794,6 +803,7 @@ Remove a Docker image.
 ```
 
 **Warnings:**
+
 - This operation is irreversible
 - Cannot remove images used by containers without `force=true`
 
@@ -836,7 +846,7 @@ Remove unused Docker images.
 }
 ```
 
-**Example: Remove ALL images**
+##### Example: Remove ALL images
 
 ```json
 {
@@ -848,6 +858,7 @@ Remove unused Docker images.
 ```
 
 **Warnings:**
+
 - By default, removes only UNUSED/dangling images
 - Use `all=true` to remove all unused images (not just dangling)
 - Use `force_all=true` to remove ALL images including tagged ones (extremely destructive)
@@ -1137,6 +1148,7 @@ Remove a Docker network.
 ```
 
 **Warnings:**
+
 - Cannot remove networks with connected containers
 - This operation is irreversible
 
@@ -1299,6 +1311,7 @@ Remove a Docker volume.
 ```
 
 **Warnings:**
+
 - This operation permanently deletes data
 - Cannot remove volumes in use without `force=true`
 
@@ -1337,7 +1350,7 @@ Remove unused Docker volumes.
 }
 ```
 
-**Example: Remove ALL volumes**
+##### Example: Remove ALL volumes
 
 ```json
 {
@@ -1349,6 +1362,7 @@ Remove unused Docker volumes.
 ```
 
 **Warnings:**
+
 - By default, removes only UNUSED volumes
 - Use `force_all=true` to remove ALL volumes including named ones (extremely destructive)
 - When user says "remove all volumes" or "delete all volumes", use `force_all=true`
@@ -1476,7 +1490,7 @@ Prune Docker resources. By default, removes only UNUSED resources (stopped conta
 }
 ```
 
-**Example: Remove ALL resources (extremely destructive)**
+##### Example: Remove ALL resources (extremely destructive)
 
 ```json
 {
@@ -1490,6 +1504,7 @@ Prune Docker resources. By default, removes only UNUSED resources (stopped conta
 ```
 
 **Warnings:**
+
 - By default, removes only UNUSED resources (stopped containers, dangling images, unused networks)
 - Use `all=true` to include all unused images (not just dangling)
 - Use `volumes=true` to include unused volumes
@@ -1577,6 +1592,7 @@ Stream Docker events (limited to recent events).
 ```
 
 **Notes:**
+
 - Limited to 100 events to prevent infinite loops
 - Use filters to narrow results
 
@@ -1632,6 +1648,7 @@ Diagnose and troubleshoot container issues.
 **Description:**
 
 Generates an AI prompt with container state, configuration, logs, and expert troubleshooting guidance. Analyzes:
+
 - Container status and exit codes
 - Error messages and log patterns
 - Configuration issues
@@ -1652,6 +1669,7 @@ Generates an AI prompt with container state, configuration, logs, and expert tro
 **Output:**
 
 Returns a prompt with:
+
 - System message: Docker troubleshooting expert context
 - User message: Container details, logs, and analysis request
 
@@ -1670,6 +1688,7 @@ Suggest optimizations for container configuration.
 **Description:**
 
 Generates an AI prompt with container configuration, resource usage, and optimization recommendations. Suggests improvements for:
+
 - Resource allocation (CPU, memory)
 - Restart policies
 - Security best practices
@@ -1691,6 +1710,7 @@ Generates an AI prompt with container configuration, resource usage, and optimiz
 **Output:**
 
 Returns a prompt with:
+
 - System message: Docker optimization expert context
 - User message: Container configuration and resource stats
 
@@ -1710,11 +1730,13 @@ Generate a docker-compose.yml file from container configuration.
 **Description:**
 
 Generates an AI prompt to create a docker-compose.yml file. Can work from:
+
 - Existing container configuration
 - Service description
 - Both combined
 
 Follows best practices:
+
 - Version 3.8+ syntax
 - Proper network and volume configuration
 - Health checks and restart policies
@@ -1735,6 +1757,7 @@ Follows best practices:
 **Output:**
 
 Returns a prompt with:
+
 - System message: Docker Compose expert context
 - User message: Container config or service requirements
 
@@ -1756,12 +1779,14 @@ Deep-dive analysis of container networking problems.
 Generates an AI prompt with comprehensive network configuration analysis and systematic troubleshooting guidance. Provides:
 
 **Network Configuration Extraction:**
+
 - IP addresses, gateways, and MAC addresses for all attached networks
 - Port mappings (published and unpublished)
 - Container hostname and DNS settings
 - Network-related log entries (connection refused, timeout, DNS errors)
 
 **Systematic Troubleshooting Approach (6 Layers):**
+
 1. **Network Layer (L3)**: IP connectivity, subnet configuration, gateway accessibility
 2. **Transport Layer (L4)**: Port mappings, bindings, conflicts
 3. **DNS Resolution**: Hostname configuration, service discovery, name resolution
@@ -1784,10 +1809,12 @@ Generates an AI prompt with comprehensive network configuration analysis and sys
 **Output:**
 
 Returns a prompt with:
+
 - System message: Docker networking expert with systematic L3-L7 troubleshooting approach
 - User message: Complete network configuration, port mappings, and relevant error logs
 
 **Use Cases:**
+
 - Container cannot reach external services
 - Port mapping issues and conflicts
 - DNS resolution failures
@@ -1811,6 +1838,7 @@ Comprehensive security analysis of containers and configurations.
 Generates an AI prompt with comprehensive security analysis following CIS Docker Benchmark best practices. Analyzes:
 
 **Security Configuration:**
+
 - Privileged mode detection
 - Linux capabilities assessment
 - User configuration (root vs. non-root)
@@ -1819,6 +1847,7 @@ Generates an AI prompt with comprehensive security analysis following CIS Docker
 - Environment variables (secrets detection)
 
 **Security Controls:**
+
 - Read-only root filesystem
 - Security options (AppArmor, SELinux profiles)
 - Resource limits (memory, CPU)
@@ -1826,6 +1855,7 @@ Generates an AI prompt with comprehensive security analysis following CIS Docker
 - Network isolation
 
 **Security Checklist (8-Point CIS Benchmark):**
+
 1. Container runs as non-root user
 2. Root filesystem is read-only
 3. No privileged mode
@@ -1836,11 +1866,13 @@ Generates an AI prompt with comprehensive security analysis following CIS Docker
 8. No secrets in environment variables
 
 **Compliance Mapping:**
+
 - PCI-DSS requirements
 - HIPAA security rules
 - SOC2 controls
 
 **Risk Prioritization:**
+
 - Critical: Privileged containers, root user, sensitive mounts
 - High: Missing security profiles, excessive capabilities
 - Medium: Missing resource limits, exposed ports
@@ -1869,10 +1901,12 @@ Or audit all containers (including stopped ones):
 **Output:**
 
 Returns a prompt with:
+
 - System message: Docker security expert with CIS Benchmark and compliance knowledge
 - User message: Complete security configuration analysis with prioritized findings
 
 **Use Cases:**
+
 - Pre-production security review
 - Compliance auditing (PCI-DSS, HIPAA, SOC2)
 - Security hardening recommendations
@@ -1894,22 +1928,26 @@ The Docker MCP Server exposes 2 resource types accessible via URI.
 **Description:** Real-time access to container logs.
 
 **Parameters:**
+
 - `tail`: Number of lines from end (default: 100)
 - `follow`: Stream logs continuously (default: false)
 
 **Example URI:**
-```
+
+```text
 container://logs/my-container
 ```
 
 **Example Response:**
-```
+
+```text
 2024-01-01 12:00:00 [INFO] Application started
 2024-01-01 12:00:01 [INFO] Listening on port 8080
 ...
 ```
 
 **Notes:**
+
 - Logs are UTF-8 decoded
 - Follow mode not recommended for resources (use tool instead)
 - Automatically listed for all containers
@@ -1925,12 +1963,14 @@ container://logs/my-container
 **Description:** Resource usage statistics for running containers.
 
 **Example URI:**
-```
+
+```text
 container://stats/my-container
 ```
 
 **Example Response:**
-```
+
+```text
 Container Statistics for abc123
 ==========================================
 
@@ -1952,6 +1992,7 @@ Block I/O:
 ```
 
 **Notes:**
+
 - Only available for running containers
 - Single snapshot (non-streaming)
 - Formatted for readability
@@ -1964,7 +2005,7 @@ Block I/O:
 
 All errors inherit from `MCPDockerError`:
 
-```
+```text
 MCPDockerError (base)
 ├── DockerConnectionError
 ├── DockerHealthCheckError
@@ -2063,7 +2104,7 @@ if not result["success"]:
 
 ---
 
-**End of API Reference**
+End of API Reference
 
 For implementation details, see the [User Guide](USER_GUIDE.md).
 For development information, see [DEVELOPMENT.md](DEVELOPMENT.md).

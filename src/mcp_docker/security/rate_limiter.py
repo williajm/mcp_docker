@@ -9,11 +9,13 @@ from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Timeout for acquiring concurrent request slots (in seconds)
+# Fast fail for immediate feedback when concurrent limit is reached
+CONCURRENT_SLOT_TIMEOUT_SECONDS = 0.1
+
 
 class RateLimitExceededError(Exception):
     """Raised when a client exceeds their rate limit."""
-
-    pass
 
 
 # Backward compatibility alias
@@ -124,7 +126,7 @@ class RateLimiter:
 
         # Try to acquire with timeout
         try:
-            await asyncio.wait_for(semaphore.acquire(), timeout=0.1)
+            await asyncio.wait_for(semaphore.acquire(), timeout=CONCURRENT_SLOT_TIMEOUT_SECONDS)
         except TimeoutError:
             logger.warning(f"Concurrent request limit exceeded for client: {client_id}")
             raise RateLimitExceeded(

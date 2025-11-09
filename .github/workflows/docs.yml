@@ -47,7 +47,6 @@ jobs:
         globs: |
           docs/**/*.md
           README.md
-      continue-on-error: true
 
   # Build and deploy to GitHub Pages
   deploy:

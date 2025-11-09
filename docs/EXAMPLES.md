@@ -33,6 +33,7 @@ This document provides comprehensive, real-world examples of using the Docker MC
 - Practical use cases and best practices
 
 These examples assume you have:
+
 - Docker MCP Server configured in Claude Desktop
 - Docker daemon running locally
 - Basic familiarity with Docker concepts
@@ -63,6 +64,7 @@ A production web application container keeps restarting. Let's diagnose the prob
 ```
 
 **Output:**
+
 ```json
 {
   "containers": [
@@ -91,6 +93,7 @@ A production web application container keeps restarting. Let's diagnose the prob
 ```
 
 **Output:**
+
 ```json
 {
   "details": {
@@ -130,6 +133,7 @@ A production web application container keeps restarting. Let's diagnose the prob
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "2025-10-24T10:15:32.123Z nginx: [emerg] open() \"/etc/nginx/conf.d/default.conf\" failed (2: No such file or directory)\n2025-10-24T10:15:32.124Z nginx: configuration file /etc/nginx/nginx.conf test failed\n..."
@@ -142,11 +146,13 @@ A production web application container keeps restarting. Let's diagnose the prob
 > **Problem:** The nginx configuration file is missing, causing nginx to fail on startup.
 
 > **Root Cause:** This typically happens when:
+>
 > 1. A volume mount is overriding the default config directory
 > 2. The configuration file was deleted or moved
 > 3. There's a permissions issue
 
 > **Solution:**
+>
 > 1. Stop the container to prevent infinite restart loop
 > 2. Check volume mounts to ensure they're not overriding the config directory
 > 3. Either provide a valid config file or remove the problematic volume mount
@@ -182,6 +188,7 @@ Deploy a Flask web application with Redis for session storage.
 
 **Claude:**
 > I'll help you deploy this application stack. Let me set this up step by step:
+>
 > 1. Pull the Flask application image
 > 2. Pull the Redis image
 > 3. Create a custom network for the services
@@ -197,6 +204,7 @@ Deploy a Flask web application with Redis for session storage.
 ```
 
 **Output:**
+
 ```json
 {
   "image_id": "sha256:abc123...",
@@ -214,6 +222,7 @@ Deploy a Flask web application with Redis for session storage.
 ```
 
 **Output:**
+
 ```json
 {
   "image_id": "sha256:def456...",
@@ -235,6 +244,7 @@ Deploy a Flask web application with Redis for session storage.
 ```
 
 **Output:**
+
 ```json
 {
   "network_id": "net123abc...",
@@ -270,6 +280,7 @@ Deploy a Flask web application with Redis for session storage.
 ```
 
 **Output:**
+
 ```json
 {
   "container_id": "redis123...",
@@ -324,6 +335,7 @@ Deploy a Flask web application with Redis for session storage.
 ```
 
 **Output:**
+
 ```json
 {
   "container_id": "flask-app",
@@ -340,20 +352,22 @@ Deploy a Flask web application with Redis for session storage.
 > Deployment complete! Here's what was set up:
 
 > **Redis Container:**
+>
 > - Name: redis-session-store
 > - Network: flask-network
 > - Memory limit: 256MB
 > - Status: Running
 
 > **Flask Application:**
+>
 > - Name: flask-app
-> - Exposed on: http://localhost:8080
+> - Exposed on: <http://localhost:8080>
 > - Connected to Redis via: redis-session-store:6379
 > - Memory usage: 145MB / 512MB (28.4%)
 > - CPU usage: 2.1%
 > - Status: Running
 
-> The application is ready! You can access it at http://localhost:8080
+> The application is ready! You can access it at <http://localhost:8080>
 
 #### What's Happening
 
@@ -397,6 +411,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 ```
 
 **Output:**
+
 ```json
 {
   "images": {
@@ -423,6 +438,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 
 **Claude:**
 > I can see significant space can be reclaimed:
+>
 > - Images: 3.2 GB reclaimable
 > - Containers: 180 MB reclaimable
 > - Volumes: 512 MB reclaimable
@@ -431,6 +447,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 > Total potential savings: ~5.9 GB
 
 > Let me safely clean up in this order:
+>
 > 1. Stopped containers
 > 2. Unused images
 > 3. Unused volumes
@@ -448,6 +465,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 ```
 
 **Output:**
+
 ```json
 {
   "containers": [
@@ -504,6 +522,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 ```
 
 **Output:**
+
 ```json
 {
   "images_deleted": [
@@ -529,6 +548,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 ```
 
 **Output:**
+
 ```json
 {
   "volumes_deleted": [
@@ -543,12 +563,14 @@ After running many tests and builds, clean up unused Docker resources safely.
 > Excellent! Cleanup complete. Here's what was removed:
 >
 > **Summary:**
+>
 > - Removed 2 stopped containers
 > - Removed 3 unused images (3.2 GB)
 > - Removed 2 unused volumes (512 MB)
 > - Total space reclaimed: ~3.7 GB
 >
 > **Still Running (Protected):**
+>
 > - 5 active containers
 > - 12 images in use
 > - 6 volumes in use
@@ -580,6 +602,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 ```
 
 **Output:**
+
 ```json
 {
   "containers_deleted": 0,
@@ -593,6 +616,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 > Build cache cleared! Reclaimed an additional 2.0 GB.
 >
 > **Total Cleanup Results:**
+>
 > - Total space reclaimed: 5.7 GB
 > - Build cache: Cleared
 > - Running containers: All safe
@@ -647,7 +671,8 @@ An application container keeps crashing, and you need AI-powered diagnosis.
 ```
 
 **Claude receives context:**
-```
+
+```text
 Container Information:
 - ID: pay123
 - Name: payment-processor
@@ -679,11 +704,13 @@ Recent Logs (last 50 lines):
 > **Problem Identified:** The container is being killed by the OOM (Out of Memory) killer.
 
 > **Evidence:**
+>
 > 1. Exit Code 137 - This specifically indicates the process was killed by SIGKILL, typically from the OOM killer
 > 2. Logs show memory warnings before termination ("High memory usage", "Memory pressure")
 > 3. Final error message: "Killed"
 
 > **Root Cause:** The container is running out of memory. This can happen because:
+>
 > - Memory limit is too low for the application's needs
 > - Memory leak in the application
 > - Inefficient memory usage (large data loading)
@@ -714,6 +741,7 @@ Recent Logs (last 50 lines):
 ```
 
 **Output (excerpt):**
+
 ```json
 {
   "details": {
@@ -728,6 +756,7 @@ Recent Logs (last 50 lines):
 > Confirmed! The container has a 512MB (536870912 bytes) memory limit, which is insufficient.
 
 > **Action Plan:**
+>
 > 1. Stop and remove the current container
 > 2. Recreate with increased memory (2GB)
 > 3. Monitor memory usage after restart
@@ -797,6 +826,7 @@ Recent Logs (last 50 lines):
 ```
 
 **Output:**
+
 ```json
 {
   "memory_usage_mb": 645.2,
@@ -808,13 +838,15 @@ Recent Logs (last 50 lines):
 
 **Claude:**
 > Perfect! The container is now running successfully:
+>
 > - Memory usage: 645MB / 2048MB (31.5%) - healthy headroom
 > - CPU: 5.2% - normal
 > - Status: Running
 
 > **Monitoring Commands:**
 > You can monitor this container with:
-> ```
+>
+> ```text
 > docker stats payment-processor --no-stream  # One-time stats
 > docker stats payment-processor             # Live monitoring
 > ```
@@ -854,6 +886,7 @@ Deploy a complete WordPress stack with database management.
 
 **Claude:**
 > I'll deploy a complete WordPress stack for you. This will include:
+>
 > 1. MySQL database for WordPress data
 > 2. WordPress application
 > 3. PhpMyAdmin for database management
@@ -873,6 +906,7 @@ Deploy a complete WordPress stack with database management.
 ```
 
 **Output:**
+
 ```json
 {
   "network_id": "net789...",
@@ -1051,6 +1085,7 @@ Deploy a complete WordPress stack with database management.
 ```
 
 **Output:**
+
 ```json
 {
   "containers": [
@@ -1087,31 +1122,34 @@ Deploy a complete WordPress stack with database management.
 
 > 2. **WordPress Application**
 >    - Container: wordpress-app
->    - URL: http://localhost:8080
+>    - URL: <http://localhost:8080>
 >    - Connected to: wordpress-mysql
 >    - Persistent storage: wordpress-data volume
 >    - Memory limit: 512MB
 
 > 3. **PhpMyAdmin**
 >    - Container: wordpress-phpmyadmin
->    - URL: http://localhost:8081
+>    - URL: <http://localhost:8081>
 >    - Connected to: wordpress-mysql
 >    - Login: root / secure_root_password_123
 >    - Memory limit: 256MB
 
 > **Network Architecture:**
+>
 > - All containers communicate via wordpress-network
 > - Only WordPress (8080) and PhpMyAdmin (8081) are exposed to host
 > - MySQL is only accessible within the network (more secure)
 
 > **Data Persistence:**
+>
 > - MySQL data is stored in the mysql-data volume
 > - WordPress files are stored in the wordpress-data volume
 > - Data persists even if containers are removed
 
 > **Next Steps:**
-> 1. Visit http://localhost:8080 to set up WordPress
-> 2. Use http://localhost:8081 to manage the database
+>
+> 1. Visit <http://localhost:8080> to set up WordPress
+> 2. Use <http://localhost:8081> to manage the database
 > 3. Complete WordPress installation wizard
 
 > The stack is configured with restart policies, so it will automatically start when Docker starts.
@@ -1161,6 +1199,7 @@ Set up a development environment with hot reload for rapid iteration.
 
 **Claude:**
 > Perfect! I'll create a development container with:
+>
 > 1. Volume mount for live code sync
 > 2. Node.js with nodemon for auto-restart
 > 3. Port mapping for accessing the app
@@ -1227,6 +1266,7 @@ Set up a development environment with hot reload for rapid iteration.
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "npm ERR! Cannot find module 'express'\nnpm ERR! ...\n"
@@ -1247,6 +1287,7 @@ Set up a development environment with hot reload for rapid iteration.
 ```
 
 **Output:**
+
 ```json
 {
   "exit_code": 0,
@@ -1276,6 +1317,7 @@ Set up a development environment with hot reload for rapid iteration.
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "[nodemon] starting `node index.js`\nServer listening on port 3000\n[nodemon] watching for file changes...\n"
@@ -1286,13 +1328,15 @@ Set up a development environment with hot reload for rapid iteration.
 > Excellent! Your development environment is ready. Here's what's set up:
 
 > **Development Container:**
+>
 > - Container: nodejs-dev
 > - Node.js: v18 (Alpine)
 > - Hot reload: nodemon watching for changes
-> - Application URL: http://localhost:3000
+> - Application URL: <http://localhost:3000>
 > - Debugger port: 9229 (for VS Code debugging)
 
 > **Volume Mounts:**
+>
 > 1. Project files: `/Users/dev/my-nodejs-app` → `/app`
 >    - All your code changes sync immediately
 > 2. node_modules: Separate named volume
@@ -1300,13 +1344,15 @@ Set up a development environment with hot reload for rapid iteration.
 >    - Faster on Windows/Mac
 
 > **How it works:**
+>
 > 1. Edit any file in `/Users/dev/my-nodejs-app`
 > 2. nodemon detects the change automatically
 > 3. Application restarts automatically
-> 4. Changes visible at http://localhost:3000
+> 4. Changes visible at <http://localhost:3000>
 
 > **VS Code Debugging:**
 > Add this to your `.vscode/launch.json`:
+>
 > ```json
 > {
 >   "type": "node",
@@ -1344,6 +1390,7 @@ Set up a development environment with hot reload for rapid iteration.
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "2025-10-24T10:30:15.123Z [nodemon] restarting due to changes...\n2025-10-24T10:30:15.456Z [nodemon] starting `node index.js`\n2025-10-24T10:30:15.789Z Server listening on port 3000\n2025-10-24T10:30:15.890Z Connected to database\n"
@@ -1354,12 +1401,14 @@ Set up a development environment with hot reload for rapid iteration.
 > Your development environment is working perfectly! Here are some helpful commands:
 
 > **Useful Operations:**
+>
 > 1. View logs: Ask me to check logs for nodejs-dev
 > 2. Restart: If something gets stuck, I can restart the container
 > 3. Exec commands: Run any npm command inside the container
 > 4. Stats: Monitor resource usage during development
 
 > **Tips:**
+>
 > - nodemon watches all files except node_modules
 > - Source maps work correctly for debugging
 > - Environment variables can be changed without rebuild
@@ -1405,6 +1454,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 > I'll demonstrate a complete CI/CD workflow using Docker tools. This simulates what would happen in a GitHub Actions or GitLab CI pipeline.
 
 > **Pipeline Steps:**
+>
 > 1. Build the application image
 > 2. Run unit tests in a container
 > 3. Run integration tests
@@ -1433,6 +1483,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 ```
 
 **Output:**
+
 ```json
 {
   "image_id": "sha256:abc123...",
@@ -1480,6 +1531,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "Running unit tests...\n  ✓ User authentication works\n  ✓ Data validation passes\n  ✓ API endpoints respond correctly\n\nTests passed: 45/45\nCoverage: 87%\n"
@@ -1561,6 +1613,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "Running integration tests...\n  ✓ Database connection\n  ✓ User registration flow\n  ✓ Order processing\n  ✓ Payment integration\n\nTests passed: 12/12\n"
@@ -1591,6 +1644,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 ```
 
 **Output:**
+
 ```json
 {
   "source": "myapp:build-123",
@@ -1601,6 +1655,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 
 **Claude:**
 > Image tagged for production:
+>
 > - myregistry.com/myapp:1.2.3
 > - myregistry.com/myapp:latest
 
@@ -1641,6 +1696,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 > In a real CI/CD environment, you would now push:
 
 *Claude shows what would be done:*
+
 ```json
 {
   "tool": "docker_push_image",
@@ -1664,12 +1720,14 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 > ✓ Cleanup: COMPLETE
 
 > **Pipeline Summary:**
+>
 > - Build Time: ~45 seconds
 > - Test Time: ~2 minutes
 > - Total Time: ~2.75 minutes
 > - Status: READY FOR DEPLOYMENT
 
 > **Next Steps in Production CI/CD:**
+>
 > 1. Push image to registry
 > 2. Deploy to staging environment
 > 3. Run smoke tests
@@ -1677,6 +1735,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 
 > **Failure Handling:**
 > If any test had failed, I would:
+>
 > 1. Stop all test containers immediately
 > 2. Clean up test network and volumes
 > 3. Remove the build image (don't tag or push)
@@ -1692,6 +1751,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 *Claude simulates: `docker_start_container` (test-unit-123)*
 
 **Simulated Output:**
+
 ```json
 {
   "logs": "Running unit tests...\n  ✓ User authentication works\n  ✗ Data validation fails\n     Expected: valid, Received: invalid\n\nTests passed: 44/45\nTests failed: 1\n"
@@ -1702,6 +1762,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 > Test failed! Here's the failure handling:
 
 > **Failure Detected:**
+>
 > - Test: Data validation
 > - Status: FAILED (44/45 passed)
 
@@ -1730,13 +1791,15 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 > ✓ Cleanup: COMPLETE
 
 > **Actions Taken:**
+>
 > 1. Stopped all test containers
 > 2. Removed test network
 > 3. Deleted build image (myapp:build-123)
 > 4. Captured failure logs
 
 > **Failure Details:**
-> ```
+>
+> ```text
 > Test: Data validation
 > File: tests/validation.test.js
 > Error: Expected valid data, received invalid
@@ -1793,6 +1856,7 @@ Track resource usage to identify memory leaks or performance issues.
 ```
 
 **Output (Reading 1 - T=0):**
+
 ```json
 {
   "container_id": "payment-api",
@@ -1811,6 +1875,7 @@ Track resource usage to identify memory leaks or performance issues.
 > Baseline reading captured. I'll monitor this container over time to detect any trends.
 >
 > **Initial State:**
+>
 > - Memory: 256 MB / 1024 MB (25%)
 > - CPU: 3.2%
 > - Network: 15.4 MB in / 8.7 MB out
@@ -1822,6 +1887,7 @@ Track resource usage to identify memory leaks or performance issues.
 *Claude uses: `docker_container_stats` (Reading 2 - T=5min)*
 
 **Output (Reading 2 - T=5min):**
+
 ```json
 {
   "memory_usage_mb": 312.8,
@@ -1834,6 +1900,7 @@ Track resource usage to identify memory leaks or performance issues.
 *Claude uses: `docker_container_stats` (Reading 3 - T=10min)*
 
 **Output (Reading 3 - T=10min):**
+
 ```json
 {
   "memory_usage_mb": 387.2,
@@ -1846,6 +1913,7 @@ Track resource usage to identify memory leaks or performance issues.
 *Claude uses: `docker_container_stats` (Reading 4 - T=15min)*
 
 **Output (Reading 4 - T=15min):**
+
 ```json
 {
   "memory_usage_mb": 468.5,
@@ -1861,6 +1929,7 @@ Track resource usage to identify memory leaks or performance issues.
 *Claude uses: `docker_container_stats` (Reading 5 - T=20min)*
 
 **Output (Reading 5 - T=20min):**
+
 ```json
 {
   "memory_usage_mb": 542.1,
@@ -1874,7 +1943,8 @@ Track resource usage to identify memory leaks or performance issues.
 > **Memory Leak Detected!**
 
 > **Analysis:**
-> ```
+>
+> ```text
 > Time    Memory (MB)  Memory %  Change    Rate
 > ------------------------------------------------
 > T=0     256.3        25.0%     -         -
@@ -1887,12 +1957,14 @@ Track resource usage to identify memory leaks or performance issues.
 > ```
 
 > **Conclusions:**
+>
 > 1. **Memory is growing steadily** - Not normal for a stable application
 > 2. **Growth rate is consistent** - ~14 MB/minute suggests a leak
 > 3. **CPU is stable** - Rules out CPU-bound memory growth
 > 4. **Projected limit hit** - Will reach 1GB limit in ~35 minutes
 
 > **Immediate Actions Needed:**
+>
 > 1. Capture heap dump for analysis
 > 2. Check application logs for errors
 > 3. Review recent code changes
@@ -1911,6 +1983,7 @@ Track resource usage to identify memory leaks or performance issues.
 ```
 
 **Output:**
+
 ```json
 {
   "logs": "2025-10-24T10:00:15.123Z [INFO] Processing payment batch\n2025-10-24T10:00:16.456Z [WARNING] Cache size: 15234 entries\n2025-10-24T10:05:20.789Z [WARNING] Cache size: 18932 entries\n2025-10-24T10:10:25.012Z [WARNING] Cache size: 22847 entries\n2025-10-24T10:15:30.345Z [WARNING] Cache size: 26534 entries\n..."
@@ -1921,11 +1994,13 @@ Track resource usage to identify memory leaks or performance issues.
 > Found it! The cache is growing unbounded.
 
 > **Root Cause Identified:**
+>
 > - Application cache is growing without limits
 > - Cache entries are not being evicted
 > - Cache size correlates with memory growth
 
 > **Recommended Fixes:**
+>
 > 1. Implement cache size limit (e.g., LRU with max 10,000 entries)
 > 2. Add TTL (time-to-live) for cache entries
 > 3. Consider using Redis for caching (external, with eviction policies)
@@ -1953,7 +2028,8 @@ Track resource usage to identify memory leaks or performance issues.
 
 > **Option 1: Use Container Stats Resource**
 > You can access stats via the resource URI:
-> ```
+>
+> ```text
 > container://stats/payment-api
 > ```
 
@@ -1967,6 +2043,7 @@ Track resource usage to identify memory leaks or performance issues.
 
 > **Option 3: External Monitoring**
 > Consider using:
+>
 > - Prometheus + cAdvisor for metrics collection
 > - Grafana for visualization
 > - Alert rules for threshold breaches
@@ -1983,6 +2060,7 @@ Track resource usage to identify memory leaks or performance issues.
 ```
 
 **Output:**
+
 ```json
 {
   "memory_usage_mb": 142.5,
@@ -1997,6 +2075,7 @@ Track resource usage to identify memory leaks or performance issues.
 > CPU is slightly elevated (8.1%) due to application initialization.
 
 > **Action Items:**
+>
 > 1. Fix the cache issue in your application code
 > 2. Add cache size limits and TTL
 > 3. Set up proper monitoring
@@ -2037,6 +2116,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 
 **User:**
 > I need to deploy a three-tier application with proper network isolation:
+>
 > - Frontend (React) should be publicly accessible
 > - Backend (API) should only be accessible to frontend
 > - Database should only be accessible to backend
@@ -2047,11 +2127,13 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 > I'll set up a secure three-tier architecture with network isolation. This follows security best practices where each tier only accesses what it needs.
 
 > **Architecture:**
-> ```
+>
+> ```text
 > Internet → Frontend (public) → Backend (internal) → Database (internal)
 > ```
 
 > **Network Design:**
+>
 > 1. **frontend-network** - Public facing
 > 2. **backend-network** - Internal, frontend + backend
 > 3. **database-network** - Internal, backend + database only
@@ -2092,6 +2174,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "network_id": "net_front123",
@@ -2103,6 +2186,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 
 **Claude:**
 > Networks created with isolation:
+>
 > - frontend-network: External access allowed
 > - backend-network: Internal only (no external routing)
 > - database-network: Internal only (no external routing)
@@ -2225,6 +2309,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 
 **Claude:**
 > Backend deployed on both backend-network and database-network.
+>
 > - Can reach database via database-network
 > - Can be reached by frontend via backend-network
 
@@ -2288,6 +2373,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 
 **Claude:**
 > Frontend deployed!
+>
 > - Connected to frontend-network (public)
 > - Connected to backend-network (to reach API)
 > - Port 80/443 exposed to host
@@ -2305,6 +2391,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "networks": [
@@ -2339,6 +2426,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "details": {
@@ -2370,6 +2458,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "exit_code": 0,
@@ -2387,6 +2476,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "exit_code": 1,
@@ -2402,7 +2492,8 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 > **Deployment Complete!**
 
 > **Network Topology:**
-> ```
+>
+> ```text
 >                    [Internet]
 >                        ↓
 >         ┌──────────────────────────┐
@@ -2430,6 +2521,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 > | Database | database-network | Backend only | None |
 
 > **Access Control:**
+>
 > - ✓ Internet can access Frontend
 > - ✓ Frontend can access Backend
 > - ✓ Backend can access Database
@@ -2438,12 +2530,14 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 > - ✗ Internet CANNOT access Database directly
 
 > **Service Discovery:**
+>
 > - Frontend reaches backend via: `http://app-backend:8000`
 > - Backend reaches database via: `app-database:5432`
 > - DNS resolution works automatically within networks
 
 > **Application URLs:**
-> - Frontend: http://localhost (public)
+>
+> - Frontend: <http://localhost> (public)
 > - Backend API: Only accessible via frontend
 > - Database: Only accessible via backend
 
@@ -2468,6 +2562,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "exit_code": 0,
@@ -2490,6 +2585,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "exit_code": 1,
@@ -2512,6 +2608,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output:**
+
 ```json
 {
   "exit_code": 0,
@@ -2533,6 +2630,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output (excerpt):**
+
 ```json
 {
   "details": {
@@ -2557,6 +2655,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 ```
 
 **Output (excerpt):**
+
 ```json
 {
   "details": {
@@ -2583,6 +2682,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 > **All security tests passed!** Network isolation is properly configured.
 
 > **Additional Security Recommendations:**
+>
 > 1. Add firewall rules for additional protection
 > 2. Use encrypted connections (TLS) between tiers
 > 3. Implement authentication tokens for API access
@@ -2630,6 +2730,7 @@ These examples demonstrate real-world usage patterns for the Docker MCP Server t
 8. **Error Handling** - Diagnose issues with logs and stats
 
 For more information:
+
 - [API Reference](API.md) - Complete tool documentation
 - [Setup Guide](SETUP.md) - Installation and configuration
 - [Architecture](ARCHITECTURE.md) - System design details
@@ -2637,5 +2738,6 @@ For more information:
 ---
 
 **Questions or Issues?**
-- GitHub Issues: https://github.com/williajm/mcp_docker/issues
-- GitHub Discussions: https://github.com/williajm/mcp_docker/discussions
+
+- GitHub Issues: <https://github.com/williajm/mcp_docker/issues>
+- GitHub Discussions: <https://github.com/williajm/mcp_docker/discussions>

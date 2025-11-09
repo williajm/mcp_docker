@@ -65,16 +65,19 @@ mcp-docker
 **重要**: プラットフォームに合わせて`DOCKER_BASE_URL`を正しく設定する必要があります:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -123,11 +126,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Claude Desktopの設定
 
 Claude Desktop設定に追加:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **基本設定(stdioトランスポート - 推奨):**
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +148,7 @@ Claude Desktop設定に追加:
 ```
 
 **Windows設定:**
+
 ```json
 {
   "mcpServers": {
@@ -169,6 +175,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **コマンドラインオプション:**
+
 - `--transport`: トランスポートタイプ(`stdio`または`sse`、デフォルト: `stdio`)
 - `--host`: SSEサーバーのバインドホスト (デフォルト: `127.0.0.1`)
 - `--port`: SSEサーバーのバインドポート (デフォルト: `8000`)
@@ -187,6 +194,7 @@ mcp-docker
 サーバーは5つのカテゴリに整理された36のツールを提供します:
 
 ### コンテナ管理(10ツール)
+
 - `docker_list_containers` - フィルター付きでコンテナをリスト
 - `docker_inspect_container` - 詳細なコンテナ情報を取得
 - `docker_create_container` - 新しいコンテナを作成
@@ -199,6 +207,7 @@ mcp-docker
 - `docker_container_stats` - リソース使用統計を取得
 
 ### イメージ管理(9ツール)
+
 - `docker_list_images` - イメージをリスト
 - `docker_inspect_image` - イメージの詳細を取得
 - `docker_pull_image` - レジストリからプル
@@ -210,6 +219,7 @@ mcp-docker
 - `docker_image_history` - レイヤー履歴を表示
 
 ### ネットワーク管理(6ツール)
+
 - `docker_list_networks` - ネットワークをリスト
 - `docker_inspect_network` - ネットワークの詳細を取得
 - `docker_create_network` - ネットワークを作成
@@ -218,6 +228,7 @@ mcp-docker
 - `docker_remove_network` - ネットワークを削除
 
 ### ボリューム管理(5ツール)
+
 - `docker_list_volumes` - ボリュームをリスト
 - `docker_inspect_volume` - ボリュームの詳細を取得
 - `docker_create_volume` - ボリュームを作成
@@ -225,6 +236,7 @@ mcp-docker
 - `docker_prune_volumes` - 未使用のボリュームをクリーンアップ
 
 ### システムツール(6ツール)
+
 - `docker_system_info` - Dockerシステム情報を取得
 - `docker_system_df` - ディスク使用統計
 - `docker_system_prune` - すべての未使用リソースをクリーンアップ
@@ -311,7 +323,7 @@ uv run pytest tests/integration/ -v -m integration
 
 ### プロジェクト構造
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/

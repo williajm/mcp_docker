@@ -68,16 +68,19 @@ The server can be configured via environment variables or a `.env` file.
 **IMPORTANT**: The `DOCKER_BASE_URL` must be set correctly for your platform:
 
 **Linux / macOS:**
+
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
 ```
 
 **Windows (Docker Desktop):**
+
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 ```
 
 **PowerShell:**
+
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
 ```
@@ -103,7 +106,6 @@ export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations (default
 
 # Server Configuration
 export MCP_SERVER_NAME="mcp-docker"  # MCP server name (default: mcp-docker)
-export MCP_SERVER_VERSION="0.1.0"  # MCP server version (default: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
 export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # Log file path (optional, defaults to mcp_docker.log in working directory)
 ```
@@ -129,11 +131,13 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ### Claude Desktop Setup
 
 Add to your Claude Desktop configuration:
+
 - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
 **Basic configuration (stdio transport - recommended):**
+
 ```json
 {
   "mcpServers": {
@@ -149,6 +153,7 @@ Add to your Claude Desktop configuration:
 ```
 
 **Windows configuration:**
+
 ```json
 {
   "mcpServers": {
@@ -175,6 +180,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
 **Command-line options:**
+
 - `--transport`: Transport type (`stdio` or `sse`, default: `stdio`)
 - `--host`: Host to bind SSE server (default: `127.0.0.1`)
 - `--port`: Port to bind SSE server (default: `8000`)
@@ -193,6 +199,7 @@ mcp-docker
 The server provides 36 tools organized into 5 categories:
 
 ### Container Management (10 tools)
+
 - `docker_list_containers` - List containers with filters
 - `docker_inspect_container` - Get detailed container info
 - `docker_create_container` - Create new container
@@ -205,6 +212,7 @@ The server provides 36 tools organized into 5 categories:
 - `docker_container_stats` - Get resource usage stats
 
 ### Image Management (9 tools)
+
 - `docker_list_images` - List images
 - `docker_inspect_image` - Get image details
 - `docker_pull_image` - Pull from registry
@@ -216,6 +224,7 @@ The server provides 36 tools organized into 5 categories:
 - `docker_image_history` - View layer history
 
 ### Network Management (6 tools)
+
 - `docker_list_networks` - List networks
 - `docker_inspect_network` - Get network details
 - `docker_create_network` - Create network
@@ -224,6 +233,7 @@ The server provides 36 tools organized into 5 categories:
 - `docker_remove_network` - Remove network
 
 ### Volume Management (5 tools)
+
 - `docker_list_volumes` - List volumes
 - `docker_inspect_volume` - Get volume details
 - `docker_create_volume` - Create volume
@@ -231,6 +241,7 @@ The server provides 36 tools organized into 5 categories:
 - `docker_prune_volumes` - Clean unused volumes
 
 ### System Tools (6 tools)
+
 - `docker_system_info` - Get Docker system information
 - `docker_system_df` - Disk usage statistics
 - `docker_system_prune` - Clean all unused resources
@@ -282,28 +293,34 @@ The server implements a three-tier safety system with configurable operation mod
 Configure the safety mode using environment variables:
 
 **Read-Only Mode (Safest)** - Monitoring and observability only
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
+
 - ✅ List, inspect, logs, stats
 - ❌ Create, start, stop, pull
 - ❌ Remove, prune
 
 **Default Mode (Balanced)** - Development and operations
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # or omit (default)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
+
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
 - ❌ Remove, prune
 
 **Full Mode (Least Restrictive)** - Infrastructure management
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 ```
+
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
 - ✅ Remove, prune
@@ -385,7 +402,7 @@ The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) fo
 
 ### Project Structure
 
-```
+```text
 mcp_docker/
 ├── src/
 │   └── mcp_docker/

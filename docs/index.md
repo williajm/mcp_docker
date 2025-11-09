@@ -41,14 +41,17 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ## Quick Links
 
 ### Getting Started
+
 - [Setup Guide](SETUP.md) - Installation, configuration, and quick start
 - [Examples](EXAMPLES.md) - Real-world usage examples and tutorials
 
 ### Reference
+
 - [API Reference](API.md) - Complete API documentation for all 36 tools, prompts, and resources
 - [Architecture](ARCHITECTURE.md) - Technical design, patterns, and implementation details
 
 ### Resources
+
 - [GitHub Repository](https://github.com/williajm/mcp_docker)
 - [Issues & Bug Reports](https://github.com/williajm/mcp_docker/issues)
 - [Model Context Protocol](https://modelcontextprotocol.io)
@@ -178,26 +181,31 @@ export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
 ### 36 Docker Tools
 
 #### Container Management (10 tools)
+
 - List, inspect, create, start, stop, restart containers
 - View logs, execute commands, get stats
 - Remove containers
 
 #### Image Management (9 tools)
+
 - List, inspect, pull, build, push images
 - Tag, remove, prune images
 - View image history
 
 #### Network Management (6 tools)
+
 - List, inspect, create, remove networks
 - Connect/disconnect containers
 - Manage network configurations
 
 #### Volume Management (5 tools)
+
 - List, inspect, create, remove volumes
 - Prune unused volumes
 - Manage volume drivers
 
 #### System Operations (6 tools)
+
 - System info, disk usage, version
 - System-wide pruning
 - Event monitoring
@@ -257,6 +265,7 @@ logs = await client.read_resource(
 ## Contributing
 
 Contributions are welcome! Please see the [GitHub repository](https://github.com/williajm/mcp_docker) for:
+
 - Filing issues and bug reports
 - Submitting pull requests
 - Reviewing code and documentation
