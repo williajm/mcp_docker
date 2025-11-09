@@ -84,9 +84,6 @@ body:
         - macOS
         - Windows
         - WSL2
-        - Docker Desktop (Linux)
-        - Docker Desktop (macOS)
-        - Docker Desktop (Windows)
         - Other
     validations:
       required: true
