@@ -90,10 +90,13 @@ class SSHSignatureValidator:
     def _verify_rsa_signature(
         self, sig_type: str, key_data: bytes, message: bytes, sig_data: bytes
     ) -> bool:
-        """Verify RSA signature with appropriate hash algorithm.
+        """Verify RSA signature with secure hash algorithm.
+
+        Only supports modern RSA signature algorithms using SHA-256 or SHA-512.
+        Legacy ssh-rsa with SHA-1 is not supported due to security concerns.
 
         Args:
-            sig_type: Signature algorithm type (ssh-rsa, rsa-sha2-256, rsa-sha2-512)
+            sig_type: Signature algorithm type (rsa-sha2-256 or rsa-sha2-512)
             key_data: SSH wire format public key data
             message: Original message that was signed
             sig_data: Signature data (without SSH wire format wrapper)
@@ -114,26 +117,23 @@ class SSHSignatureValidator:
         public_numbers = rsa.RSAPublicNumbers(public_exponent, modulus)
         crypto_public_key = public_numbers.public_key()
 
-        # Select hash algorithm based on signature type
-        hash_algo: hashes.SHA512 | hashes.SHA256 | hashes.SHA1
+        # Select hash algorithm based on signature type (only secure algorithms)
+        hash_algo: hashes.SHA512 | hashes.SHA256
         if sig_type == "rsa-sha2-512":
             hash_algo = hashes.SHA512()
             logger.debug("Using SHA-512 for RSA signature verification")
         elif sig_type == "rsa-sha2-256":
             hash_algo = hashes.SHA256()
             logger.debug("Using SHA-256 for RSA signature verification")
-        elif sig_type == "ssh-rsa":
-            # SHA-1 is deprecated but still part of SSH spec for legacy compatibility
-            hash_algo = hashes.SHA1()
-            logger.warning(
-                "Using deprecated SHA-1 for RSA signature verification. "
-                "Consider upgrading to rsa-sha2-256 or rsa-sha2-512 for better security."
-            )
         else:
-            logger.warning(f"Unsupported RSA signature type: {sig_type}")
+            logger.warning(
+                f"Unsupported RSA signature type: {sig_type}. "
+                "Only rsa-sha2-256 and rsa-sha2-512 are supported. "
+                "Legacy ssh-rsa (SHA-1) is rejected for security reasons."
+            )
             return False
 
-        # Verify with PKCS1v15 padding and appropriate hash algorithm
+        # Verify with PKCS1v15 padding and secure hash algorithm
         crypto_public_key.verify(sig_data, message, asym_padding.PKCS1v15(), hash_algo)
         logger.debug(f"RSA signature verification succeeded with {sig_type}")
         return True
@@ -200,9 +200,10 @@ class SSHSignatureValidator:
         Returns:
             True if signature type is valid for the given key type
         """
-        # For RSA keys, allow ssh-rsa, rsa-sha2-256, and rsa-sha2-512
+        # For RSA keys, only allow modern algorithms (SHA-256 and SHA-512)
+        # Legacy ssh-rsa (SHA-1) is rejected for security reasons
         if key_type == "ssh-rsa":
-            return sig_type in ("ssh-rsa", "rsa-sha2-256", "rsa-sha2-512")
+            return sig_type in ("rsa-sha2-256", "rsa-sha2-512")
         # For other key types, signature type must match exactly
         return sig_type == key_type
 
@@ -237,10 +238,11 @@ class SSHSignatureValidator:
         Delegates to key-type-specific verification methods for better maintainability
         and testability. Each key type (Ed25519, RSA, ECDSA) has its own verification method.
 
-        Supports modern RSA signature algorithms:
+        Supported RSA signature algorithms (secure only):
         - rsa-sha2-512 (recommended, uses SHA-512)
-        - rsa-sha2-256 (recommended, uses SHA-256)
-        - ssh-rsa (legacy, uses SHA-1, deprecated)
+        - rsa-sha2-256 (uses SHA-256)
+
+        Note: Legacy ssh-rsa (SHA-1) is NOT supported due to security concerns.
 
         Args:
             public_key: SSH public key to verify with

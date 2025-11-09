@@ -266,17 +266,6 @@ class TestSignMessageRSA:
         # Should use rsa-sha2-256
         assert signature[:4] == b"\x00\x00\x00\x0c"  # Length of "rsa-sha2-256" = 12
 
-    def test_sign_message_rsa_legacy_sha1(self, rsa_private_key: rsa.RSAPrivateKey) -> None:
-        """Test RSA message signing with legacy ssh-rsa (SHA-1)."""
-        message = b"test message"
-        signature = sign_message_rsa(rsa_private_key, message, algorithm="ssh-rsa")
-
-        assert isinstance(signature, bytes)
-        assert len(signature) > 0
-
-        # Should use legacy ssh-rsa
-        assert signature[:4] == b"\x00\x00\x00\x07"  # Length of "ssh-rsa" = 7
-
     def test_sign_message_rsa_unsupported_algorithm(
         self, rsa_private_key: rsa.RSAPrivateKey
     ) -> None:
@@ -284,6 +273,15 @@ class TestSignMessageRSA:
         message = b"test message"
         with pytest.raises(ValueError, match="Unsupported RSA signature algorithm"):
             sign_message_rsa(rsa_private_key, message, algorithm="invalid")
+
+    def test_sign_message_rsa_sha1_rejected(self, rsa_private_key: rsa.RSAPrivateKey) -> None:
+        """Test that legacy ssh-rsa (SHA-1) is rejected for security reasons."""
+        message = b"test message"
+        with pytest.raises(
+            ValueError,
+            match="Legacy 'ssh-rsa' \\(SHA-1\\) is not supported for security reasons",
+        ):
+            sign_message_rsa(rsa_private_key, message, algorithm="ssh-rsa")
 
 
 class TestSignMessageECDSA:
