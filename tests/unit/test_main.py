@@ -1,5 +1,6 @@
 """Unit tests for __main__.py MCP server entry point."""
 
+import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -396,8 +397,6 @@ class TestServerRunFunction:
 
                 # Start the server (it will register signal handlers)
                 # We'll use a task to avoid blocking
-                import asyncio
-
                 task = asyncio.create_task(main_module.run_sse("localhost", 8080))
 
                 # Give it time to set up
