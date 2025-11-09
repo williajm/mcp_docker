@@ -669,6 +669,7 @@ Common issues and their solutions.
 ### Docker Daemon Not Running
 
 **Symptoms:**
+
 - Error: `Cannot connect to the Docker daemon`
 - Error: `Error response from daemon`
 - Server fails to start with connection errors
@@ -706,6 +707,7 @@ Common issues and their solutions.
 ### Permission Errors
 
 **Symptoms:**
+
 - Error: `Permission denied while trying to connect to the Docker daemon socket`
 - Error: `dial unix /var/run/docker.sock: connect: permission denied`
 
@@ -749,6 +751,7 @@ sudo chmod 666 /var/run/docker.sock
 ### Python Version Issues
 
 **Symptoms:**
+
 - Error: `Python 3.11 or higher is required`
 - Error: `SyntaxError` with modern Python syntax
 - Server fails to install or import
@@ -800,6 +803,7 @@ sudo chmod 666 /var/run/docker.sock
 ### Connection Issues
 
 **Symptoms:**
+
 - Server starts but Claude shows "Disconnected"
 - Timeout errors
 - Intermittent connection drops
