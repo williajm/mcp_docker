@@ -1,0 +1,126 @@
+name: Bug Report
+description: Report a bug or unexpected behavior in mcp-docker
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us diagnose the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+      placeholder: What happened? What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Configure mcp-docker with...
+        2. Run tool '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: The tool should return...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened? Include error messages if any.
+      placeholder: Paste error messages or unexpected output here
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: mcp-docker Version
+      description: What version of mcp-docker are you using?
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python Version
+      description: What version of Python are you running?
+      placeholder: "3.11.5"
+    validations:
+      required: true
+
+  - type: input
+    id: docker-version
+    attributes:
+      label: Docker Version
+      description: Output of `docker --version`
+      placeholder: "Docker version 24.0.6"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      description: What OS are you running on?
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - WSL2
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport Mode
+      description: Which transport mode are you using?
+      options:
+        - stdio (default)
+        - SSE (HTTP)
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Relevant environment variables or configuration (remove sensitive data)
+      placeholder: |
+        DOCKER_BASE_URL=unix:///var/run/docker.sock
+        SAFETY_ALLOW_MODERATE_OPERATIONS=true
+        SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+      render: shell
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log output (if available)
+      placeholder: Paste relevant logs here
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context about the problem
+      placeholder: Add any other information that might help diagnose the issue

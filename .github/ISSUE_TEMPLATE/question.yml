@@ -1,0 +1,73 @@
+name: Question / Support
+description: Ask a question about using mcp-docker
+title: "[Question]: "
+labels: ["question", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question? We're here to help!
+
+        Before asking, please check:
+        - [Documentation](https://williajm.github.io/mcp_docker/)
+        - [README](https://github.com/williajm/mcp_docker#readme)
+        - [Existing issues](https://github.com/williajm/mcp_docker/issues)
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: How do I...? / Why does...? / Can mcp-docker...?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What are you trying to accomplish?
+      placeholder: I'm trying to... / My use case is... / I want to achieve...
+    validations:
+      required: true
+
+  - type: textarea
+    id: attempted
+    attributes:
+      label: What Have You Tried?
+      description: What have you already attempted?
+      placeholder: I tried... / I looked at... / I read...
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic Area
+      description: What topic does your question relate to?
+      options:
+        - Installation / Setup
+        - Configuration
+        - Docker tools usage
+        - MCP integration (Claude Desktop, etc.)
+        - Authentication / Security
+        - SSE transport
+        - Safety controls
+        - Performance
+        - Troubleshooting
+        - Best practices
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: mcp-docker Version
+      description: What version are you using?
+      placeholder: "1.0.0"
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any configuration, logs, or other relevant information
+      placeholder: Add any other information that might help answer your question

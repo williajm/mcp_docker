@@ -1,0 +1,97 @@
+name: Security Vulnerability
+description: Report a security vulnerability (PRIVATE reporting recommended)
+title: "[Security]: "
+labels: ["security"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚠️ IMPORTANT: Private Disclosure Recommended
+
+        For security vulnerabilities, we strongly recommend using **GitHub Private Vulnerability Reporting**:
+
+        1. Go to the [Security tab](https://github.com/williajm/mcp_docker/security)
+        2. Click "Report a vulnerability"
+        3. Fill out the private advisory form
+
+        This keeps the vulnerability private until a fix is released.
+
+        ---
+
+        If you choose to report publicly below, please **DO NOT** include:
+        - Exploit code
+        - Detailed steps that could be weaponized
+        - Information that could harm users before a fix is available
+
+        See our [Security Policy](https://github.com/williajm/mcp_docker/blob/main/SECURITY.md) for more details.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Vulnerability Description
+      description: Brief description of the security issue (avoid sensitive details if reporting publicly)
+      placeholder: There is a potential security issue with...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Estimated Severity
+      description: Your assessment of the severity
+      options:
+        - Critical
+        - High
+        - Medium
+        - Low
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Vulnerability Category
+      description: What type of vulnerability is this?
+      options:
+        - Authentication bypass
+        - Authorization issue
+        - Command injection
+        - Information disclosure
+        - Denial of Service
+        - Supply chain
+        - Cryptographic weakness
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What is the potential impact of this vulnerability?
+      placeholder: An attacker could... / This could lead to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected
+    attributes:
+      label: Affected Versions
+      description: Which versions are affected?
+      placeholder: "1.0.0, or all versions"
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Suggested Mitigation
+      description: If you have suggestions for fixing this issue
+      placeholder: This could be mitigated by...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other relevant information (references, links to similar issues, etc.)
+      placeholder: Related CVEs, similar vulnerabilities in other projects, etc.
