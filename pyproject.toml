@@ -79,18 +79,21 @@ build-backend = "hatchling.build"
 packages = ["src/mcp_docker"]
 
 [tool.hatch.build.targets.sdist]
-# Include only essential files in source distribution
-include = [
-    "/src",
-    "/tests",
-    "/docs",
-    "/README.md",
-    "/LICENSE",
-    "/CHANGELOG.md",
-    "/SECURITY.md",
-    "/pyproject.toml",
-    "/.env.example",
-    "/.mcp_keys.json.example",
+# Explicitly exclude all development, CI, and config files
+exclude = [
+    ".gitignore",
+    ".git",
+    ".github",
+    ".clusterfuzzlite",
+    ".python-version",
+    ".pre-commit-config.yaml",
+    "codecov.yml",
+    "sonar-project.properties",
+    "uv.lock",
+    "start_sse_server.sh",
+    "docs/_config.yml",
+    "AGENTS.md",
+    "CLAUDE.md",
 ]
 
 [tool.ruff]
