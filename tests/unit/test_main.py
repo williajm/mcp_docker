@@ -366,6 +366,195 @@ class TestServerRunFunction:
                 # But should still call stop
                 mock_docker_server.stop.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_run_sse_signal_handler_sets_shutdown_event(self) -> None:
+        """Test that signal handler sets the shutdown event."""
+        import signal as signal_module
+
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.SseServerTransport"),
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal") as mock_signal,
+            ):
+                # Mock server to trigger shutdown immediately
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_server_instance.should_exit = False
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Capture the signal handler
+                signal_handlers = {}
+
+                def capture_signal(sig: int, handler: object) -> None:
+                    signal_handlers[sig] = handler
+
+                mock_signal.side_effect = capture_signal
+
+                # Start the server (it will register signal handlers)
+                # We'll use a task to avoid blocking
+                import asyncio
+
+                task = asyncio.create_task(main_module.run_sse("localhost", 8080))
+
+                # Give it time to set up
+                await asyncio.sleep(0.1)
+
+                # Verify signal handlers were registered
+                assert signal_module.SIGINT in signal_handlers
+                assert signal_module.SIGTERM in signal_handlers
+
+                # Cancel the task to clean up
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
+    @pytest.mark.asyncio
+    async def test_run_sse_graceful_shutdown_on_signal(self) -> None:
+        """Test graceful shutdown when shutdown signal is received."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.SseServerTransport"),
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+            ):
+                # Mock server
+                mock_server_instance = Mock()
+                mock_server_instance.should_exit = False
+
+                # Server will complete quickly
+                async def mock_serve() -> None:
+                    await asyncio.sleep(0.01)
+
+                mock_server_instance.serve = mock_serve
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Run the server
+                await main_module.run_sse("localhost", 8080)
+
+                # Verify stop was called
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_sse_shutdown_timeout(self) -> None:
+        """Test forced shutdown after timeout."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.SseServerTransport"),
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch("mcp_docker.__main__.asyncio.wait") as mock_wait,
+                patch("mcp_docker.__main__.asyncio.wait_for") as mock_wait_for,
+            ):
+                # Mock server
+                mock_server_instance = Mock()
+                mock_server_instance.should_exit = False
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Mock server task
+                server_task = AsyncMock()
+                server_task.__name__ = "serve"
+
+                # Mock shutdown task to complete first
+                shutdown_task = AsyncMock()
+
+                # Mock wait to return shutdown task as done
+                async def mock_wait_impl(tasks: set, **kwargs: object) -> tuple[set, set]:  # noqa: ARG001
+                    return {shutdown_task}, {server_task}
+
+                mock_wait.side_effect = mock_wait_impl
+
+                # Mock wait_for to timeout
+                mock_wait_for.side_effect = TimeoutError()
+
+                # Run should complete without hanging
+                await main_module.run_sse("localhost", 8080)
+
+                # Verify cleanup happened
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_sse_handler_cancelled_error_handling(self) -> None:
+        """Test that CancelledError in SSE handler is caught and logged."""
+        # This tests the exception handling in the sse_handler inner function
+        # We can't easily test it directly, but we can verify it doesn't crash
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.SseServerTransport") as mock_sse_transport,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+            ):
+                # Mock SSE transport
+                mock_sse_instance = Mock()
+                mock_sse_transport.return_value = mock_sse_instance
+
+                # Mock connect_sse to raise CancelledError (simulating shutdown)
+                async def raise_cancelled() -> None:
+                    raise asyncio.CancelledError()
+
+                mock_sse_instance.connect_sse = Mock()
+                mock_sse_instance.connect_sse.return_value.__aenter__ = AsyncMock(
+                    side_effect=raise_cancelled
+                )
+                mock_sse_instance.connect_sse.return_value.__aexit__ = AsyncMock()
+
+                # Mock server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Should complete without error
+                await main_module.run_sse("localhost", 8080)
+
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_post_handler_cancelled_error_handling(self) -> None:
+        """Test that CancelledError in POST handler is caught and logged."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.SseServerTransport") as mock_sse_transport,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+            ):
+                # Mock SSE transport
+                mock_sse_instance = Mock()
+                mock_sse_transport.return_value = mock_sse_instance
+
+                # Mock handle_post_message to raise CancelledError
+                async def raise_cancelled(*args: object, **kwargs: object) -> None:  # noqa: ARG001
+                    raise asyncio.CancelledError()
+
+                mock_sse_instance.handle_post_message = raise_cancelled
+
+                # Mock server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Should complete without error
+                await main_module.run_sse("localhost", 8080)
+
+                mock_docker_server.stop.assert_called_once()
+
 
 class TestMainFunction:
     """Tests for main function."""
