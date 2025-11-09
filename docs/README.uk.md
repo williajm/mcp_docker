@@ -34,7 +34,7 @@
 ```bash
 # Запустити безпосередньо без встановлення
 uvx mcp-docker
-```text
+```
 
 #### Варіант 2: Використання uv
 
@@ -44,7 +44,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```text
+```
 
 #### Варіант 3: Використання pip
 
@@ -54,7 +54,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```text
+```
 
 ### Налаштування
 
@@ -68,19 +68,19 @@ mcp-docker
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```text
+```
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```text
+```
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```text
+```
 
 #### Всі параметри налаштування
 
@@ -105,7 +105,7 @@ export MCP_SERVER_NAME="mcp-docker"  # Назва сервера MCP (за за�
 export MCP_SERVER_VERSION="0.1.0"  # Версія сервера MCP (за замовчуванням: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Рівень логування: DEBUG, INFO, WARNING, ERROR, CRITICAL (за замовчуванням: INFO)
 export MCP_DOCKER_LOG_PATH="/шлях/до/mcp_docker.log"  # Шлях до файлу логів (опціонально, за замовчуванням mcp_docker.log в робочому каталозі)
-```text
+```
 
 #### Використання файлу .env
 
@@ -115,13 +115,13 @@ export MCP_DOCKER_LOG_PATH="/шлях/до/mcp_docker.log"  # Шлях до фа
 # Приклад файлу .env (Linux/macOS)
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ```bash
 # Приклад файлу .env (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ### Налаштування Claude Desktop
 
@@ -145,7 +145,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
     }
   }
 }
-```text
+```
 
 **Конфігурація Windows:**
 
@@ -161,7 +161,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
     }
   }
 }
-```text
+```
 
 ### Розширене використання
 
@@ -172,7 +172,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 # Запустити з транспортом SSE
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```text
+```
 
 **Опції командного рядка:**
 
@@ -187,7 +187,7 @@ mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```bash
 export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
 mcp-docker
-```text
+```
 
 ## Огляд інструментів
 
@@ -319,7 +319,7 @@ mcp-docker
     }
   }
 }
-```text
+```
 
 ### Функції безпеки
 
@@ -388,7 +388,7 @@ uv run ruff format src tests
 
 # Запустити перевірку типів
 uv run mypy src tests
-```text
+```
 
 ### Виконання тестів
 
@@ -401,7 +401,7 @@ uv run pytest tests/unit/ -v
 
 # Запустити інтеграційні тести (потребує Docker)
 uv run pytest tests/integration/ -v -m integration
-```text
+```
 
 ### Структура проекту
 
@@ -420,7 +420,7 @@ mcp_docker/
 ├── tests/                       # Набір тестів
 ├── docs/                        # Документація
 └── pyproject.toml              # Конфігурація проекту
-```text
+```
 
 ## Вимоги
 

@@ -61,7 +61,7 @@ A production web application container keeps restarting. Let's diagnose the prob
   "all": true,
   "filters": {"name": ["web-app"]}
 }
-```text
+```
 
 **Output:**
 
@@ -79,7 +79,7 @@ A production web application container keeps restarting. Let's diagnose the prob
   ],
   "count": 1
 }
-```text
+```
 
 **Claude:**
 > The container is in a restarting state. Let me get detailed information and logs.
@@ -90,7 +90,7 @@ A production web application container keeps restarting. Let's diagnose the prob
 {
   "container_id": "web-app"
 }
-```text
+```
 
 **Output:**
 
@@ -117,7 +117,7 @@ A production web application container keeps restarting. Let's diagnose the prob
     }
   }
 }
-```text
+```
 
 **Claude:**
 > The container has restarted 12 times with exit code 1. Let me check the logs to see what's failing.
@@ -130,7 +130,7 @@ A production web application container keeps restarting. Let's diagnose the prob
   "tail": 50,
   "timestamps": true
 }
-```text
+```
 
 **Output:**
 
@@ -138,7 +138,7 @@ A production web application container keeps restarting. Let's diagnose the prob
 {
   "logs": "2025-10-24T10:15:32.123Z nginx: [emerg] open() \"/etc/nginx/conf.d/default.conf\" failed (2: No such file or directory)\n2025-10-24T10:15:32.124Z nginx: configuration file /etc/nginx/nginx.conf test failed\n..."
 }
-```text
+```
 
 **Claude:**
 > I found the issue! The container is failing because it can't find the configuration file at `/etc/nginx/conf.d/default.conf`. Here's what's happening:
@@ -201,7 +201,7 @@ Deploy a Flask web application with Redis for session storage.
 {
   "image": "myregistry/flask-app:v1.2.3"
 }
-```text
+```
 
 **Output:**
 
@@ -211,7 +211,7 @@ Deploy a Flask web application with Redis for session storage.
   "tags": ["myregistry/flask-app:v1.2.3"],
   "status": "Image pulled successfully"
 }
-```text
+```
 
 *Claude uses: `docker_pull_image`*
 
@@ -219,7 +219,7 @@ Deploy a Flask web application with Redis for session storage.
 {
   "image": "redis:7-alpine"
 }
-```text
+```
 
 **Output:**
 
@@ -229,7 +229,7 @@ Deploy a Flask web application with Redis for session storage.
   "tags": ["redis:7-alpine"],
   "status": "Image pulled successfully"
 }
-```text
+```
 
 **Claude:**
 > Images pulled successfully. Now creating a custom network for service communication.
@@ -241,7 +241,7 @@ Deploy a Flask web application with Redis for session storage.
   "name": "flask-network",
   "driver": "bridge"
 }
-```text
+```
 
 **Output:**
 
@@ -251,7 +251,7 @@ Deploy a Flask web application with Redis for session storage.
   "name": "flask-network",
   "driver": "bridge"
 }
-```text
+```
 
 **Claude:**
 > Network created. Starting Redis container...
@@ -269,7 +269,7 @@ Deploy a Flask web application with Redis for session storage.
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -277,7 +277,7 @@ Deploy a Flask web application with Redis for session storage.
 {
   "container_id": "redis-session-store"
 }
-```text
+```
 
 **Output:**
 
@@ -286,7 +286,7 @@ Deploy a Flask web application with Redis for session storage.
   "container_id": "redis123...",
   "status": "started"
 }
-```text
+```
 
 **Claude:**
 > Redis is running. Now deploying the Flask application...
@@ -312,7 +312,7 @@ Deploy a Flask web application with Redis for session storage.
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -320,7 +320,7 @@ Deploy a Flask web application with Redis for session storage.
 {
   "container_id": "flask-app"
 }
-```text
+```
 
 **Claude:**
 > Perfect! Your Flask application stack is now deployed. Let me verify everything is running correctly.
@@ -332,7 +332,7 @@ Deploy a Flask web application with Redis for session storage.
   "container_id": "flask-app",
   "stream": false
 }
-```text
+```
 
 **Output:**
 
@@ -346,7 +346,7 @@ Deploy a Flask web application with Redis for session storage.
   "network_rx_mb": 0.5,
   "network_tx_mb": 0.3
 }
-```text
+```
 
 **Claude:**
 > Deployment complete! Here's what was set up:
@@ -408,7 +408,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 
 ```json
 {}
-```text
+```
 
 **Output:**
 
@@ -434,7 +434,7 @@ After running many tests and builds, clean up unused Docker resources safely.
     "reclaimable_mb": 2048.9
   }
 }
-```text
+```
 
 **Claude:**
 > I can see significant space can be reclaimed:
@@ -462,7 +462,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   "all": true,
   "filters": {"status": ["exited", "created"]}
 }
-```text
+```
 
 **Output:**
 
@@ -484,7 +484,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   ],
   "count": 2
 }
-```text
+```
 
 **Claude:**
 > Found 2 stopped containers that can be removed. Let me remove them:
@@ -497,7 +497,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   "force": false,
   "volumes": true
 }
-```text
+```
 
 *Claude uses: `docker_remove_container`*
 
@@ -507,7 +507,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   "force": false,
   "volumes": true
 }
-```text
+```
 
 **Claude:**
 > Stopped containers removed. Now cleaning up unused images...
@@ -519,7 +519,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   "all": false,
   "filters": {}
 }
-```text
+```
 
 **Output:**
 
@@ -532,7 +532,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   ],
   "space_reclaimed_mb": 3210.5
 }
-```text
+```
 
 **Claude:**
 > Removed 3 unused images, reclaimed 3.2 GB. Now cleaning volumes...
@@ -545,7 +545,7 @@ After running many tests and builds, clean up unused Docker resources safely.
 {
   "filters": {}
 }
-```text
+```
 
 **Output:**
 
@@ -557,7 +557,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   ],
   "space_reclaimed_mb": 512.3
 }
-```text
+```
 
 **Claude:**
 > Excellent! Cleanup complete. Here's what was removed:
@@ -599,7 +599,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   "volumes": false,
   "filters": {}
 }
-```text
+```
 
 **Output:**
 
@@ -610,7 +610,7 @@ After running many tests and builds, clean up unused Docker resources safely.
   "space_reclaimed_mb": 2048.9,
   "volumes_deleted": 0
 }
-```text
+```
 
 **Claude:**
 > Build cache cleared! Reclaimed an additional 2.0 GB.
@@ -668,7 +668,7 @@ An application container keeps crashing, and you need AI-powered diagnosis.
 {
   "container_id": "payment-processor"
 }
-```text
+```
 
 **Claude receives context:**
 
@@ -696,7 +696,7 @@ Recent Logs (last 50 lines):
 2025-10-24T10:20:18.345Z [WARNING] High memory usage: 480MB
 2025-10-24T10:20:19.678Z [WARNING] Memory pressure detected
 2025-10-24T10:20:20.901Z [ERROR] Killed
-```text
+```
 
 **Claude:**
 > I've analyzed your payment-processor container. Here's what I found:
@@ -738,7 +738,7 @@ Recent Logs (last 50 lines):
 {
   "container_id": "payment-processor"
 }
-```text
+```
 
 **Output (excerpt):**
 
@@ -750,7 +750,7 @@ Recent Logs (last 50 lines):
     }
   }
 }
-```text
+```
 
 **Claude:**
 > Confirmed! The container has a 512MB (536870912 bytes) memory limit, which is insufficient.
@@ -777,7 +777,7 @@ Recent Logs (last 50 lines):
   "container_id": "payment-processor",
   "timeout": 10
 }
-```text
+```
 
 *Claude uses: `docker_remove_container`*
 
@@ -787,7 +787,7 @@ Recent Logs (last 50 lines):
   "force": false,
   "volumes": false
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -803,7 +803,7 @@ Recent Logs (last 50 lines):
     "MaximumRetryCount": 3
   }
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -811,7 +811,7 @@ Recent Logs (last 50 lines):
 {
   "container_id": "payment-processor"
 }
-```text
+```
 
 **Claude:**
 > Container recreated with 2GB memory limit. Now monitoring...
@@ -823,7 +823,7 @@ Recent Logs (last 50 lines):
   "container_id": "payment-processor",
   "stream": false
 }
-```text
+```
 
 **Output:**
 
@@ -834,7 +834,7 @@ Recent Logs (last 50 lines):
   "memory_percent": 31.5,
   "cpu_percent": 5.2
 }
-```text
+```
 
 **Claude:**
 > Perfect! The container is now running successfully:
@@ -846,7 +846,7 @@ Recent Logs (last 50 lines):
 > **Monitoring Commands:**
 > You can monitor this container with:
 >
-> ```
+> ```text
 > docker stats payment-processor --no-stream  # One-time stats
 > docker stats payment-processor             # Live monitoring
 > ```
@@ -903,7 +903,7 @@ Deploy a complete WordPress stack with database management.
   "driver": "bridge",
   "internal": false
 }
-```text
+```
 
 **Output:**
 
@@ -912,7 +912,7 @@ Deploy a complete WordPress stack with database management.
   "network_id": "net789...",
   "name": "wordpress-network"
 }
-```text
+```
 
 *Claude uses: `docker_create_volume`*
 
@@ -921,7 +921,7 @@ Deploy a complete WordPress stack with database management.
   "name": "mysql-data",
   "driver": "local"
 }
-```text
+```
 
 *Claude uses: `docker_create_volume`*
 
@@ -930,7 +930,7 @@ Deploy a complete WordPress stack with database management.
   "name": "wordpress-data",
   "driver": "local"
 }
-```text
+```
 
 **Claude:**
 > Network and volumes created. Deploying MySQL...
@@ -941,7 +941,7 @@ Deploy a complete WordPress stack with database management.
 {
   "image": "mysql:8.0"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -968,7 +968,7 @@ Deploy a complete WordPress stack with database management.
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -976,7 +976,7 @@ Deploy a complete WordPress stack with database management.
 {
   "container_id": "wordpress-mysql"
 }
-```text
+```
 
 **Claude:**
 > MySQL is starting. Let me wait a moment for it to initialize, then deploy WordPress...
@@ -987,7 +987,7 @@ Deploy a complete WordPress stack with database management.
 {
   "image": "wordpress:latest"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -1018,7 +1018,7 @@ Deploy a complete WordPress stack with database management.
   },
   "depends_on": ["wordpress-mysql"]
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -1026,7 +1026,7 @@ Deploy a complete WordPress stack with database management.
 {
   "container_id": "wordpress-app"
 }
-```text
+```
 
 **Claude:**
 > WordPress deployed. Now adding PhpMyAdmin for database management...
@@ -1037,7 +1037,7 @@ Deploy a complete WordPress stack with database management.
 {
   "image": "phpmyadmin:latest"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -1060,7 +1060,7 @@ Deploy a complete WordPress stack with database management.
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -1068,7 +1068,7 @@ Deploy a complete WordPress stack with database management.
 {
   "container_id": "wordpress-phpmyadmin"
 }
-```text
+```
 
 **Claude:**
 > Perfect! Let me verify all containers are running...
@@ -1082,7 +1082,7 @@ Deploy a complete WordPress stack with database management.
     "network": ["wordpress-network"]
   }
 }
-```text
+```
 
 **Output:**
 
@@ -1107,7 +1107,7 @@ Deploy a complete WordPress stack with database management.
   ],
   "count": 3
 }
-```text
+```
 
 **Claude:**
 > Excellent! Your WordPress stack is fully deployed and running. Here's the complete setup:
@@ -1211,7 +1211,7 @@ Set up a development environment with hot reload for rapid iteration.
 {
   "image": "node:18-alpine"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -1242,7 +1242,7 @@ Set up a development environment with hot reload for rapid iteration.
   },
   "mem_limit": "1g"
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -1250,7 +1250,7 @@ Set up a development environment with hot reload for rapid iteration.
 {
   "container_id": "nodejs-dev"
 }
-```text
+```
 
 **Claude:**
 > Container created, but it might fail if dependencies aren't installed. Let me check the logs...
@@ -1263,7 +1263,7 @@ Set up a development environment with hot reload for rapid iteration.
   "tail": 20,
   "follow": false
 }
-```text
+```
 
 **Output:**
 
@@ -1271,7 +1271,7 @@ Set up a development environment with hot reload for rapid iteration.
 {
   "logs": "npm ERR! Cannot find module 'express'\nnpm ERR! ...\n"
 }
-```text
+```
 
 **Claude:**
 > As expected, we need to install dependencies first. Let me do that:
@@ -1284,7 +1284,7 @@ Set up a development environment with hot reload for rapid iteration.
   "command": ["npm", "install"],
   "workdir": "/app"
 }
-```text
+```
 
 **Output:**
 
@@ -1293,7 +1293,7 @@ Set up a development environment with hot reload for rapid iteration.
   "exit_code": 0,
   "output": "added 142 packages in 12s\n..."
 }
-```text
+```
 
 **Claude:**
 > Dependencies installed! Now restarting the application...
@@ -1304,7 +1304,7 @@ Set up a development environment with hot reload for rapid iteration.
 {
   "container_id": "nodejs-dev"
 }
-```text
+```
 
 *Claude uses: `docker_container_logs`*
 
@@ -1314,7 +1314,7 @@ Set up a development environment with hot reload for rapid iteration.
   "tail": 10,
   "follow": false
 }
-```text
+```
 
 **Output:**
 
@@ -1322,7 +1322,7 @@ Set up a development environment with hot reload for rapid iteration.
 {
   "logs": "[nodemon] starting `node index.js`\nServer listening on port 3000\n[nodemon] watching for file changes...\n"
 }
-```text
+```
 
 **Claude:**
 > Excellent! Your development environment is ready. Here's what's set up:
@@ -1387,7 +1387,7 @@ Set up a development environment with hot reload for rapid iteration.
   "timestamps": true,
   "follow": false
 }
-```text
+```
 
 **Output:**
 
@@ -1395,7 +1395,7 @@ Set up a development environment with hot reload for rapid iteration.
 {
   "logs": "2025-10-24T10:30:15.123Z [nodemon] restarting due to changes...\n2025-10-24T10:30:15.456Z [nodemon] starting `node index.js`\n2025-10-24T10:30:15.789Z Server listening on port 3000\n2025-10-24T10:30:15.890Z Connected to database\n"
 }
-```text
+```
 
 **Claude:**
 > Your development environment is working perfectly! Here are some helpful commands:
@@ -1480,7 +1480,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   },
   "target": "production"
 }
-```text
+```
 
 **Output:**
 
@@ -1490,7 +1490,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "tags": ["myapp:build-123"],
   "status": "Build successful"
 }
-```text
+```
 
 **Claude:**
 > Build successful! Image created: myapp:build-123
@@ -1511,7 +1511,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
     "CI": "true"
   }
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -1519,7 +1519,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "container_id": "test-unit-123"
 }
-```text
+```
 
 *Claude uses: `docker_container_logs`*
 
@@ -1528,7 +1528,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "container_id": "test-unit-123",
   "tail": 100
 }
-```text
+```
 
 **Output:**
 
@@ -1536,7 +1536,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "logs": "Running unit tests...\n  ✓ User authentication works\n  ✓ Data validation passes\n  ✓ API endpoints respond correctly\n\nTests passed: 45/45\nCoverage: 87%\n"
 }
-```text
+```
 
 **Claude:**
 > Unit tests passed! (45/45, 87% coverage)
@@ -1549,7 +1549,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "name": "test-network-123"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -1565,7 +1565,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   },
   "detach": true
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -1573,7 +1573,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "container_id": "test-db-123"
 }
-```text
+```
 
 **Claude:**
 > Test database started. Running integration tests...
@@ -1593,7 +1593,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   },
   "detach": false
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -1601,7 +1601,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "container_id": "test-integration-123"
 }
-```text
+```
 
 *Claude uses: `docker_container_logs`*
 
@@ -1610,7 +1610,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "container_id": "test-integration-123",
   "tail": 50
 }
-```text
+```
 
 **Output:**
 
@@ -1618,7 +1618,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "logs": "Running integration tests...\n  ✓ Database connection\n  ✓ User registration flow\n  ✓ Order processing\n  ✓ Payment integration\n\nTests passed: 12/12\n"
 }
-```text
+```
 
 **Claude:**
 > Integration tests passed! (12/12)
@@ -1632,7 +1632,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "source_image": "myapp:build-123",
   "target_image": "myregistry.com/myapp:1.2.3"
 }
-```text
+```
 
 *Claude uses: `docker_tag_image`*
 
@@ -1641,7 +1641,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "source_image": "myapp:build-123",
   "target_image": "myregistry.com/myapp:latest"
 }
-```text
+```
 
 **Output:**
 
@@ -1651,7 +1651,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "target": "myregistry.com/myapp:latest",
   "status": "Tagged successfully"
 }
-```text
+```
 
 **Claude:**
 > Image tagged for production:
@@ -1668,7 +1668,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "container_id": "test-db-123",
   "timeout": 5
 }
-```text
+```
 
 *Claude uses: `docker_remove_container`*
 
@@ -1678,7 +1678,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "force": true,
   "volumes": true
 }
-```text
+```
 
 *Claude uses: `docker_remove_network`*
 
@@ -1686,7 +1686,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "network_id": "test-network-123"
 }
-```text
+```
 
 **Claude:**
 > Test resources cleaned up.
@@ -1708,7 +1708,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
     }
   }
 }
-```text
+```
 
 **Claude:**
 > **CI/CD Pipeline Results:**
@@ -1756,7 +1756,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 {
   "logs": "Running unit tests...\n  ✓ User authentication works\n  ✗ Data validation fails\n     Expected: valid, Received: invalid\n\nTests passed: 44/45\nTests failed: 1\n"
 }
-```text
+```
 
 **Claude:**
 > Test failed! Here's the failure handling:
@@ -1778,7 +1778,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
   "image_id": "myapp:build-123",
   "force": true
 }
-```text
+```
 
 **Claude:**
 > **Pipeline Results:**
@@ -1799,7 +1799,7 @@ Simulate a CI/CD pipeline that builds, tests, and deploys a Docker image.
 
 > **Failure Details:**
 >
-> ```
+> ```text
 > Test: Data validation
 > File: tests/validation.test.js
 > Error: Expected valid data, received invalid
@@ -1853,7 +1853,7 @@ Track resource usage to identify memory leaks or performance issues.
   "container_id": "payment-api",
   "stream": false
 }
-```text
+```
 
 **Output (Reading 1 - T=0):**
 
@@ -1869,7 +1869,7 @@ Track resource usage to identify memory leaks or performance issues.
   "block_io_read_mb": 12.3,
   "block_io_write_mb": 5.1
 }
-```text
+```
 
 **Claude:**
 > Baseline reading captured. I'll monitor this container over time to detect any trends.
@@ -1895,7 +1895,7 @@ Track resource usage to identify memory leaks or performance issues.
   "memory_percent": 30.5,
   "cpu_percent": 4.1
 }
-```text
+```
 
 *Claude uses: `docker_container_stats` (Reading 3 - T=10min)*
 
@@ -1908,7 +1908,7 @@ Track resource usage to identify memory leaks or performance issues.
   "memory_percent": 37.8,
   "cpu_percent": 3.9
 }
-```text
+```
 
 *Claude uses: `docker_container_stats` (Reading 4 - T=15min)*
 
@@ -1921,7 +1921,7 @@ Track resource usage to identify memory leaks or performance issues.
   "memory_percent": 45.8,
   "cpu_percent": 4.2
 }
-```text
+```
 
 **Claude:**
 > I'm detecting a concerning pattern. Let me collect more data and analyze...
@@ -1937,14 +1937,14 @@ Track resource usage to identify memory leaks or performance issues.
   "memory_percent": 52.9,
   "cpu_percent": 3.8
 }
-```text
+```
 
 **Claude:**
 > **Memory Leak Detected!**
 
 > **Analysis:**
 >
-> ```
+> ```text
 > Time    Memory (MB)  Memory %  Change    Rate
 > ------------------------------------------------
 > T=0     256.3        25.0%     -         -
@@ -1980,7 +1980,7 @@ Track resource usage to identify memory leaks or performance issues.
   "tail": 50,
   "timestamps": true
 }
-```text
+```
 
 **Output:**
 
@@ -1988,7 +1988,7 @@ Track resource usage to identify memory leaks or performance issues.
 {
   "logs": "2025-10-24T10:00:15.123Z [INFO] Processing payment batch\n2025-10-24T10:00:16.456Z [WARNING] Cache size: 15234 entries\n2025-10-24T10:05:20.789Z [WARNING] Cache size: 18932 entries\n2025-10-24T10:10:25.012Z [WARNING] Cache size: 22847 entries\n2025-10-24T10:15:30.345Z [WARNING] Cache size: 26534 entries\n..."
 }
-```text
+```
 
 **Claude:**
 > Found it! The cache is growing unbounded.
@@ -2021,7 +2021,7 @@ Track resource usage to identify memory leaks or performance issues.
   "container_id": "payment-api",
   "timeout": 10
 }
-```text
+```
 
 **Claude:**
 > Container restarted. Memory is now reset. Here's how to monitor going forward:
@@ -2029,7 +2029,7 @@ Track resource usage to identify memory leaks or performance issues.
 > **Option 1: Use Container Stats Resource**
 > You can access stats via the resource URI:
 >
-> ```
+> ```text
 > container://stats/payment-api
 > ```
 
@@ -2057,7 +2057,7 @@ Track resource usage to identify memory leaks or performance issues.
   "container_id": "payment-api",
   "stream": false
 }
-```text
+```
 
 **Output:**
 
@@ -2068,7 +2068,7 @@ Track resource usage to identify memory leaks or performance issues.
   "memory_percent": 13.9,
   "cpu_percent": 8.1
 }
-```text
+```
 
 **Claude:**
 > Memory reset to 142 MB (13.9%) - back to normal startup levels.
@@ -2128,7 +2128,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 
 > **Architecture:**
 >
-> ```
+> ```text
 > Internet → Frontend (public) → Backend (internal) → Database (internal)
 > ```
 
@@ -2151,7 +2151,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "driver": "bridge",
   "internal": false
 }
-```text
+```
 
 *Claude uses: `docker_create_network`*
 
@@ -2161,7 +2161,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "driver": "bridge",
   "internal": true
 }
-```text
+```
 
 *Claude uses: `docker_create_network`*
 
@@ -2171,7 +2171,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "driver": "bridge",
   "internal": true
 }
-```text
+```
 
 **Output:**
 
@@ -2182,7 +2182,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "driver": "bridge",
   "internal": false
 }
-```text
+```
 
 **Claude:**
 > Networks created with isolation:
@@ -2199,7 +2199,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "image": "postgres:15-alpine"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -2224,7 +2224,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 *Claude uses: `docker_connect_container`*
 
@@ -2233,7 +2233,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-database",
   "network": "database-network"
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -2241,7 +2241,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "container_id": "app-database"
 }
-```text
+```
 
 **Claude:**
 > Database deployed on database-network (isolated).
@@ -2254,7 +2254,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "image": "mycompany/api:latest"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -2276,7 +2276,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 **Claude:**
 > Backend created. Now connecting to both networks (backend and database):
@@ -2288,7 +2288,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-backend",
   "network": "backend-network"
 }
-```text
+```
 
 *Claude uses: `docker_connect_container`*
 
@@ -2297,7 +2297,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-backend",
   "network": "database-network"
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -2305,7 +2305,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "container_id": "app-backend"
 }
-```text
+```
 
 **Claude:**
 > Backend deployed on both backend-network and database-network.
@@ -2321,7 +2321,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "image": "mycompany/frontend:latest"
 }
-```text
+```
 
 *Claude uses: `docker_create_container`*
 
@@ -2343,7 +2343,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     "Name": "unless-stopped"
   }
 }
-```text
+```
 
 *Claude uses: `docker_connect_container`*
 
@@ -2352,7 +2352,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-frontend",
   "network": "frontend-network"
 }
-```text
+```
 
 *Claude uses: `docker_connect_container`*
 
@@ -2361,7 +2361,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-frontend",
   "network": "backend-network"
 }
-```text
+```
 
 *Claude uses: `docker_start_container`*
 
@@ -2369,7 +2369,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "container_id": "app-frontend"
 }
-```text
+```
 
 **Claude:**
 > Frontend deployed!
@@ -2388,7 +2388,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     "name": ["frontend-network", "backend-network", "database-network"]
   }
 }
-```text
+```
 
 **Output:**
 
@@ -2415,7 +2415,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     }
   ]
 }
-```text
+```
 
 *Claude uses: `docker_inspect_network`*
 
@@ -2423,7 +2423,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "network_id": "backend-network"
 }
-```text
+```
 
 **Output:**
 
@@ -2443,7 +2443,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     }
   }
 }
-```text
+```
 
 **Claude:**
 > Perfect! Network isolation is configured correctly. Let me verify connectivity:
@@ -2455,7 +2455,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-frontend",
   "command": ["wget", "-O-", "http://app-backend:8000/health"]
 }
-```text
+```
 
 **Output:**
 
@@ -2464,7 +2464,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "exit_code": 0,
   "output": "{\"status\": \"healthy\", \"database\": \"connected\"}"
 }
-```text
+```
 
 *Claude uses: `docker_exec_command`*
 
@@ -2473,7 +2473,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-frontend",
   "command": ["ping", "-c", "1", "app-database"]
 }
-```text
+```
 
 **Output:**
 
@@ -2482,7 +2482,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "exit_code": 1,
   "output": "ping: app-database: Name or service not known"
 }
-```text
+```
 
 **Claude:**
 > Excellent! Network security is working as designed:
@@ -2493,7 +2493,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 
 > **Network Topology:**
 >
-> ```
+> ```text
 >                    [Internet]
 >                        ↓
 >         ┌──────────────────────────┐
@@ -2559,7 +2559,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-frontend",
   "command": ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "http://app-backend:8000/health"]
 }
-```text
+```
 
 **Output:**
 
@@ -2568,7 +2568,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "exit_code": 0,
   "output": "200"
 }
-```text
+```
 
 **Claude:**
 > ✓ Test 1 PASSED: Frontend successfully reached backend (HTTP 200)
@@ -2582,7 +2582,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-frontend",
   "command": ["nc", "-zv", "app-database", "5432"]
 }
-```text
+```
 
 **Output:**
 
@@ -2591,7 +2591,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "exit_code": 1,
   "output": "nc: getaddrinfo: Name or service not known"
 }
-```text
+```
 
 **Claude:**
 > ✓ Test 2 PASSED: Frontend CANNOT reach database (isolation working)
@@ -2605,7 +2605,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "container_id": "app-backend",
   "command": ["pg_isready", "-h", "app-database", "-p", "5432", "-U", "appuser"]
 }
-```text
+```
 
 **Output:**
 
@@ -2614,7 +2614,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
   "exit_code": 0,
   "output": "app-database:5432 - accepting connections"
 }
-```text
+```
 
 **Claude:**
 > ✓ Test 3 PASSED: Backend successfully connected to database
@@ -2627,7 +2627,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "container_id": "app-backend"
 }
-```text
+```
 
 **Output (excerpt):**
 
@@ -2639,7 +2639,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     }
   }
 }
-```text
+```
 
 **Claude:**
 > ✓ Test 4 PASSED: Backend has no exposed ports (cannot be accessed externally)
@@ -2652,7 +2652,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
 {
   "container_id": "app-database"
 }
-```text
+```
 
 **Output (excerpt):**
 
@@ -2664,7 +2664,7 @@ Set up a three-tier application (frontend, backend, database) with proper networ
     }
   }
 }
-```text
+```
 
 **Claude:**
 > ✓ Test 5 PASSED: Database has no exposed ports (cannot be accessed externally)

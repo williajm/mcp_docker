@@ -34,7 +34,7 @@
 ```bash
 # Uruchom bezpośrednio bez instalacji
 uvx mcp-docker
-```text
+```
 
 #### Opcja 2: Użycie uv
 
@@ -44,7 +44,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```text
+```
 
 #### Opcja 3: Użycie pip
 
@@ -54,7 +54,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```text
+```
 
 ### Konfiguracja
 
@@ -68,19 +68,19 @@ Serwer można skonfigurować za pomocą zmiennych środowiskowych lub pliku `.en
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```text
+```
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```text
+```
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```text
+```
 
 #### Wszystkie Opcje Konfiguracyjne
 
@@ -106,7 +106,7 @@ export MCP_SERVER_NAME="mcp-docker"  # Nazwa serwera MCP (domyślnie: mcp-docker
 export MCP_SERVER_VERSION="0.1.0"  # Wersja serwera MCP (domyślnie: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Poziom logowania: DEBUG, INFO, WARNING, ERROR, CRITICAL (domyślnie: INFO)
 export MCP_DOCKER_LOG_PATH="/ścieżka/do/mcp_docker.log"  # Ścieżka do pliku logów (opcjonalnie, domyślnie mcp_docker.log w katalogu roboczym)
-```text
+```
 
 #### Użycie Pliku .env
 
@@ -117,14 +117,14 @@ Alternatywnie, utwórz plik `.env` w katalogu swojego projektu:
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ```bash
 # Przykładowy plik .env (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ### Konfiguracja Claude Desktop
 
@@ -148,7 +148,7 @@ Dodaj do konfiguracji Claude Desktop:
     }
   }
 }
-```text
+```
 
 **Konfiguracja Windows:**
 
@@ -164,7 +164,7 @@ Dodaj do konfiguracji Claude Desktop:
     }
   }
 }
-```text
+```
 
 ### Zaawansowane Użycie
 
@@ -175,7 +175,7 @@ Serwer obsługuje transport SSE (Server-Sent Events) przez HTTP oprócz domyśln
 ```bash
 # Uruchom z transportem SSE
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```text
+```
 
 **Opcje linii poleceń:**
 
@@ -190,7 +190,7 @@ Ustaw niestandardową lokalizację pliku logów używając zmiennej środowiskow
 ```bash
 export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
 mcp-docker
-```text
+```
 
 ## Przegląd Narzędzi
 
@@ -295,7 +295,7 @@ Skonfiguruj tryb bezpieczeństwa za pomocą zmiennych środowiskowych:
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 - ✅ List, inspect, logs, stats
 - ❌ Create, start, stop, pull
@@ -306,7 +306,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # lub pomiń (domyślnie)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
@@ -317,7 +317,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-```text
+```
 
 - ✅ List, inspect, logs, stats
 - ✅ Create, start, stop, pull
@@ -353,7 +353,7 @@ uv run ruff format src tests
 
 # Uruchom sprawdzanie typów
 uv run mypy src tests
-```text
+```
 
 ### Uruchamianie Testów
 
@@ -387,7 +387,7 @@ uv run pytest tests/e2e/ -v -m e2e
 
 # Uruchom testy E2E z pominięciem wolnych testów
 uv run pytest tests/e2e/ -v -m "e2e and not slow"
-```text
+```
 
 ### Struktura Projektu
 
@@ -406,7 +406,7 @@ mcp_docker/
 ├── tests/                       # Pakiet testów
 ├── docs/                        # Dokumentacja
 └── pyproject.toml              # Konfiguracja projektu
-```text
+```
 
 ## Wymagania
 

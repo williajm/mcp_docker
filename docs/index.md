@@ -71,7 +71,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ```bash
 # Run directly without installation
 uvx mcp-docker
-```text
+```
 
 #### Using uv
 
@@ -81,7 +81,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```text
+```
 
 #### Using pip
 
@@ -93,7 +93,7 @@ pip install mcp-docker
 git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
-```text
+```
 
 ### Configuration
 
@@ -117,7 +117,7 @@ Configuration file location: `~/Library/Application Support/Claude/claude_deskto
     }
   }
 }
-```text
+```
 
 #### Windows
 
@@ -135,7 +135,7 @@ Configuration file location: `%APPDATA%\Claude\claude_desktop_config.json`
     }
   }
 }
-```text
+```
 
 **Note**: Ensure Docker Desktop is running before starting the MCP server.
 
@@ -174,7 +174,7 @@ export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true
 
 # Require confirmation for destructive operations
 export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
-```text
+```
 
 ## What's Available
 
@@ -234,7 +234,7 @@ result = await client.call_tool("docker_list_containers", {
     "all": True,
     "filters": {"status": ["running"]}
 })
-```text
+```
 
 ### Troubleshoot a Container
 
@@ -244,7 +244,7 @@ prompt = await client.get_prompt("troubleshoot_container", {
     "container_id": "my-container"
 })
 # Returns detailed diagnostics and recommendations
-```text
+```
 
 ### Stream Container Logs
 
@@ -253,7 +253,7 @@ prompt = await client.get_prompt("troubleshoot_container", {
 logs = await client.read_resource(
     "container_logs://my-container?tail=100&follow=true"
 )
-```text
+```
 
 ## Documentation Structure
 

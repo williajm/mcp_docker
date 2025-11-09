@@ -57,7 +57,7 @@ title: Architecture
 |  |Containers|  |  Images  |  | Networks |  | Volumes  |         |
 |  +----------+  +----------+  +----------+  +----------+         |
 +-----------------------------------------------------------------+
-```text
+```
 
 ### 1.2 Module Structure and Responsibilities
 
@@ -106,7 +106,7 @@ src/mcp_docker/
     +-- validation.py      # Input validation (Pydantic)
     +-- safety.py          # Safety controls and command sanitization
     +-- logger.py          # Structured logging (loguru)
-```text
+```
 
 ### 1.3 Data Flow Diagram
 
@@ -171,7 +171,7 @@ src/mcp_docker/
 | MCP Client           |
 | (Result JSON)        |
 +----------------------+
-```text
+```
 
 ### 1.4 Component Interactions
 
@@ -230,7 +230,7 @@ src/mcp_docker/
 |  | Exception|  | Models   |  | Sanitize |  | Struct.  |          |
 |  +----------+  +----------+  +----------+  +----------+          |
 +------------------------------------------------------------------+
-```text
+```
 
 ---
 
@@ -262,7 +262,7 @@ def client(self) -> DockerClient:
     if self._client is None:
         self._connect()
     return self._client
-```text
+```
 
 **Trade-offs**:
 
@@ -285,7 +285,7 @@ class OperationSafety(str, Enum):
     SAFE = "safe"          # Read-only, always allowed
     MODERATE = "moderate"  # State-changing, usually safe
     DESTRUCTIVE = "destructive"  # Permanent, requires permission
-```text
+```
 
 **Categories**:
 
@@ -321,7 +321,7 @@ class CreateContainerInput(BaseModel):
         if v is not None:
             validate_container_name(v)
         return v
-```text
+```
 
 **Benefits**:
 
@@ -350,7 +350,7 @@ async def execute(self, arguments: dict[str, Any]) -> ToolResult:
     # Docker SDK is synchronous, but we're ready for async operations
     result = await self._run_operation(arguments)
     return result
-```text
+```
 
 **Current State**: Docker SDK is synchronous, but all tool interfaces are async.
 
@@ -384,7 +384,7 @@ class ListContainersTool:
     ):
         self.docker = docker_client
         self.safety = safety_config
-```text
+```
 
 **Benefits**:
 
@@ -418,7 +418,7 @@ MCPDockerError (base)
 +-- ImageNotFound
 +-- NetworkNotFound
 +-- VolumeNotFound
-```text
+```
 
 **Benefits**:
 
@@ -437,7 +437,7 @@ MCPDockerError (base)
 with docker_client.acquire() as client:
     containers = client.containers.list()
 # Client automatically released
-```text
+```
 
 **Benefits**:
 
@@ -461,7 +461,7 @@ return ToolResult.error_result(
     error="Container not found",
     container_id=container_id
 )
-```text
+```
 
 **Benefits**:
 
@@ -479,7 +479,7 @@ validate_container_name(name)
 validate_image_name(image)
 validate_port(port)
 validate_memory(memory)
-```text
+```
 
 **Benefits**:
 
@@ -519,7 +519,7 @@ The project uses a comprehensive type safety strategy with three layers:
 |  - Docker-specific constraints                       |
 |  - Safety checks                                     |
 +------------------------------------------------------+
-```text
+```
 
 ### 3.2 Type Hints Strategy
 
@@ -535,7 +535,7 @@ disallow_untyped_defs = true
 disallow_any_generics = true
 check_untyped_defs = true
 no_implicit_optional = true
-```text
+```
 
 **Example: Fully Typed Tool**:
 
@@ -589,7 +589,7 @@ class ListContainersTool:
             "status": container.status,
             "image": container.image.tags[0] if container.image.tags else None,
         }
-```text
+```
 
 ### 3.3 Pydantic Integration
 
@@ -632,7 +632,7 @@ class CreateContainerInput(BaseModel):
                     "Must be a number followed by b, k, m, or g"
                 )
         return v
-```text
+```
 
 ### 3.4 Type Safety Benefits
 
@@ -664,7 +664,7 @@ async def get_container_logs(
         raise DockerOperationError(
             f"Failed to get logs: {e}"
         ) from e
-```text
+```
 
 **Type Checker Coverage**:
 
@@ -709,7 +709,7 @@ MCPDockerError (Base Exception)
     +-- ImageNotFound
     +-- NetworkNotFound
     +-- VolumeNotFound
-```text
+```
 
 ### 4.2 Error Propagation Strategy
 
@@ -730,7 +730,7 @@ except docker.errors.APIError as e:
     raise DockerOperationError(
         f"Docker API error: {e.explanation}"
     ) from e
-```text
+```
 
 **Error Context**: Always preserve the error chain with `from e`.
 
@@ -789,7 +789,7 @@ async def execute(self, input_data: ToolInput) -> ToolResult:
             error_type="InternalError",
             suggestion="Check logs for details"
         )
-```text
+```
 
 ### 4.4 Error Message Design
 
@@ -809,13 +809,13 @@ raise ValidationError(
     f"and can only contain letters, numbers, underscores, periods, and hyphens. "
     f"Example: 'my-container-1' or 'app_server'"
 )
-```text
+```
 
 **Example: Bad Error Message**:
 
 ```python
 raise ValidationError("Invalid name")  # Too vague!
-```text
+```
 
 ### 4.5 Logging Strategy
 
@@ -846,7 +846,7 @@ logger.error(f"Failed to execute {self.name}: {e}")
 
 # CRITICAL: Server-level issue
 logger.critical(f"Cannot connect to Docker daemon: {e}")
-```text
+```
 
 ---
 
@@ -870,7 +870,7 @@ logger.critical(f"Cannot connect to Docker daemon: {e}")
              ╱   Tests   ╲
             ╱ (100+ tests)╲
            +---------------+
-```text
+```
 
 ### 5.2 Unit Testing Strategy
 
@@ -915,7 +915,7 @@ async def test_list_containers_success(mock_docker_client):
         all=False,
         filters={}
     )
-```text
+```
 
 ### 5.3 Integration Testing Strategy
 
@@ -967,7 +967,7 @@ async def test_container_lifecycle(docker_client_wrapper, integration_test_confi
         # Cleanup
         remove_tool = RemoveContainerTool(docker_client_wrapper)
         await remove_tool.execute({"container_id": container_id, "force": True})
-```text
+```
 
 ### 5.4 Test Fixtures
 
@@ -1016,7 +1016,7 @@ async def test_container(docker_client_wrapper):
     # Cleanup
     container.stop()
     container.remove()
-```text
+```
 
 ### 5.5 Coverage Strategy
 
@@ -1041,7 +1041,7 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
-```text
+```
 
 **Coverage Reporting**:
 
@@ -1051,7 +1051,7 @@ uv run pytest --cov=mcp_docker --cov-report=html --cov-report=term
 
 # View coverage report
 open htmlcov/index.html
-```text
+```
 
 ---
 
@@ -1091,7 +1091,7 @@ class OperationSafety(str, Enum):
     SAFE = "safe"          # No security risk
     MODERATE = "moderate"  # Controlled risk
     DESTRUCTIVE = "destructive"  # High risk
-```text
+```
 
 **Configuration**:
 
@@ -1101,7 +1101,7 @@ class SafetyConfig(BaseSettings):
     allow_privileged_containers: bool = Field(default=False)
     require_confirmation_for_destructive: bool = Field(default=True)
     max_concurrent_operations: int = Field(default=10, gt=0, le=100)
-```text
+```
 
 **Enforcement**:
 
@@ -1114,7 +1114,7 @@ def check_safety(self) -> None:
                 f"Destructive operation '{self.name}' is not allowed. "
                 "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
             )
-```text
+```
 
 #### 6.2.2 Command Sanitization
 
@@ -1146,7 +1146,7 @@ def sanitize_command(command: str | list[str]) -> list[str]:
             )
 
     return [command] if isinstance(command, str) else command
-```text
+```
 
 #### 6.2.3 Path Validation
 
@@ -1174,7 +1174,7 @@ def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> No
         raise UnsafeOperationError(
             f"Mount path '{path}' is not in allowed paths list"
         )
-```text
+```
 
 #### 6.2.4 Privileged Port Protection
 
@@ -1189,7 +1189,7 @@ def validate_port_binding(
             f"Privileged port {host_port} (<1024) is not allowed. "
             "Enable privileged ports in configuration or use port >= 1024."
         )
-```text
+```
 
 #### 6.2.5 Input Validation
 
@@ -1214,7 +1214,7 @@ def validate_container_name(name: str) -> str:
         )
 
     return name
-```text
+```
 
 **Image Name Validation**:
 
@@ -1226,7 +1226,7 @@ IMAGE_NAME_PATTERN = re.compile(
     r"[a-z0-9]+(?:[._-][a-z0-9]+)*"
     r"(?::[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127})?$"
 )
-```text
+```
 
 ### 6.3 Security Best Practices
 
@@ -1237,7 +1237,7 @@ IMAGE_NAME_PATTERN = re.compile(
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false
 SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
-```text
+```
 
 **Principle of Least Privilege**:
 
@@ -1305,7 +1305,7 @@ async def test_sensitive_path_mount_blocked():
                 "image": "alpine",
                 "volumes": {path: {"bind": "/mnt", "mode": "ro"}}
             })
-```text
+```
 
 ---
 
@@ -1344,7 +1344,7 @@ async def test_sensitive_path_mount_blocked():
 |  - Blocks on I/O operations                      |
 |  - Future: async Docker SDK                      |
 +--------------------------------------------------+
-```text
+```
 
 **Current Implementation**:
 
@@ -1355,7 +1355,7 @@ async def execute(self, input_data: ToolInput) -> ToolResult:
     with self.docker.acquire() as client:
         result = client.containers.list()  # Synchronous call
     return ToolResult.success_result(result)
-```text
+```
 
 **Future-Proofing**:
 
@@ -1366,7 +1366,7 @@ async def execute(self, input_data: ToolInput) -> ToolResult:
     async with self.docker.acquire_async() as client:
         result = await client.containers.list()  # Async call
     return ToolResult.success_result(result)
-```text
+```
 
 ### 7.3 Connection Management
 
@@ -1379,7 +1379,7 @@ def client(self) -> DockerClient:
     if self._client is None:
         self._connect()  # Only connect when first needed
     return self._client
-```text
+```
 
 **Benefits**:
 
@@ -1409,7 +1409,7 @@ class DockerClientWrapper:
         except Exception:
             # Handle errors but keep connection open
             raise
-```text
+```
 
 ### 7.4 Resource Management
 
@@ -1429,7 +1429,7 @@ def _format_container_list(containers: list) -> list[dict]:
         }
         for c in containers
     ]
-```text
+```
 
 **Streaming for Large Data**:
 
@@ -1441,7 +1441,7 @@ async def stream_logs(container_id: str) -> AsyncGenerator[str, None]:
         yield chunk.decode('utf-8')
         # Yield control to event loop
         await asyncio.sleep(0)
-```text
+```
 
 **Resource Limits**:
 
@@ -1453,7 +1453,7 @@ class SafetyConfig(BaseSettings):
         gt=0,
         le=100
     )
-```text
+```
 
 ### 7.5 Performance Optimizations
 
@@ -1465,7 +1465,7 @@ class SafetyConfig(BaseSettings):
 def get_image_info(image_id: str) -> dict:
     """Cache image metadata."""
     return client.images.get(image_id).attrs
-```text
+```
 
 **Batch Operations** (Future Enhancement):
 
@@ -1479,7 +1479,7 @@ def list_containers_batch(
         client.containers.get(cid).attrs
         for cid in container_ids
     ]
-```text
+```
 
 ### 7.6 Performance Monitoring
 
@@ -1510,7 +1510,7 @@ async def execute(self, input_data: ToolInput) -> ToolResult:
             error=str(e)
         )
         raise
-```text
+```
 
 ---
 
@@ -1544,7 +1544,7 @@ class ComposeManager:
         """Start compose services."""
         # Use compose-go or docker-compose CLI
         pass
-```text
+```
 
 **Challenges**:
 
@@ -1584,7 +1584,7 @@ class SwarmManager:
             mode={"Replicated": {"Replicas": replicas}}
         )
         return service.attrs
-```text
+```
 
 #### 8.1.3 Remote Docker Host Support
 
@@ -1601,7 +1601,7 @@ class DockerConfig(BaseSettings):
     ssh_host: str | None = Field(default=None)
     ssh_port: int = Field(default=22)
     ssh_key_path: Path | None = Field(default=None)
-```text
+```
 
 **Implementation**:
 
@@ -1621,7 +1621,7 @@ def _connect_remote(self) -> DockerClient:
     else:
         # Standard TCP connection
         return docker.DockerClient(base_url=self.config.base_url)
-```text
+```
 
 **Security Considerations**:
 
@@ -1648,7 +1648,7 @@ async def build_image_with_progress(
             "status": progress.get("status", ""),
             "progress": progress.get("progress", ""),
         }
-```text
+```
 
 **Pull Progress**:
 
@@ -1664,7 +1664,7 @@ async def pull_image_with_progress(
             "status": progress.get("status", ""),
             "progress": progress.get("progress", ""),
         }
-```text
+```
 
 #### 8.1.5 WebSocket Transport
 
@@ -1691,7 +1691,7 @@ class WebSocketTransport:
             request = json.loads(message)
             response = await self.handle_request(request)
             await websocket.send(json.dumps(response))
-```text
+```
 
 **Benefits**:
 
@@ -1728,7 +1728,7 @@ async def scan_image_for_cves(image: str) -> dict:
         text=True
     )
     return json.loads(result.stdout)
-```text
+```
 
 ### 8.2 Technical Debt
 
@@ -1895,7 +1895,7 @@ class MyTool(BaseTool):
                 error=str(e),
                 error_type=type(e).__name__
             )
-```text
+```
 
 ### Example: Custom Validation
 
@@ -1933,7 +1933,7 @@ def validate_network_name(name: str) -> str:
         )
 
     return name
-```text
+```
 
 ### Example: Integration Test
 
@@ -1983,7 +1983,7 @@ async def test_container_full_lifecycle(docker_client_wrapper, integration_test_
                 "container_id": container_id,
                 "force": True
             })
-```text
+```
 
 ---
 

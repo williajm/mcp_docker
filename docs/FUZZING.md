@@ -74,7 +74,7 @@ Install Atheris (Google's Python fuzzing engine):
 
 ```bash
 uv sync --all-extras  # Includes atheris in dev dependencies
-```text
+```
 
 ### Running Individual Fuzzers
 
@@ -90,7 +90,7 @@ python3 tests/fuzz/fuzz_safety.py -atheris_runs=10000
 
 # Run JSON parsing fuzzer
 python3 tests/fuzz/fuzz_json_parsing.py -atheris_runs=10000
-```text
+```
 
 ### Atheris Command-Line Options
 
@@ -109,7 +109,7 @@ python3 tests/fuzz/fuzz_json_parsing.py -atheris_runs=10000
 
 # Save failing inputs to a directory
 -artifact_prefix=./crashes/
-```text
+```
 
 ## CI/CD Integration
 
@@ -162,7 +162,7 @@ fuzz-builds-${{ runner.os }}-${{ hashFiles(
   'pyproject.toml',            # Dependencies
   '.clusterfuzzlite/build.sh'  # Build script
 ) }}
-```text
+```
 
 **Cache Storage**:
 
@@ -207,14 +207,14 @@ Check if the cache is working in the PR fuzzing workflow logs:
 ```text
 Cache hit! Restoring PyInstaller builds...
 Restored 4 fuzz targets from cache
-```text
+```
 
 **Cache miss** (expected on first run or after code changes):
 
 ```text
 Cache not found, will build fuzz targets
 Building fuzz targets...
-```text
+```
 
 ### When Cache Invalidates
 
@@ -246,7 +246,7 @@ on:
     branches: [ main ]
   schedule:
     - cron: '0 2 * * 1'  # Weekly on Mondays at 2 AM UTC
-```text
+```
 
 ## Configuration Files
 
@@ -288,7 +288,7 @@ import atheris
 
 with atheris.instrument_imports():
     from mcp_docker.your_module import your_function
-```text
+```
 
 3. **Write test functions** that exercise your component:
 
@@ -308,7 +308,7 @@ def fuzz_your_component(data: bytes) -> None:
     except (ValueError, YourExpectedException):
         # Expected errors are OK
         pass
-```text
+```
 
 4. **Add main entry point**:
 
@@ -324,13 +324,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-```text
+```
 
 5. **Test locally**:
 
 ```bash
 python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
-```text
+```
 
 6. The fuzzer will be **automatically discovered** by ClusterFuzzLite's build script.
 
@@ -359,7 +359,7 @@ python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
 
 ```text
 #1000    pulse  cov: 234 ft: 456 corp: 12/234Kb exec/s: 100
-```text
+```
 
 - `cov`: Code coverage (higher is better)
 - `ft`: Features covered
@@ -370,7 +370,7 @@ python3 tests/fuzz/fuzz_your_component.py -atheris_runs=1000
 
 ```text
 ==12345==ERROR: AddressSanitizer: heap-buffer-overflow
-```text
+```
 
 ClusterFuzzLite will:
 
@@ -388,13 +388,13 @@ If a fuzzer finds a crash:
 
 ```bash
 python3 tests/fuzz/fuzz_component.py failing_input_file
-```text
+```
 
 3. **Debug with GDB** (if needed):
 
 ```bash
 gdb --args python3 tests/fuzz/fuzz_component.py failing_input_file
-```text
+```
 
 4. **Fix the bug** and verify:
 
@@ -404,7 +404,7 @@ python3 tests/fuzz/fuzz_component.py failing_input_file
 
 # Run extended fuzzing to ensure fix
 python3 tests/fuzz/fuzz_component.py -atheris_runs=100000
-```text
+```
 
 ## Monitoring and Metrics
 
@@ -464,7 +464,7 @@ Coverage reports are generated for each run and available as artifacts.
 ```bash
 uv sync --all-extras
 python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
-```text
+```
 
 ### Q: How do I exclude false positives?
 
@@ -475,7 +475,7 @@ try:
     result = your_function(input)
 except KnownFalsePositiveError:
     pass  # Expected error, not a bug
-```text
+```
 
 ---
 

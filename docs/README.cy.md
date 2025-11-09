@@ -35,7 +35,7 @@
 ```bash
 # Rhedeg yn uniongyrchol heb osod
 uvx mcp-docker
-```text
+```
 
 #### Opsiwn 2: Defnyddio uv
 
@@ -45,7 +45,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```text
+```
 
 #### Opsiwn 3: Defnyddio pip
 
@@ -55,7 +55,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```text
+```
 
 ### Ffurfweddiad
 
@@ -69,19 +69,19 @@ Gellir ffurfweddu'r gweinydd trwy newidynnau amgylchedd neu ffeil `.env`.
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```text
+```
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```text
+```
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```text
+```
 
 #### Pob Opsiwn Ffurfweddu
 
@@ -107,7 +107,7 @@ export MCP_SERVER_NAME="mcp-docker"  # Enw gweinydd MCP (rhagosodiad: mcp-docker
 export MCP_SERVER_VERSION="0.1.0"  # Fersiwn gweinydd MCP (rhagosodiad: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Lefel cofnodi: DEBUG, INFO, WARNING, ERROR, CRITICAL (rhagosodiad: INFO)
 export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # Llwybr ffeil log (dewisol, rhagosodiad i mcp_docker.log yn y cyfeiriadur gwaith)
-```text
+```
 
 #### Defnyddio Ffeil .env
 
@@ -118,14 +118,14 @@ Fel arall, crëwch ffeil `.env` yn eich cyfeiriadur prosiect:
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ```bash
 # Enghraifft ffeil .env (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ### Gosodiad Claude Desktop
 
@@ -149,7 +149,7 @@ Ychwanegwch at eich ffurfweddiad Claude Desktop:
     }
   }
 }
-```text
+```
 
 **Ffurfweddiad Windows:**
 
@@ -165,7 +165,7 @@ Ychwanegwch at eich ffurfweddiad Claude Desktop:
     }
   }
 }
-```text
+```
 
 ## Trosolwg Offer
 
@@ -270,7 +270,7 @@ Ffurfweddwch y modd diogelwch gan ddefnyddio newidynnau amgylchedd:
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 - ✅ Rhestr, arolygu, cofnodion, ystadegau
 - ❌ Creu, cychwyn, stopio, tynnu
@@ -281,7 +281,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # neu hepgor (rhagosodiad)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 - ✅ Rhestr, arolygu, cofnodion, ystadegau
 - ✅ Creu, cychwyn, stopio, tynnu
@@ -292,7 +292,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-```text
+```
 
 - ✅ Rhestr, arolygu, cofnodion, ystadegau
 - ✅ Creu, cychwyn, stopio, tynnu
@@ -328,7 +328,7 @@ uv run ruff format src tests
 
 # Rhedeg gwirio mathau
 uv run mypy src tests
-```text
+```
 
 ### Rhedeg Profion
 
@@ -367,7 +367,7 @@ uv run pytest tests/e2e/ -v -m "e2e and not slow"
 # Rhedeg profion fuzz yn lleol (angen atheris)
 python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
 python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
-```text
+```
 
 #### Ffwzialu
 

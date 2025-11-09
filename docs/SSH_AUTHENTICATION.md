@@ -21,14 +21,14 @@ MCP Docker now supports SSH key-based authentication as an alternative to API ke
 
 # Or generate manually
 ssh-keygen -t ed25519 -f ~/.ssh/mcp_client_key -C "my-client:description"
-```text
+```
 
 ### 2. Add Public Key to Authorized Keys
 
 ```bash
 # Create authorized_keys file
 cat ~/.ssh/mcp_client_key.pub >> ~/.ssh/mcp_authorized_keys
-```text
+```
 
 ### 3. Configure MCP Server
 
@@ -39,7 +39,7 @@ SECURITY_AUTH_ENABLED=true
 SECURITY_SSH_AUTH_ENABLED=true
 SECURITY_SSH_AUTHORIZED_KEYS_FILE=~/.ssh/mcp_authorized_keys
 SECURITY_SSH_SIGNATURE_MAX_AGE=300  # 5 minutes
-```text
+```
 
 ### 4. Authenticate with SSH Key
 
@@ -53,13 +53,13 @@ See `examples/ssh_auth_client.py` for a complete Python example.
 
    ```text
    message = "{client_id}|{timestamp}|{nonce}"
-   ```text
+   ```
 
 2. **Client signs challenge**:
 
    ```python
    signature = private_key.sign_ssh_data(message.encode())
-   ```text
+   ```
 
 3. **Client sends authentication request**:
 
@@ -70,7 +70,7 @@ See `examples/ssh_auth_client.py` for a complete Python example.
      "nonce": "random-base64-string",
      "signature": "base64-encoded-signature"
    }
-   ```text
+   ```
 
 4. **Server validates**:
    - Timestamp is recent (within 5 minutes by default)
@@ -100,7 +100,7 @@ Supports key rotation and multi-device scenarios:
 ssh-ed25519 AAAAC3Nza... client1:laptop
 ssh-ed25519 AAAAC3Nza... client1:desktop
 ssh-ed25519 AAAAC3Nza... client1:ci-server
-```text
+```
 
 ## Authorized Keys File Format
 
@@ -115,7 +115,7 @@ ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAB... client2:server
 
 # Disabled keys (comment out)
 # ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... old-client:deprecated
-```text
+```
 
 **Fields**:
 
@@ -150,7 +150,7 @@ SECURITY_AUTH_ENABLED=true                    # Enable authentication
 SECURITY_RATE_LIMIT_ENABLED=true              # Enable rate limiting
 SECURITY_RATE_LIMIT_RPM=60                    # Requests per minute
 SECURITY_AUDIT_LOG_ENABLED=true               # Enable audit logging
-```text
+```
 
 ### Python Configuration
 
@@ -163,7 +163,7 @@ config = SecurityConfig(
     ssh_authorized_keys_file=Path("~/.ssh/mcp_authorized_keys"),
     ssh_signature_max_age=300,  # 5 minutes
 )
-```text
+```
 
 ## Client Implementation
 
@@ -216,7 +216,7 @@ async with stdio_client(...) as (read, write):
                 "all": True  # Actual tool arguments
             }
         )
-```text
+```
 
 See `examples/ssh_auth_mcp_client.py` for complete example.
 
@@ -234,7 +234,7 @@ result = await session.call_tool(
         "all": True
     }
 )
-```text
+```
 
 ### Important Notes
 
@@ -252,7 +252,7 @@ await session.call_tool("list_containers", {"_auth": {"ssh": ssh_auth1}, ...})
 
 ssh_auth2 = create_ssh_auth_data(...)  # Fresh timestamp & nonce
 await session.call_tool("inspect_container", {"_auth": {"ssh": ssh_auth2}, ...})
-```text
+```
 
 **Why?**
 
@@ -274,7 +274,7 @@ To rotate keys without downtime:
 
    # Add new key
    ssh-ed25519 AAAAC3Nza...new client1:new-key
-   ```text
+   ```
 
 2. **Update client** to use new key
 
@@ -282,7 +282,7 @@ To rotate keys without downtime:
 
    ```bash
    # Remove old key line from authorized_keys
-   ```text
+   ```
 
 ### Hot Reload
 
@@ -291,7 +291,7 @@ Reload keys without restarting the server:
 ```python
 # Server has a reload endpoint or signal handler
 # Implementation depends on your server setup
-```text
+```
 
 ### Multi-Device Setup
 
@@ -300,7 +300,7 @@ Reload keys without restarting the server:
 ssh-ed25519 AAAAC3Nza...laptop client1:laptop
 ssh-ed25519 AAAAC3Nza...desktop client1:desktop
 ssh-ed25519 AAAAC3Nza...ci-server client1:ci-server
-```text
+```
 
 All devices can authenticate as the same client using different keys.
 
@@ -321,7 +321,7 @@ sudo ntpdate pool.ntp.org
 
 # Or increase max age (not recommended)
 SECURITY_SSH_SIGNATURE_MAX_AGE=600  # 10 minutes
-```text
+```
 
 ### "SSH authentication failed: nonce has already been used"
 
@@ -345,7 +345,7 @@ cat ~/.ssh/mcp_client_key.pub >> ~/.ssh/mcp_authorized_keys
 
 # Verify format
 cat ~/.ssh/mcp_authorized_keys
-```text
+```
 
 ### "SSH authentication failed: invalid signature"
 
@@ -399,7 +399,7 @@ def authenticate_request(
     Raises:
         AuthenticationError: If authentication fails
     """
-```text
+```
 
 ### SSHKeyAuthenticator.authenticate()
 
@@ -427,7 +427,7 @@ def authenticate(
         SSHKeyNotFoundError: Client key not authorized
         SSHSignatureInvalidError: Signature verification failed
     """
-```text
+```
 
 ## Implementation Details
 
@@ -455,7 +455,7 @@ uv run pytest tests/unit/auth/test_ssh_auth.py -v
 
 # All auth tests
 uv run pytest tests/unit/auth/ -v
-```text
+```
 
 ## Comparison: SSH Auth vs API Keys
 

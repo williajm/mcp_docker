@@ -34,7 +34,7 @@
 ```bash
 # Direkt ohne Installation ausführen
 uvx mcp-docker
-```text
+```
 
 #### Option 2: Verwendung von uv
 
@@ -44,7 +44,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 uv sync
 uv run mcp-docker
-```text
+```
 
 #### Option 3: Verwendung von pip
 
@@ -54,7 +54,7 @@ git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
 pip install -e .
 mcp-docker
-```text
+```
 
 ### Konfiguration
 
@@ -68,19 +68,19 @@ Der Server kann über Umgebungsvariablen oder eine `.env`-Datei konfiguriert wer
 
 ```bash
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-```text
+```
 
 **Windows (Docker Desktop):**
 
 ```cmd
 set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```text
+```
 
 **PowerShell:**
 
 ```powershell
 $env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```text
+```
 
 #### Alle Konfigurationsoptionen
 
@@ -105,7 +105,7 @@ export MCP_SERVER_NAME="mcp-docker"  # MCP-Servername (Standard: mcp-docker)
 export MCP_SERVER_VERSION="0.1.0"  # MCP-Serverversion (Standard: 0.1.0)
 export MCP_LOG_LEVEL="INFO"  # Logging-Level: DEBUG, INFO, WARNING, ERROR, CRITICAL (Standard: INFO)
 export MCP_DOCKER_LOG_PATH="/pfad/zu/mcp_docker.log"  # Log-Dateipfad (optional, Standard ist mcp_docker.log im Arbeitsverzeichnis)
-```text
+```
 
 #### Verwendung einer .env-Datei
 
@@ -115,13 +115,13 @@ Alternativ erstellen Sie eine `.env`-Datei in Ihrem Projektverzeichnis:
 # .env-Datei Beispiel (Linux/macOS)
 DOCKER_BASE_URL=unix:///var/run/docker.sock
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ```bash
 # .env-Datei Beispiel (Windows)
 DOCKER_BASE_URL=npipe:////./pipe/docker_engine
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```text
+```
 
 ### Claude Desktop Einrichtung
 
@@ -145,7 +145,7 @@ Fügen Sie dies zu Ihrer Claude Desktop-Konfiguration hinzu:
     }
   }
 }
-```text
+```
 
 **Windows-Konfiguration:**
 
@@ -161,7 +161,7 @@ Fügen Sie dies zu Ihrer Claude Desktop-Konfiguration hinzu:
     }
   }
 }
-```text
+```
 
 ### Erweiterte Verwendung
 
@@ -172,7 +172,7 @@ Der Server unterstützt SSE (Server-Sent Events) Transport über HTTP zusätzlic
 ```bash
 # Mit SSE-Transport ausführen
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```text
+```
 
 **Befehlszeilenoptionen:**
 
@@ -187,7 +187,7 @@ Setzen Sie einen benutzerdefinierten Log-Dateispeicherort mit der Umgebungsvaria
 ```bash
 export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
 mcp-docker
-```text
+```
 
 ## Werkzeugübersicht
 
@@ -314,7 +314,7 @@ Verwenden Sie das Tool `docker_compose_write_file`, um benutzerdefinierte Compos
     }
   }
 }
-```text
+```
 
 ### Sicherheitsfunktionen
 
@@ -383,7 +383,7 @@ uv run ruff format src tests
 
 # Typprüfung ausführen
 uv run mypy src tests
-```text
+```
 
 ### Tests ausführen
 
@@ -396,7 +396,7 @@ uv run pytest tests/unit/ -v
 
 # Integrationstests ausführen (erfordert Docker)
 uv run pytest tests/integration/ -v -m integration
-```text
+```
 
 ### Projektstruktur
 
@@ -415,7 +415,7 @@ mcp_docker/
 ├── tests/                       # Test-Suite
 ├── docs/                        # Dokumentation
 └── pyproject.toml              # Projektkonfiguration
-```text
+```
 
 ## Anforderungen
 
