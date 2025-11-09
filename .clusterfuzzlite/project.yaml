@@ -16,4 +16,4 @@ fuzzing_engines:
   - libfuzzer
 
 # File types to preserve for coverage
-file_github_issue_for_crashes: false
+file_github_issue_for_crashes: true
