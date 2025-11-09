@@ -13,17 +13,6 @@ WORKDIR $SRC/mcp-docker
 RUN python3 -m pip install --require-hashes --no-deps -r .clusterfuzzlite/requirements.txt && \
     python3 -m pip install --no-deps -e .
 
-# Create compile_python_fuzzer helper function (OSS-Fuzz compatibility)
-RUN echo '#!/bin/bash\n\
-# Simple compile_python_fuzzer stub for ClusterFuzzLite\n\
-# In OSS-Fuzz, this would do more complex compilation\n\
-# For our purposes, we just copy the fuzzer to $OUT\n\
-fuzzer_path="$1"\n\
-fuzzer_name=$(basename "$fuzzer_path" .py)\n\
-cp "$fuzzer_path" "$OUT/$fuzzer_name"\n\
-chmod +x "$OUT/$fuzzer_name"\n\
-' > /usr/local/bin/compile_python_fuzzer && \
-    chmod +x /usr/local/bin/compile_python_fuzzer
-
 # Copy build script
+# Note: compile_python_fuzzer is already provided by the base image
 COPY .clusterfuzzlite/build.sh $SRC/
