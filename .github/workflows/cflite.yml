@@ -28,7 +28,7 @@ jobs:
         - address
     steps:
     - name: Checkout code
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
     - name: Restore PyInstaller build cache
       id: cache-restore
@@ -68,7 +68,7 @@ jobs:
 
     - name: Upload SARIF results
       if: always() && steps.run.outputs.sarif != ''
-      uses: github/codeql-action/upload-sarif@42213152a85ae7569bdb6bec7bcd74cd691bfe41 # v3.30.9
+      uses: github/codeql-action/upload-sarif@0499de31b99561a6d14a36a5f662c2a54f91beee # v4.31.2
       with:
         sarif_file: ${{ steps.run.outputs.sarif }}
         category: clusterfuzzlite-${{ matrix.sanitizer }}
