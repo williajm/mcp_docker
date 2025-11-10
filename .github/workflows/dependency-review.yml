@@ -3,15 +3,13 @@ name: Dependency Review
 on:
   pull_request:
     branches: [ main ]
-    paths-ignore:
-      - '.github/requirements/**'
 
 permissions:
   contents: read
 
 jobs:
-  product-dependencies:
-    name: Review Product Dependencies
+  dependency-review:
+    name: Review Dependencies
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,12 +24,18 @@ jobs:
       with:
         # Fail the build if vulnerabilities are found
         fail-on-severity: moderate
-        # Strict license policy for product dependencies
+        # License policy for all dependencies (product and CI/dev tooling)
+        # Product dependencies (pyproject.toml): MIT, Apache-2.0, BSD, ISC, Python-2.0
+        # CI dependencies (.github/requirements/): Also includes PSF-2.0, Unlicense
+        #
         # MIT-0: Public domain equivalent (used by cffi)
         # 0BSD: Zero-clause BSD (used by typing-extensions)
-        # PSF-2.0, Unlicense: Temporarily allowed for CI tooling in .github/requirements/
-        #   (CI dependencies are not distributed with the product)
-        #   TODO: Remove PSF-2.0 and Unlicense after PR #94 is merged
+        # PSF-2.0: Python Software Foundation License (used by distlib in pre-commit)
+        # Unlicense: Public domain dedication (used by filelock in pre-commit)
+        #
+        # Note: CI/dev dependencies in .github/requirements/ are NOT distributed with
+        # the mcp-docker product and do not affect the product's MIT license.
+        # All allowed licenses are MIT-compatible and permissive.
         allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, PSF-2.0, Unlicense, LGPL-3.0
         comment-summary-in-pr: on-failure
         # OpenSSF Scorecard configuration
