@@ -34,7 +34,7 @@ jobs:
           pre-commit-${{ runner.os }}-
 
     - name: Install pre-commit
-      run: pip install pre-commit==4.0.1
+      run: pip install --require-hashes pre-commit==4.0.1 --hash=sha256:efde913840816312445dc98787724647c65473daefe420785f885e8ed9a06878
 
     - name: Run pre-commit
       run: pre-commit run --all-files --show-diff-on-failure --color=always
