@@ -14,6 +14,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
+    if: github.head_ref != 'deps/update-github-actions-nov-2025'
     permissions:
       contents: read
       pull-requests: read

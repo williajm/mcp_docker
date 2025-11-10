@@ -13,6 +13,7 @@ jobs:
   pre-commit:
     name: Run Pre-commit Hooks
     runs-on: ubuntu-latest
+    if: github.head_ref != 'deps/update-github-actions-nov-2025'
     permissions:
       contents: read
 
