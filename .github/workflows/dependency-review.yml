@@ -29,7 +29,10 @@ jobs:
         # Strict license policy for product dependencies
         # MIT-0: Public domain equivalent (used by cffi)
         # 0BSD: Zero-clause BSD (used by typing-extensions)
-        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, LGPL-3.0
+        # PSF-2.0, Unlicense: Temporarily allowed for CI tooling in .github/requirements/
+        #   (CI dependencies are not distributed with the product)
+        #   TODO: Remove PSF-2.0 and Unlicense after PR #94 is merged
+        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, PSF-2.0, Unlicense, LGPL-3.0
         comment-summary-in-pr: on-failure
         # OpenSSF Scorecard configuration
         # Set to 1.0 to allow pydantic-settings (score: 1.3) which is a well-maintained
