@@ -35,8 +35,8 @@ jobs:
         #
         # Note: CI/dev dependencies in .github/requirements/ are NOT distributed with
         # the mcp-docker product and do not affect the product's MIT license.
-        # All allowed licenses are MIT-compatible and permissive.
-        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, PSF-2.0, Unlicense, LGPL-3.0
+        # All allowed licenses are permissive (no copyleft).
+        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, PSF-2.0, Unlicense
         comment-summary-in-pr: on-failure
         # OpenSSF Scorecard configuration
         # Set to 1.0 to allow pydantic-settings (score: 1.3) which is a well-maintained
