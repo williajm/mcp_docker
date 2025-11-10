@@ -14,7 +14,6 @@ jobs:
   sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
-    if: github.head_ref != 'deps/update-github-actions-nov-2025'
     permissions:
       contents: read
       pull-requests: read
@@ -44,8 +43,29 @@ jobs:
           --cov-report=xml \
           --cov-report=term-missing
 
-    - name: SonarCloud Scan
-      uses: SonarSource/sonarcloud-github-action@ba3875ecf642b2129de2b589510c81a8b53dbf4e # master as of 2024-11-08
+    - name: Cache SonarCloud packages
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.sonar/cache
+        key: sonar-${{ runner.os }}-${{ github.sha }}
+        restore-keys: |
+          sonar-${{ runner.os }}-
+
+    - name: Install SonarScanner
+      run: |
+        wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+        unzip -q sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+        echo "$PWD/sonar-scanner-6.2.1.4610-linux-x64/bin" >> $GITHUB_PATH
+
+    - name: Run SonarCloud Scan
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      run: |
+        sonar-scanner \
+          -Dsonar.organization=williajm \
+          -Dsonar.projectKey=williajm_mcp_docker \
+          -Dsonar.sources=src \
+          -Dsonar.tests=tests \
+          -Dsonar.python.coverage.reportPaths=coverage.xml \
+          -Dsonar.host.url=https://sonarcloud.io
