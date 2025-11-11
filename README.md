@@ -112,6 +112,7 @@ The MCP Docker server includes comprehensive security features for production de
 **Retrieval Agent Deception (RADE) Risk**: Container logs are returned unfiltered and may contain malicious prompts injected by untrusted containers. AI agents retrieving logs via `docker_container_logs` could be manipulated by these embedded instructions.
 
 **Mitigation**:
+
 - Treat container logs as untrusted user input
 - Implement content filtering before presenting logs to AI agents
 - Use read-only mode for untrusted containers
@@ -292,6 +293,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 ### Using Docker CLI Directly
 
 **Pros:**
+
 - ✅ **Simpler setup** - No MCP server needed, works immediately
 - ✅ **Full Docker access** - Every Docker feature available
 - ✅ **No maintenance** - No additional service to run or update
@@ -299,6 +301,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 - ✅ **Familiar** - Standard Docker commands everyone knows
 
 **Cons:**
+
 - ❌ **No safety controls** - Can't restrict destructive operations programmatically
 - ❌ **Text parsing** - Claude must parse unstructured CLI output
 - ❌ **Less efficient** - Multiple commands needed for complex operations
@@ -308,6 +311,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 - ❌ **Command injection risk** - If Claude constructs commands incorrectly
 
 **Example:**
+
 ```bash
 # Claude needs multiple commands for a complex operation
 docker ps --filter "status=running" --format json
@@ -319,6 +323,7 @@ docker logs container_id --tail 100
 ### Using MCP Docker Server
 
 **Pros:**
+
 - ✅ **Enables Docker in Claude Desktop** - Claude Desktop has no CLI access, so MCP is the only way to use Docker
 - ✅ **Safety controls** - Programmable restrictions (read-only mode, block destructive ops)
 - ✅ **Structured data** - JSON input/output, easier for AI to process
@@ -330,6 +335,7 @@ docker logs container_id --tail 100
 - ✅ **Contextual** - AI prompts guide Claude on what tools do
 
 **Cons:**
+
 - ❌ **Setup required** - Install, configure, and maintain the server
 - ❌ **Limited coverage** - Only 36 tools (doesn't expose every Docker feature)
 - ❌ **Abstraction layer** - Another component in the stack
@@ -337,6 +343,7 @@ docker logs container_id --tail 100
 - ❌ **Debugging** - Harder to see what's happening under the hood
 
 **Example:**
+
 ```json
 // One tool call with structured input/output
 {
@@ -352,6 +359,7 @@ docker logs container_id --tail 100
 ### When to Use Each
 
 **Use Docker CLI directly if:**
+
 - You're using **Claude Code** (Claude Desktop has no CLI access)
 - You need a Docker feature not exposed by the MCP server
 - You want minimal setup and maximum simplicity
@@ -360,6 +368,7 @@ docker logs container_id --tail 100
 - You trust the AI agent completely
 
 **Use MCP Docker Server if:**
+
 - You're using **Claude Desktop** (only way to access Docker)
 - You want safety controls (read-only mode, block destructive operations)
 - You need audit logging for compliance or debugging
@@ -372,6 +381,7 @@ docker logs container_id --tail 100
 ### Hybrid Approach
 
 You can use both:
+
 - **MCP server** for common, safe operations (list, inspect, logs, stats)
 - **Docker CLI** for advanced features not in the MCP server (BuildKit, plugins, swarm)
 - **Safety**: Keep destructive operations disabled in MCP, require explicit CLI commands for those
@@ -381,6 +391,7 @@ You can use both:
 **For Claude Desktop users:** MCP server is required (no CLI access available).
 
 **For Claude Code users:**
+
 - **Learning/exploration:** Docker CLI is simpler
 - **Production automation:** MCP server provides safety, structure, and control
 - **Maximum flexibility:** Use both as needed

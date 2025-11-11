@@ -235,7 +235,8 @@ Users on paid Claude plans can connect to remote MCP servers via **Settings → 
 
 ⚠️ **Important:** Anthropic's Remote Connectors support OAuth or authless servers. Our custom API key authentication is **not compatible** with Remote Connectors.
 
-**Option 1: Authless (For Testing Only)**
+#### Option 1: Authless (For Testing Only)
+
 ```bash
 # Start without authentication (NOT recommended for production)
 export SECURITY_AUTH_ENABLED=false
@@ -246,6 +247,7 @@ mcp-docker --transport sse --host 0.0.0.0 --port 8443
 ```
 
 **Then add via Claude Desktop:**
+
 1. Open Claude Desktop
 2. Go to Settings → Connectors
 3. Add your server URL: `https://your-server:8443/sse`
@@ -254,13 +256,16 @@ mcp-docker --transport sse --host 0.0.0.0 --port 8443
 **Security Note:** Authless means anyone with network access can connect. Use firewall rules, VPN, or network segmentation to restrict access.
 
 **Claude Code (CLI) with Self-Signed Certificates:**
+
 If using Claude Code CLI with HTTPS and self-signed certificates, launch with:
+
 ```bash
 NODE_TLS_REJECT_UNAUTHORIZED=0 claude
 ```
+
 This bypasses certificate validation (the `rejectUnauthorized: false` config option is currently ignored by the Claude Code client).
 
-**Option 2: OAuth Implementation (Not Currently Supported)**
+#### Option 2: OAuth Implementation (Not Currently Supported)
 
 Remote Connectors with authentication require OAuth 2.0 server implementation. This is not currently implemented in MCP Docker. See [Anthropic's Remote Server Documentation](https://support.claude.com/en/articles/11503834-building-custom-connectors-via-remote-mcp-servers) for OAuth requirements.
 
