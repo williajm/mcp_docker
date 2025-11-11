@@ -160,9 +160,7 @@ class TestAuthMiddleware:
         middleware = AuthMiddleware(security_config)
 
         with pytest.raises(AuthenticationError, match="IP address not allowed"):
-            middleware.authenticate_request(
-                api_key=None, ip_address="10.0.0.1", ssh_auth_data=None
-            )
+            middleware.authenticate_request(api_key=None, ip_address="10.0.0.1", ssh_auth_data=None)
 
     def test_authenticate_no_ip_with_allowlist(self, security_config: SecurityConfig) -> None:
         """Test authentication fails when no IP provided and allowlist configured."""
