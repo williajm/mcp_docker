@@ -18,8 +18,10 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
+from secure import Secure
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
 from starlette.routing import Mount
 
 from mcp_docker.config import Config
@@ -181,7 +183,11 @@ def _create_logging_wrappers(
     Callable[[], Awaitable[MutableMapping[str, Any]]],
     Callable[[MutableMapping[str, Any]], Awaitable[None]],
 ]:
-    """Create logging wrapper functions for SSE receive/send with security headers."""
+    """Create logging wrapper functions for SSE receive/send.
+
+    SECURITY: Security headers are now handled by the secure library middleware,
+    not manually added here. This eliminates custom security header code.
+    """
 
     async def log_receive() -> MutableMapping[str, Any]:
         msg = await receive()
@@ -190,27 +196,8 @@ def _create_logging_wrappers(
         return msg
 
     async def log_send(msg: MutableMapping[str, Any]) -> None:
-        # Add security headers to HTTP responses
-        if msg.get("type") == HTTP_RESPONSE_START:
-            headers = list(msg.get("headers", []))
-
-            # Add security headers for JSON-RPC API
-            security_headers = [
-                # Prevent caching of sensitive data
-                (b"cache-control", b"no-store, no-cache, must-revalidate, private"),
-                # Prevent MIME sniffing
-                (b"x-content-type-options", b"nosniff"),
-            ]
-
-            # Add HSTS header if TLS is enabled
-            if config.server.tls_enabled:
-                security_headers.append(
-                    (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
-                )
-
-            headers.extend(security_headers)
-            msg["headers"] = headers
-
+        # Just log, no manual header manipulation
+        # SECURITY: secure library middleware handles all security headers
         if msg.get("type") == HTTP_RESPONSE_BODY and msg.get("body"):
             logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
         await send(msg)
@@ -469,9 +456,25 @@ async def run_sse(host: str, port: int) -> None:
             trusted_hosts=config.security.trusted_proxies if config.security.trusted_proxies else ["127.0.0.1"],
         )
 
+        # Configure security headers using battle-tested secure library
+        # SECURITY: Replaces manual header code with industry-standard middleware
+        secure_headers = Secure(
+            # Cache control for sensitive data
+            cache=Secure.Cache().no_store().no_cache().must_revalidate().private(),
+            # Prevent MIME sniffing
+            ctype=Secure.ContentTypeOptions().nosniff(),
+            # HSTS for HTTPS connections
+            hsts=Secure.StrictTransportSecurity().max_age(31536000).include_subdomains()
+            if config.server.tls_enabled
+            else None,
+        )
+
         app = Starlette(
             debug=config.server.debug_mode,
             routes=[Mount("/", app=wrapped_handler)],
+            middleware=[
+                Middleware(secure_headers.starlette),
+            ],
         )
 
         # Run server with timeout configuration and TLS support
