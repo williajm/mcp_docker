@@ -37,7 +37,7 @@ class TestSafetyEnforcement:
 
         # Check that operation was blocked
         assert result["success"] is False
-        assert result["error_type"] == "PermissionError"
+        assert result["error_type"] == "PermissionDenied"
         assert "Destructive operation" in result["error"]
         assert "docker_remove_container" in result["error"]
         assert "SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS" in result["error"]
@@ -98,7 +98,7 @@ class TestSafetyEnforcement:
 
         # Check that operation was blocked
         assert result["success"] is False
-        assert result["error_type"] == "PermissionError"
+        assert result["error_type"] == "PermissionDenied"
         assert "Privileged" in result["error"]
         assert "SAFETY_ALLOW_PRIVILEGED_CONTAINERS" in result["error"]
 
@@ -197,12 +197,12 @@ class TestSafetyEnforcement:
 
             # Check that operation was blocked
             assert result["success"] is False, f"{tool_name} should be blocked"
-            assert (
-                result["error_type"] == "PermissionError"
-            ), f"{tool_name} should raise PermissionError"
-            assert (
-                "Destructive operation" in result["error"]
-            ), f"{tool_name} error should mention 'Destructive operation'"
+            assert result["error_type"] == "PermissionDenied", (
+                f"{tool_name} should raise PermissionDenied"
+            )
+            assert "Destructive operation" in result["error"], (
+                f"{tool_name} error should mention 'Destructive operation'"
+            )
             assert tool_name in result["error"], f"Error should mention {tool_name}"
 
     def test_safe_operations_always_allowed(self) -> None:
@@ -235,6 +235,6 @@ class TestSafetyEnforcement:
 
             # Should not be blocked by permission error
             if not result["success"]:
-                assert (
-                    "not allowed" not in result.get("error", "").lower()
-                ), f"{tool_name} should not be blocked by safety config"
+                assert "not allowed" not in result.get("error", "").lower(), (
+                    f"{tool_name} should not be blocked by safety config"
+                )

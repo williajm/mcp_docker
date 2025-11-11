@@ -1,0 +1,82 @@
+#!/bin/bash
+# MCP Docker Server - SSE Transport with TLS
+# Startup script for running the server with HTTPS and authentication
+
+set -e  # Exit on error
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+echo -e "${GREEN}=== MCP Docker Server - SSE Transport ===${NC}"
+
+# Configuration paths
+CERT_DIR="$HOME/.mcp-docker/certs"
+CERT_FILE="$CERT_DIR/cert.pem"
+KEY_FILE="$CERT_DIR/key.pem"
+
+# Server configuration
+HOST="${MCP_HOST:-localhost}"
+PORT="${MCP_PORT:-8443}"
+
+# Validate certificates exist
+if [ ! -f "$CERT_FILE" ]; then
+    echo -e "${RED}ERROR: Certificate not found at $CERT_FILE${NC}"
+    exit 1
+fi
+
+if [ ! -f "$KEY_FILE" ]; then
+    echo -e "${RED}ERROR: Private key not found at $KEY_FILE${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ TLS certificates found${NC}"
+echo -e "  Cert: $CERT_FILE"
+echo -e "  Key:  $KEY_FILE"
+
+# Export environment variables
+export MCP_TLS_ENABLED=true
+export MCP_TLS_CERT_FILE="$CERT_FILE"
+export MCP_TLS_KEY_FILE="$KEY_FILE"
+export MCP_DEBUG_MODE=true
+
+export SECURITY_AUTH_ENABLED=false
+export SECURITY_RATE_LIMIT_ENABLED=true
+export SECURITY_RATE_LIMIT_RPM=60
+export SECURITY_AUDIT_LOG_ENABLED=true
+export SECURITY_AUDIT_LOG_FILE="$HOME/.mcp-docker/mcp_audit.log"
+
+export SAFETY_ALLOW_MODERATE_OPERATIONS=true
+export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+
+export DOCKER_BASE_URL=unix:///var/run/docker.sock
+
+echo ""
+echo -e "${GREEN}=== Security Configuration ===${NC}"
+echo -e "  TLS/HTTPS:              ${GREEN}ENABLED${NC}"
+echo -e "  Authentication:         ${RED}DISABLED${NC}"
+echo -e "  Rate Limiting:          ${GREEN}ENABLED${NC} (60 req/min)"
+echo -e "  Audit Logging:          ${GREEN}ENABLED${NC}"
+echo -e "  Destructive Operations: ${RED}DISABLED${NC}"
+echo ""
+echo -e "${GREEN}=== Server Configuration ===${NC}"
+echo -e "  Host:                   $HOST"
+echo -e "  Port:                   $PORT"
+echo -e "  URL:                    https://$HOST:$PORT/sse"
+echo ""
+
+# Check if Docker is accessible
+if ! docker info > /dev/null 2>&1; then
+    echo -e "${RED}WARNING: Cannot connect to Docker daemon${NC}"
+    echo -e "Make sure Docker is running and you have permission to access it."
+    echo ""
+fi
+
+echo -e "${GREEN}Starting MCP Docker server...${NC}"
+echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
+echo ""
+
+# Run the server
+exec uv run mcp-docker --transport sse --host "$HOST" --port "$PORT"

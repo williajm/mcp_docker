@@ -174,7 +174,7 @@ class CreateContainerTool(BaseTool):
         """
         if input_data.name:
             validate_container_name(input_data.name)
-        if input_data.command and isinstance(input_data.command, str):
+        if input_data.command:
             validate_command(input_data.command)
         if input_data.mem_limit:
             validate_memory(input_data.mem_limit)

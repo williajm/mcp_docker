@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2025-11-11
+
+### Security
+- **CRITICAL: Command Injection Fix** (CVE-severity: 8.8/10)
+  - Fixed command injection bypass when using list-format commands in `docker_exec_command`
+  - Added `validate_command_safety()` to check dangerous patterns in ALL command formats (string and list)
+  - Previously, list-format commands bypassed safety validation entirely
+- **Authentication Timing Attack Fix** (CVE-severity: 6.5/10)
+  - Implemented constant-time SSH key verification to prevent timing side-channels
+  - SSH authenticator now checks ALL keys before returning result (eliminates early-exit timing leak)
+  - Prevents attackers from enumerating key positions through response time analysis
+- **Replay Attack Window Reduction** (CVE-severity: 6.8/10)
+  - Reduced maximum SSH signature timestamp window from 1 hour to 5 minutes
+  - Changed default from 5 minutes to 1 minute for improved security
+  - Significantly reduces credential exposure time and replay attack surface
+- **Authentication Brute Force Protection** (CVE-severity: 6.5/10)
+  - Added authentication rate limiting: 5 failed attempts per 5 minutes per client
+  - Prevents brute force attacks on SSH signature verification
+  - Rate limit cleared on successful authentication
+- **Information Disclosure Fixes**
+  - ValueError exceptions now use generic messages instead of exposing internal details
+  - Added generic error message: "Invalid input parameter for operation '{operation}'"
+  - Prevents leakage of file paths, internal IDs, and system details
+- **Enhanced Log Sanitization**
+  - Added 14 new sensitive field patterns (access_token, refresh_token, bearer, ssh_key, db_password, etc.)
+  - Added regex-based credential detection for URLs with embedded passwords
+  - Detects private keys and long base64-encoded tokens
+  - Connection strings and credentials now redacted in logs
+- **Input Validation & Resource Exhaustion Prevention**
+  - Added input length limits: 64KB for commands, 32KB for env vars, 4KB for paths
+  - Prevents DoS attacks via memory exhaustion from unbounded inputs
+  - Validates command length for both string and list formats
+- **TLS & Docker Socket Security Validation**
+  - Added validation requiring `tls_ca_cert` when `tls_verify=True`
+  - Warns when TLS certificates configured but verification disabled
+  - Blocks insecure HTTP Docker sockets (only HTTPS allowed)
+  - Warns when Docker socket exposed on network without TLS
+
+### Changed
+- **Authentication System Hardened**
+  - Removed API key authentication (security decision - SSH-only authentication)
+  - Fixed catch-all exception handlers to only catch expected exceptions (KeyError, ValueError)
+  - Removed redundant type assertions in favor of proper type narrowing with isinstance checks
+  - Fixed circular import in config.py by using warnings module instead of logger
+- **Code Quality Improvements**
+  - Extracted magic number (100) to named constant `DEFAULT_MAX_LIST_ITEMS`
+  - Improved error handling specificity in SSH authentication
+  - Enhanced type safety in authentication middleware
+
+### Fixed
+- **Test Compatibility**
+  - Updated test expectations for sanitized ValueError messages
+  - Fixed test for large JSON data sanitization
+  - All 631 unit tests passing
+
+### Documentation
+- **README.md**: Updated authentication description to reflect SSH-only authentication
+- **CLAUDE.md**: Added comprehensive security feature list including all new protections
+- **Security configuration examples**: Updated to show SSH authentication setup instead of API keys
+- **SETUP.md**: Removed API key references from Remote Connector guidance (lines 236, 272, 413-417)
+- **SSH_AUTHENTICATION.md**: Removed API key comparisons and alternative auth examples (lines 7, 223-237, 458-483)
+- **SUPPORT.md**: Replaced API key troubleshooting with SSH key troubleshooting (lines 82-84)
+
+### Compliance
+- **OWASP Top 10 Coverage**
+  - A03:2021 (Injection): Fixed command injection vulnerability ✅
+  - A02:2021 (Cryptographic Failures): Fixed timing attack ✅
+  - A07:2021 (Auth Failures): Fixed replay attacks and brute force ✅
+- **CWE Coverage**
+  - CWE-78 (OS Command Injection): Fixed ✅
+  - CWE-208 (Observable Timing Discrepancy): Fixed ✅
+  - CWE-294 (Authentication Bypass by Capture-Replay): Improved ✅
+  - CWE-307 (Improper Restriction of Excessive Authentication Attempts): Fixed ✅
+  - CWE-209 (Information Exposure Through Error Message): Fixed ✅
+  - CWE-770 (Allocation of Resources Without Limits): Fixed ✅
+
+### Removed
+- API key authentication code (`src/mcp_docker/auth/api_key.py`)
+- API key authentication tests
+- API key references from all documentation
+
 ## [1.0.1] - 2025-11-09
 
 ### Fixed

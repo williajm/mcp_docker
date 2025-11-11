@@ -212,7 +212,7 @@ The Claude Desktop configuration file is located at:
 
 ### Basic Configuration
 
-#### Using uvx (Recommended)
+#### Using uvx (Recommended - stdio transport)
 
 Add this to your `claude_desktop_config.json`:
 
@@ -226,6 +226,52 @@ Add this to your `claude_desktop_config.json`:
   }
 }
 ```
+
+**Note:** This uses stdio transport (local process). No authentication needed for local use.
+
+#### Remote MCP Servers (Claude Pro/Max/Team/Enterprise)
+
+Users on paid Claude plans can connect to remote MCP servers via **Settings → Connectors**.
+
+⚠️ **Important:** Anthropic's Remote Connectors support OAuth or authless servers. SSH key authentication is **not compatible** with Remote Connectors.
+
+#### Option 1: Authless (For Testing Only)
+
+```bash
+# Start without authentication (NOT recommended for production)
+export SECURITY_AUTH_ENABLED=false
+export MCP_TLS_ENABLED=true
+export MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
+export MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
+mcp-docker --transport sse --host 0.0.0.0 --port 8443
+```
+
+**Then add via Claude Desktop:**
+
+1. Open Claude Desktop
+2. Go to Settings → Connectors
+3. Add your server URL: `https://your-server:8443/sse`
+4. Server will accept connections without authentication
+
+**Security Note:** Authless means anyone with network access can connect. Use firewall rules, VPN, or network segmentation to restrict access.
+
+**Claude Code (CLI) with Self-Signed Certificates:**
+
+If using Claude Code CLI with HTTPS and self-signed certificates, launch with:
+
+```bash
+NODE_TLS_REJECT_UNAUTHORIZED=0 claude
+```
+
+This bypasses certificate validation (the `rejectUnauthorized: false` config option is currently ignored by the Claude Code client).
+
+#### Option 2: OAuth Implementation (Not Currently Supported)
+
+Remote Connectors with authentication require OAuth 2.0 server implementation. This is not currently implemented in MCP Docker. See [Anthropic's Remote Server Documentation](https://support.claude.com/en/articles/11503834-building-custom-connectors-via-remote-mcp-servers) for OAuth requirements.
+
+**Recommendation:** Use local stdio transport for Claude Desktop, or direct SSE with SSH key authentication for non-Claude Desktop clients.
+
+For complete security configuration, see [SECURITY.md](../SECURITY.md).
 
 #### Using uv from Source
 
@@ -332,6 +378,41 @@ For Docker Desktop on Windows:
 ```
 
 ### Advanced Configuration Examples
+
+#### SSE Transport with TLS (Production)
+
+For production deployments with network access, use SSE transport with TLS/HTTPS:
+
+**Using the startup script (recommended):**
+
+```bash
+# Generate certificates (one-time setup)
+./scripts/generate-certs.sh
+
+# Start server with TLS, authentication, and all security features
+./start-mcp-docker-sse.sh
+```
+
+**Manual configuration:**
+
+```bash
+# Set environment variables
+export MCP_TLS_ENABLED=true
+export MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
+export MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
+export SECURITY_AUTH_ENABLED=true
+export SECURITY_SSH_AUTH_ENABLED=true
+export SECURITY_SSH_AUTHORIZED_KEYS_FILE=~/.mcp-docker/authorized_keys
+
+# Start server
+mcp-docker --transport sse --host 0.0.0.0 --port 8443
+```
+
+**Client configuration:**
+
+Clients connect via HTTPS with SSH key authentication. See [SSH_AUTHENTICATION.md](../docs/SSH_AUTHENTICATION.md) for complete client implementation examples.
+
+For complete security configuration, see [SECURITY.md](../SECURITY.md).
 
 #### Remote Docker Host
 

@@ -12,6 +12,9 @@ from mcp_docker.config import ServerConfig
 def setup_logger(config: ServerConfig, log_file: Path | None = None) -> None:
     """Configure loguru logger with project settings.
 
+    Supports both human-readable (default) and JSON structured logging.
+    JSON logging is recommended for production/SIEM integration.
+
     Args:
         config: Server configuration
         log_file: Optional path to log file
@@ -20,30 +23,53 @@ def setup_logger(config: ServerConfig, log_file: Path | None = None) -> None:
     # Remove default handler
     logger.remove()
 
-    # Add console handler with custom format
-    logger.add(
-        sys.stderr,
-        format=config.log_format,
-        level=config.log_level,
-        colorize=True,
-        backtrace=True,
-        diagnose=True,
-    )
-
-    # Add file handler if specified
-    if log_file:
+    if config.json_logging:
+        # JSON structured logging for production/SIEM
+        # SECURITY: Uses loguru's built-in serialization (battle-tested)
         logger.add(
-            log_file,
+            sys.stderr,
+            level=config.log_level,
+            serialize=True,  # JSON output
+            backtrace=True,
+            diagnose=False,  # Don't expose internals in production
+        )
+
+        if log_file:
+            logger.add(
+                log_file,
+                level=config.log_level,
+                serialize=True,  # JSON output
+                rotation="10 MB",
+                retention="7 days",
+                compression="zip",
+                backtrace=True,
+                diagnose=False,
+            )
+    else:
+        # Human-readable logging for development
+        logger.add(
+            sys.stderr,
             format=config.log_format,
             level=config.log_level,
-            rotation="10 MB",
-            retention="7 days",
-            compression="zip",
+            colorize=True,
             backtrace=True,
             diagnose=True,
         )
 
+        if log_file:
+            logger.add(
+                log_file,
+                format=config.log_format,
+                level=config.log_level,
+                rotation="10 MB",
+                retention="7 days",
+                compression="zip",
+                backtrace=True,
+                diagnose=True,
+            )
+
     logger.info(f"Logger initialized with level: {config.log_level}")
+    logger.info(f"JSON logging: {'enabled' if config.json_logging else 'disabled'}")
     if log_file:
         logger.info(f"Logging to file: {log_file}")
 

@@ -20,7 +20,6 @@ def mock_config(tmp_path: Any) -> Any:
     config.safety = SafetyConfig()  # Use real SafetyConfig with defaults
     config.security = SecurityConfig(
         auth_enabled=False,  # Disable auth for tests
-        api_keys_file=tmp_path / ".mcp_keys.json",
         audit_log_file=tmp_path / "audit.log",
     )
     return config
@@ -192,8 +191,10 @@ class TestMCPDockerServer:
         result = await server.call_tool("test_tool", {})
 
         assert result["success"] is False
-        assert "Execution failed" in result["error"]
-        assert result["error_type"] == "Exception"
+        # Error sanitizer hides internal error messages
+        assert "An unexpected error occurred" in result["error"]
+        assert "test_tool" in result["error"]
+        assert result["error_type"] == "InternalError"
 
     @pytest.mark.asyncio
     async def test_start_healthy(self, mock_config: Any, mock_docker_client: Any) -> None:
@@ -281,7 +282,8 @@ class TestMCPDockerServer:
 
         # Should execute past safety check (will fail on execution, but that's OK)
         assert result["success"] is False
-        assert result["error_type"] == "Exception"
+        # Error sanitizer maps unknown errors to InternalError
+        assert result["error_type"] == "InternalError"
 
     @pytest.mark.asyncio
     async def test_check_tool_safety_safe_operation(

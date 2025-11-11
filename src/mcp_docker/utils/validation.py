@@ -1,6 +1,7 @@
 """Input validation utilities for Docker operations."""
 
 import re
+import shlex
 from typing import Any
 
 from mcp_docker.utils.errors import ValidationError
@@ -22,6 +23,12 @@ LABEL_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
 # Docker length limits
 MAX_CONTAINER_NAME_LENGTH = 255  # Maximum container name length in Docker
 MAX_IMAGE_NAME_LENGTH = 255  # Maximum image name length in Docker
+
+# Input size limits (security: prevent resource exhaustion)
+MAX_COMMAND_LENGTH = 65536  # 64 KB - maximum command string length
+MAX_ENV_VAR_VALUE_LENGTH = 32768  # 32 KB - maximum environment variable value
+MAX_PATH_LENGTH = 4096  # 4 KB - maximum file path length
+MAX_LABEL_VALUE_LENGTH = 4096  # 4 KB - maximum label value
 
 # Network port range
 MIN_PORT = 1  # Minimum valid TCP/UDP port number
@@ -231,16 +238,37 @@ def validate_command(command: str | list[str]) -> str | list[str]:
         ValidationError: If command is invalid or contains dangerous patterns
 
     """
+    # Check command length to prevent resource exhaustion
+    if isinstance(command, str):
+        if len(command) > MAX_COMMAND_LENGTH:
+            raise ValidationError(
+                f"Command too long: {len(command)} bytes (max: {MAX_COMMAND_LENGTH})"
+            )
+    elif isinstance(command, list):
+        total_length = sum(len(str(part)) for part in command)
+        if total_length > MAX_COMMAND_LENGTH:
+            raise ValidationError(
+                f"Command too long: {total_length} bytes (max: {MAX_COMMAND_LENGTH})"
+            )
+
     validated = _validate_command_structure(command)
 
     # Additional security checks for string commands
     if isinstance(validated, str):
+        # Check for dangerous shell patterns
         dangerous_patterns = [";", "&&", "||", "|", "`", "$("]
         if any(pattern in validated for pattern in dangerous_patterns):
             raise ValidationError(
                 "Command contains potentially dangerous patterns. "
                 "Use list format for commands with special characters."
             )
+
+        # SECURITY: Use stdlib shlex to verify command can be safely parsed
+        # This catches malformed quotes, unterminated strings, etc.
+        try:
+            shlex.split(validated)
+        except ValueError as e:
+            raise ValidationError(f"Command has invalid shell syntax: {e}") from e
 
     return validated
 

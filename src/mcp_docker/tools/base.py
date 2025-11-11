@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.utils.errors import UnsafeOperationError
 from mcp_docker.utils.safety import OperationSafety
 
 
@@ -124,14 +125,14 @@ class BaseTool(ABC):
             self.safety_level == OperationSafety.MODERATE
             and not self.safety.allow_moderate_operations
         ):
-            raise PermissionError(
+            raise UnsafeOperationError(
                 f"Moderate operation '{self.name}' is not allowed in read-only mode. "
                 "Set SAFETY_ALLOW_MODERATE_OPERATIONS=true to enable state-changing operations."
             )
 
         if self.safety_level == OperationSafety.DESTRUCTIVE:
             if not self.safety.allow_destructive_operations:
-                raise PermissionError(
+                raise UnsafeOperationError(
                     f"Destructive operation '{self.name}' is not allowed. "
                     "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
                 )

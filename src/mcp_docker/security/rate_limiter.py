@@ -1,9 +1,15 @@
-"""Rate limiting for MCP Docker operations."""
+"""Rate limiting for MCP Docker operations using limits library.
+
+SECURITY: Uses battle-tested limits library for RPM tracking.
+Concurrent request limiting uses asyncio.Semaphore (stdlib, battle-tested).
+"""
 
 import asyncio
-import time
-from collections import defaultdict
 from typing import Any
+
+from limits import parse
+from limits.aio.storage import MemoryStorage
+from limits.aio.strategies import MovingWindowRateLimiter
 
 from mcp_docker.utils.logger import get_logger
 
@@ -25,9 +31,13 @@ RateLimitExceeded = RateLimitExceededError
 class RateLimiter:
     """Handles rate limiting for MCP Docker operations.
 
+    Uses battle-tested libraries for security-critical rate limiting:
+    - limits library: RPM tracking with MovingWindowRateLimiter
+    - asyncio.Semaphore: Concurrent request limiting (stdlib)
+
     Implements two types of rate limiting:
-    1. Requests per minute (RPM) - sliding window
-    2. Concurrent requests - semaphore per client
+    1. Requests per minute (RPM) - sliding window via limits library
+    2. Concurrent requests - semaphore per client (asyncio stdlib)
     """
 
     def __init__(
@@ -47,15 +57,16 @@ class RateLimiter:
         self.rpm = requests_per_minute
         self.max_concurrent = max_concurrent_per_client
 
-        # Track request timestamps per client (for RPM limiting)
-        self._request_times: dict[str, list[float]] = defaultdict(list)
+        # Initialize limits library for RPM tracking
+        # SECURITY: Uses battle-tested limits library, not custom dict tracking
+        self.rpm_limit = parse(f"{requests_per_minute} per 1 minute")
+        self.storage = MemoryStorage()
+        self.limiter = MovingWindowRateLimiter(self.storage)
 
-        # Track concurrent requests per client (for concurrency limiting)
-        self._concurrent_requests: dict[str, int] = defaultdict(int)
+        # Track concurrent requests per client (using asyncio.Semaphore)
+        # SECURITY: Uses stdlib semaphore, battle-tested for concurrency control
+        self._concurrent_requests: dict[str, int] = {}
         self._semaphores: dict[str, asyncio.Semaphore] = {}
-
-        # Lock for thread-safe operations
-        self._lock = asyncio.Lock()
 
         if self.enabled:
             logger.info(
@@ -66,7 +77,10 @@ class RateLimiter:
             logger.warning("Rate limiting DISABLED")
 
     async def check_rate_limit(self, client_id: str) -> None:
-        """Check if a client is within their rate limits.
+        """Check if a client is within their RPM rate limit.
+
+        Uses limits library's AsyncMovingWindowRateLimiter for thread-safe,
+        memory-bounded rate limiting with automatic expiration.
 
         Args:
             client_id: Unique identifier for the client
@@ -77,37 +91,15 @@ class RateLimiter:
         if not self.enabled:
             return
 
-        async with self._lock:
-            # Check RPM limit
-            self._check_rpm_limit(client_id)
-
-    def _check_rpm_limit(self, client_id: str) -> None:
-        """Check requests per minute limit using sliding window.
-
-        Args:
-            client_id: Unique identifier for the client
-
-        Raises:
-            RateLimitExceeded: If RPM limit is exceeded
-        """
-        current_time = time.time()
-        window_start = current_time - 60.0  # 1 minute window
-
-        # Remove timestamps older than 1 minute
-        self._request_times[client_id] = [
-            ts for ts in self._request_times[client_id] if ts > window_start
-        ]
-
-        # Check if limit exceeded
-        if len(self._request_times[client_id]) >= self.rpm:
+        # Test and increment using limits library (thread-safe, automatic expiration)
+        if not await self.limiter.hit(self.rpm_limit, client_id):
             logger.warning(f"RPM limit exceeded for client: {client_id}")
             raise RateLimitExceeded(f"Rate limit exceeded: {self.rpm} requests per minute")
 
-        # Add current request timestamp
-        self._request_times[client_id].append(current_time)
-
     async def acquire_concurrent_slot(self, client_id: str) -> None:
         """Acquire a concurrent request slot for a client.
+
+        Uses asyncio.Semaphore (stdlib) for battle-tested concurrency control.
 
         Args:
             client_id: Unique identifier for the client
@@ -118,9 +110,10 @@ class RateLimiter:
         if not self.enabled:
             return
 
-        # Get or create semaphore for this client
+        # Get or create semaphore for this client (stdlib asyncio.Semaphore)
         if client_id not in self._semaphores:
             self._semaphores[client_id] = asyncio.Semaphore(self.max_concurrent)
+            self._concurrent_requests[client_id] = 0
 
         semaphore = self._semaphores[client_id]
 
@@ -128,6 +121,7 @@ class RateLimiter:
         try:
             await asyncio.wait_for(semaphore.acquire(), timeout=CONCURRENT_SLOT_TIMEOUT_SECONDS)
         except TimeoutError:
+            # Note: In Python 3.11+, asyncio.TimeoutError is an alias for built-in TimeoutError
             logger.warning(f"Concurrent request limit exceeded for client: {client_id}")
             raise RateLimitExceeded(
                 f"Concurrent request limit exceeded: {self.max_concurrent}"
@@ -167,43 +161,20 @@ class RateLimiter:
         Returns:
             Dictionary with rate limit statistics
         """
-        current_time = time.time()
-        window_start = current_time - 60.0
-
-        # Count requests in current window
-        request_count = sum(1 for ts in self._request_times.get(client_id, []) if ts > window_start)
-
+        # Note: limits library doesn't expose request counts directly
+        # We just return the limits configuration
         return {
             "client_id": client_id,
-            "requests_last_minute": request_count,
             "rpm_limit": self.rpm,
             "concurrent_requests": self._concurrent_requests.get(client_id, 0),
             "concurrent_limit": self.max_concurrent,
         }
 
     async def cleanup_old_data(self) -> None:
-        """Clean up old request timestamps to prevent memory growth.
+        """Clean up old data (no-op for limits library).
 
-        Should be called periodically (e.g., every few minutes).
+        The limits library handles automatic expiration and memory management.
+        This method exists for backward compatibility.
         """
-        if not self.enabled:
-            return
-
-        async with self._lock:
-            current_time = time.time()
-            window_start = current_time - 120.0  # Keep 2 minutes of history
-
-            # Clean up old timestamps
-            clients_to_remove = []
-            for client_id, timestamps in self._request_times.items():
-                self._request_times[client_id] = [ts for ts in timestamps if ts > window_start]
-
-                # Mark empty entries for removal
-                if not self._request_times[client_id]:
-                    clients_to_remove.append(client_id)
-
-            # Remove empty entries
-            for client_id in clients_to_remove:
-                del self._request_times[client_id]
-
-            logger.debug(f"Cleaned up rate limiter data for {len(self._request_times)} clients")
+        # NO-OP: limits library handles cleanup automatically via TTL
+        pass
