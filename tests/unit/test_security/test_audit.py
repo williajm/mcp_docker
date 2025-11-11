@@ -68,7 +68,9 @@ class TestAuditLogger:
         log_lines = [line for line in log_content.strip().split("\n") if line]
         all_entries = [json.loads(line) for line in log_lines]
         audit_entries = [
-            entry for entry in all_entries if "event_type" in entry.get("record", {}).get("extra", {})
+            entry
+            for entry in all_entries
+            if "event_type" in entry.get("record", {}).get("extra", {})
         ]
 
         assert len(audit_entries) == 1
@@ -101,7 +103,9 @@ class TestAuditLogger:
         log_lines = [line for line in log_content.strip().split("\n") if line]
         all_entries = [json.loads(line) for line in log_lines]
         audit_entries = [
-            entry for entry in all_entries if "event_type" in entry.get("record", {}).get("extra", {})
+            entry
+            for entry in all_entries
+            if "event_type" in entry.get("record", {}).get("extra", {})
         ]
 
         assert len(audit_entries) == 1
@@ -143,7 +147,9 @@ class TestAuditLogger:
         log_lines = [line for line in log_content.strip().split("\n") if line]
         all_entries = [json.loads(line) for line in log_lines]
         audit_entries = [
-            entry for entry in all_entries if "event_type" in entry.get("record", {}).get("extra", {})
+            entry
+            for entry in all_entries
+            if "event_type" in entry.get("record", {}).get("extra", {})
         ]
 
         assert len(audit_entries) == 1
@@ -169,7 +175,9 @@ class TestAuditLogger:
         log_lines = [line for line in log_content.strip().split("\n") if line]
         all_entries = [json.loads(line) for line in log_lines]
         audit_entries = [
-            entry for entry in all_entries if "event_type" in entry.get("record", {}).get("extra", {})
+            entry
+            for entry in all_entries
+            if "event_type" in entry.get("record", {}).get("extra", {})
         ]
 
         assert len(audit_entries) == 1
@@ -210,7 +218,9 @@ class TestAuditLogger:
         log_lines = [line for line in log_content.strip().split("\n") if line]
         all_entries = [json.loads(line) for line in log_lines]
         audit_entries = [
-            entry for entry in all_entries if "event_type" in entry.get("record", {}).get("extra", {})
+            entry
+            for entry in all_entries
+            if "event_type" in entry.get("record", {}).get("extra", {})
         ]
 
         assert len(audit_entries) == 2
