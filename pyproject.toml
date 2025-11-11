@@ -124,9 +124,7 @@ select = [
     "PL",    # pylint
     "PERF",  # perflint
 ]
-ignore = [
-    "UP038",  # isinstance requires tuple syntax, not union types (X | Y only for annotations)
-]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 # Tests need flexibility for fixtures, long assertions, and test-specific patterns
@@ -159,7 +157,6 @@ ignore = [
 # Fuzz tests use Atheris conventions (TestOneInput is required entry point)
 "tests/fuzz/**/*.py" = [
     "N802",     # TestOneInput function name is required by Atheris fuzzing framework
-    "UP038",    # isinstance with tuples is more readable for multiple types
 ]
 # Main entry point has complex SSE server setup
 "src/mcp_docker/__main__.py" = [
