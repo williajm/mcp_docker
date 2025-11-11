@@ -471,10 +471,7 @@ async def run_sse(host: str, port: int) -> None:
         )
 
         hsts = (
-            StrictTransportSecurity()
-            .include_subdomains()
-            .preload()
-            .max_age(31536000)
+            StrictTransportSecurity().include_subdomains().preload().max_age(31536000)
             if config.server.tls_enabled
             else None
         )
@@ -506,9 +503,7 @@ async def run_sse(host: str, port: int) -> None:
         # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
         # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
         trusted_proxies = (
-            config.security.trusted_proxies
-            if config.security.trusted_proxies
-            else ["127.0.0.1"]
+            config.security.trusted_proxies if config.security.trusted_proxies else ["127.0.0.1"]
         )
         # Type ignore needed due to ASGI type variance between MutableMapping and specific types
         wrapped_handler = ProxyHeadersMiddleware(
@@ -528,9 +523,7 @@ async def run_sse(host: str, port: int) -> None:
                 if message["type"] == "http.response.start":
                     # Create a simple response object that the secure library can work with
                     class SimpleResponse:
-                        def __init__(
-                            self, headers: list[tuple[bytes, bytes]]
-                        ) -> None:
+                        def __init__(self, headers: list[tuple[bytes, bytes]]) -> None:
                             self.headers: MutableMapping[str, str] = {
                                 k.decode(): v.decode() for k, v in headers
                             }

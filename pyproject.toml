@@ -161,6 +161,10 @@ ignore = [
     "N802",     # TestOneInput function name is required by Atheris fuzzing framework
     "UP038",    # isinstance with tuples is more readable for multiple types
 ]
+# Main entry point has complex SSE server setup
+"src/mcp_docker/__main__.py" = [
+    "PLR0915",  # Too many statements (run_sse function sets up complex middleware stack)
+]
 
 [tool.mypy]
 python_version = "3.11"
@@ -213,6 +217,14 @@ ignore_missing_imports = true
 module = "atheris.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "limits.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "secure.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -257,6 +269,7 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-docker>=3.2.3",
     "ruff>=0.14.2",
+    "types-cachetools>=6.2.0.20251022",
     "types-docker>=7.1.0.20251009",
     "types-paramiko>=4.0.0.20250822",
     "types-requests>=2.32.4.20250913",
