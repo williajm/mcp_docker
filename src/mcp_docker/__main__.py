@@ -436,9 +436,7 @@ def _create_security_headers(config: Config) -> Secure:
     )
 
 
-def _create_uvicorn_config(
-    app: Any, host: str, port: int, config: Config
-) -> uvicorn.Config:
+def _create_uvicorn_config(app: Any, host: str, port: int, config: Config) -> uvicorn.Config:
     """Create Uvicorn server configuration with optional TLS.
 
     Args:
