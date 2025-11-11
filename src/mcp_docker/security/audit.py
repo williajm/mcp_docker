@@ -149,3 +149,13 @@ class AuditLogger:
             description=client_info.description,
             limit_type=limit_type,
         ).warning(f"Rate limit exceeded: {limit_type}")
+
+    def close(self) -> None:
+        """Close the audit logger and flush all pending logs.
+
+        This is important for testing with enqueue=True (async writing).
+        Removing the handler causes loguru to flush and close the file.
+        """
+        if self.handler_id is not None:
+            loguru_logger.remove(self.handler_id)
+            self.handler_id = None
