@@ -73,7 +73,7 @@ Add to your `claude_desktop_config.json`:
 
 **Note:** Authentication is not needed for local Claude Desktop use (stdio transport). The security model is the same as running `docker` commands directly on your machine.
 
-**For Remote Access:** Our API key authentication is designed for direct SSE clients (non-Claude Desktop). Anthropic's Remote Connectors (paid plans) require OAuth, which is not currently implemented. See [SECURITY.md](SECURITY.md) and [docs/SETUP.md](docs/SETUP.md) for details.
+**For Remote Access:** SSH key-based authentication is required for SSE transport over the network. Anthropic's Remote Connectors (paid plans) require OAuth, which is not currently implemented. For direct SSE clients, use SSH authentication. See [SECURITY.md](SECURITY.md) and [docs/SETUP.md](docs/SETUP.md) for details.
 
 For platform-specific configuration, Windows setup, custom environments, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
 

@@ -79,8 +79,14 @@ We take security seriously and will respond promptly to security reports.
   SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true  # Use with caution
   ```
 
-**Issue**: Authentication failures
-- **Solution**: Verify API key configuration in `.mcp_keys.json` and `SECURITY_AUTH_ENABLED` setting
+**Issue**: SSH authentication failures
+- **Solution**: Verify SSH key configuration:
+  - Check public key is in `~/.ssh/mcp_authorized_keys`
+  - Verify `SECURITY_SSH_AUTH_ENABLED=true` is set
+  - Confirm `SECURITY_SSH_AUTHORIZED_KEYS_FILE` points to correct file
+  - Check signature timestamp is recent (within 5 minutes by default)
+  - Ensure nonce is unique for each request (no replay)
+  - See [SSH_AUTHENTICATION.md](docs/SSH_AUTHENTICATION.md) for details
 
 ### Runtime Problems
 

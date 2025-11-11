@@ -64,6 +64,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **README.md**: Updated authentication description to reflect SSH-only authentication
 - **CLAUDE.md**: Added comprehensive security feature list including all new protections
 - **Security configuration examples**: Updated to show SSH authentication setup instead of API keys
+- **SETUP.md**: Removed API key references from Remote Connector guidance (lines 236, 272, 413-417)
+- **SSH_AUTHENTICATION.md**: Removed API key comparisons and alternative auth examples (lines 7, 223-237, 458-483)
+- **SUPPORT.md**: Replaced API key troubleshooting with SSH key troubleshooting (lines 82-84)
 
 ### Compliance
 - **OWASP Top 10 Coverage**

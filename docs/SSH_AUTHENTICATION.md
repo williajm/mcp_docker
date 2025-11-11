@@ -4,7 +4,7 @@ This document describes the SSH key-based authentication implementation for MCP 
 
 ## Overview
 
-MCP Docker now supports SSH key-based authentication as an alternative to API keys. This provides:
+MCP Docker uses SSH key-based authentication for remote access. This provides:
 
 - **Public key cryptography** for secure authentication
 - **Multiple keys per client** for key rotation and multi-device setups
@@ -220,22 +220,6 @@ async with stdio_client(...) as (read, write):
 
 See `examples/ssh_auth_mcp_client.py` for complete example.
 
-### API Key Auth (Alternative)
-
-You can also use API key authentication:
-
-```python
-result = await session.call_tool(
-    "list_containers",
-    arguments={
-        "_auth": {
-            "api_key": "your-api-key"  # API key auth
-        },
-        "all": True
-    }
-)
-```
-
 ### Important Notes
 
 **Generate Fresh Auth Data for Each Tool Call**:
@@ -392,7 +376,8 @@ def authenticate_request(
             }
 
     Returns:
-        ClientInfo with client_id, api_key_hash, description, ip_address
+        ClientInfo with client_id, key_hash (in api_key_hash field), description, ip_address
+        Note: The api_key_hash field contains the SSH public key hash for SSH authentication
 
     Raises:
         AuthenticationError: If authentication fails
@@ -455,31 +440,16 @@ uv run pytest tests/unit/auth/test_ssh_auth.py -v
 uv run pytest tests/unit/auth/ -v
 ```
 
-## Comparison: SSH Auth vs API Keys
+## Security Benefits
 
-| Feature | SSH Keys | API Keys |
-|---------|----------|----------|
-| Security | Public key cryptography | Shared secret |
-| Key Rotation | Multiple keys, no downtime | Manual update required |
-| Replay Protection | Timestamp + nonce | N/A |
-| Key Management | Standard SSH tools | Custom management |
-| Multi-Device | Native support | Share same key |
-| Complexity | Higher | Lower |
-| Industry Standard | Yes (SSH) | Yes (API keys) |
+SSH key authentication provides:
 
-**When to use SSH keys**:
-
-- Multi-device setups
-- Frequent key rotation required
-- Integration with SSH infrastructure
-- Higher security requirements
-
-**When to use API keys**:
-
-- Simpler setup needed
-- Single-device scenarios
-- Quick prototyping
-- Legacy system integration
+- **Public key cryptography** - More secure than shared secrets
+- **Key rotation** - Multiple keys per client with zero downtime
+- **Replay protection** - Timestamp + nonce validation prevents replay attacks
+- **Standard tooling** - Works with standard SSH key management tools
+- **Multi-device support** - Each device can have its own key while authenticating as the same client
+- **Audit trail** - All authentication attempts logged with client ID and timestamp
 
 ## Future Enhancements
 
