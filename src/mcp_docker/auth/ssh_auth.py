@@ -252,7 +252,8 @@ class SSHSignatureValidator:
                 crypto_public_key = load_ssh_public_key(ssh_key_line)
             except Exception as parse_error:
                 logger.debug(
-                    f"Failed to parse SSH public key: {parse_error}, key_type={public_key.key_type}"
+                    f"Failed to parse SSH public key: {parse_error}, "
+                    f"key_type={public_key.key_type}"
                 )
                 return False
 

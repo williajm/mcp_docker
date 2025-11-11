@@ -3,7 +3,7 @@
 import base64
 from typing import Any
 
-from limits import storage
+from limits import parse, storage
 from limits.strategies import MovingWindowRateLimiter
 
 from mcp_docker.auth.models import ClientInfo
@@ -44,8 +44,6 @@ class AuthRateLimiter:
             max_attempts: Maximum failed auth attempts allowed within window
             window_seconds: Time window in seconds for rate limiting (default: 5 minutes)
         """
-        from limits import parse
-
         self.max_attempts = max_attempts
         self.window = window_seconds
 
