@@ -203,10 +203,15 @@ class SecurityConfig(BaseSettings):
 
     @field_validator("audit_log_file")
     @classmethod
-    def validate_audit_log_parent_exists(cls, audit_log_path: Path) -> Path:
-        """Validate that parent directory exists for audit log file."""
+    def validate_audit_log_path(cls, audit_log_path: Path) -> Path:
+        """Ensure parent directory exists for audit log file.
+
+        Creates the parent directory if it doesn't exist, which allows
+        configurations like $HOME/.mcp-docker/mcp_audit.log to work
+        without requiring manual directory creation.
+        """
         if not audit_log_path.parent.exists():
-            raise ValueError(f"Parent directory does not exist for audit log: {audit_log_path}")
+            audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         return audit_log_path
 
 
