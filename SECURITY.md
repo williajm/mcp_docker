@@ -252,19 +252,30 @@ tail -f mcp_docker.log
 
 ## Security Headers
 
-The server automatically adds security headers to all SSE transport responses:
+The server uses the `secure` library to automatically add OWASP-recommended security headers to all SSE transport responses:
 
 ### Headers Added
 
-1. **Cache-Control**: `no-store, no-cache, must-revalidate, private`
+1. **Cache-Control**: `no-store, no-cache, must-revalidate`
    - Prevents caching of sensitive data
 
 2. **X-Content-Type-Options**: `nosniff`
    - Prevents MIME type sniffing attacks
 
-3. **Strict-Transport-Security** (when TLS enabled): `max-age=31536000; includeSubDomains`
+3. **X-Frame-Options**: `DENY`
+   - Prevents clickjacking attacks
+
+4. **Content-Security-Policy**: `default-src 'self'; ...`
+   - Prevents XSS and injection attacks
+
+5. **Referrer-Policy**: `strict-origin-when-cross-origin`
+   - Controls referrer information leakage
+
+6. **Permissions-Policy**: Restricts geolocation, camera, microphone, payment, USB
+   - Minimizes browser feature attack surface
+
+7. **Strict-Transport-Security** (when TLS enabled): `max-age=31536000; includeSubDomains; preload`
    - Forces HTTPS for all future connections
-   - Prevents downgrade attacks
 
 ### Verification
 
@@ -272,10 +283,7 @@ The server automatically adds security headers to all SSE transport responses:
 # Check security headers
 curl -I -k https://localhost:8443/sse
 
-# Expected output includes:
-# cache-control: no-store, no-cache, must-revalidate, private
-# x-content-type-options: nosniff
-# strict-transport-security: max-age=31536000; includeSubDomains
+# Expected output includes all security headers above
 ```
 
 ## Safety Controls

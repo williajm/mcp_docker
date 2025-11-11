@@ -18,11 +18,21 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
-from secure import Secure
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from secure import (
+    CacheControl,
+    ContentSecurityPolicy,
+    PermissionsPolicy,
+    ReferrerPolicy,
+    Secure,
+    StrictTransportSecurity,
+    XFrameOptions,
+)
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.routing import Mount
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
@@ -183,11 +193,7 @@ def _create_logging_wrappers(
     Callable[[], Awaitable[MutableMapping[str, Any]]],
     Callable[[MutableMapping[str, Any]], Awaitable[None]],
 ]:
-    """Create logging wrapper functions for SSE receive/send.
-
-    SECURITY: Security headers are now handled by the secure library middleware,
-    not manually added here. This eliminates custom security header code.
-    """
+    """Create logging wrapper functions for SSE receive/send."""
 
     async def log_receive() -> MutableMapping[str, Any]:
         msg = await receive()
@@ -196,8 +202,6 @@ def _create_logging_wrappers(
         return msg
 
     async def log_send(msg: MutableMapping[str, Any]) -> None:
-        # Just log, no manual header manipulation
-        # SECURITY: secure library middleware handles all security headers
         if msg.get("type") == HTTP_RESPONSE_BODY and msg.get("body"):
             logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
         await send(msg)
@@ -370,7 +374,9 @@ def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
     """
     # ProxyHeadersMiddleware updates scope['client'] with real IP
     if "client" in scope and scope["client"]:
-        return scope["client"][0]  # (host, port) tuple, take host
+        client_tuple = scope["client"]
+        if isinstance(client_tuple, (list, tuple)) and len(client_tuple) > 0:
+            return str(client_tuple[0])  # (host, port) tuple, take host
     return None
 
 
@@ -449,32 +455,118 @@ async def run_sse(host: str, port: int) -> None:
                 "DO NOT use in production!"
             )
 
-        # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
-        # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
-        wrapped_handler = ProxyHeadersMiddleware(
-            sse_handler,
-            trusted_hosts=config.security.trusted_proxies if config.security.trusted_proxies else ["127.0.0.1"],
+        # SECURITY: Initialize secure headers middleware with OWASP recommended defaults
+        # This replaces custom security header code with a battle-tested library
+        csp = (
+            ContentSecurityPolicy()
+            .default_src("'self'")
+            .script_src("'self'")
+            .style_src("'self'")
+            .img_src("'self'")
+            .font_src("'self'")
+            .connect_src("'self'")
+            .frame_ancestors("'none'")
+            .base_uri("'self'")
+            .form_action("'self'")
         )
 
-        # Configure security headers using battle-tested secure library
-        # SECURITY: Replaces manual header code with industry-standard middleware
-        secure_headers = Secure(
-            # Cache control for sensitive data
-            cache=Secure.Cache().no_store().no_cache().must_revalidate().private(),
-            # Prevent MIME sniffing
-            ctype=Secure.ContentTypeOptions().nosniff(),
-            # HSTS for HTTPS connections
-            hsts=Secure.StrictTransportSecurity().max_age(31536000).include_subdomains()
+        hsts = (
+            StrictTransportSecurity()
+            .include_subdomains()
+            .preload()
+            .max_age(31536000)
             if config.server.tls_enabled
-            else None,
+            else None
         )
+
+        cache = CacheControl().no_store().no_cache().must_revalidate()
+
+        xfo = XFrameOptions().deny()
+
+        referrer = ReferrerPolicy().strict_origin_when_cross_origin()
+
+        permissions = (
+            PermissionsPolicy()
+            .geolocation("'none'")
+            .microphone("'none'")
+            .camera("'none'")
+            .payment("'none'")
+            .usb("'none'")
+        )
+
+        secure_headers = Secure(
+            csp=csp,
+            hsts=hsts,
+            cache=cache,
+            xfo=xfo,
+            referrer=referrer,
+            permissions=permissions,
+        )
+
+        # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
+        # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
+        trusted_proxies = (
+            config.security.trusted_proxies
+            if config.security.trusted_proxies
+            else ["127.0.0.1"]
+        )
+        # Type ignore needed due to ASGI type variance between MutableMapping and specific types
+        wrapped_handler = ProxyHeadersMiddleware(
+            sse_handler,  # type: ignore[arg-type]
+            trusted_hosts=trusted_proxies,
+        )
+
+        # Wrap with secure headers middleware
+        async def security_headers_middleware(
+            scope: MutableMapping[str, Any],
+            receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+            send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+        ) -> None:
+            """Apply security headers using the secure library."""
+
+            async def send_wrapper(message: MutableMapping[str, Any]) -> None:
+                if message["type"] == "http.response.start":
+                    # Create a simple response object that the secure library can work with
+                    class SimpleResponse:
+                        def __init__(
+                            self, headers: list[tuple[bytes, bytes]]
+                        ) -> None:
+                            self.headers: MutableMapping[str, str] = {
+                                k.decode(): v.decode() for k, v in headers
+                            }
+
+                    response = SimpleResponse(message.get("headers", []))
+                    await secure_headers.set_headers_async(response)
+
+                    # Convert headers back to ASGI format
+                    message["headers"] = [
+                        (k.encode(), v.encode()) for k, v in response.headers.items()
+                    ]
+
+                await send(message)
+
+            await wrapped_handler(scope, receive, send_wrapper)  # type: ignore[arg-type]
+
+        # Build middleware stack (from innermost to outermost)
+        # SECURITY: Configure TrustedHostMiddleware based on environment
+        # For localhost: allow localhost variants
+        # For production: restrict to specific hostnames/domains
+        is_localhost = host in ["127.0.0.1", "localhost", "::1"]
+        allowed_hosts = ["127.0.0.1", "localhost", "::1"] if is_localhost else [host]
+
+        middleware_stack = [
+            # Trusted host middleware (validate Host header to prevent Host header injection)
+            Middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts),
+        ]
+
+        # Add HTTPS redirect if TLS is enabled
+        if config.server.tls_enabled:
+            middleware_stack.insert(0, Middleware(HTTPSRedirectMiddleware))
 
         app = Starlette(
             debug=config.server.debug_mode,
-            routes=[Mount("/", app=wrapped_handler)],
-            middleware=[
-                Middleware(secure_headers.starlette),
-            ],
+            routes=[Mount("/", app=security_headers_middleware)],
+            middleware=middleware_stack,
         )
 
         # Run server with timeout configuration and TLS support

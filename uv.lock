@@ -597,6 +597,22 @@ dev = [
     { name = "types-docker" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "atheris" },
+    { name = "coverage" },
+    { name = "hypothesis" },
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-docker" },
+    { name = "ruff" },
+    { name = "types-docker" },
+    { name = "types-paramiko" },
+    { name = "types-requests" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "atheris", marker = "extra == 'dev'", specifier = ">=2.3.0" },
@@ -624,6 +640,22 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.27.0" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "atheris", specifier = ">=2.3.0" },
+    { name = "coverage", specifier = ">=7.11.0" },
+    { name = "hypothesis", specifier = ">=6.147.0" },
+    { name = "mypy", specifier = ">=1.18.2" },
+    { name = "pytest", specifier = ">=8.4.2" },
+    { name = "pytest-asyncio", specifier = ">=1.2.0" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-docker", specifier = ">=3.2.3" },
+    { name = "ruff", specifier = ">=0.14.2" },
+    { name = "types-docker", specifier = ">=7.1.0.20251009" },
+    { name = "types-paramiko", specifier = ">=4.0.0.20250822" },
+    { name = "types-requests", specifier = ">=2.32.4.20250913" },
+]
 
 [[package]]
 name = "mypy"

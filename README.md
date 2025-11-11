@@ -105,7 +105,7 @@ The MCP Docker server includes comprehensive security features for production de
 - **Audit Logging**: Track all operations with client IPs
 - **IP Filtering**: Restrict access by network address
 - **Error Sanitization**: Prevent information disclosure
-- **Security Headers**: HSTS, Cache-Control, X-Content-Type-Options
+- **Security Headers**: OWASP-recommended headers via `secure` library (HSTS, CSP, X-Frame-Options, etc.)
 
 ### ⚠️ Important Security Considerations
 
@@ -501,6 +501,9 @@ mcp_docker/
   - `docker>=7.1.0` - Docker SDK for Python
   - `pydantic>=2.0.0` - Data validation
   - `loguru>=0.7.0` - Logging
+  - `secure>=1.0.1` - Security headers
+  - `cryptography>=41.0.0` - SSH authentication
+  - `limits>=5.6.0` - Rate limiting
 
 ### Code Standards
 
