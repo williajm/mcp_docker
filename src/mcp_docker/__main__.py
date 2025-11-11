@@ -467,6 +467,34 @@ def _create_uvicorn_config(app: Any, host: str, port: int, config: Config) -> uv
     return uvicorn.Config(**uvicorn_config_params)
 
 
+def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
+    """Create middleware stack for Starlette application.
+
+    Args:
+        host: Server hostname
+        config: MCP configuration with TLS settings
+
+    Returns:
+        List of configured middleware
+    """
+    # SECURITY: Configure TrustedHostMiddleware based on environment
+    # For localhost: allow localhost variants
+    # For production: restrict to specific hostnames/domains
+    is_localhost = host in ["127.0.0.1", "localhost", "::1"]
+    allowed_hosts = ["127.0.0.1", "localhost", "::1"] if is_localhost else [host]
+
+    middleware_stack = [
+        # Trusted host middleware (validate Host header to prevent Host header injection)
+        Middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts),
+    ]
+
+    # Add HTTPS redirect if TLS is enabled
+    if config.server.tls_enabled:
+        middleware_stack.insert(0, Middleware(HTTPSRedirectMiddleware))
+
+    return middleware_stack
+
+
 async def run_sse(host: str, port: int) -> None:
     """Run the MCP server with SSE transport over HTTP/HTTPS."""
     protocol = "https" if config.server.tls_enabled else "http"
@@ -587,20 +615,7 @@ async def run_sse(host: str, port: int) -> None:
             await wrapped_handler(scope, receive, send_wrapper)  # type: ignore[arg-type]
 
         # Build middleware stack (from innermost to outermost)
-        # SECURITY: Configure TrustedHostMiddleware based on environment
-        # For localhost: allow localhost variants
-        # For production: restrict to specific hostnames/domains
-        is_localhost = host in ["127.0.0.1", "localhost", "::1"]
-        allowed_hosts = ["127.0.0.1", "localhost", "::1"] if is_localhost else [host]
-
-        middleware_stack = [
-            # Trusted host middleware (validate Host header to prevent Host header injection)
-            Middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts),
-        ]
-
-        # Add HTTPS redirect if TLS is enabled
-        if config.server.tls_enabled:
-            middleware_stack.insert(0, Middleware(HTTPSRedirectMiddleware))
+        middleware_stack = _create_middleware_stack(host, config)
 
         app = Starlette(
             debug=config.server.debug_mode,
