@@ -8,7 +8,6 @@ import pytest
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.security.audit import AuditLogger
 
-
 # NOTE: TestAuditEvent class removed after refactoring to use loguru
 # (commit f22c6c1). AuditEvent class no longer exists - loguru's structured
 # logging is used directly by AuditLogger instead.

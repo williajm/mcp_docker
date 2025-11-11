@@ -85,9 +85,9 @@ def assert_tool_error(result: CallToolResult, expected_error: str | None = None)
     assert "error" in text.lower(), f"Expected error but got: {text}"
 
     if expected_error:
-        assert expected_error.lower() in text.lower(), (
-            f"Expected error containing '{expected_error}', got: {text}"
-        )
+        assert (
+            expected_error.lower() in text.lower()
+        ), f"Expected error containing '{expected_error}', got: {text}"
 
 
 def is_text_content(content: Any) -> bool:

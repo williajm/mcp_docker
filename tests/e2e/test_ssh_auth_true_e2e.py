@@ -222,9 +222,7 @@ async def test_ssh_auth_via_stdio_transport(
 
             # Check that result is not an error
             if hasattr(result, "isError"):
-                assert not result.isError, (
-                    f"Result should not be an error: {get_tool_result_text(result) if result.content else 'no content'}"
-                )
+                assert not result.isError, f"Result should not be an error: {get_tool_result_text(result) if result.content else 'no content'}"
 
             # Parse and verify the JSON response
             import json
@@ -237,9 +235,9 @@ async def test_ssh_auth_via_stdio_transport(
             assert isinstance(result_data, dict), "Result should be a dictionary"
 
             # Verify expected structure for docker_list_containers
-            assert "containers" in result_data or "count" in result_data, (
-                f"Result should contain 'containers' or 'count' key: {result_data.keys()}"
-            )
+            assert (
+                "containers" in result_data or "count" in result_data
+            ), f"Result should contain 'containers' or 'count' key: {result_data.keys()}"
 
 
 @pytest.mark.e2e
