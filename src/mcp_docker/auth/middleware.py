@@ -27,7 +27,13 @@ class AuthRateLimitExceededError(AuthenticationError):
 
 
 class AuthRateLimiter:
-    """Rate limiter for authentication attempts to prevent brute force attacks."""
+    """Rate limiter for authentication attempts to prevent brute force attacks.
+
+    SECURITY: Implements memory leak prevention via automatic cleanup and capacity limits.
+    """
+
+    # Maximum number of tracked identifiers (prevents memory exhaustion DoS)
+    MAX_TRACKED_IDENTIFIERS = 1000
 
     def __init__(self, max_attempts: int = 5, window_seconds: int = 300) -> None:
         """Initialize authentication rate limiter.
@@ -43,6 +49,11 @@ class AuthRateLimiter:
     def check_and_record_attempt(self, identifier: str) -> None:
         """Check if authentication attempts are within limits and record attempt.
 
+        SECURITY: Implements memory leak prevention by:
+        1. Removing expired timestamps
+        2. Cleaning up empty entries
+        3. Enforcing maximum tracked identifier limit with LRU eviction
+
         Args:
             identifier: Unique identifier (e.g., client_id or IP address)
 
@@ -50,9 +61,29 @@ class AuthRateLimiter:
             AuthRateLimitExceeded: If too many failed attempts
         """
         now = time.time()
+
         # Remove old attempts outside window
         self.attempts[identifier] = [t for t in self.attempts[identifier] if now - t < self.window]
 
+        # Clean up empty entries to prevent memory leaks from failed auth attempts
+        if not self.attempts[identifier]:
+            del self.attempts[identifier]
+
+        # Check capacity limit before adding new entries (DoS prevention)
+        if identifier not in self.attempts and len(self.attempts) >= self.MAX_TRACKED_IDENTIFIERS:
+            # At capacity - evict oldest entry (LRU)
+            # Find identifier with oldest timestamp
+            oldest_identifier = min(
+                self.attempts.items(),
+                key=lambda x: min(x[1]) if x[1] else float("inf"),
+            )[0]
+            del self.attempts[oldest_identifier]
+            logger.warning(
+                f"Auth rate limiter at capacity ({self.MAX_TRACKED_IDENTIFIERS}), "
+                f"evicted oldest entry: {oldest_identifier}"
+            )
+
+        # Re-check after potential cleanup
         if len(self.attempts[identifier]) >= self.max_attempts:
             raise AuthRateLimitExceededError(
                 f"Too many authentication failures. Try again in {self.window} seconds."

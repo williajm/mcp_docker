@@ -188,6 +188,15 @@ class SecurityConfig(BaseSettings):
         default_factory=list,
         description="Allowed client IP addresses (empty list = allow all)",
     )
+    trusted_proxies: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Trusted proxy IP addresses/networks for X-Forwarded-For header. "
+            "Empty list = don't trust any proxies (secure default). "
+            "Supports CIDR notation (e.g., '10.0.0.0/24'). "
+            "Only connections from these IPs will have their X-Forwarded-For header respected."
+        ),
+    )
 
     # SSH Authentication
     ssh_auth_enabled: bool = Field(

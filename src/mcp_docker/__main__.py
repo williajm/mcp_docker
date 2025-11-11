@@ -6,6 +6,7 @@ This module provides the main entry point for running the MCP Docker server.
 import argparse
 import asyncio
 import contextvars
+import ipaddress
 import json
 import os
 import signal
@@ -368,28 +369,75 @@ def _validate_sse_security(host: str) -> None:
         )
 
 
-def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
-    """Extract client IP address from ASGI scope.
+def _is_trusted_proxy(client_ip: str, trusted_proxies: list[str]) -> bool:
+    """Check if an IP address is in the trusted proxy list.
+
+    Args:
+        client_ip: IP address to check
+        trusted_proxies: List of trusted proxy IPs/networks (supports CIDR)
+
+    Returns:
+        True if IP is trusted, False otherwise
+    """
+    try:
+        client_ip_obj = ipaddress.ip_address(client_ip)
+
+        for trusted_proxy in trusted_proxies:
+            try:
+                # Handle CIDR networks
+                if "/" in trusted_proxy:
+                    network = ipaddress.ip_network(trusted_proxy, strict=False)
+                    if client_ip_obj in network:
+                        return True
+                # Handle individual IPs
+                elif client_ip_obj == ipaddress.ip_address(trusted_proxy):
+                    return True
+            except ValueError:
+                # Invalid IP/network in config, skip
+                logger.warning(f"Invalid trusted_proxy configuration: {trusted_proxy}")
+                continue
+
+    except ValueError:
+        # Invalid IP address format
+        pass
+
+    return False
+
+
+def _extract_client_ip(
+    scope: MutableMapping[str, Any], trusted_proxies: list[str] | None = None
+) -> str | None:
+    """Extract client IP address from ASGI scope with secure proxy handling.
+
+    SECURITY: X-Forwarded-For headers are only trusted when the connection
+    originates from a trusted proxy IP. This prevents IP spoofing attacks
+    where attackers forge headers to bypass allowlists or evade rate limits.
 
     Args:
         scope: ASGI connection scope
+        trusted_proxies: List of trusted proxy IPs/networks (supports CIDR).
+                         If None or empty, X-Forwarded-For is never trusted.
 
     Returns:
         Client IP address or None if not available
     """
     client_ip = None
 
-    # Get IP from scope's client field
+    # Get IP from scope's client field (direct socket connection)
     if "client" in scope and scope["client"]:
         client_ip = scope["client"][0]  # (host, port) tuple, take host
 
-    # Check for proxy headers (X-Forwarded-For) if behind reverse proxy
-    headers_list = scope.get("headers", [])
-    headers_dict = dict(headers_list)
-    forwarded_for = headers_dict.get(b"x-forwarded-for")
-    if forwarded_for:
-        # Take leftmost IP (original client) from comma-separated list
-        client_ip = forwarded_for.decode("utf-8").split(",")[0].strip()
+    # Only trust X-Forwarded-For from trusted proxies (prevents IP spoofing)
+    if trusted_proxies and client_ip and _is_trusted_proxy(client_ip, trusted_proxies):
+        headers_list = scope.get("headers", [])
+        # Find first X-Forwarded-For header (don't use dict, it takes last)
+        for header_name, header_value in headers_list:
+            if header_name.lower() == b"x-forwarded-for":
+                # Take leftmost IP (original client) from comma-separated list
+                forwarded_ip = header_value.decode("utf-8").split(",")[0].strip()
+                if forwarded_ip:  # Don't use empty string
+                    client_ip = forwarded_ip
+                break  # Use first header
 
     return client_ip
 
@@ -431,7 +479,8 @@ async def run_sse(host: str, port: int) -> None:
             method = scope.get("method", "")
 
             # Extract and store client IP for authentication/logging
-            client_ip = _extract_client_ip(scope)
+            # SECURITY: Only trust X-Forwarded-For from configured trusted proxies
+            client_ip = _extract_client_ip(scope, trusted_proxies=config.security.trusted_proxies)
             client_ip_context.set(client_ip)
 
             logger.debug(f"Request: {method} {path} from {client_ip or 'unknown'}")

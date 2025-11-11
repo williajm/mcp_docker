@@ -88,6 +88,73 @@ class TestAuthRateLimiter:
         limiter = AuthRateLimiter(max_attempts=5, window_seconds=60)
         limiter.clear_attempts("nonexistent")  # Should not raise
 
+    def test_cleans_up_empty_identifier_entries(self) -> None:
+        """Test that identifiers with no recent attempts are removed from memory.
+
+        This is critical for preventing memory leaks from attacker-controlled identifiers.
+        """
+        limiter = AuthRateLimiter(max_attempts=3, window_seconds=1)
+
+        # Record attempts that will expire
+        limiter.check_and_record_attempt("old_client")
+        assert "old_client" in limiter.attempts
+        assert len(limiter.attempts) == 1
+
+        # Wait for window to expire
+        time.sleep(1.1)
+
+        # Next check should clean up the expired entry
+        limiter.check_and_record_attempt("old_client")
+
+        # The old timestamps should be gone, but entry remains with 1 new timestamp
+        assert len(limiter.attempts["old_client"]) == 1
+
+    def test_prevents_unbounded_memory_growth_from_bogus_identifiers(self) -> None:
+        """Test that attackers cannot cause unbounded memory growth with bogus IDs.
+
+        Attack scenario: Attacker floods with fake client_id values to exhaust memory.
+        The rate limiter should have a maximum size limit.
+        """
+        limiter = AuthRateLimiter(max_attempts=5, window_seconds=60)
+
+        # Attacker tries to fill memory with bogus identifiers
+        num_attempts = 1500  # Attempt to create 1500 entries (exceeds max)
+        for i in range(num_attempts):
+            try:
+                limiter.check_and_record_attempt(f"attacker_fake_id_{i}")
+            except AuthRateLimitExceededError:
+                pass  # Ignore rate limit errors
+
+        # Dictionary should not grow unbounded
+        # Default max size should be 1000 entries
+        assert len(limiter.attempts) <= 1000, (
+            f"Rate limiter has {len(limiter.attempts)} entries, "
+            "should be capped at 1000 to prevent memory exhaustion"
+        )
+
+    def test_oldest_entries_evicted_when_at_capacity(self) -> None:
+        """Test that oldest entries are evicted when rate limiter reaches capacity."""
+        limiter = AuthRateLimiter(max_attempts=5, window_seconds=300)
+
+        # Fill to capacity (1000 entries)
+        for i in range(1000):
+            limiter.check_and_record_attempt(f"client_{i}")
+
+        # Verify we're at capacity
+        assert len(limiter.attempts) == 1000
+
+        # Add new entry - should evict oldest
+        limiter.check_and_record_attempt("new_client")
+
+        # Should still be at capacity
+        assert len(limiter.attempts) == 1000
+
+        # New client should be present
+        assert "new_client" in limiter.attempts
+
+        # First client should have been evicted
+        assert "client_0" not in limiter.attempts
+
 
 class TestAuthMiddleware:
     """Test authentication middleware."""
