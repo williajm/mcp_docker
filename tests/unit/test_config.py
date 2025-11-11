@@ -46,6 +46,45 @@ class TestDockerConfig:
         with pytest.raises(ValidationError):
             DockerConfig(timeout=-1)
 
+    def test_tls_verify_without_ca_cert_uses_system_bundle(self) -> None:
+        """Test that TLS verification can use system CA bundle when no custom CA provided.
+
+        This is a legitimate use case for connecting to Docker daemons with publicly
+        trusted certificates or certificates trusted by the system CA store.
+        """
+        # Should allow TLS verification without custom CA cert (uses system CA bundle)
+        config = DockerConfig(
+            base_url="tcp://docker.example.com:2376",
+            tls_verify=True,
+            tls_ca_cert=None,  # No custom CA - will use system bundle
+        )
+        assert config.tls_verify is True
+        assert config.tls_ca_cert is None
+
+    def test_tls_verify_with_custom_ca_cert(self, tmp_path: Path) -> None:
+        """Test TLS verification with custom CA certificate."""
+        ca_cert = tmp_path / "ca.pem"
+        ca_cert.touch()
+
+        config = DockerConfig(
+            base_url="tcp://docker.example.com:2376",
+            tls_verify=True,
+            tls_ca_cert=ca_cert,
+        )
+        assert config.tls_verify is True
+        assert config.tls_ca_cert == ca_cert
+
+    def test_tls_verify_rejects_nonexistent_ca_cert(self, tmp_path: Path) -> None:
+        """Test that TLS verification rejects non-existent CA certificate files."""
+        nonexistent_cert = tmp_path / "nonexistent.pem"
+
+        with pytest.raises(ValidationError, match="Certificate file not found"):
+            DockerConfig(
+                base_url="tcp://docker.example.com:2376",
+                tls_verify=True,
+                tls_ca_cert=nonexistent_cert,
+            )
+
 
 class TestSafetyConfig:
     """Tests for SafetyConfig."""

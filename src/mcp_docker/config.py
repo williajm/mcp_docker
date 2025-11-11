@@ -81,10 +81,14 @@ class DockerConfig(BaseSettings):
     @model_validator(mode="after")
     def validate_tls_config(self) -> "DockerConfig":
         """Validate TLS configuration consistency."""
+        # Inform users when TLS verification uses system CA bundle
         if self.tls_verify and not self.tls_ca_cert:
-            raise ValueError(
-                "tls_ca_cert is required when tls_verify=True. "
-                "Provide a CA certificate path for TLS verification."
+            warnings.warn(
+                "TLS verification enabled without custom CA certificate. "
+                "Will use system CA bundle for certificate verification. "
+                "This is appropriate for publicly trusted certificates but may not work "
+                "for self-signed or internal CA certificates.",
+                stacklevel=2,
             )
 
         # Warn if certificates are provided without TLS verification
