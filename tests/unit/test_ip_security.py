@@ -114,5 +114,5 @@ class TestProxyHeadersMiddlewareIntegration:
         3. All X-Forwarded-For security is handled by the middleware
         4. Our _extract_client_ip just reads from scope['client']
         """
-        # This test always passes - it exists for documentation
-        assert True
+        # Documentation test - no assertions needed
+        pass

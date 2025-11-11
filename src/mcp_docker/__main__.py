@@ -46,6 +46,11 @@ HTTP_RESPONSE_BODY = "http.response.body"
 # Logging Constants
 LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
 
+# CSP (Content Security Policy) directive constants
+# Used to reduce duplication and improve maintainability
+CSP_SELF = "'self'"
+CSP_NONE = "'none'"
+
 # Context variable for client IP address in SSE transport
 client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "client_ip", default=None
@@ -380,6 +385,90 @@ def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
     return None
 
 
+def _create_security_headers(config: Config) -> Secure:
+    """Create security headers middleware configuration.
+
+    Args:
+        config: MCP configuration with TLS settings
+
+    Returns:
+        Configured Secure middleware instance with OWASP recommended headers
+    """
+    csp = (
+        ContentSecurityPolicy()
+        .default_src(CSP_SELF)
+        .script_src(CSP_SELF)
+        .style_src(CSP_SELF)
+        .img_src(CSP_SELF)
+        .font_src(CSP_SELF)
+        .connect_src(CSP_SELF)
+        .frame_ancestors(CSP_NONE)
+        .base_uri(CSP_SELF)
+        .form_action(CSP_SELF)
+    )
+
+    hsts = (
+        StrictTransportSecurity().include_subdomains().preload().max_age(31536000)
+        if config.server.tls_enabled
+        else None
+    )
+
+    cache = CacheControl().no_store().no_cache().must_revalidate()
+    xfo = XFrameOptions().deny()
+    referrer = ReferrerPolicy().strict_origin_when_cross_origin()
+
+    permissions = (
+        PermissionsPolicy()
+        .geolocation(CSP_NONE)
+        .microphone(CSP_NONE)
+        .camera(CSP_NONE)
+        .payment(CSP_NONE)
+        .usb(CSP_NONE)
+    )
+
+    return Secure(
+        csp=csp,
+        hsts=hsts,
+        cache=cache,
+        xfo=xfo,
+        referrer=referrer,
+        permissions=permissions,
+    )
+
+
+def _create_uvicorn_config(
+    app: Any, host: str, port: int, config: Config
+) -> uvicorn.Config:
+    """Create Uvicorn server configuration with optional TLS.
+
+    Args:
+        app: ASGI application
+        host: Server hostname
+        port: Server port
+        config: MCP configuration with TLS settings
+
+    Returns:
+        Configured Uvicorn Config instance
+    """
+    uvicorn_config_params = {
+        "app": app,
+        "host": host,
+        "port": port,
+        "log_level": "info",
+        "timeout_graceful_shutdown": 5,
+        "limit_max_requests": 1000,  # Restart after 1000 requests to prevent memory leaks
+        "limit_concurrency": 100,  # Max 100 concurrent connections
+        "timeout_keep_alive": 30,  # Close idle connections after 30 seconds
+    }
+
+    # Add TLS configuration if enabled
+    if config.server.tls_enabled:
+        uvicorn_config_params["ssl_keyfile"] = str(config.server.tls_key_file)
+        uvicorn_config_params["ssl_certfile"] = str(config.server.tls_cert_file)
+
+    return uvicorn.Config(**uvicorn_config_params)
+
+
 async def run_sse(host: str, port: int) -> None:
     """Run the MCP server with SSE transport over HTTP/HTTPS."""
     protocol = "https" if config.server.tls_enabled else "http"
@@ -457,48 +546,7 @@ async def run_sse(host: str, port: int) -> None:
 
         # SECURITY: Initialize secure headers middleware with OWASP recommended defaults
         # This replaces custom security header code with a battle-tested library
-        csp = (
-            ContentSecurityPolicy()
-            .default_src("'self'")
-            .script_src("'self'")
-            .style_src("'self'")
-            .img_src("'self'")
-            .font_src("'self'")
-            .connect_src("'self'")
-            .frame_ancestors("'none'")
-            .base_uri("'self'")
-            .form_action("'self'")
-        )
-
-        hsts = (
-            StrictTransportSecurity().include_subdomains().preload().max_age(31536000)
-            if config.server.tls_enabled
-            else None
-        )
-
-        cache = CacheControl().no_store().no_cache().must_revalidate()
-
-        xfo = XFrameOptions().deny()
-
-        referrer = ReferrerPolicy().strict_origin_when_cross_origin()
-
-        permissions = (
-            PermissionsPolicy()
-            .geolocation("'none'")
-            .microphone("'none'")
-            .camera("'none'")
-            .payment("'none'")
-            .usb("'none'")
-        )
-
-        secure_headers = Secure(
-            csp=csp,
-            hsts=hsts,
-            cache=cache,
-            xfo=xfo,
-            referrer=referrer,
-            permissions=permissions,
-        )
+        secure_headers = _create_security_headers(config)
 
         # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
         # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
@@ -563,23 +611,7 @@ async def run_sse(host: str, port: int) -> None:
         )
 
         # Run server with timeout configuration and TLS support
-        uvicorn_config_params = {
-            "app": app,
-            "host": host,
-            "port": port,
-            "log_level": "info",
-            "timeout_graceful_shutdown": 5,
-            "limit_max_requests": 1000,  # Restart after 1000 requests to prevent memory leaks
-            "limit_concurrency": 100,  # Max 100 concurrent connections
-            "timeout_keep_alive": 30,  # Close idle connections after 30 seconds
-        }
-
-        # Add TLS configuration if enabled
-        if config.server.tls_enabled:
-            uvicorn_config_params["ssl_keyfile"] = str(config.server.tls_key_file)
-            uvicorn_config_params["ssl_certfile"] = str(config.server.tls_cert_file)
-
-        config_uvicorn = uvicorn.Config(**uvicorn_config_params)  # type: ignore[arg-type]
+        config_uvicorn = _create_uvicorn_config(app, host, port, config)
         server = uvicorn.Server(config_uvicorn)
 
         logger.info(f"MCP server listening on {protocol}://{host}:{port}/sse")
