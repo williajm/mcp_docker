@@ -177,9 +177,7 @@ class SSHSignatureValidator:
 
     def _verify_by_key_type(
         self,
-        crypto_public_key: ed25519.Ed25519PublicKey
-        | rsa.RSAPublicKey
-        | ec.EllipticCurvePublicKey,
+        crypto_public_key: ed25519.Ed25519PublicKey | rsa.RSAPublicKey | ec.EllipticCurvePublicKey,
         sig_type: str,
         message: bytes,
         sig_data: bytes,
@@ -249,11 +247,13 @@ class SSHSignatureValidator:
 
             # SECURITY: Use cryptography library to parse SSH public key (battle-tested)
             # Construct SSH public key line (format: "ssh-ed25519 AAAAC3Nza...")
-            ssh_key_line = f"{public_key.key_type} {public_key.public_key}".encode("utf-8")
+            ssh_key_line = f"{public_key.key_type} {public_key.public_key}".encode()
             try:
                 crypto_public_key = load_ssh_public_key(ssh_key_line)
             except Exception as parse_error:
-                logger.debug(f"Failed to parse SSH public key: {parse_error}, key_type={public_key.key_type}")
+                logger.debug(
+                    f"Failed to parse SSH public key: {parse_error}, key_type={public_key.key_type}"
+                )
                 return False
 
             # SECURITY: Reject DSA keys (deprecated and insecure)
