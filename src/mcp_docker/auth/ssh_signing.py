@@ -2,10 +2,11 @@
 
 This module provides utilities for loading SSH private keys and creating signatures
 using the cryptography library. Supports Ed25519, RSA, and ECDSA keys.
+
+SECURITY: Uses cryptography library's OpenSSH format (battle-tested) for public
+keys, making them compatible with standard SSH tooling and load_ssh_public_key().
 """
 
-import base64
-import struct
 from pathlib import Path
 
 from cryptography.hazmat.primitives import hashes, serialization
@@ -206,85 +207,43 @@ def sign_message(
 def get_public_key_string(
     private_key: SSHPrivateKey,
 ) -> tuple[str, str]:
-    """Get public key in SSH format from private key.
+    """Get public key in OpenSSH format from private key.
+
+    SECURITY: Uses cryptography library's OpenSSH format (battle-tested) instead
+    of custom SSH wire format encoding. This format is compatible with
+    load_ssh_public_key() and matches standard SSH tooling (ssh-keygen, ssh-add).
 
     Args:
         private_key: SSH private key
 
     Returns:
-        Tuple of (key_type, public_key_base64)
+        Tuple of (key_type, public_key_base64) in OpenSSH format.
+        Example: ("ssh-rsa", "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...")
 
     Raises:
         ValueError: If key type is unsupported
     """
-    if isinstance(private_key, ed25519.Ed25519PrivateKey):
-        key_type = "ssh-ed25519"
-        ed_public_key = private_key.public_key()
-        pub_bytes = ed_public_key.public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
-        # Create SSH wire format
-        key_type_encoded = key_type.encode("utf-8")
-        wire_data = (
-            struct.pack(">I", len(key_type_encoded))
-            + key_type_encoded
-            + struct.pack(">I", len(pub_bytes))
-            + pub_bytes
-        )
-        return key_type, base64.b64encode(wire_data).decode("ascii")
+    # SECURITY: Use cryptography library's OpenSSH format (battle-tested)
+    # instead of custom SSH wire format encoding. This format is compatible
+    # with load_ssh_public_key() and matches standard SSH tooling.
 
-    if isinstance(private_key, rsa.RSAPrivateKey):
-        key_type = "ssh-rsa"
-        rsa_public_key = private_key.public_key()
-        public_numbers = rsa_public_key.public_numbers()
-        e_bytes = public_numbers.e.to_bytes((public_numbers.e.bit_length() + 7) // 8, "big")
-        n_bytes = public_numbers.n.to_bytes((public_numbers.n.bit_length() + 7) // 8, "big")
+    # Get public key from private key
+    public_key = private_key.public_key()
 
-        # Create SSH wire format
-        key_type_encoded = key_type.encode("utf-8")
-        wire_data = (
-            struct.pack(">I", len(key_type_encoded))
-            + key_type_encoded
-            + struct.pack(">I", len(e_bytes))
-            + e_bytes
-            + struct.pack(">I", len(n_bytes))
-            + n_bytes
-        )
-        return key_type, base64.b64encode(wire_data).decode("ascii")
+    # Use OpenSSH format: "ssh-rsa AAAAB3Nza..." or "ssh-ed25519 AAAAC3Nza..."
+    openssh_bytes = public_key.public_bytes(
+        encoding=serialization.Encoding.OpenSSH,
+        format=serialization.PublicFormat.OpenSSH,
+    )
 
-    if isinstance(private_key, ec.EllipticCurvePrivateKey):
-        # Determine curve
-        curve = private_key.curve
-        if isinstance(curve, ec.SECP256R1):
-            key_type = "ecdsa-sha2-nistp256"
-            curve_name = "nistp256"
-        elif isinstance(curve, ec.SECP384R1):
-            key_type = "ecdsa-sha2-nistp384"
-            curve_name = "nistp384"
-        elif isinstance(curve, ec.SECP521R1):
-            key_type = "ecdsa-sha2-nistp521"
-            curve_name = "nistp521"
-        else:
-            raise ValueError(f"Unsupported ECDSA curve: {type(curve)}")
+    # Parse the OpenSSH format: "key_type base64_data"
+    openssh_str = openssh_bytes.decode("utf-8")
+    parts = openssh_str.split(None, 1)  # Split on first whitespace
 
-        # Get point bytes (uncompressed format)
-        ec_public_key = private_key.public_key()
-        point_bytes = ec_public_key.public_bytes(
-            encoding=serialization.Encoding.X962,
-            format=serialization.PublicFormat.UncompressedPoint,
-        )
+    # OpenSSH format must have exactly 2 parts: key_type and base64_data
+    expected_parts = 2
+    if len(parts) != expected_parts:
+        raise ValueError(f"Invalid OpenSSH format: {openssh_str}")
 
-        # Create SSH wire format
-        key_type_encoded = key_type.encode("utf-8")
-        curve_name_encoded = curve_name.encode("utf-8")
-        wire_data = (
-            struct.pack(">I", len(key_type_encoded))
-            + key_type_encoded
-            + struct.pack(">I", len(curve_name_encoded))
-            + curve_name_encoded
-            + struct.pack(">I", len(point_bytes))
-            + point_bytes
-        )
-        return key_type, base64.b64encode(wire_data).decode("ascii")
-
-    raise ValueError(f"Unsupported key type: {type(private_key)}")
+    key_type, public_key_b64 = parts
+    return key_type, public_key_b64
