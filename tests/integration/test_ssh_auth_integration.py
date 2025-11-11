@@ -97,30 +97,6 @@ class TestSSHAuthIntegration:
         assert result.get("success") is True or "error_type" not in result
 
     @pytest.mark.asyncio
-    async def test_call_tool_with_api_key_auth(self, tmp_path: Any) -> None:
-        """Test calling a tool with API key authentication in arguments."""
-        # Create API keys file
-        import json
-
-        api_keys_file = tmp_path / ".mcp_keys.json"
-        api_keys_file.write_text(
-            json.dumps(
-                {
-                    "clients": [
-                        {
-                            "client_id": "test-client",
-                            "api_key_hash": "test-hash",
-                            "description": "Test client",
-                        }
-                    ]
-                }
-            )
-        )
-
-        # Note: This test would need the actual hashing mechanism
-        # For now, just demonstrate the interface
-
-    @pytest.mark.asyncio
     async def test_replay_attack_prevented(self, setup_server_with_ssh_auth: Any) -> None:
         """Test that replay attacks are prevented (nonce reuse)."""
         server, private_key, client_id = setup_server_with_ssh_auth

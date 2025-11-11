@@ -392,9 +392,9 @@ async def test_network_with_container_connectivity_via_stdio(
                 container_details = container_inspect_data["details"]
                 networks = container_details.get("NetworkSettings", {}).get("Networks", {})
                 # Verify container is connected to our custom network
-                assert (
-                    network_name in networks
-                ), f"Container should be connected to {network_name}. Networks: {list(networks.keys())}"
+                assert network_name in networks, (
+                    f"Container should be connected to {network_name}. Networks: {list(networks.keys())}"
+                )
 
                 # Step 6: Disconnect container
                 ssh_auth = create_ssh_auth_data(client_id, private_key)

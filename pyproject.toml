@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.0.1"
+version = "1.0.2"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,14 +36,18 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.2.0",
+    "mcp>=1.21.0",
     "docker>=7.1.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
+    "pydantic>=2.12.4",
+    "pydantic-settings>=2.12.0",
     "loguru>=0.7.0",
-    "starlette>=0.27.0",
+    "starlette>=0.50.0",
     "uvicorn>=0.27.0",
-    "cryptography>=41.0.0",  # SSH authentication support (Apache-2.0/BSD)
+    "cryptography>=41.0.0", # SSH authentication support (Apache-2.0/BSD)
+    "limits>=5.6.0",
+    "cachetools>=6.2.1",
+    "python-json-logger>=4.0.0",
+    "secure>=1.0.1",
 ]
 
 [project.optional-dependencies]
@@ -120,9 +124,7 @@ select = [
     "PL",    # pylint
     "PERF",  # perflint
 ]
-ignore = [
-    "UP038",  # isinstance requires tuple syntax, not union types (X | Y only for annotations)
-]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 # Tests need flexibility for fixtures, long assertions, and test-specific patterns
@@ -155,7 +157,10 @@ ignore = [
 # Fuzz tests use Atheris conventions (TestOneInput is required entry point)
 "tests/fuzz/**/*.py" = [
     "N802",     # TestOneInput function name is required by Atheris fuzzing framework
-    "UP038",    # isinstance with tuples is more readable for multiple types
+]
+# Main entry point has complex SSE server setup
+"src/mcp_docker/__main__.py" = [
+    "PLR0915",  # Too many statements (run_sse function sets up complex middleware stack)
 ]
 
 [tool.mypy]
@@ -209,6 +214,14 @@ ignore_missing_imports = true
 module = "atheris.*"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "limits.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "secure.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -240,4 +253,21 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
     "@abstractmethod",
+]
+
+[dependency-groups]
+dev = [
+    "atheris>=2.3.0",
+    "coverage>=7.11.0",
+    "hypothesis>=6.147.0",
+    "mypy>=1.18.2",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-cov>=7.0.0",
+    "pytest-docker>=3.2.3",
+    "ruff>=0.14.2",
+    "types-cachetools>=6.2.0.20251022",
+    "types-docker>=7.1.0.20251009",
+    "types-paramiko>=4.0.0.20250822",
+    "types-requests>=2.32.4.20250913",
 ]

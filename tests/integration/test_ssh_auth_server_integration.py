@@ -16,7 +16,6 @@ These tests validate:
 
 import asyncio
 import base64
-import json
 import secrets
 from datetime import UTC, datetime
 from pathlib import Path
@@ -149,29 +148,12 @@ def ssh_test_env(tmp_path: Any) -> Any:
     auth_keys_file = tmp_path / "authorized_keys"
     auth_keys_file.write_text("")
 
-    # Create API keys file (for mixed auth tests)
-    api_keys_file = tmp_path / ".mcp_keys.json"
-    api_keys_file.write_text(
-        json.dumps(
-            {
-                "clients": [
-                    {
-                        "client_id": "api-client",
-                        "api_key": "test-api-key-12345",
-                        "description": "API key test client",
-                    }
-                ]
-            }
-        )
-    )
-
     # Set environment variables for config
     import os
 
     os.environ["SECURITY_AUTH_ENABLED"] = "true"
     os.environ["SECURITY_SSH_AUTH_ENABLED"] = "true"
     os.environ["SECURITY_SSH_AUTHORIZED_KEYS_FILE"] = str(auth_keys_file)
-    os.environ["SECURITY_API_KEYS_FILE"] = str(api_keys_file)
     os.environ["SECURITY_RATE_LIMIT_ENABLED"] = "true"
     os.environ["SECURITY_RATE_LIMIT_RPM"] = "60"
     os.environ["SECURITY_AUDIT_LOG_ENABLED"] = "true"
@@ -476,73 +458,7 @@ async def test_multi_device_setup(ssh_test_env: Any, docker_available: Any) -> N
 
 
 # ============================================================================
-# Test Scenario 4: Mixed Authentication Environment
-# ============================================================================
-
-
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_mixed_authentication_environment(ssh_test_env: Any, docker_available: Any) -> None:
-    """Integration test: Both API key and SSH auth working simultaneously.
-
-    Scenario:
-    1. Setup both API key and SSH auth enabled
-    2. Client A uses API key auth
-    3. Client B uses SSH auth
-    4. Both clients perform Docker operations simultaneously
-    5. Verify both auth methods work without interference
-    6. Verify audit logs correctly identify auth method used
-
-    This tests backward compatibility and mixed authentication modes.
-    """
-    if not docker_available:
-        pytest.fail("Docker is required for integration tests but is not available")
-
-    server, auth_keys_file, tmp_path = ssh_test_env
-
-    # Setup SSH client
-    ssh_client_id = "ssh-client"
-    ssh_key, ssh_pub = generate_ed25519_key_pair(tmp_path)
-    auth_keys_file.write_text(f"{ssh_pub} {ssh_client_id}:ssh-user\n")
-    server.auth_middleware.reload_keys()
-
-    # API key client (already configured in fixture as "api-client")
-    api_key = "test-api-key-12345"
-
-    # Both clients perform operations concurrently
-    async def ssh_operation() -> tuple[Any, str]:
-        ssh_auth = create_ssh_auth_data(ssh_client_id, ssh_key)
-        result = await server.call_tool(
-            tool_name="docker_list_containers",
-            arguments={"all": True},
-            ssh_auth_data=ssh_auth,
-        )
-        return result.get("success"), "ssh"
-
-    async def api_operation() -> tuple[Any, str]:
-        result = await server.call_tool(
-            tool_name="docker_list_containers",
-            arguments={"all": True},
-            api_key=api_key,
-        )
-        return result.get("success"), "api"
-
-    # Run both operations concurrently
-    results = await asyncio.gather(ssh_operation(), api_operation())
-
-    # Both should succeed
-    assert results[0][0] is True, "SSH auth operation failed"
-    assert results[1][0] is True, "API key operation failed"
-
-    # Verify audit logs contain both auth methods
-    audit_log = tmp_path / "audit.log"
-    audit_content = audit_log.read_text()
-    assert ssh_client_id in audit_content
-    assert "api-client" in audit_content
-
-
-# ============================================================================
-# Test Scenario 5: Replay Attack Prevention
+# Test Scenario 4: Replay Attack Prevention
 # ============================================================================
 
 
@@ -914,8 +830,6 @@ async def test_different_timestamp_windows(tmp_path: Any, docker_available: Any)
     os.environ["SECURITY_SSH_AUTHORIZED_KEYS_FILE"] = str(auth_keys_file)
     os.environ["SECURITY_SSH_SIGNATURE_MAX_AGE"] = "60"  # 1 minute
     os.environ["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    os.environ["SECURITY_API_KEYS_FILE"] = str(tmp_path / "api_keys.json")
-    (tmp_path / "api_keys.json").write_text('{"clients": []}')
     os.environ["SECURITY_AUDIT_LOG_FILE"] = str(tmp_path / "audit_60.log")
 
     config = Config()
@@ -954,12 +868,12 @@ async def test_different_timestamp_windows(tmp_path: Any, docker_available: Any)
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_disabled_ssh_auth(tmp_path: Any, docker_available: Any) -> None:
-    """Integration test: SSH auth disabled falls back appropriately.
+    """Integration test: SSH auth disabled rejects authentication.
 
     Scenario:
     1. Start server with SECURITY_SSH_AUTH_ENABLED=false
     2. Attempt SSH authentication
-    3. Verify falls back to API key or rejects appropriately
+    3. Verify authentication is rejected
 
     This tests SSH auth enable/disable configuration.
     """
@@ -971,15 +885,10 @@ async def test_disabled_ssh_auth(tmp_path: Any, docker_available: Any) -> None:
     # Setup with SSH auth DISABLED
     auth_keys_file = tmp_path / "authorized_keys"
     auth_keys_file.write_text("")
-    api_keys_file = tmp_path / ".mcp_keys.json"
-    api_keys_file.write_text(
-        json.dumps({"clients": [{"client_id": "api-client", "api_key": "test-key-123"}]})
-    )
 
     os.environ["SECURITY_AUTH_ENABLED"] = "true"
     os.environ["SECURITY_SSH_AUTH_ENABLED"] = "false"  # DISABLED
     os.environ["SECURITY_SSH_AUTHORIZED_KEYS_FILE"] = str(auth_keys_file)
-    os.environ["SECURITY_API_KEYS_FILE"] = str(api_keys_file)
     os.environ["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
     os.environ["SECURITY_AUDIT_LOG_FILE"] = str(tmp_path / "audit.log")
 
@@ -1088,8 +997,6 @@ async def test_nonce_store_memory_management(tmp_path: Any, docker_available: An
     os.environ["SECURITY_SSH_AUTHORIZED_KEYS_FILE"] = str(auth_keys_file)
     os.environ["SECURITY_SSH_SIGNATURE_MAX_AGE"] = "5"  # 5 seconds
     os.environ["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    os.environ["SECURITY_API_KEYS_FILE"] = str(tmp_path / "api_keys.json")
-    (tmp_path / "api_keys.json").write_text('{"clients": []}')
     os.environ["SECURITY_AUDIT_LOG_FILE"] = str(tmp_path / "audit.log")
     os.environ["SECURITY_RATE_LIMIT_ENABLED"] = "false"  # Disable for this test
 
@@ -1125,9 +1032,9 @@ async def test_nonce_store_memory_management(tmp_path: Any, docker_available: An
         await asyncio.sleep(0.05)
 
     # Check nonce stats
-    assert (
-        server.auth_middleware.ssh_key_authenticator is not None
-    ), "SSH authenticator should be enabled"
+    assert server.auth_middleware.ssh_key_authenticator is not None, (
+        "SSH authenticator should be enabled"
+    )
     nonce_stats = server.auth_middleware.ssh_key_authenticator.protocol.get_nonce_stats()
     active_nonces = nonce_stats["active_nonces"]
 

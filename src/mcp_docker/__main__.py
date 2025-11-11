@@ -5,6 +5,7 @@ This module provides the main entry point for running the MCP Docker server.
 
 import argparse
 import asyncio
+import contextvars
 import json
 import os
 import signal
@@ -17,16 +18,43 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
+from secure import (
+    CacheControl,
+    ContentSecurityPolicy,
+    PermissionsPolicy,
+    ReferrerPolicy,
+    Secure,
+    StrictTransportSecurity,
+    XFrameOptions,
+)
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.routing import Mount
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__, get_full_version
 
+# HTTP Message Type Constants
+HTTP_RESPONSE_START = "http.response.start"
+HTTP_RESPONSE_BODY = "http.response.body"
+
 # Logging Constants
 LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
+
+# CSP (Content Security Policy) directive constants
+# Used to reduce duplication and improve maintainability
+CSP_SELF = "'self'"
+CSP_NONE = "'none'"
+
+# Context variable for client IP address in SSE transport
+client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "client_ip", default=None
+)
 
 # Load configuration
 config = Config()
@@ -77,9 +105,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     Authentication can be provided via the special '_auth' argument:
     {
         "_auth": {
-            "api_key": "your-api-key",  # For API key auth
-            # OR
-            "ssh": {  # For SSH key auth
+            "ssh": {  # SSH key authentication
                 "client_id": "client-id",
                 "timestamp": "2025-11-04T12:00:00Z",
                 "nonce": "random-nonce",
@@ -101,17 +127,18 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
         auth_data = {}
 
     # Safe to log arguments now that _auth has been removed (no credential leakage)
+    # SECURITY: Loguru handles large payloads safely with automatic serialization
     logger.debug(f"Arguments (auth redacted): {arguments}")
 
-    api_key = auth_data.get("api_key")
     ssh_auth_data = auth_data.get("ssh")
-    ip_address = None  # Could be extracted from request context if available
+
+    # Get client IP from context variable (set by SSE transport)
+    ip_address = client_ip_context.get()
 
     # Call tool with authentication
     result = await docker_server.call_tool(
         name,
         arguments,
-        api_key=api_key,
         ip_address=ip_address,
         ssh_auth_data=ssh_auth_data,
     )
@@ -180,7 +207,7 @@ def _create_logging_wrappers(
         return msg
 
     async def log_send(msg: MutableMapping[str, Any]) -> None:
-        if msg.get("type") == "http.response.body" and msg.get("body"):
+        if msg.get("type") == HTTP_RESPONSE_BODY and msg.get("body"):
             logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
         await send(msg)
 
@@ -228,12 +255,12 @@ async def _handle_404(
     logger.warning(f"Unhandled request: {method} {path}")
     await send(
         {
-            "type": "http.response.start",
+            "type": HTTP_RESPONSE_START,
             "status": 404,
             "headers": [[b"content-type", b"text/plain"]],
         }
     )
-    await send({"type": "http.response.body", "body": b"Not Found"})
+    await send({"type": HTTP_RESPONSE_BODY, "body": b"Not Found"})
 
 
 async def _monitor_shutdown(
@@ -256,6 +283,7 @@ async def _monitor_shutdown(
         try:
             await asyncio.wait_for(server_task, timeout=5.0)
         except TimeoutError:
+            # Note: In Python 3.11+, asyncio.TimeoutError is an alias for built-in TimeoutError
             logger.warning("Graceful shutdown timeout, forcing exit...")
             # Cancel any remaining tasks
             for task in pending:
@@ -280,9 +308,201 @@ async def run_stdio() -> None:
         logger.info("MCP server shutdown complete")
 
 
+def _validate_sse_security(host: str) -> None:
+    """Validate security configuration for SSE transport.
+
+    Args:
+        host: The host address to bind to
+
+    Raises:
+        RuntimeError: If security requirements are not met
+        ValueError: If TLS configuration is incomplete
+    """
+    is_localhost = host in ["127.0.0.1", "localhost", "::1"]
+
+    # Check TLS configuration for non-localhost
+    if not config.server.tls_enabled and not is_localhost:
+        logger.error(
+            "═════════════════════════════════════════════════════════════\n"
+            "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
+            "Running SSE transport over HTTP without TLS on a non-localhost address!\n"
+            "API keys and data will be transmitted in PLAINTEXT over the network.\n"
+            "This is UNSAFE for production use.\n"
+            "\n"
+            "Enable TLS by setting:\n"
+            "  MCP_TLS_ENABLED=true\n"
+            "  MCP_TLS_CERT_FILE=/path/to/cert.pem\n"
+            "  MCP_TLS_KEY_FILE=/path/to/key.pem\n"
+            "═════════════════════════════════════════════════════════════"
+        )
+
+    # Check authentication for non-localhost
+    if not config.security.auth_enabled and not is_localhost:
+        logger.error(
+            "═════════════════════════════════════════════════════════════\n"
+            "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
+            "Authentication is DISABLED while binding to a non-localhost address!\n"
+            "Anyone who can reach this server can execute Docker commands\n"
+            "without credentials.\n"
+            "\n"
+            "Enable authentication by setting:\n"
+            "  SECURITY_AUTH_ENABLED=true\n"
+            "Or bind to localhost only: --host 127.0.0.1\n"
+            "═════════════════════════════════════════════════════════════"
+        )
+        raise RuntimeError(
+            "Authentication MUST be enabled when binding to non-localhost addresses. "
+            "Set SECURITY_AUTH_ENABLED=true or bind to 127.0.0.1 only."
+        )
+
+    # Validate TLS configuration if enabled
+    if config.server.tls_enabled and (
+        not config.server.tls_cert_file or not config.server.tls_key_file
+    ):
+        raise ValueError(
+            "TLS is enabled but certificate or key file not specified. "
+            "Set MCP_TLS_CERT_FILE and MCP_TLS_KEY_FILE."
+        )
+
+
+def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
+    """Extract client IP address from ASGI scope.
+
+    SECURITY: ProxyHeadersMiddleware has already processed X-Forwarded-For
+    headers from trusted proxies and updated scope['client'] with the real
+    client IP. This prevents IP spoofing attacks.
+
+    Args:
+        scope: ASGI connection scope (processed by ProxyHeadersMiddleware)
+
+    Returns:
+        Client IP address or None if not available
+    """
+    # ProxyHeadersMiddleware updates scope['client'] with real IP
+    if "client" in scope and scope["client"]:
+        client_tuple = scope["client"]
+        if isinstance(client_tuple, (list, tuple)) and len(client_tuple) > 0:
+            return str(client_tuple[0])  # (host, port) tuple, take host
+    return None
+
+
+def _create_security_headers(config: Config) -> Secure:
+    """Create security headers middleware configuration.
+
+    Args:
+        config: MCP configuration with TLS settings
+
+    Returns:
+        Configured Secure middleware instance with OWASP recommended headers
+    """
+    csp = (
+        ContentSecurityPolicy()
+        .default_src(CSP_SELF)
+        .script_src(CSP_SELF)
+        .style_src(CSP_SELF)
+        .img_src(CSP_SELF)
+        .font_src(CSP_SELF)
+        .connect_src(CSP_SELF)
+        .frame_ancestors(CSP_NONE)
+        .base_uri(CSP_SELF)
+        .form_action(CSP_SELF)
+    )
+
+    hsts = (
+        StrictTransportSecurity().include_subdomains().preload().max_age(31536000)
+        if config.server.tls_enabled
+        else None
+    )
+
+    cache = CacheControl().no_store().no_cache().must_revalidate()
+    xfo = XFrameOptions().deny()
+    referrer = ReferrerPolicy().strict_origin_when_cross_origin()
+
+    permissions = (
+        PermissionsPolicy()
+        .geolocation(CSP_NONE)
+        .microphone(CSP_NONE)
+        .camera(CSP_NONE)
+        .payment(CSP_NONE)
+        .usb(CSP_NONE)
+    )
+
+    return Secure(
+        csp=csp,
+        hsts=hsts,
+        cache=cache,
+        xfo=xfo,
+        referrer=referrer,
+        permissions=permissions,
+    )
+
+
+def _create_uvicorn_config(app: Any, host: str, port: int, config: Config) -> uvicorn.Config:
+    """Create Uvicorn server configuration with optional TLS.
+
+    Args:
+        app: ASGI application
+        host: Server hostname
+        port: Server port
+        config: MCP configuration with TLS settings
+
+    Returns:
+        Configured Uvicorn Config instance
+    """
+    uvicorn_config_params = {
+        "app": app,
+        "host": host,
+        "port": port,
+        "log_level": "info",
+        "timeout_graceful_shutdown": 5,
+        "limit_max_requests": 1000,  # Restart after 1000 requests to prevent memory leaks
+        "limit_concurrency": 100,  # Max 100 concurrent connections
+        "timeout_keep_alive": 30,  # Close idle connections after 30 seconds
+    }
+
+    # Add TLS configuration if enabled
+    if config.server.tls_enabled:
+        uvicorn_config_params["ssl_keyfile"] = str(config.server.tls_key_file)
+        uvicorn_config_params["ssl_certfile"] = str(config.server.tls_cert_file)
+
+    return uvicorn.Config(**uvicorn_config_params)
+
+
+def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
+    """Create middleware stack for Starlette application.
+
+    Args:
+        host: Server hostname
+        config: MCP configuration with TLS settings
+
+    Returns:
+        List of configured middleware
+    """
+    # SECURITY: Configure TrustedHostMiddleware based on environment
+    # For localhost: allow localhost variants
+    # For production: restrict to specific hostnames/domains
+    is_localhost = host in ["127.0.0.1", "localhost", "::1"]
+    allowed_hosts = ["127.0.0.1", "localhost", "::1"] if is_localhost else [host]
+
+    middleware_stack = [
+        # Trusted host middleware (validate Host header to prevent Host header injection)
+        Middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts),
+    ]
+
+    # Add HTTPS redirect if TLS is enabled
+    if config.server.tls_enabled:
+        middleware_stack.insert(0, Middleware(HTTPSRedirectMiddleware))
+
+    return middleware_stack
+
+
 async def run_sse(host: str, port: int) -> None:
-    """Run the MCP server with SSE transport over HTTP."""
-    logger.info(f"Starting MCP server with SSE transport on {host}:{port}")
+    """Run the MCP server with SSE transport over HTTP/HTTPS."""
+    protocol = "https" if config.server.tls_enabled else "http"
+    logger.info(f"Starting MCP server with SSE transport on {protocol}://{host}:{port}")
+
+    # Validate security configuration
+    _validate_sse_security(host)
 
     # Initialize Docker server
     await docker_server.start()
@@ -311,7 +531,13 @@ async def run_sse(host: str, port: int) -> None:
             """Handle both /sse (GET) and /messages (POST) through the SSE transport."""
             path = scope.get("path", "")
             method = scope.get("method", "")
-            logger.debug(f"Request: {method} {path}")
+
+            # Extract and store client IP for authentication/logging
+            # SECURITY: ProxyHeadersMiddleware has already validated trusted proxies
+            client_ip = _extract_client_ip(scope)
+            client_ip_context.set(client_ip)
+
+            logger.debug(f"Request: {method} {path} from {client_ip or 'unknown'}")
 
             # Create logging wrappers
             log_receive, log_send = _create_logging_wrappers(receive, send)
@@ -319,28 +545,90 @@ async def run_sse(host: str, port: int) -> None:
             # Route based on path and method
             if path.startswith("/sse") and method == "GET":
                 await _handle_sse_connection(sse, scope, log_receive, log_send)
+            elif path.startswith("/sse") and method == "HEAD":
+                # Handle HEAD request for health checks
+                await send(
+                    {
+                        "type": HTTP_RESPONSE_START,
+                        "status": 200,
+                        "headers": [
+                            [b"content-type", b"text/event-stream"],
+                            [b"cache-control", b"no-cache"],
+                            [b"connection", b"keep-alive"],
+                        ],
+                    }
+                )
+                await send({"type": HTTP_RESPONSE_BODY, "body": b""})
             elif path.startswith("/messages") and method == "POST":
                 await _handle_post_message(sse, scope, log_receive, log_send)
             else:
                 await _handle_404(send, method, path)
 
         # Mount handler at root
-        app = Starlette(
-            debug=True,
-            routes=[Mount("/", app=sse_handler)],
+        if config.server.debug_mode:
+            logger.warning(
+                "⚠️  Debug mode enabled - detailed errors will be exposed to clients. "
+                "DO NOT use in production!"
+            )
+
+        # SECURITY: Initialize secure headers middleware with OWASP recommended defaults
+        # This replaces custom security header code with a battle-tested library
+        secure_headers = _create_security_headers(config)
+
+        # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
+        # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
+        trusted_proxies = (
+            config.security.trusted_proxies if config.security.trusted_proxies else ["127.0.0.1"]
+        )
+        # Type ignore needed due to ASGI type variance between MutableMapping and specific types
+        wrapped_handler = ProxyHeadersMiddleware(
+            sse_handler,  # type: ignore[arg-type]
+            trusted_hosts=trusted_proxies,
         )
 
-        # Run server with timeout configuration
-        config_uvicorn = uvicorn.Config(
-            app,
-            host=host,
-            port=port,
-            log_level="info",
-            timeout_graceful_shutdown=5,  # 5 second timeout for graceful shutdown
+        # Wrap with secure headers middleware
+        async def security_headers_middleware(
+            scope: MutableMapping[str, Any],
+            receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+            send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+        ) -> None:
+            """Apply security headers using the secure library."""
+
+            async def send_wrapper(message: MutableMapping[str, Any]) -> None:
+                if message["type"] == "http.response.start":
+                    # Create a simple response object that the secure library can work with
+                    class SimpleResponse:
+                        def __init__(self, headers: list[tuple[bytes, bytes]]) -> None:
+                            self.headers: MutableMapping[str, str] = {
+                                k.decode(): v.decode() for k, v in headers
+                            }
+
+                    response = SimpleResponse(message.get("headers", []))
+                    await secure_headers.set_headers_async(response)
+
+                    # Convert headers back to ASGI format
+                    message["headers"] = [
+                        (k.encode(), v.encode()) for k, v in response.headers.items()
+                    ]
+
+                await send(message)
+
+            await wrapped_handler(scope, receive, send_wrapper)  # type: ignore[arg-type]
+
+        # Build middleware stack (from innermost to outermost)
+        middleware_stack = _create_middleware_stack(host, config)
+
+        app = Starlette(
+            debug=config.server.debug_mode,
+            routes=[Mount("/", app=security_headers_middleware)],
+            middleware=middleware_stack,
         )
+
+        # Run server with timeout configuration and TLS support
+        config_uvicorn = _create_uvicorn_config(app, host, port, config)
         server = uvicorn.Server(config_uvicorn)
 
-        logger.info(f"MCP server listening on http://{host}:{port}/sse")
+        logger.info(f"MCP server listening on {protocol}://{host}:{port}/sse")
 
         # Run server with shutdown monitoring
         server_task = asyncio.create_task(server.serve())

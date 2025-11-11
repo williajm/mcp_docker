@@ -68,4 +68,6 @@ jobs:
           -Dsonar.sources=src \
           -Dsonar.tests=tests \
           -Dsonar.python.coverage.reportPaths=coverage.xml \
-          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.qualitygate.wait=true \
+          -Dsonar.qualitygate.timeout=300

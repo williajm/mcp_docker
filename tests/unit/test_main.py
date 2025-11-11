@@ -75,7 +75,7 @@ class TestMCPServerHandlers:
             # Server should be called with no auth (None values)
             mock_server.call_tool.assert_called_once()
             call_kwargs = mock_server.call_tool.call_args[1]
-            assert call_kwargs["api_key"] is None
+            assert "api_key" not in call_kwargs  # API key auth removed
             assert call_kwargs["ssh_auth_data"] is None
 
     @pytest.mark.asyncio
@@ -93,7 +93,7 @@ class TestMCPServerHandlers:
             assert len(result) == 1
             # Server should be called with no auth
             call_kwargs = mock_server.call_tool.call_args[1]
-            assert call_kwargs["api_key"] is None
+            assert "api_key" not in call_kwargs  # API key auth removed
             assert call_kwargs["ssh_auth_data"] is None
 
     @pytest.mark.asyncio
@@ -111,7 +111,7 @@ class TestMCPServerHandlers:
             assert len(result) == 1
             # Server should be called with no auth
             call_kwargs = mock_server.call_tool.call_args[1]
-            assert call_kwargs["api_key"] is None
+            assert "api_key" not in call_kwargs  # API key auth removed
             assert call_kwargs["ssh_auth_data"] is None
 
     @pytest.mark.asyncio
@@ -122,20 +122,20 @@ class TestMCPServerHandlers:
                 return_value={"success": True, "result": {"output": "test"}}
             )
 
-            # Valid auth should be passed through correctly
+            # Valid auth should be passed through correctly (SSH only, API key removed)
             result = await main_module.handle_call_tool(
                 "test_tool",
                 {
-                    "_auth": {"api_key": "test-key", "ssh": {"client_id": "test"}},
+                    "_auth": {"ssh": {"client_id": "test"}},
                     "arg": "value",
                 },
             )
 
             # Should succeed
             assert len(result) == 1
-            # Server should be called with auth data
+            # Server should be called with SSH auth data only (API key removed)
             call_kwargs = mock_server.call_tool.call_args[1]
-            assert call_kwargs["api_key"] == "test-key"
+            assert "api_key" not in call_kwargs  # API key auth removed
             assert call_kwargs["ssh_auth_data"] == {"client_id": "test"}
             # _auth should be stripped from arguments
             call_args = mock_server.call_tool.call_args[0]
