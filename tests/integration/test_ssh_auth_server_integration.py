@@ -830,8 +830,6 @@ async def test_different_timestamp_windows(tmp_path: Any, docker_available: Any)
     os.environ["SECURITY_SSH_AUTHORIZED_KEYS_FILE"] = str(auth_keys_file)
     os.environ["SECURITY_SSH_SIGNATURE_MAX_AGE"] = "60"  # 1 minute
     os.environ["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    os.environ["SECURITY_API_KEYS_FILE"] = str(tmp_path / "api_keys.json")
-    (tmp_path / "api_keys.json").write_text('{"clients": []}')
     os.environ["SECURITY_AUDIT_LOG_FILE"] = str(tmp_path / "audit_60.log")
 
     config = Config()
@@ -999,8 +997,6 @@ async def test_nonce_store_memory_management(tmp_path: Any, docker_available: An
     os.environ["SECURITY_SSH_AUTHORIZED_KEYS_FILE"] = str(auth_keys_file)
     os.environ["SECURITY_SSH_SIGNATURE_MAX_AGE"] = "5"  # 5 seconds
     os.environ["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    os.environ["SECURITY_API_KEYS_FILE"] = str(tmp_path / "api_keys.json")
-    (tmp_path / "api_keys.json").write_text('{"clients": []}')
     os.environ["SECURITY_AUDIT_LOG_FILE"] = str(tmp_path / "audit.log")
     os.environ["SECURITY_RATE_LIMIT_ENABLED"] = "false"  # Disable for this test
 

@@ -401,7 +401,8 @@ export MCP_TLS_ENABLED=true
 export MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
 export MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
 export SECURITY_AUTH_ENABLED=true
-export SECURITY_API_KEYS_FILE=~/.mcp-docker/api_keys.json
+export SECURITY_SSH_AUTH_ENABLED=true
+export SECURITY_SSH_AUTHORIZED_KEYS_FILE=~/.mcp-docker/authorized_keys
 
 # Start server
 mcp-docker --transport sse --host 0.0.0.0 --port 8443

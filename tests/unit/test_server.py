@@ -20,7 +20,6 @@ def mock_config(tmp_path: Any) -> Any:
     config.safety = SafetyConfig()  # Use real SafetyConfig with defaults
     config.security = SecurityConfig(
         auth_enabled=False,  # Disable auth for tests
-        api_keys_file=tmp_path / ".mcp_keys.json",
         audit_log_file=tmp_path / "audit.log",
     )
     return config
