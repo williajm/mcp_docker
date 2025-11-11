@@ -26,6 +26,19 @@ loguru==0.7.3 \
 cryptography==44.0.1 \
     --hash=sha256:72198e2b5925155497a5a3e8c216c7fb3e64c16ccee11f0e7da272fa93b35c4c
 
+# Battle-tested security libraries (added in v1.0.2)
+limits==5.6.0 \
+    --hash=sha256:b585c2104274528536a5b68864ec3835602b3c4a802cd6aa0b07419798394021
+
+cachetools==6.2.1 \
+    --hash=sha256:09868944b6dde876dfd44e1d47e18484541eaf12f26f29b7af91b26cc892d701
+
+python-json-logger==4.0.0 \
+    --hash=sha256:af09c9daf6a813aa4cc7180395f50f2a9e5fa056034c9953aec92e381c5ba1e2
+
+secure==1.0.1 \
+    --hash=sha256:f0bb7bb12c684e8e30026a5480833170197146163fcb61a80d1af1710c0478da
+
 # Transitive dependencies (required by packages above)
 pydantic-core==2.27.2 \
     --hash=sha256:1c1fd185014191700554795c99b347d64f2bb637966c4cfc16998a0ca700d048
@@ -44,3 +57,13 @@ cffi==2.0.0 \
 
 pycparser==2.23 \
     --hash=sha256:e5c6e8d3fbad53479cab09ac03729e0a9faf2bee3db8208a550daf5af81a5934
+
+# Transitive dependencies for battle-tested security libraries
+deprecated==1.3.1 \
+    --hash=sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f
+
+packaging==25.0 \
+    --hash=sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484
+
+wrapt==2.0.1 \
+    --hash=sha256:df0b6d3b95932809c5b3fecc18fda0f1e07452d05e2662a0b35548985f256e28
