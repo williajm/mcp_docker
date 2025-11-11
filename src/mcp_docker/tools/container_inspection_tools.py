@@ -417,9 +417,8 @@ class ExecCommandTool(BaseTool):
             # Validate command - SECURITY: Check for dangerous patterns in ALL formats
             validate_command_safety(input_data.command)
 
-            # Additional structure validation for strings
-            if isinstance(input_data.command, str):
-                validate_command(input_data.command)
+            # Validate command structure and enforce length limits for ALL types
+            validate_command(input_data.command)
 
             logger.info(
                 f"Executing command in container: {input_data.container_id}, "

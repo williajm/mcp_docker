@@ -226,6 +226,28 @@ class TestValidateCommand:
         with pytest.raises(ValidationError, match="Command must be a string or list"):
             validate_command(123)  # type: ignore[arg-type]
 
+    def test_string_command_exceeds_length_limit(self) -> None:
+        """Test string command exceeding 64KB limit."""
+        # Create a command larger than 64KB (65536 bytes)
+        large_command = "echo " + "A" * 70000
+        with pytest.raises(ValidationError, match="Command too long"):
+            validate_command(large_command)
+
+    def test_list_command_exceeds_length_limit(self) -> None:
+        """Test list command exceeding 64KB limit (security fix verification)."""
+        # Create a list command where total length exceeds 64KB
+        # This tests the fix for the security issue where list commands bypassed validation
+        large_arg = "A" * 70000
+        with pytest.raises(ValidationError, match="Command too long"):
+            validate_command(["/bin/echo", large_arg])
+
+    def test_list_command_within_length_limit(self) -> None:
+        """Test list command within 64KB limit passes validation."""
+        # Create a list command just under the limit
+        medium_arg = "A" * 30000
+        result = validate_command(["/bin/echo", medium_arg])
+        assert result == ["/bin/echo", medium_arg]
+
 
 class TestValidateMemory:
     """Tests for validate_memory wrapper function."""
