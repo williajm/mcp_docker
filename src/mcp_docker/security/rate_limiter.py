@@ -121,6 +121,7 @@ class RateLimiter:
         try:
             await asyncio.wait_for(semaphore.acquire(), timeout=CONCURRENT_SLOT_TIMEOUT_SECONDS)
         except TimeoutError:
+            # Note: In Python 3.11+, asyncio.TimeoutError is an alias for built-in TimeoutError
             logger.warning(f"Concurrent request limit exceeded for client: {client_id}")
             raise RateLimitExceeded(
                 f"Concurrent request limit exceeded: {self.max_concurrent}"

@@ -283,6 +283,7 @@ async def _monitor_shutdown(
         try:
             await asyncio.wait_for(server_task, timeout=5.0)
         except TimeoutError:
+            # Note: In Python 3.11+, asyncio.TimeoutError is an alias for built-in TimeoutError
             logger.warning("Graceful shutdown timeout, forcing exit...")
             # Cancel any remaining tasks
             for task in pending:
