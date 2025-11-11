@@ -146,9 +146,7 @@ class TestAuthMiddleware:
         )
         middleware = AuthMiddleware(config)
 
-        client_info = middleware.authenticate_request(
-            ip_address="127.0.0.1", ssh_auth_data=None
-        )
+        client_info = middleware.authenticate_request(ip_address="127.0.0.1", ssh_auth_data=None)
 
         assert client_info.client_id == "unauthenticated"
         assert client_info.api_key_hash == "none"
@@ -173,9 +171,7 @@ class TestAuthMiddleware:
     def test_authenticate_no_credentials(self, auth_middleware: AuthMiddleware) -> None:
         """Test authentication fails when no credentials provided."""
         with pytest.raises(AuthenticationError, match="SSH authentication required"):
-            auth_middleware.authenticate_request(
-                ip_address="127.0.0.1", ssh_auth_data=None
-            )
+            auth_middleware.authenticate_request(ip_address="127.0.0.1", ssh_auth_data=None)
 
     def test_authenticate_ssh_but_not_enabled(self, tmp_path: Path) -> None:
         """Test SSH auth fails when SSH not enabled."""
@@ -194,9 +190,7 @@ class TestAuthMiddleware:
         }
 
         with pytest.raises(AuthenticationError, match="SSH authentication is not enabled"):
-            middleware.authenticate_request(
-                ip_address="127.0.0.1", ssh_auth_data=ssh_data
-            )
+            middleware.authenticate_request(ip_address="127.0.0.1", ssh_auth_data=ssh_data)
 
     def test_authenticate_ssh_success(self, auth_middleware: AuthMiddleware) -> None:
         """Test successful SSH authentication."""
@@ -234,9 +228,7 @@ class TestAuthMiddleware:
         }
 
         with pytest.raises(AuthenticationError):
-            auth_middleware.authenticate_request(
-                ip_address="127.0.0.1", ssh_auth_data=ssh_data
-            )
+            auth_middleware.authenticate_request(ip_address="127.0.0.1", ssh_auth_data=ssh_data)
 
     def test_authenticate_ssh_invalid_types(self, auth_middleware: AuthMiddleware) -> None:
         """Test SSH authentication with invalid data types."""
@@ -248,9 +240,7 @@ class TestAuthMiddleware:
         }
 
         with pytest.raises(AuthenticationError):
-            auth_middleware.authenticate_request(
-                ip_address="127.0.0.1", ssh_auth_data=ssh_data
-            )
+            auth_middleware.authenticate_request(ip_address="127.0.0.1", ssh_auth_data=ssh_data)
 
     def test_authenticate_ssh_rate_limit(self, auth_middleware: AuthMiddleware) -> None:
         """Test SSH authentication rate limiting."""
@@ -276,9 +266,7 @@ class TestAuthMiddleware:
 
             # 6th attempt should be rate limited
             with pytest.raises(AuthenticationError, match="Too many authentication failures"):
-                auth_middleware.authenticate_request(
-                    ip_address="127.0.0.1", ssh_auth_data=ssh_data
-                )
+                auth_middleware.authenticate_request(ip_address="127.0.0.1", ssh_auth_data=ssh_data)
 
     def test_authenticate_ssh_clears_rate_limit_with_correct_identifier(
         self, auth_middleware: AuthMiddleware
