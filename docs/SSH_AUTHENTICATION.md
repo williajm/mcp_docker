@@ -376,14 +376,12 @@ cat ~/.ssh/mcp_authorized_keys
 ```python
 def authenticate_request(
     self,
-    api_key: str | None = None,
     ip_address: str | None = None,
     ssh_auth_data: dict[str, Any] | None = None,
 ) -> ClientInfo:
-    """Authenticate request using API key or SSH key.
+    """Authenticate request using SSH key.
 
     Args:
-        api_key: API key (optional)
         ip_address: Client IP address
         ssh_auth_data: SSH authentication data (optional):
             {

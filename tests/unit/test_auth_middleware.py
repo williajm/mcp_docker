@@ -147,7 +147,7 @@ class TestAuthMiddleware:
         middleware = AuthMiddleware(config)
 
         client_info = middleware.authenticate_request(
-            api_key=None, ip_address="127.0.0.1", ssh_auth_data=None
+            ip_address="127.0.0.1", ssh_auth_data=None
         )
 
         assert client_info.client_id == "unauthenticated"
@@ -160,7 +160,7 @@ class TestAuthMiddleware:
         middleware = AuthMiddleware(security_config)
 
         with pytest.raises(AuthenticationError, match="IP address not allowed"):
-            middleware.authenticate_request(api_key=None, ip_address="10.0.0.1", ssh_auth_data=None)
+            middleware.authenticate_request(ip_address="10.0.0.1", ssh_auth_data=None)
 
     def test_authenticate_no_ip_with_allowlist(self, security_config: SecurityConfig) -> None:
         """Test authentication fails when no IP provided and allowlist configured."""
@@ -168,13 +168,13 @@ class TestAuthMiddleware:
         middleware = AuthMiddleware(security_config)
 
         with pytest.raises(AuthenticationError, match="IP address not allowed"):
-            middleware.authenticate_request(api_key=None, ip_address=None, ssh_auth_data=None)
+            middleware.authenticate_request(ip_address=None, ssh_auth_data=None)
 
     def test_authenticate_no_credentials(self, auth_middleware: AuthMiddleware) -> None:
         """Test authentication fails when no credentials provided."""
         with pytest.raises(AuthenticationError, match="SSH authentication required"):
             auth_middleware.authenticate_request(
-                api_key=None, ip_address="127.0.0.1", ssh_auth_data=None
+                ip_address="127.0.0.1", ssh_auth_data=None
             )
 
     def test_authenticate_ssh_but_not_enabled(self, tmp_path: Path) -> None:
@@ -195,7 +195,7 @@ class TestAuthMiddleware:
 
         with pytest.raises(AuthenticationError, match="SSH authentication is not enabled"):
             middleware.authenticate_request(
-                api_key=None, ip_address="127.0.0.1", ssh_auth_data=ssh_data
+                ip_address="127.0.0.1", ssh_auth_data=ssh_data
             )
 
     def test_authenticate_ssh_success(self, auth_middleware: AuthMiddleware) -> None:
@@ -218,7 +218,7 @@ class TestAuthMiddleware:
             auth_middleware.ssh_key_authenticator, "authenticate", return_value=mock_client_info
         ):
             result = auth_middleware.authenticate_request(
-                api_key=None, ip_address="127.0.0.1", ssh_auth_data=ssh_data
+                ip_address="127.0.0.1", ssh_auth_data=ssh_data
             )
 
             assert result.client_id == "test_client"
@@ -235,7 +235,7 @@ class TestAuthMiddleware:
 
         with pytest.raises(AuthenticationError):
             auth_middleware.authenticate_request(
-                api_key=None, ip_address="127.0.0.1", ssh_auth_data=ssh_data
+                ip_address="127.0.0.1", ssh_auth_data=ssh_data
             )
 
     def test_authenticate_ssh_invalid_types(self, auth_middleware: AuthMiddleware) -> None:
@@ -249,7 +249,7 @@ class TestAuthMiddleware:
 
         with pytest.raises(AuthenticationError):
             auth_middleware.authenticate_request(
-                api_key=None, ip_address="127.0.0.1", ssh_auth_data=ssh_data
+                ip_address="127.0.0.1", ssh_auth_data=ssh_data
             )
 
     def test_authenticate_ssh_rate_limit(self, auth_middleware: AuthMiddleware) -> None:
@@ -271,13 +271,13 @@ class TestAuthMiddleware:
             for _ in range(5):
                 with pytest.raises(AuthenticationError):
                     auth_middleware.authenticate_request(
-                        api_key=None, ip_address="127.0.0.1", ssh_auth_data=ssh_data
+                        ip_address="127.0.0.1", ssh_auth_data=ssh_data
                     )
 
             # 6th attempt should be rate limited
             with pytest.raises(AuthenticationError, match="Too many authentication failures"):
                 auth_middleware.authenticate_request(
-                    api_key=None, ip_address="127.0.0.1", ssh_auth_data=ssh_data
+                    ip_address="127.0.0.1", ssh_auth_data=ssh_data
                 )
 
     def test_check_ip_allowed_no_allowlist(self, auth_middleware: AuthMiddleware) -> None:

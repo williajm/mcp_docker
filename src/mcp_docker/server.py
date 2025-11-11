@@ -148,7 +148,6 @@ class MCPDockerServer:
         self,
         tool_name: str,
         arguments: dict[str, Any],
-        api_key: str | None = None,
         ip_address: str | None = None,
         ssh_auth_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -157,7 +156,6 @@ class MCPDockerServer:
         Args:
             tool_name: Name of the tool to call
             arguments: Tool arguments
-            api_key: API key for authentication (optional if auth disabled)
             ip_address: IP address of the client (for audit logging)
             ssh_auth_data: SSH authentication data (optional)
                 Format: {
@@ -175,7 +173,7 @@ class MCPDockerServer:
             PermissionError: If operation is not allowed by safety config
         """
         # Authenticate the client
-        client_info = self._authenticate_client(api_key, ip_address, ssh_auth_data)
+        client_info = self._authenticate_client(ip_address, ssh_auth_data)
         if "error" in client_info:
             return client_info
 
@@ -193,14 +191,12 @@ class MCPDockerServer:
 
     def _authenticate_client(
         self,
-        api_key: str | None,
         ip_address: str | None,
         ssh_auth_data: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Authenticate the client request.
 
         Args:
-            api_key: API key for authentication
             ip_address: IP address of the client
             ssh_auth_data: SSH authentication data
 
@@ -209,7 +205,6 @@ class MCPDockerServer:
         """
         try:
             client_info = self.auth_middleware.authenticate_request(
-                api_key=api_key,
                 ip_address=ip_address,
                 ssh_auth_data=ssh_auth_data,
             )

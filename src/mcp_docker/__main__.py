@@ -27,6 +27,10 @@ from mcp_docker.utils.log_sanitizer import sanitize_for_logging
 from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__, get_full_version
 
+# HTTP Message Type Constants
+HTTP_RESPONSE_START = "http.response.start"
+HTTP_RESPONSE_BODY = "http.response.body"
+
 # Logging Constants
 LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
 
@@ -118,7 +122,6 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     result = await docker_server.call_tool(
         name,
         arguments,
-        api_key=None,  # API key auth removed
         ip_address=ip_address,
         ssh_auth_data=ssh_auth_data,
     )
@@ -188,7 +191,7 @@ def _create_logging_wrappers(
 
     async def log_send(msg: MutableMapping[str, Any]) -> None:
         # Add security headers to HTTP responses
-        if msg.get("type") == "http.response.start":
+        if msg.get("type") == HTTP_RESPONSE_START:
             headers = list(msg.get("headers", []))
 
             # Add security headers for JSON-RPC API
@@ -208,7 +211,7 @@ def _create_logging_wrappers(
             headers.extend(security_headers)
             msg["headers"] = headers
 
-        if msg.get("type") == "http.response.body" and msg.get("body"):
+        if msg.get("type") == HTTP_RESPONSE_BODY and msg.get("body"):
             logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
         await send(msg)
 
@@ -256,12 +259,12 @@ async def _handle_404(
     logger.warning(f"Unhandled request: {method} {path}")
     await send(
         {
-            "type": "http.response.start",
+            "type": HTTP_RESPONSE_START,
             "status": 404,
             "headers": [[b"content-type", b"text/plain"]],
         }
     )
-    await send({"type": "http.response.body", "body": b"Not Found"})
+    await send({"type": HTTP_RESPONSE_BODY, "body": b"Not Found"})
 
 
 async def _monitor_shutdown(
@@ -308,13 +311,20 @@ async def run_stdio() -> None:
         logger.info("MCP server shutdown complete")
 
 
-async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
-    """Run the MCP server with SSE transport over HTTP/HTTPS."""
-    protocol = "https" if config.server.tls_enabled else "http"
-    logger.info(f"Starting MCP server with SSE transport on {protocol}://{host}:{port}")
+def _validate_sse_security(host: str) -> None:
+    """Validate security configuration for SSE transport.
 
-    # Security checks for SSE transport
-    if not config.server.tls_enabled and host not in ["127.0.0.1", "localhost", "::1"]:
+    Args:
+        host: The host address to bind to
+
+    Raises:
+        RuntimeError: If security requirements are not met
+        ValueError: If TLS configuration is incomplete
+    """
+    is_localhost = host in ["127.0.0.1", "localhost", "::1"]
+
+    # Check TLS configuration for non-localhost
+    if not config.server.tls_enabled and not is_localhost:
         logger.error(
             "═════════════════════════════════════════════════════════════\n"
             "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
@@ -329,7 +339,8 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
             "═════════════════════════════════════════════════════════════"
         )
 
-    if not config.security.auth_enabled and host not in ["127.0.0.1", "localhost", "::1"]:
+    # Check authentication for non-localhost
+    if not config.security.auth_enabled and not is_localhost:
         logger.error(
             "═════════════════════════════════════════════════════════════\n"
             "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
@@ -347,6 +358,7 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
             "Set SECURITY_AUTH_ENABLED=true or bind to 127.0.0.1 only."
         )
 
+    # Validate TLS configuration if enabled
     if config.server.tls_enabled and (
         not config.server.tls_cert_file or not config.server.tls_key_file
     ):
@@ -354,6 +366,41 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
             "TLS is enabled but certificate or key file not specified. "
             "Set MCP_TLS_CERT_FILE and MCP_TLS_KEY_FILE."
         )
+
+
+def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
+    """Extract client IP address from ASGI scope.
+
+    Args:
+        scope: ASGI connection scope
+
+    Returns:
+        Client IP address or None if not available
+    """
+    client_ip = None
+
+    # Get IP from scope's client field
+    if "client" in scope and scope["client"]:
+        client_ip = scope["client"][0]  # (host, port) tuple, take host
+
+    # Check for proxy headers (X-Forwarded-For) if behind reverse proxy
+    headers_list = scope.get("headers", [])
+    headers_dict = dict(headers_list)
+    forwarded_for = headers_dict.get(b"x-forwarded-for")
+    if forwarded_for:
+        # Take leftmost IP (original client) from comma-separated list
+        client_ip = forwarded_for.decode("utf-8").split(",")[0].strip()
+
+    return client_ip
+
+
+async def run_sse(host: str, port: int) -> None:
+    """Run the MCP server with SSE transport over HTTP/HTTPS."""
+    protocol = "https" if config.server.tls_enabled else "http"
+    logger.info(f"Starting MCP server with SSE transport on {protocol}://{host}:{port}")
+
+    # Validate security configuration
+    _validate_sse_security(host)
 
     # Initialize Docker server
     await docker_server.start()
@@ -383,20 +430,8 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
             path = scope.get("path", "")
             method = scope.get("method", "")
 
-            # Extract client IP address from scope
-            client_ip = None
-            if "client" in scope and scope["client"]:
-                client_ip = scope["client"][0]  # (host, port) tuple, take host
-
-            # Check for proxy headers (X-Forwarded-For) if behind reverse proxy
-            headers_list = scope.get("headers", [])
-            headers_dict = dict(headers_list)
-            forwarded_for = headers_dict.get(b"x-forwarded-for")
-            if forwarded_for:
-                # Take leftmost IP (original client) from comma-separated list
-                client_ip = forwarded_for.decode("utf-8").split(",")[0].strip()
-
-            # Store client IP in context variable for use by call_tool handler
+            # Extract and store client IP for authentication/logging
+            client_ip = _extract_client_ip(scope)
             client_ip_context.set(client_ip)
 
             logger.debug(f"Request: {method} {path} from {client_ip or 'unknown'}")
@@ -411,7 +446,7 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
                 # Handle HEAD request for health checks
                 await send(
                     {
-                        "type": "http.response.start",
+                        "type": HTTP_RESPONSE_START,
                         "status": 200,
                         "headers": [
                             [b"content-type", b"text/event-stream"],
@@ -420,7 +455,7 @@ async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
                         ],
                     }
                 )
-                await send({"type": "http.response.body", "body": b""})
+                await send({"type": HTTP_RESPONSE_BODY, "body": b""})
             elif path.startswith("/messages") and method == "POST":
                 await _handle_post_message(sse, scope, log_receive, log_send)
             else:

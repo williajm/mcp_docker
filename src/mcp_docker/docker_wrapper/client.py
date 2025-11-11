@@ -69,7 +69,7 @@ class DockerClientWrapper:
                     # Note: Proper permission check would require os.access,
                     # but Path doesn't have equivalent
                     # We'll rely on the Docker SDK to fail if permissions are incorrect
-                except (PermissionError, OSError):
+                except OSError:
                     logger.warning(
                         f"Docker socket {socket_path} may not be accessible. "
                         f"Check file permissions and user group membership (docker group)."

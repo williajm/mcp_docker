@@ -111,14 +111,12 @@ class AuthMiddleware:
 
     def authenticate_request(
         self,
-        api_key: str | None = None,  # noqa: ARG002
         ip_address: str | None = None,
         ssh_auth_data: dict[str, Any] | None = None,
     ) -> ClientInfo:
         """Authenticate an incoming request using SSH key.
 
         Args:
-            api_key: Ignored (kept for backward compatibility)
             ip_address: IP address of the client
             ssh_auth_data: SSH authentication data (required if auth enabled)
                 Format: {
