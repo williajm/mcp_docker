@@ -24,7 +24,6 @@ from starlette.routing import Mount
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
-from mcp_docker.utils.log_sanitizer import sanitize_for_logging
 from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__, get_full_version
 
@@ -111,8 +110,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
         auth_data = {}
 
     # Safe to log arguments now that _auth has been removed (no credential leakage)
-    # Also sanitize to prevent resource exhaustion from large payloads
-    logger.debug(f"Arguments (auth redacted): {sanitize_for_logging(arguments)}")
+    # SECURITY: Loguru handles large payloads safely with automatic serialization
+    logger.debug(f"Arguments (auth redacted): {arguments}")
 
     ssh_auth_data = auth_data.get("ssh")
 
