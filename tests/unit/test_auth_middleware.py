@@ -280,6 +280,47 @@ class TestAuthMiddleware:
                     ip_address="127.0.0.1", ssh_auth_data=ssh_data
                 )
 
+    def test_authenticate_ssh_clears_rate_limit_with_correct_identifier(
+        self, auth_middleware: AuthMiddleware
+    ) -> None:
+        """Test that successful SSH auth clears rate limit with client_id:ip identifier."""
+        ssh_data = {
+            "client_id": "test-client",
+            "signature": "dGVzdA==",
+            "timestamp": "2024-01-01T00:00:00Z",
+            "nonce": "test",
+        }
+        ip_address = "192.168.1.100"
+        expected_identifier = f"test-client:{ip_address}"
+
+        # Mock successful authentication
+        mock_client_info = ClientInfo(
+            client_id="test-client",
+            api_key_hash="test-hash",
+            description="Test client",
+            ip_address=ip_address,
+        )
+        with patch.object(
+            auth_middleware.ssh_key_authenticator, "authenticate", return_value=mock_client_info
+        ):
+            # First, record some failed attempts to increment the counter
+            auth_middleware.auth_rate_limiter.check_and_record_attempt(expected_identifier)
+            auth_middleware.auth_rate_limiter.check_and_record_attempt(expected_identifier)
+
+            # Verify attempts were recorded
+            assert expected_identifier in auth_middleware.auth_rate_limiter.attempts
+            assert len(auth_middleware.auth_rate_limiter.attempts[expected_identifier]) == 2
+
+            # Now authenticate successfully
+            client_info = auth_middleware.authenticate_request(
+                ip_address=ip_address, ssh_auth_data=ssh_data
+            )
+
+            # Verify the rate limit was cleared with the correct identifier
+            assert expected_identifier not in auth_middleware.auth_rate_limiter.attempts
+            assert client_info.client_id == "test-client"
+            assert client_info.ip_address == ip_address
+
     def test_check_ip_allowed_no_allowlist(self, auth_middleware: AuthMiddleware) -> None:
         """Test IP check with no allowlist configured."""
         assert auth_middleware.check_ip_allowed("10.0.0.1") is True

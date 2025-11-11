@@ -156,9 +156,11 @@ class AuthMiddleware:
                 raise AuthenticationError("SSH authentication is not enabled")
 
             try:
-                client_info = self._authenticate_ssh(ssh_auth_data, ip_address)
-                # Clear rate limit attempts on successful auth
-                self.auth_rate_limiter.clear_attempts(client_info.client_id)
+                client_info, rate_limit_identifier = self._authenticate_ssh(
+                    ssh_auth_data, ip_address
+                )
+                # Clear rate limit attempts on successful auth (use same identifier)
+                self.auth_rate_limiter.clear_attempts(rate_limit_identifier)
                 return client_info
             except (SSHAuthenticationError, AuthRateLimitExceededError) as e:
                 logger.warning(f"SSH authentication failed: {e}")
@@ -170,7 +172,7 @@ class AuthMiddleware:
 
     def _authenticate_ssh(
         self, ssh_auth_data: dict[str, Any], ip_address: str | None
-    ) -> ClientInfo:
+    ) -> tuple[ClientInfo, str]:
         """Authenticate using SSH key signature.
 
         Args:
@@ -178,7 +180,7 @@ class AuthMiddleware:
             ip_address: Client IP address
 
         Returns:
-            ClientInfo if authentication succeeds
+            Tuple of (ClientInfo, rate_limit_identifier) if authentication succeeds
 
         Raises:
             SSHAuthenticationError: If authentication fails
@@ -232,7 +234,7 @@ class AuthMiddleware:
 
             # Add IP address
             client_info.ip_address = ip_address
-            return client_info
+            return client_info, identifier
 
         except SSHAuthenticationError:
             # Re-raise SSH auth errors without wrapping
