@@ -6,7 +6,6 @@ This module provides the main entry point for running the MCP Docker server.
 import argparse
 import asyncio
 import contextvars
-import ipaddress
 import json
 import os
 import signal
@@ -19,6 +18,7 @@ from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.applications import Starlette
 from starlette.routing import Mount
 
@@ -369,77 +369,23 @@ def _validate_sse_security(host: str) -> None:
         )
 
 
-def _is_trusted_proxy(client_ip: str, trusted_proxies: list[str]) -> bool:
-    """Check if an IP address is in the trusted proxy list.
+def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
+    """Extract client IP address from ASGI scope.
+
+    SECURITY: ProxyHeadersMiddleware has already processed X-Forwarded-For
+    headers from trusted proxies and updated scope['client'] with the real
+    client IP. This prevents IP spoofing attacks.
 
     Args:
-        client_ip: IP address to check
-        trusted_proxies: List of trusted proxy IPs/networks (supports CIDR)
-
-    Returns:
-        True if IP is trusted, False otherwise
-    """
-    try:
-        client_ip_obj = ipaddress.ip_address(client_ip)
-
-        for trusted_proxy in trusted_proxies:
-            try:
-                # Handle CIDR networks
-                if "/" in trusted_proxy:
-                    network = ipaddress.ip_network(trusted_proxy, strict=False)
-                    if client_ip_obj in network:
-                        return True
-                # Handle individual IPs
-                elif client_ip_obj == ipaddress.ip_address(trusted_proxy):
-                    return True
-            except ValueError:
-                # Invalid IP/network in config, skip
-                logger.warning(f"Invalid trusted_proxy configuration: {trusted_proxy}")
-                continue
-
-    except ValueError:
-        # Invalid IP address format
-        pass
-
-    return False
-
-
-def _extract_client_ip(
-    scope: MutableMapping[str, Any], trusted_proxies: list[str] | None = None
-) -> str | None:
-    """Extract client IP address from ASGI scope with secure proxy handling.
-
-    SECURITY: X-Forwarded-For headers are only trusted when the connection
-    originates from a trusted proxy IP. This prevents IP spoofing attacks
-    where attackers forge headers to bypass allowlists or evade rate limits.
-
-    Args:
-        scope: ASGI connection scope
-        trusted_proxies: List of trusted proxy IPs/networks (supports CIDR).
-                         If None or empty, X-Forwarded-For is never trusted.
+        scope: ASGI connection scope (processed by ProxyHeadersMiddleware)
 
     Returns:
         Client IP address or None if not available
     """
-    client_ip = None
-
-    # Get IP from scope's client field (direct socket connection)
+    # ProxyHeadersMiddleware updates scope['client'] with real IP
     if "client" in scope and scope["client"]:
-        client_ip = scope["client"][0]  # (host, port) tuple, take host
-
-    # Only trust X-Forwarded-For from trusted proxies (prevents IP spoofing)
-    if trusted_proxies and client_ip and _is_trusted_proxy(client_ip, trusted_proxies):
-        headers_list = scope.get("headers", [])
-        # Find first X-Forwarded-For header (don't use dict, it takes last)
-        for header_name, header_value in headers_list:
-            if header_name.lower() == b"x-forwarded-for":
-                # Take leftmost IP (original client) from comma-separated list
-                forwarded_ip = header_value.decode("utf-8").split(",")[0].strip()
-                if forwarded_ip:  # Don't use empty string
-                    client_ip = forwarded_ip
-                break  # Use first header
-
-    return client_ip
+        return scope["client"][0]  # (host, port) tuple, take host
+    return None
 
 
 async def run_sse(host: str, port: int) -> None:
@@ -479,8 +425,8 @@ async def run_sse(host: str, port: int) -> None:
             method = scope.get("method", "")
 
             # Extract and store client IP for authentication/logging
-            # SECURITY: Only trust X-Forwarded-For from configured trusted proxies
-            client_ip = _extract_client_ip(scope, trusted_proxies=config.security.trusted_proxies)
+            # SECURITY: ProxyHeadersMiddleware has already validated trusted proxies
+            client_ip = _extract_client_ip(scope)
             client_ip_context.set(client_ip)
 
             logger.debug(f"Request: {method} {path} from {client_ip or 'unknown'}")
@@ -517,9 +463,16 @@ async def run_sse(host: str, port: int) -> None:
                 "DO NOT use in production!"
             )
 
+        # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
+        # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
+        wrapped_handler = ProxyHeadersMiddleware(
+            sse_handler,
+            trusted_hosts=config.security.trusted_proxies if config.security.trusted_proxies else ["127.0.0.1"],
+        )
+
         app = Starlette(
             debug=config.server.debug_mode,
-            routes=[Mount("/", app=sse_handler)],
+            routes=[Mount("/", app=wrapped_handler)],
         )
 
         # Run server with timeout configuration and TLS support

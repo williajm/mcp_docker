@@ -259,6 +259,10 @@ class ServerConfig(BaseSettings):
         ),
         description="Log format string for loguru",
     )
+    json_logging: bool = Field(
+        default=False,
+        description="Enable JSON structured logging (for SIEM/production)",
+    )
     debug_mode: bool = Field(
         default=False,
         description="Enable debug mode (shows detailed errors, DO NOT use in production)",

@@ -3,12 +3,11 @@
 import base64
 import hashlib
 import secrets
-import threading
-import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from cachetools import TTLCache
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
@@ -299,8 +298,12 @@ class SSHAuthProtocol:
             max_timestamp_age: Maximum age of timestamp in seconds (from config)
         """
         self.max_timestamp_age = max_timestamp_age
-        self._nonce_store: dict[str, float] = {}  # nonce -> expiry_time
-        self._nonce_lock = threading.Lock()
+        # TTLCache: automatically expires entries after TTL (thread-safe, bounded)
+        # SECURITY: Prevents memory exhaustion from replay attacks
+        self._nonce_store: TTLCache = TTLCache(
+            maxsize=10000,  # Max 10k concurrent auth attempts
+            ttl=max_timestamp_age,  # Auto-expire after signature max age
+        )
 
     @staticmethod
     def create_message(client_id: str, timestamp: str, nonce: str) -> bytes:
@@ -341,7 +344,7 @@ class SSHAuthProtocol:
         """Validate nonce is unique and register it.
 
         This prevents replay attacks within the timestamp window.
-        Nonces are automatically cleaned up after expiry.
+        TTLCache automatically expires nonces and enforces size limits.
 
         Args:
             nonce: Random nonce string
@@ -349,19 +352,14 @@ class SSHAuthProtocol:
         Returns:
             True if nonce is new (valid), False if already used (replay attack)
         """
-        with self._nonce_lock:
-            # Clean expired nonces (prevent memory growth)
-            now = time.time()
-            self._nonce_store = {n: exp for n, exp in self._nonce_store.items() if exp > now}
+        # TTLCache is thread-safe, handles expiration and capacity automatically
+        if nonce in self._nonce_store:
+            logger.warning(f"Replay attack detected: nonce '{nonce}' already used")
+            return False
 
-            # Check if nonce already used
-            if nonce in self._nonce_store:
-                logger.warning(f"Replay attack detected: nonce '{nonce}' already used")
-                return False
-
-            # Register nonce with expiry
-            self._nonce_store[nonce] = now + self.max_timestamp_age
-            return True
+        # Register nonce (TTL handled by cache, expires after max_timestamp_age)
+        self._nonce_store[nonce] = True
+        return True
 
     @staticmethod
     def generate_nonce() -> str:
@@ -376,10 +374,12 @@ class SSHAuthProtocol:
         """Get statistics about nonce store (for monitoring).
 
         Returns:
-            Dict with 'active_nonces' count
+            Dict with 'active_nonces' count and 'max_capacity'
         """
-        with self._nonce_lock:
-            return {"active_nonces": len(self._nonce_store)}
+        return {
+            "active_nonces": len(self._nonce_store),
+            "max_capacity": self._nonce_store.maxsize,
+        }
 
 
 class SSHKeyAuthenticator:

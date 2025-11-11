@@ -1,6 +1,7 @@
 """Input validation utilities for Docker operations."""
 
 import re
+import shlex
 from typing import Any
 
 from mcp_docker.utils.errors import ValidationError
@@ -254,12 +255,20 @@ def validate_command(command: str | list[str]) -> str | list[str]:
 
     # Additional security checks for string commands
     if isinstance(validated, str):
+        # Check for dangerous shell patterns
         dangerous_patterns = [";", "&&", "||", "|", "`", "$("]
         if any(pattern in validated for pattern in dangerous_patterns):
             raise ValidationError(
                 "Command contains potentially dangerous patterns. "
                 "Use list format for commands with special characters."
             )
+
+        # SECURITY: Use stdlib shlex to verify command can be safely parsed
+        # This catches malformed quotes, unterminated strings, etc.
+        try:
+            shlex.split(validated)
+        except ValueError as e:
+            raise ValidationError(f"Command has invalid shell syntax: {e}") from e
 
     return validated
 
