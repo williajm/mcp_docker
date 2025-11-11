@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from loguru import logger
 
-from mcp_docker.auth.api_key import ClientInfo
+from mcp_docker.auth.models import ClientInfo
 from mcp_docker.auth.ssh_keys import SSHKeyManager, SSHPublicKey
 from mcp_docker.auth.ssh_wire import SSHWireMessage
 from mcp_docker.config import DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS, SecurityConfig
@@ -446,16 +446,22 @@ class SSHKeyAuthenticator:
         )
 
         # 5. Try to verify signature with any of the client's keys
+        # SECURITY: Use constant-time verification to prevent timing attacks
         verified_key = None
+        valid_keys = []
+
         for public_key in public_keys:
             if not public_key.enabled:
                 continue
 
+            # Check ALL keys (constant time) - do not break early
             if self.signature_validator.verify_signature(public_key, message, request.signature):
-                verified_key = public_key
-                break
+                valid_keys.append(public_key)
 
-        if verified_key is None:
+        # Use first valid key (if any) after checking all
+        if valid_keys:
+            verified_key = valid_keys[0]
+        else:
             logger.warning(f"SSH auth failed: invalid signature for client '{request.client_id}'")
             raise SSHSignatureInvalidError("Signature verification failed")
 

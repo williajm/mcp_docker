@@ -5,6 +5,7 @@ This module provides the main entry point for running the MCP Docker server.
 
 import argparse
 import asyncio
+import contextvars
 import json
 import os
 import signal
@@ -22,11 +23,17 @@ from starlette.routing import Mount
 
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
+from mcp_docker.utils.log_sanitizer import sanitize_for_logging
 from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__, get_full_version
 
 # Logging Constants
 LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
+
+# Context variable for client IP address in SSE transport
+client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "client_ip", default=None
+)
 
 # Load configuration
 config = Config()
@@ -77,9 +84,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     Authentication can be provided via the special '_auth' argument:
     {
         "_auth": {
-            "api_key": "your-api-key",  # For API key auth
-            # OR
-            "ssh": {  # For SSH key auth
+            "ssh": {  # SSH key authentication
                 "client_id": "client-id",
                 "timestamp": "2025-11-04T12:00:00Z",
                 "nonce": "random-nonce",
@@ -101,17 +106,19 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
         auth_data = {}
 
     # Safe to log arguments now that _auth has been removed (no credential leakage)
-    logger.debug(f"Arguments (auth redacted): {arguments}")
+    # Also sanitize to prevent resource exhaustion from large payloads
+    logger.debug(f"Arguments (auth redacted): {sanitize_for_logging(arguments)}")
 
-    api_key = auth_data.get("api_key")
     ssh_auth_data = auth_data.get("ssh")
-    ip_address = None  # Could be extracted from request context if available
+
+    # Get client IP from context variable (set by SSE transport)
+    ip_address = client_ip_context.get()
 
     # Call tool with authentication
     result = await docker_server.call_tool(
         name,
         arguments,
-        api_key=api_key,
+        api_key=None,  # API key auth removed
         ip_address=ip_address,
         ssh_auth_data=ssh_auth_data,
     )
@@ -171,7 +178,7 @@ def _create_logging_wrappers(
     Callable[[], Awaitable[MutableMapping[str, Any]]],
     Callable[[MutableMapping[str, Any]], Awaitable[None]],
 ]:
-    """Create logging wrapper functions for SSE receive/send."""
+    """Create logging wrapper functions for SSE receive/send with security headers."""
 
     async def log_receive() -> MutableMapping[str, Any]:
         msg = await receive()
@@ -180,6 +187,27 @@ def _create_logging_wrappers(
         return msg
 
     async def log_send(msg: MutableMapping[str, Any]) -> None:
+        # Add security headers to HTTP responses
+        if msg.get("type") == "http.response.start":
+            headers = list(msg.get("headers", []))
+
+            # Add security headers for JSON-RPC API
+            security_headers = [
+                # Prevent caching of sensitive data
+                (b"cache-control", b"no-store, no-cache, must-revalidate, private"),
+                # Prevent MIME sniffing
+                (b"x-content-type-options", b"nosniff"),
+            ]
+
+            # Add HSTS header if TLS is enabled
+            if config.server.tls_enabled:
+                security_headers.append(
+                    (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+                )
+
+            headers.extend(security_headers)
+            msg["headers"] = headers
+
         if msg.get("type") == "http.response.body" and msg.get("body"):
             logger.debug(f">>> HTTP body: {msg['body'][:LOG_BODY_PREVIEW_LENGTH]}")
         await send(msg)
@@ -280,9 +308,52 @@ async def run_stdio() -> None:
         logger.info("MCP server shutdown complete")
 
 
-async def run_sse(host: str, port: int) -> None:
-    """Run the MCP server with SSE transport over HTTP."""
-    logger.info(f"Starting MCP server with SSE transport on {host}:{port}")
+async def run_sse(host: str, port: int) -> None:  # noqa: PLR0915
+    """Run the MCP server with SSE transport over HTTP/HTTPS."""
+    protocol = "https" if config.server.tls_enabled else "http"
+    logger.info(f"Starting MCP server with SSE transport on {protocol}://{host}:{port}")
+
+    # Security checks for SSE transport
+    if not config.server.tls_enabled and host not in ["127.0.0.1", "localhost", "::1"]:
+        logger.error(
+            "═════════════════════════════════════════════════════════════\n"
+            "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
+            "Running SSE transport over HTTP without TLS on a non-localhost address!\n"
+            "API keys and data will be transmitted in PLAINTEXT over the network.\n"
+            "This is UNSAFE for production use.\n"
+            "\n"
+            "Enable TLS by setting:\n"
+            "  MCP_TLS_ENABLED=true\n"
+            "  MCP_TLS_CERT_FILE=/path/to/cert.pem\n"
+            "  MCP_TLS_KEY_FILE=/path/to/key.pem\n"
+            "═════════════════════════════════════════════════════════════"
+        )
+
+    if not config.security.auth_enabled and host not in ["127.0.0.1", "localhost", "::1"]:
+        logger.error(
+            "═════════════════════════════════════════════════════════════\n"
+            "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
+            "Authentication is DISABLED while binding to a non-localhost address!\n"
+            "Anyone who can reach this server can execute Docker commands\n"
+            "without credentials.\n"
+            "\n"
+            "Enable authentication by setting:\n"
+            "  SECURITY_AUTH_ENABLED=true\n"
+            "Or bind to localhost only: --host 127.0.0.1\n"
+            "═════════════════════════════════════════════════════════════"
+        )
+        raise RuntimeError(
+            "Authentication MUST be enabled when binding to non-localhost addresses. "
+            "Set SECURITY_AUTH_ENABLED=true or bind to 127.0.0.1 only."
+        )
+
+    if config.server.tls_enabled and (
+        not config.server.tls_cert_file or not config.server.tls_key_file
+    ):
+        raise ValueError(
+            "TLS is enabled but certificate or key file not specified. "
+            "Set MCP_TLS_CERT_FILE and MCP_TLS_KEY_FILE."
+        )
 
     # Initialize Docker server
     await docker_server.start()
@@ -311,7 +382,24 @@ async def run_sse(host: str, port: int) -> None:
             """Handle both /sse (GET) and /messages (POST) through the SSE transport."""
             path = scope.get("path", "")
             method = scope.get("method", "")
-            logger.debug(f"Request: {method} {path}")
+
+            # Extract client IP address from scope
+            client_ip = None
+            if "client" in scope and scope["client"]:
+                client_ip = scope["client"][0]  # (host, port) tuple, take host
+
+            # Check for proxy headers (X-Forwarded-For) if behind reverse proxy
+            headers_list = scope.get("headers", [])
+            headers_dict = dict(headers_list)
+            forwarded_for = headers_dict.get(b"x-forwarded-for")
+            if forwarded_for:
+                # Take leftmost IP (original client) from comma-separated list
+                client_ip = forwarded_for.decode("utf-8").split(",")[0].strip()
+
+            # Store client IP in context variable for use by call_tool handler
+            client_ip_context.set(client_ip)
+
+            logger.debug(f"Request: {method} {path} from {client_ip or 'unknown'}")
 
             # Create logging wrappers
             log_receive, log_send = _create_logging_wrappers(receive, send)
@@ -319,28 +407,58 @@ async def run_sse(host: str, port: int) -> None:
             # Route based on path and method
             if path.startswith("/sse") and method == "GET":
                 await _handle_sse_connection(sse, scope, log_receive, log_send)
+            elif path.startswith("/sse") and method == "HEAD":
+                # Handle HEAD request for health checks
+                await send(
+                    {
+                        "type": "http.response.start",
+                        "status": 200,
+                        "headers": [
+                            [b"content-type", b"text/event-stream"],
+                            [b"cache-control", b"no-cache"],
+                            [b"connection", b"keep-alive"],
+                        ],
+                    }
+                )
+                await send({"type": "http.response.body", "body": b""})
             elif path.startswith("/messages") and method == "POST":
                 await _handle_post_message(sse, scope, log_receive, log_send)
             else:
                 await _handle_404(send, method, path)
 
         # Mount handler at root
+        if config.server.debug_mode:
+            logger.warning(
+                "⚠️  Debug mode enabled - detailed errors will be exposed to clients. "
+                "DO NOT use in production!"
+            )
+
         app = Starlette(
-            debug=True,
+            debug=config.server.debug_mode,
             routes=[Mount("/", app=sse_handler)],
         )
 
-        # Run server with timeout configuration
-        config_uvicorn = uvicorn.Config(
-            app,
-            host=host,
-            port=port,
-            log_level="info",
-            timeout_graceful_shutdown=5,  # 5 second timeout for graceful shutdown
-        )
+        # Run server with timeout configuration and TLS support
+        uvicorn_config_params = {
+            "app": app,
+            "host": host,
+            "port": port,
+            "log_level": "info",
+            "timeout_graceful_shutdown": 5,
+            "limit_max_requests": 1000,  # Restart after 1000 requests to prevent memory leaks
+            "limit_concurrency": 100,  # Max 100 concurrent connections
+            "timeout_keep_alive": 30,  # Close idle connections after 30 seconds
+        }
+
+        # Add TLS configuration if enabled
+        if config.server.tls_enabled:
+            uvicorn_config_params["ssl_keyfile"] = str(config.server.tls_key_file)
+            uvicorn_config_params["ssl_certfile"] = str(config.server.tls_cert_file)
+
+        config_uvicorn = uvicorn.Config(**uvicorn_config_params)  # type: ignore[arg-type]
         server = uvicorn.Server(config_uvicorn)
 
-        logger.info(f"MCP server listening on http://{host}:{port}/sse")
+        logger.info(f"MCP server listening on {protocol}://{host}:{port}/sse")
 
         # Run server with shutdown monitoring
         server_task = asyncio.create_task(server.serve())

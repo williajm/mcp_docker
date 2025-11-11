@@ -160,9 +160,11 @@ class TestBaseTool:
         self, mock_docker_client: DockerClientWrapper, read_only_safety_config: SafetyConfig
     ) -> None:
         """Test that moderate operations are blocked in read-only mode."""
+        from mcp_docker.utils.errors import UnsafeOperationError
+
         tool = MockTool(mock_docker_client, read_only_safety_config, OperationSafety.MODERATE)
-        # Should raise PermissionError since moderate operations not allowed in read-only mode
-        with pytest.raises(PermissionError, match="read-only mode"):
+        # Should raise UnsafeOperationError since moderate operations not allowed in read-only mode
+        with pytest.raises(UnsafeOperationError, match="read-only mode"):
             await tool.run({"test_field": "value"})
 
     @pytest.mark.asyncio
@@ -170,9 +172,11 @@ class TestBaseTool:
         self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
     ) -> None:
         """Test that destructive operations are blocked by default."""
+        from mcp_docker.utils.errors import UnsafeOperationError
+
         tool = MockTool(mock_docker_client, safety_config, OperationSafety.DESTRUCTIVE)
-        # Should raise PermissionError since destructive operations not allowed
-        with pytest.raises(PermissionError, match="not allowed"):
+        # Should raise UnsafeOperationError since destructive operations not allowed
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             await tool.run({"test_field": "value"})
 
     @pytest.mark.asyncio
@@ -228,16 +232,20 @@ class TestBaseTool:
         self, mock_docker_client: DockerClientWrapper, read_only_safety_config: SafetyConfig
     ) -> None:
         """Test safety check blocks moderate operations in read-only mode."""
+        from mcp_docker.utils.errors import UnsafeOperationError
+
         tool = MockTool(mock_docker_client, read_only_safety_config, OperationSafety.MODERATE)
-        with pytest.raises(PermissionError, match="read-only mode"):
+        with pytest.raises(UnsafeOperationError, match="read-only mode"):
             tool.check_safety()
 
     def test_check_safety_destructive_blocked(
         self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
     ) -> None:
         """Test safety check blocks destructive operations."""
+        from mcp_docker.utils.errors import UnsafeOperationError
+
         tool = MockTool(mock_docker_client, safety_config, OperationSafety.DESTRUCTIVE)
-        with pytest.raises(PermissionError, match="not allowed"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             tool.check_safety()
 
     def test_check_safety_destructive_allowed(

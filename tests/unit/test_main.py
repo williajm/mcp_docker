@@ -122,20 +122,20 @@ class TestMCPServerHandlers:
                 return_value={"success": True, "result": {"output": "test"}}
             )
 
-            # Valid auth should be passed through correctly
+            # Valid auth should be passed through correctly (SSH only, API key removed)
             result = await main_module.handle_call_tool(
                 "test_tool",
                 {
-                    "_auth": {"api_key": "test-key", "ssh": {"client_id": "test"}},
+                    "_auth": {"ssh": {"client_id": "test"}},
                     "arg": "value",
                 },
             )
 
             # Should succeed
             assert len(result) == 1
-            # Server should be called with auth data
+            # Server should be called with SSH auth data and None for api_key
             call_kwargs = mock_server.call_tool.call_args[1]
-            assert call_kwargs["api_key"] == "test-key"
+            assert call_kwargs["api_key"] is None  # API key auth removed
             assert call_kwargs["ssh_auth_data"] == {"client_id": "test"}
             # _auth should be stripped from arguments
             call_args = mock_server.call_tool.call_args[0]

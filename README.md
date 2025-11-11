@@ -26,173 +26,131 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ### Prerequisites
 
-- Python 3.11 or higher
-- Docker installed and running
-- [uv](https://github.com/astral-sh/uv) package manager (recommended) or pip
+- Python 3.11+ and Docker installed
+- [uv](https://github.com/astral-sh/uv) package manager (recommended)
 
 ### Installation
 
-#### Option 1: Using uvx (Recommended)
+Run directly with uvx (no installation needed):
 
 ```bash
-# Run directly without installation
 uvx mcp-docker
 ```
 
-#### Option 2: Using uv
-
-```bash
-# Install from source
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
-uv sync
-uv run mcp-docker
-```
-
-#### Option 3: Using pip
-
-```bash
-# Install from source
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
-pip install -e .
-mcp-docker
-```
+For detailed installation options (pip, from source, development setup), see [docs/SETUP.md](docs/SETUP.md).
 
 ### Configuration
 
-The server can be configured via environment variables or a `.env` file.
-
-#### Platform-Specific Docker Configuration
-
-**IMPORTANT**: The `DOCKER_BASE_URL` must be set correctly for your platform:
-
-**Linux / macOS:**
+**Basic configuration:**
 
 ```bash
+# Linux/macOS (default)
 export DOCKER_BASE_URL="unix:///var/run/docker.sock"
+
+# Windows
+export DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
+
+# Safety (default: moderate operations allowed, destructive blocked)
+export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
-**Windows (Docker Desktop):**
-
-```cmd
-set DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-```
-
-**PowerShell:**
-
-```powershell
-$env:DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-```
-
-#### All Configuration Options
-
-```bash
-# Docker Configuration
-export DOCKER_BASE_URL="unix:///var/run/docker.sock"  # Linux/macOS (default)
-# export DOCKER_BASE_URL="npipe:////./pipe/docker_engine"  # Windows
-export DOCKER_TIMEOUT=60  # API timeout in seconds (default: 60)
-export DOCKER_TLS_VERIFY=false  # Enable TLS verification (default: false)
-export DOCKER_TLS_CA_CERT="/path/to/ca.pem"  # Path to CA certificate (optional)
-export DOCKER_TLS_CLIENT_CERT="/path/to/cert.pem"  # Path to client certificate (optional)
-export DOCKER_TLS_CLIENT_KEY="/path/to/key.pem"  # Path to client key (optional)
-
-# Safety Configuration
-export SAFETY_ALLOW_MODERATE_OPERATIONS=true  # Allow state-changing ops like create, start, stop (default: true)
-export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # Allow rm, prune operations (default: false)
-export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false  # Allow privileged containers (default: false)
-export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true  # Require confirmation (default: true)
-export SAFETY_MAX_CONCURRENT_OPERATIONS=10  # Max concurrent operations (default: 10)
-
-# Server Configuration
-export MCP_SERVER_NAME="mcp-docker"  # MCP server name (default: mcp-docker)
-export MCP_LOG_LEVEL="INFO"  # Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
-export MCP_DOCKER_LOG_PATH="/path/to/mcp_docker.log"  # Log file path (optional, defaults to mcp_docker.log in working directory)
-```
-
-#### Using a .env File
-
-Alternatively, create a `.env` file in your project directory:
-
-```bash
-# .env file example (Linux/macOS)
-DOCKER_BASE_URL=unix:///var/run/docker.sock
-SAFETY_ALLOW_MODERATE_OPERATIONS=true
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
-
-```bash
-# .env file example (Windows)
-DOCKER_BASE_URL=npipe:////./pipe/docker_engine
-SAFETY_ALLOW_MODERATE_OPERATIONS=true
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+For all configuration options (Docker, safety, logging, security), see [docs/SETUP.md](docs/SETUP.md).
 
 ### Claude Desktop Setup
 
-Add to your Claude Desktop configuration:
-
-- macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-- Linux: `~/.config/Claude/claude_desktop_config.json`
-
-**Basic configuration (stdio transport - recommended):**
+Add to your `claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "docker": {
       "command": "uvx",
-      "args": ["mcp-docker"],
-      "env": {
-        "DOCKER_BASE_URL": "unix:///var/run/docker.sock"
-      }
+      "args": ["mcp-docker"]
     }
   }
 }
 ```
 
-**Windows configuration:**
+**Note:** Authentication is not needed for local Claude Desktop use (stdio transport). The security model is the same as running `docker` commands directly on your machine.
 
-```json
-{
-  "mcpServers": {
-    "docker": {
-      "command": "uvx",
-      "args": ["mcp-docker"],
-      "env": {
-        "DOCKER_BASE_URL": "npipe:////./pipe/docker_engine"
-      }
-    }
-  }
-}
-```
+**For Remote Access:** Our API key authentication is designed for direct SSE clients (non-Claude Desktop). Anthropic's Remote Connectors (paid plans) require OAuth, which is not currently implemented. See [SECURITY.md](SECURITY.md) and [docs/SETUP.md](docs/SETUP.md) for details.
+
+For platform-specific configuration, Windows setup, custom environments, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
 
 ### Advanced Usage
 
-#### SSE Transport (HTTP)
+#### SSE Transport with TLS
 
-The server supports SSE (Server-Sent Events) transport over HTTP in addition to the default stdio transport:
+For network-accessible deployments, use SSE transport with TLS/HTTPS:
 
 ```bash
-# Run with SSE transport
+# Production: Use the startup script with TLS
+./start-mcp-docker-sse.sh
+
+# Development: Run with SSE transport (no TLS)
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
-**Command-line options:**
+Command-line options: `--transport` (stdio/sse), `--host`, `--port`
 
-- `--transport`: Transport type (`stdio` or `sse`, default: `stdio`)
-- `--host`: Host to bind SSE server (default: `127.0.0.1`)
-- `--port`: Port to bind SSE server (default: `8000`)
+## Security
 
-#### Custom Log Path
+The MCP Docker server includes comprehensive security features for production deployments:
 
-Set a custom log file location using the `MCP_DOCKER_LOG_PATH` environment variable:
+### Key Security Features
+
+- **TLS/HTTPS**: Encrypted transport for SSE mode (required for production)
+- **Authentication**: SSH key-based authentication for remote access
+- **Rate Limiting**: Prevent abuse (60 req/min default, auth failures limited)
+- **Audit Logging**: Track all operations with client IPs
+- **IP Filtering**: Restrict access by network address
+- **Error Sanitization**: Prevent information disclosure
+- **Security Headers**: HSTS, Cache-Control, X-Content-Type-Options
+
+### ⚠️ Important Security Considerations
+
+**Retrieval Agent Deception (RADE) Risk**: Container logs are returned unfiltered and may contain malicious prompts injected by untrusted containers. AI agents retrieving logs via `docker_container_logs` could be manipulated by these embedded instructions.
+
+**Mitigation**:
+- Treat container logs as untrusted user input
+- Implement content filtering before presenting logs to AI agents
+- Use read-only mode for untrusted containers
+- Review audit logs for suspicious patterns
+
+See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation strategies.
+
+### Quick Production Setup
 
 ```bash
-export MCP_DOCKER_LOG_PATH="/var/log/mcp_docker.log"
-mcp-docker
+# Generate certificates
+./scripts/generate-certs.sh
+
+# Start with all security features enabled
+./start-mcp-docker-sse.sh
+
+# Test security configuration
+./test-mcp-sse.sh
 ```
+
+### Security Configuration
+
+```bash
+# TLS/HTTPS
+MCP_TLS_ENABLED=true
+MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
+MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
+
+# Authentication
+SECURITY_AUTH_ENABLED=true
+SECURITY_SSH_AUTH_ENABLED=true
+SECURITY_SSH_AUTHORIZED_KEYS_FILE=~/.mcp-docker/authorized_keys
+
+# Rate Limiting
+SECURITY_RATE_LIMIT_ENABLED=true
+SECURITY_RATE_LIMIT_RPM=60
+```
+
+For complete security documentation, production deployment checklist, and best practices, see [SECURITY.md](SECURITY.md).
 
 ## Tools Overview
 
@@ -327,11 +285,115 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 
 > **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
 
+## MCP Server vs. Docker CLI: An Honest Comparison
+
+**Should you use this MCP server or just let Claude run `docker` commands directly?** Here's an honest assessment:
+
+### Using Docker CLI Directly
+
+**Pros:**
+- ✅ **Simpler setup** - No MCP server needed, works immediately
+- ✅ **Full Docker access** - Every Docker feature available
+- ✅ **No maintenance** - No additional service to run or update
+- ✅ **Transparent** - See exactly what commands run
+- ✅ **Familiar** - Standard Docker commands everyone knows
+
+**Cons:**
+- ❌ **No safety controls** - Can't restrict destructive operations programmatically
+- ❌ **Text parsing** - Claude must parse unstructured CLI output
+- ❌ **Less efficient** - Multiple commands needed for complex operations
+- ❌ **No audit trail** - Unless you implement your own logging
+- ❌ **No rate limiting** - Claude can run unlimited commands
+- ❌ **Error handling** - Parsing error messages from text output
+- ❌ **Command injection risk** - If Claude constructs commands incorrectly
+
+**Example:**
+```bash
+# Claude needs multiple commands for a complex operation
+docker ps --filter "status=running" --format json
+docker inspect container_id
+docker logs container_id --tail 100
+# Parse JSON, extract data, reason about it...
+```
+
+### Using MCP Docker Server
+
+**Pros:**
+- ✅ **Enables Docker in Claude Desktop** - Claude Desktop has no CLI access, so MCP is the only way to use Docker
+- ✅ **Safety controls** - Programmable restrictions (read-only mode, block destructive ops)
+- ✅ **Structured data** - JSON input/output, easier for AI to process
+- ✅ **Efficient** - One tool call can do what requires multiple CLI commands
+- ✅ **Input validation** - Pydantic models prevent malformed requests
+- ✅ **Audit logging** - Track all operations with timestamps and client info
+- ✅ **Rate limiting** - Prevent runaway operations
+- ✅ **Better errors** - Structured error responses with error types
+- ✅ **Contextual** - AI prompts guide Claude on what tools do
+
+**Cons:**
+- ❌ **Setup required** - Install, configure, and maintain the server
+- ❌ **Limited coverage** - Only 36 tools (doesn't expose every Docker feature)
+- ❌ **Abstraction layer** - Another component in the stack
+- ❌ **Learning curve** - Need to understand MCP protocol and tool schemas
+- ❌ **Debugging** - Harder to see what's happening under the hood
+
+**Example:**
+```json
+// One tool call with structured input/output
+{
+  "tool": "docker_list_containers",
+  "arguments": {
+    "all": true,
+    "filters": {"status": ["running"]}
+  }
+}
+// Returns clean JSON with exactly the data needed
+```
+
+### When to Use Each
+
+**Use Docker CLI directly if:**
+- You're using **Claude Code** (Claude Desktop has no CLI access)
+- You need a Docker feature not exposed by the MCP server
+- You want minimal setup and maximum simplicity
+- You're comfortable with Claude having full Docker access
+- You're doing one-off tasks where safety controls aren't important
+- You trust the AI agent completely
+
+**Use MCP Docker Server if:**
+- You're using **Claude Desktop** (only way to access Docker)
+- You want safety controls (read-only mode, block destructive operations)
+- You need audit logging for compliance or debugging
+- You want structured input/output for better AI reasoning
+- You're building production automation with AI agents
+- You need rate limiting to prevent runaway operations
+- You want to restrict access to specific operations
+- Multiple users/agents need different permission levels
+
+### Hybrid Approach
+
+You can use both:
+- **MCP server** for common, safe operations (list, inspect, logs, stats)
+- **Docker CLI** for advanced features not in the MCP server (BuildKit, plugins, swarm)
+- **Safety**: Keep destructive operations disabled in MCP, require explicit CLI commands for those
+
+### Bottom Line
+
+**For Claude Desktop users:** MCP server is required (no CLI access available).
+
+**For Claude Code users:**
+- **Learning/exploration:** Docker CLI is simpler
+- **Production automation:** MCP server provides safety, structure, and control
+- **Maximum flexibility:** Use both as needed
+
+The MCP server doesn't replace the Docker CLI - it provides a safer, more structured interface when you need it.
+
 ## Documentation
 
+- [Security Guide](SECURITY.md) - Security features, TLS/HTTPS, authentication, production checklist
 - [API Reference](docs/API.md) - Complete tool documentation with examples
-- [Setup Guide](docs/SETUP.md) - Installation and configuration details
+- [Setup Guide](docs/SETUP.md) - Installation, configuration, and troubleshooting
 - [Usage Examples](docs/EXAMPLES.md) - Practical usage scenarios
+- [Testing Guide](docs/TESTING.md) - Testing strategy and running tests
 - [Architecture](docs/ARCHITECTURE.md) - Design principles and implementation
 
 ## Development

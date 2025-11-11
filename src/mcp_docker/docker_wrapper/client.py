@@ -2,6 +2,7 @@
 
 from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 import docker
@@ -52,6 +53,27 @@ class DockerClientWrapper:
         """
         try:
             logger.info(f"Connecting to Docker daemon at {self.config.base_url}")
+
+            # Check Unix socket permissions if applicable
+            if self.config.base_url.startswith("unix://"):
+                socket_path_str = self.config.base_url.replace("unix://", "")
+                socket_path = Path(socket_path_str)
+                if not socket_path.exists():
+                    logger.error(f"Docker socket not found: {socket_path_str}")
+                    raise DockerConnectionError(f"Docker socket not found: {socket_path_str}")
+
+                # Check if socket is readable and writable
+                try:
+                    # Test read/write access by checking file stats
+                    socket_path.stat()
+                    # Note: Proper permission check would require os.access,
+                    # but Path doesn't have equivalent
+                    # We'll rely on the Docker SDK to fail if permissions are incorrect
+                except (PermissionError, OSError):
+                    logger.warning(
+                        f"Docker socket {socket_path} may not be accessible. "
+                        f"Check file permissions and user group membership (docker group)."
+                    )
 
             # Build TLS configuration if enabled
             tls_config = None

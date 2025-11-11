@@ -1,15 +1,16 @@
 """Configuration management for MCP Docker server."""
 
+import warnings
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
 
 # SSH Authentication Constants
-DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS = 300  # 5 minutes
-MAX_SSH_SIGNATURE_AGE_SECONDS = 3600  # 1 hour
+DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS = 60  # 1 minute (secure default)
+MAX_SSH_SIGNATURE_AGE_SECONDS = 300  # 5 minutes (maximum for replay protection)
 
 
 class DockerConfig(BaseSettings):
@@ -48,6 +49,27 @@ class DockerConfig(BaseSettings):
         description="Path to client key for TLS",
     )
 
+    @field_validator("base_url")
+    @classmethod
+    def validate_docker_socket_security(cls, url: str) -> str:
+        """Validate Docker socket URL for security concerns."""
+        # Warn on insecure network-exposed configurations
+        if url.startswith("tcp://") and not url.startswith("tcp://127.0.0.1"):
+            warnings.warn(
+                f"⚠️  SECURITY: Docker socket exposed on network: {url}. "
+                "This allows unauthenticated root access. Use TLS or unix socket.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # Block insecure HTTP
+        if url.startswith("http://"):
+            raise ValueError(
+                "Insecure HTTP Docker socket not allowed. Use HTTPS with TLS verification."
+            )
+
+        return url
+
     @field_validator("tls_ca_cert", "tls_client_cert", "tls_client_key")
     @classmethod
     def validate_cert_paths(cls, cert_path: Path | None) -> Path | None:
@@ -55,6 +77,28 @@ class DockerConfig(BaseSettings):
         if cert_path is not None and not cert_path.exists():
             raise ValueError(f"Certificate file not found: {cert_path}")
         return cert_path
+
+    @model_validator(mode="after")
+    def validate_tls_config(self) -> "DockerConfig":
+        """Validate TLS configuration consistency."""
+        if self.tls_verify and not self.tls_ca_cert:
+            raise ValueError(
+                "tls_ca_cert is required when tls_verify=True. "
+                "Provide a CA certificate path for TLS verification."
+            )
+
+        # Warn if certificates are provided without TLS verification
+        if not self.tls_verify and (
+            self.tls_ca_cert or self.tls_client_cert or self.tls_client_key
+        ):
+            warnings.warn(
+                "TLS certificates configured but tls_verify=False. "
+                "Set DOCKER_TLS_VERIFY=true to enable TLS verification.",
+                UserWarning,
+                stacklevel=1,
+            )
+
+        return self
 
 
 class SafetyConfig(BaseSettings):
@@ -104,15 +148,7 @@ class SecurityConfig(BaseSettings):
     # Authentication
     auth_enabled: bool = Field(
         default=False,
-        description="Enable authentication (recommended for production)",
-    )
-    api_keys_file: Path = Field(
-        default=Path(".mcp_keys.json"),
-        description="Path to API keys configuration file",
-    )
-    api_key_header: str = Field(
-        default="X-MCP-API-Key",
-        description="HTTP header name for API key authentication",
+        description="Enable authentication (SSH key-based only)",
     )
 
     # Rate Limiting
@@ -165,14 +201,6 @@ class SecurityConfig(BaseSettings):
         le=MAX_SSH_SIGNATURE_AGE_SECONDS,
     )
 
-    @field_validator("api_keys_file")
-    @classmethod
-    def validate_keys_file_parent_exists(cls, keys_file_path: Path) -> Path:
-        """Validate that parent directory exists for API keys file."""
-        if not keys_file_path.parent.exists():
-            raise ValueError(f"Parent directory does not exist for keys file: {keys_file_path}")
-        return keys_file_path
-
     @field_validator("audit_log_file")
     @classmethod
     def validate_audit_log_parent_exists(cls, audit_log_path: Path) -> Path:
@@ -213,6 +241,22 @@ class ServerConfig(BaseSettings):
         ),
         description="Log format string for loguru",
     )
+    debug_mode: bool = Field(
+        default=False,
+        description="Enable debug mode (shows detailed errors, DO NOT use in production)",
+    )
+    tls_enabled: bool = Field(
+        default=False,
+        description="Enable TLS/HTTPS for SSE transport (required for production)",
+    )
+    tls_cert_file: Path | None = Field(
+        default=None,
+        description="Path to TLS certificate file",
+    )
+    tls_key_file: Path | None = Field(
+        default=None,
+        description="Path to TLS private key file",
+    )
 
     @field_validator("log_level")
     @classmethod
@@ -223,6 +267,14 @@ class ServerConfig(BaseSettings):
         if level_upper not in valid_levels:
             raise ValueError(f"Invalid log level: {level}. Must be one of {valid_levels}")
         return level_upper
+
+    @field_validator("tls_cert_file", "tls_key_file")
+    @classmethod
+    def validate_tls_files(cls, tls_file: Path | None) -> Path | None:
+        """Validate that TLS files exist if provided."""
+        if tls_file is not None and not tls_file.exists():
+            raise ValueError(f"TLS file not found: {tls_file}")
+        return tls_file
 
 
 class Config:

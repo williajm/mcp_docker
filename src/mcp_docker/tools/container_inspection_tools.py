@@ -10,11 +10,11 @@ from docker.errors import APIError, NotFound
 from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
-from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
-from mcp_docker.utils.safety import OperationSafety
+from mcp_docker.utils.safety import OperationSafety, validate_command_safety
 from mcp_docker.utils.validation import validate_command
 
 logger = get_logger(__name__)
@@ -395,7 +395,7 @@ class ExecCommandTool(BaseTool):
         privileged = arguments.get("privileged", False)
         if privileged and not self.safety.allow_privileged_containers:
             logger.warning("Privileged exec command blocked by safety config")
-            raise PermissionError(
+            raise UnsafeOperationError(
                 "Privileged containers are not allowed. "
                 "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
             )
@@ -414,7 +414,10 @@ class ExecCommandTool(BaseTool):
             DockerOperationError: If command execution fails
         """
         try:
-            # Validate command
+            # Validate command - SECURITY: Check for dangerous patterns in ALL formats
+            validate_command_safety(input_data.command)
+
+            # Additional structure validation for strings
             if isinstance(input_data.command, str):
                 validate_command(input_data.command)
 

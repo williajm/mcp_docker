@@ -6,7 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from mcp_docker.auth.api_key import ClientInfo
+from mcp_docker.auth.models import ClientInfo
+from mcp_docker.utils.log_sanitizer import LogSanitizer
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -81,6 +82,7 @@ class AuditLogger:
         """
         self.audit_log_file = audit_log_file
         self.enabled = enabled
+        self.sanitizer = LogSanitizer()
 
         if self.enabled:
             # Ensure parent directory exists
@@ -119,7 +121,7 @@ class AuditLogger:
             client_info=client_info,
             tool_name=tool_name,
             arguments=self._sanitize_arguments(arguments),
-            result=result,
+            result=self._sanitize_result(result),
             error=error,
         )
 
@@ -191,7 +193,7 @@ class AuditLogger:
             logger.error(f"Failed to write audit log: {e}")
 
     def _sanitize_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        """Sanitize arguments to remove sensitive data before logging.
+        """Sanitize arguments to remove sensitive data and prevent resource exhaustion.
 
         Args:
             arguments: Original arguments
@@ -199,21 +201,26 @@ class AuditLogger:
         Returns:
             Sanitized arguments
         """
-        # Create a copy to avoid modifying the original
-        sanitized = arguments.copy()
+        # Use log sanitizer to handle both sensitive data and size limits
+        sanitized = self.sanitizer.sanitize(arguments)
+        # Type assertion: sanitizer preserves dict structure for dict inputs
+        assert isinstance(sanitized, dict)
+        return sanitized
 
-        # Remove or mask sensitive fields
-        sensitive_keys = {
-            "password",
-            "api_key",
-            "token",
-            "secret",
-            "credential",
-            "auth",
-        }
+    def _sanitize_result(self, result: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Sanitize result to prevent resource exhaustion.
 
-        for key in sanitized:
-            if any(sensitive in key.lower() for sensitive in sensitive_keys):
-                sanitized[key] = "***REDACTED***"
+        Args:
+            result: Original result
 
+        Returns:
+            Sanitized result
+        """
+        if result is None:
+            return None
+
+        # Use log sanitizer to prevent huge results from filling logs
+        sanitized = self.sanitizer.sanitize(result)
+        # Type assertion: sanitizer preserves dict structure for dict inputs
+        assert isinstance(sanitized, dict)
         return sanitized

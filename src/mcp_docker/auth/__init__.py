@@ -1,6 +1,6 @@
 """Authentication module for MCP Docker server."""
 
-from mcp_docker.auth.api_key import APIKeyAuthenticator, ClientInfo
 from mcp_docker.auth.middleware import AuthMiddleware
+from mcp_docker.auth.models import ClientInfo
 
-__all__ = ["APIKeyAuthenticator", "ClientInfo", "AuthMiddleware"]
+__all__ = ["ClientInfo", "AuthMiddleware"]

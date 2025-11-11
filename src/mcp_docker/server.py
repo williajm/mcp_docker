@@ -24,6 +24,7 @@ from mcp_docker.tools import (
     system_tools,
     volume_tools,
 )
+from mcp_docker.utils.error_sanitizer import sanitize_error_for_client
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -76,6 +77,14 @@ class MCPDockerServer:
             f"rate_limit={config.security.rate_limit_enabled}, "
             f"audit={config.security.audit_log_enabled}"
         )
+
+        # Warn if destructive operations are enabled
+        if config.safety.allow_destructive_operations:
+            logger.warning(
+                "⚠️  Destructive operations ENABLED! "
+                "Clients can permanently delete containers, images, volumes, and networks. "
+                "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false to disable."
+            )
 
     def _register_tools(self) -> None:
         """Auto-register all Docker tools from tool modules.
@@ -292,15 +301,18 @@ class MCPDockerServer:
                 return {"success": True, "result": result_dict}
 
             except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Tool {tool_name} failed: {e}")
+                # Log full error details internally (with stack trace)
+                # Note: loguru uses {} formatting, not % formatting like standard logging
+                logger.error("Tool {} failed: {}", tool_name, e, exc_info=True)  # noqa: PLE1205
 
-                # Log failed operation
-                self.audit_logger.log_tool_call(
-                    client_info_obj, tool_name, arguments, error=error_msg
-                )
+                # Sanitize error message for client (prevent information disclosure)
+                client_error, client_error_type = sanitize_error_for_client(e, tool_name)
 
-                return {"success": False, "error": error_msg, "error_type": type(e).__name__}
+                # Log failed operation with full error details in audit log
+                self.audit_logger.log_tool_call(client_info_obj, tool_name, arguments, error=str(e))
+
+                # Return sanitized error to client
+                return {"success": False, "error": client_error, "error_type": client_error_type}
 
     async def start(self) -> None:
         """Start the MCP server."""

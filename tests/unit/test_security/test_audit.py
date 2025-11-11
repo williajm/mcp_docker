@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from mcp_docker.auth.api_key import ClientInfo
+from mcp_docker.auth.models import ClientInfo
 from mcp_docker.security.audit import AuditEvent, AuditLogger
 
 
