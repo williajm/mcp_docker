@@ -111,7 +111,7 @@ The MCP Docker server includes comprehensive security features for production de
 
 See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation strategies.
 
-### Install Instructions
+### Server-sent events startup
 
 ```bash
 # Start with all security features enabled
