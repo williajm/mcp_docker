@@ -228,7 +228,7 @@ Two resources provide real-time access to container data:
 
 ## Safety System
 
-The server implements a three-tier safety system with configurable operation modes:
+The server implements a three-tier safety system with configurable operation modes and fine-grained tool filtering:
 
 ### Operation Safety Levels
 
@@ -248,6 +248,38 @@ The server implements a three-tier safety system with configurable operation mod
    - Can require confirmation
    - Examples: `docker_remove_container`, `docker_prune_images`, `docker_system_prune`
 
+### Tool Filtering (Allow/Deny Lists)
+
+In addition to safety levels, you can control exactly which tools are available using allow and deny lists:
+
+**Deny List** - Block specific tools (takes precedence over allow list)
+
+```bash
+# Block destructive operations by tool name
+SAFETY_DENIED_TOOLS="docker_remove_container,docker_prune_images,docker_system_prune"
+```
+
+**Allow List** - Only permit specific tools (empty = allow all based on safety level)
+
+```bash
+# Only allow read-only monitoring tools
+SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_inspect_container,docker_container_logs,docker_container_stats,docker_version"
+```
+
+**How it works:**
+
+1. Safety level restrictions apply first (MODERATE/DESTRUCTIVE settings)
+2. Deny list blocks specific tools regardless of safety level
+3. Allow list (if non-empty) restricts to only listed tools
+4. Tools are filtered in both `list_tools()` and at execution time
+
+**Use cases:**
+
+- Restrict AI agents to read-only operations for monitoring
+- Block specific dangerous tools while allowing others at same safety level
+- Create custom tool subsets for different user roles or environments
+- Prevent accidental execution of critical operations
+
 ### Safety Modes
 
 Configure the safety mode using environment variables:
@@ -257,6 +289,9 @@ Configure the safety mode using environment variables:
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+
+# Optional: Explicitly allow only monitoring tools
+SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_list_images,docker_inspect_container,docker_inspect_image,docker_container_logs,docker_container_stats,docker_version,docker_system_info"
 ```
 
 - ✅ List, inspect, logs, stats
@@ -268,6 +303,9 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # or omit (default)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+
+# Optional: Deny only the most dangerous operations
+SAFETY_DENIED_TOOLS="docker_system_prune,docker_prune_volumes"
 ```
 
 - ✅ List, inspect, logs, stats

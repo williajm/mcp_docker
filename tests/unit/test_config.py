@@ -131,6 +131,65 @@ class TestSafetyConfig:
         with pytest.raises(ValidationError):
             SafetyConfig(max_concurrent_operations=101)
 
+    def test_parse_tool_list_from_string(self) -> None:
+        """Test parsing tool list from comma-separated string."""
+        config = SafetyConfig(
+            allowed_tools="docker_list_containers,docker_inspect_container, docker_version"
+        )
+        assert config.allowed_tools == [
+            "docker_list_containers",
+            "docker_inspect_container",
+            "docker_version",
+        ]
+
+    def test_parse_tool_list_from_list(self) -> None:
+        """Test parsing tool list from list."""
+        config = SafetyConfig(allowed_tools=["docker_list_containers", "docker_inspect_container"])
+        assert config.allowed_tools == ["docker_list_containers", "docker_inspect_container"]
+
+    def test_parse_tool_list_empty_string(self) -> None:
+        """Test parsing empty string returns empty list."""
+        config = SafetyConfig(allowed_tools="")
+        assert config.allowed_tools == []
+
+    def test_parse_tool_list_none(self) -> None:
+        """Test parsing None returns empty list."""
+        config = SafetyConfig()
+        assert config.allowed_tools == []
+        assert config.denied_tools == []
+
+    def test_parse_tool_list_strips_whitespace(self) -> None:
+        """Test that whitespace around tool names is stripped."""
+        config = SafetyConfig(
+            denied_tools="  docker_remove_container  , docker_prune_images  ,  docker_system_prune  "
+        )
+        assert config.denied_tools == [
+            "docker_remove_container",
+            "docker_prune_images",
+            "docker_system_prune",
+        ]
+
+    def test_parse_tool_list_filters_empty_strings(self) -> None:
+        """Test that empty strings and extra commas are filtered out."""
+        config = SafetyConfig(allowed_tools="docker_list_containers,,docker_version,")
+        assert config.allowed_tools == ["docker_list_containers", "docker_version"]
+
+    def test_parse_tool_list_with_list_containing_empty_strings(self) -> None:
+        """Test that empty strings in lists are filtered out."""
+        config = SafetyConfig(
+            denied_tools=["docker_remove_container", "", "  ", "docker_prune_images"]
+        )
+        assert config.denied_tools == ["docker_remove_container", "docker_prune_images"]
+
+    def test_allowed_and_denied_tools_independent(self) -> None:
+        """Test that allowed_tools and denied_tools can be set independently."""
+        config = SafetyConfig(
+            allowed_tools="docker_list_containers,docker_version",
+            denied_tools="docker_remove_container,docker_prune_images",
+        )
+        assert config.allowed_tools == ["docker_list_containers", "docker_version"]
+        assert config.denied_tools == ["docker_remove_container", "docker_prune_images"]
+
 
 class TestServerConfig:
     """Tests for ServerConfig."""

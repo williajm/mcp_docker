@@ -697,24 +697,38 @@ class TestMCPDockerServer:
         """Test listing tools with denied_tools filter."""
         from mcp_docker.config import SafetyConfig
 
+        denied_tool_names = [
+            "docker_remove_container",
+            "docker_prune_images",
+            "docker_system_prune",
+        ]
+
+        # First, get baseline count with all tools enabled
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+        )
+        baseline_server = MCPDockerServer(mock_config)
+        total_tools = len(baseline_server.list_tools())
+
         # Configure to deny specific tools
         mock_config.safety = SafetyConfig(
             allow_moderate_operations=True,
             allow_destructive_operations=True,
-            denied_tools=["docker_remove_container", "docker_prune_images", "docker_system_prune"],
+            denied_tools=denied_tool_names,
         )
 
         server = MCPDockerServer(mock_config)
         tools = server.list_tools()
 
-        # Should get all tools except the 3 denied ones
-        assert len(tools) == 33  # 36 total - 3 denied
+        # Should get all tools except the denied ones
+        expected_count = total_tools - len(denied_tool_names)
+        assert len(tools) == expected_count
         tool_names = [t["name"] for t in tools]
 
         # Denied tools should not be present
-        assert "docker_remove_container" not in tool_names
-        assert "docker_prune_images" not in tool_names
-        assert "docker_system_prune" not in tool_names
+        for denied_tool in denied_tool_names:
+            assert denied_tool not in tool_names
 
         # Other tools should be present
         assert "docker_list_containers" in tool_names
@@ -847,3 +861,181 @@ class TestMCPDockerServer:
         result = await server.call_tool("docker_list_containers", {})
 
         assert result["success"] is True
+
+    def test_list_tools_with_empty_allowed_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that empty allowed_tools list allows all tools (based on safety level)."""
+        from mcp_docker.config import SafetyConfig
+
+        # Empty allowed_tools should not filter any tools
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            allowed_tools=[],  # Empty list = allow all
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get all 36 tools (no filtering by allow list)
+        assert len(tools) == 36
+        tool_names = [t["name"] for t in tools]
+        assert "docker_list_containers" in tool_names
+        assert "docker_remove_container" in tool_names
+
+    def test_list_tools_with_empty_denied_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that empty denied_tools list denies nothing."""
+        from mcp_docker.config import SafetyConfig
+
+        # Empty denied_tools should not filter any tools
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            denied_tools=[],  # Empty list = deny nothing
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get all 36 tools
+        assert len(tools) == 36
+
+    def test_list_tools_with_nonexistent_tool_in_allow_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that nonexistent tools in allow list don't cause errors."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allowed_tools=[
+                "docker_list_containers",
+                "nonexistent_tool",  # This doesn't exist
+                "another_fake_tool",
+            ],
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should only get the 1 valid tool
+        assert len(tools) == 1
+        assert tools[0]["name"] == "docker_list_containers"
+
+    def test_list_tools_with_nonexistent_tool_in_deny_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that nonexistent tools in deny list don't cause errors."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            denied_tools=["nonexistent_tool", "another_fake_tool"],
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get all 36 tools (fake tools don't affect anything)
+        assert len(tools) == 36
+
+    def test_list_tools_deny_all_via_allowed_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that setting allowed_tools to list of nonexistent tools denies everything."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            allowed_tools=["nonexistent_tool"],  # Only allow a tool that doesn't exist
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get 0 tools
+        assert len(tools) == 0
+
+    def test_list_tools_with_all_safety_levels_disabled(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test listing tools when all safety operations are disabled."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=False,
+            allow_destructive_operations=False,
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should only get SAFE tools (read-only operations)
+        # These include: list, inspect, logs, stats, version, info, etc.
+        tool_names = [t["name"] for t in tools]
+
+        # Verify some safe tools are present
+        assert "docker_list_containers" in tool_names
+        assert "docker_inspect_container" in tool_names
+        assert "docker_version" in tool_names
+
+        # Verify moderate/destructive tools are filtered
+        assert "docker_create_container" not in tool_names  # MODERATE
+        assert "docker_remove_container" not in tool_names  # DESTRUCTIVE
+
+    def test_list_tools_combined_filtering(self, mock_config: Any, mock_docker_client: Any) -> None:
+        """Test complex filtering with safety levels + allow/deny lists."""
+        from mcp_docker.config import SafetyConfig
+
+        # Scenario: Moderate allowed, destructive denied, with custom allow/deny lists
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=False,  # Block destructive
+            allowed_tools=[
+                "docker_list_containers",
+                "docker_create_container",  # MODERATE - should pass
+                "docker_remove_container",  # DESTRUCTIVE - blocked by safety level
+                "docker_inspect_container",
+            ],
+            denied_tools=["docker_create_container"],  # Deny this even though in allow list
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Expected: Only docker_list_containers and docker_inspect_container
+        # - docker_create_container: In allow list but also in deny list (deny wins)
+        # - docker_remove_container: In allow list but blocked by safety level
+        assert len(tools) == 2
+        tool_names = [t["name"] for t in tools]
+        assert "docker_list_containers" in tool_names
+        assert "docker_inspect_container" in tool_names
+        assert "docker_create_container" not in tool_names
+        assert "docker_remove_container" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_call_tool_denied_takes_precedence_over_allowed(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that deny list takes precedence even if tool is in allow list."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allowed_tools=["docker_list_containers"],
+            denied_tools=["docker_list_containers"],  # Also denied
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Try to call a tool that's in both allow and deny lists
+        result = await server.call_tool("docker_list_containers", {})
+
+        assert result["success"] is False
+        assert "Tool denied by configuration" in result["error"]
+        assert result["error_type"] == "UnsafeOperationError"

@@ -82,7 +82,9 @@ def fuzz_nested_json(data: bytes) -> None:
     fdp = atheris.FuzzedDataProvider(data)
 
     # Generate deeply nested structure
-    def create_nested(depth: int, fdp: atheris.FuzzedDataProvider) -> dict[Any, Any] | list[Any] | str:
+    def create_nested(
+        depth: int, fdp: atheris.FuzzedDataProvider
+    ) -> dict[Any, Any] | list[Any] | str:
         """Create nested JSON structure."""
         if depth <= 0 or fdp.ConsumeIntInRange(0, 5) == 0:
             return str(fdp.ConsumeUnicodeNoSurrogates(20))

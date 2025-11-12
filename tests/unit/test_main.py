@@ -478,7 +478,9 @@ class TestServerRunFunction:
                 shutdown_task = AsyncMock()
 
                 # Mock wait to return shutdown task as done
-                async def mock_wait_impl(tasks: set[Any], **kwargs: object) -> tuple[set[Any], set[Any]]:  # noqa: ARG001
+                async def mock_wait_impl(
+                    tasks: set[Any], **kwargs: object
+                ) -> tuple[set[Any], set[Any]]:  # noqa: ARG001
                     return {shutdown_task}, {server_task}
 
                 mock_wait.side_effect = mock_wait_impl

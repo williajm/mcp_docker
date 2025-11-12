@@ -127,6 +127,66 @@ class MCPDockerServer:
         self.tools[tool.name] = tool
         logger.debug(f"Registered tool: {tool.name}")
 
+    def _is_tool_allowed_by_name_filters(self, tool_name: str) -> tuple[bool, str | None]:
+        """Check if tool is allowed by allow/deny list configuration.
+
+        The deny list takes precedence over the allow list. If a tool appears
+        in the deny list, it will be blocked even if it's in the allow list.
+        If the allow list is non-empty, only tools in the allow list are permitted.
+
+        Args:
+            tool_name: Name of the tool to check
+
+        Returns:
+            Tuple of (is_allowed, error_message):
+            - (True, None) if tool is allowed
+            - (False, "reason") if tool is denied
+        """
+        # Deny list takes precedence
+        if self.config.safety.denied_tools and tool_name in self.config.safety.denied_tools:
+            return False, f"Tool denied by configuration: {tool_name}"
+
+        # If allow list is non-empty, tool must be in it
+        if self.config.safety.allowed_tools and tool_name not in self.config.safety.allowed_tools:
+            return False, f"Tool not in allow list: {tool_name}"
+
+        return True, None
+
+    def _should_filter_tool(self, tool_name: str, tool: Any) -> tuple[bool, str]:
+        """Determine if a tool should be filtered from listing.
+
+        Checks both safety level restrictions and allow/deny list filters.
+
+        Args:
+            tool_name: Name of the tool
+            tool: Tool instance
+
+        Returns:
+            Tuple of (should_filter, reason):
+            - (True, reason) if tool should be filtered
+            - (False, "") if tool should be included
+        """
+        # Check safety level - moderate operations
+        if (
+            tool.safety_level == OperationSafety.MODERATE
+            and not self.config.safety.allow_moderate_operations
+        ):
+            return True, "moderate operation disabled"
+
+        # Check safety level - destructive operations
+        if (
+            tool.safety_level == OperationSafety.DESTRUCTIVE
+            and not self.config.safety.allow_destructive_operations
+        ):
+            return True, "destructive operation disabled"
+
+        # Check allow/deny lists
+        is_allowed, error_msg = self._is_tool_allowed_by_name_filters(tool_name)
+        if not is_allowed:
+            return True, error_msg or "filtered by name"
+
+        return False, ""
+
     def list_tools(self) -> list[dict[str, Any]]:
         """List available tools filtered by safety configuration.
 
@@ -141,38 +201,14 @@ class MCPDockerServer:
         filtered_count = 0
 
         for tool_name, tool in self.tools.items():
-            # Filter based on safety level
-            if (
-                tool.safety_level == OperationSafety.MODERATE
-                and not self.config.safety.allow_moderate_operations
-            ):
+            # Check if tool should be filtered
+            should_filter, reason = self._should_filter_tool(tool_name, tool)
+            if should_filter:
                 filtered_count += 1
-                logger.debug(f"Filtered moderate tool: {tool_name}")
+                logger.debug(f"Filtered tool {tool_name}: {reason}")
                 continue
 
-            if (
-                tool.safety_level == OperationSafety.DESTRUCTIVE
-                and not self.config.safety.allow_destructive_operations
-            ):
-                filtered_count += 1
-                logger.debug(f"Filtered destructive tool: {tool_name}")
-                continue
-
-            # Filter based on deny list (takes precedence)
-            if self.config.safety.denied_tools and tool_name in self.config.safety.denied_tools:
-                filtered_count += 1
-                logger.debug(f"Filtered tool from deny list: {tool_name}")
-                continue
-
-            # Filter based on allow list (if non-empty, only allow listed tools)
-            if (
-                self.config.safety.allowed_tools
-                and tool_name not in self.config.safety.allowed_tools
-            ):
-                filtered_count += 1
-                logger.debug(f"Filtered tool not in allow list: {tool_name}")
-                continue
-
+            # Tool is allowed - add to list
             tool_def = {
                 "name": tool_name,
                 "description": tool.description,
@@ -319,17 +355,14 @@ class MCPDockerServer:
         logger.info(f"Calling tool: {tool_name} (client: {client_info['client_id']})")
 
         # Check allow/deny lists (defense in depth - should already be filtered in list_tools)
-        if self.config.safety.denied_tools and tool_name in self.config.safety.denied_tools:
-            error_msg = f"Tool denied by configuration: {tool_name}"
-            logger.error(error_msg)
-            self.audit_logger.log_tool_call(client_info_obj, tool_name, arguments, error=error_msg)
-            return {"success": False, "error": error_msg, "error_type": "UnsafeOperationError"}
-
-        if self.config.safety.allowed_tools and tool_name not in self.config.safety.allowed_tools:
-            error_msg = f"Tool not in allow list: {tool_name}"
-            logger.error(error_msg)
-            self.audit_logger.log_tool_call(client_info_obj, tool_name, arguments, error=error_msg)
-            return {"success": False, "error": error_msg, "error_type": "UnsafeOperationError"}
+        is_allowed, filter_error = self._is_tool_allowed_by_name_filters(tool_name)
+        if not is_allowed:
+            assert filter_error is not None  # filter_error is always set when is_allowed is False
+            logger.error(filter_error)
+            self.audit_logger.log_tool_call(
+                client_info_obj, tool_name, arguments, error=filter_error
+            )
+            return {"success": False, "error": filter_error, "error_type": "UnsafeOperationError"}
 
         # Use semaphore to limit concurrent operations
         async with self._operation_semaphore:
