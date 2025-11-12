@@ -393,10 +393,3 @@ Mae'r prosiect hwn wedi'i drwyddedu dan y Drwydded MIT - gweler y ffeil [LICENSE
 - Yn defnyddio'r [Docker SDK swyddogol ar gyfer Python](https://docker-py.readthedocs.io/)
 - Wedi'i bweru gan offer Python modern: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
 
-## Map Ffordd
-
-- [ ] Gweithrediadau Docker Swarm
-- [ ] Cefnogaeth gwesteiwr Docker pell
-- [ ] Ffrydio gwell (cynnydd adeiladu/tynnu)
-- [ ] Opsiwn cludo WebSocket
-- [ ] Integreiddiad Docker Scout

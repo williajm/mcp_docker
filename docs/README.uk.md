@@ -450,11 +450,3 @@ mcp_docker/
 - Використовує офіційний [Docker SDK для Python](https://docker-py.readthedocs.io/)
 - Працює на сучасних інструментах Python: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
 
-## Дорожня карта
-
-- [x] Повна підтримка Docker Compose (11 інструментів, 2 промпти, 3 ресурси)
-- [ ] Операції Docker Swarm
-- [ ] Підтримка віддаленого Docker хоста
-- [ ] Покращене потокове передавання (прогрес build/pull)
-- [ ] Опція транспорту WebSocket
-- [ ] Інтеграція Docker Scout

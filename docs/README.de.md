@@ -445,11 +445,3 @@ Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe die Datei [LICENSE](.
 - Verwendet das offizielle [Docker SDK für Python](https://docker-py.readthedocs.io/)
 - Unterstützt von modernen Python-Tools: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
 
-## Roadmap
-
-- [x] Vollständige Docker Compose-Unterstützung (11 Tools, 2 Prompts, 3 Ressourcen)
-- [ ] Docker Swarm-Operationen
-- [ ] Remote-Docker-Host-Unterstützung
-- [ ] Verbessertes Streaming (Build/Pull-Fortschritt)
-- [ ] WebSocket-Transport-Option
-- [ ] Docker Scout-Integration
