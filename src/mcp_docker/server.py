@@ -26,6 +26,7 @@ from mcp_docker.tools import (
 )
 from mcp_docker.utils.error_sanitizer import sanitize_error_for_client
 from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
@@ -127,13 +128,36 @@ class MCPDockerServer:
         logger.debug(f"Registered tool: {tool.name}")
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """List all available tools.
+        """List available tools filtered by safety configuration.
+
+        Only tools that are allowed by the current safety configuration
+        will be included in the list. This reduces context window usage
+        and prevents clients from attempting operations that will always fail.
 
         Returns:
             List of tool definitions for MCP protocol
         """
         tool_list = []
+        filtered_count = 0
+
         for tool_name, tool in self.tools.items():
+            # Filter based on safety level
+            if (
+                tool.safety_level == OperationSafety.MODERATE
+                and not self.config.safety.allow_moderate_operations
+            ):
+                filtered_count += 1
+                logger.debug(f"Filtered moderate tool: {tool_name}")
+                continue
+
+            if (
+                tool.safety_level == OperationSafety.DESTRUCTIVE
+                and not self.config.safety.allow_destructive_operations
+            ):
+                filtered_count += 1
+                logger.debug(f"Filtered destructive tool: {tool_name}")
+                continue
+
             tool_def = {
                 "name": tool_name,
                 "description": tool.description,
@@ -141,7 +165,9 @@ class MCPDockerServer:
             }
             tool_list.append(tool_def)
 
-        logger.debug(f"Listed {len(tool_list)} tools")
+        logger.debug(
+            f"Listed {len(tool_list)} tools (filtered {filtered_count} based on safety config)"
+        )
         return tool_list
 
     async def call_tool(

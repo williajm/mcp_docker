@@ -102,11 +102,17 @@ class TestMCPDockerServer:
         assert "docker_healthcheck" in server.tools
 
     def test_list_tools(self, mock_config: Any, mock_docker_client: Any) -> None:
-        """Test listing all tools."""
+        """Test listing all tools with default safety config."""
         server = MCPDockerServer(mock_config)
         tools = server.list_tools()
 
-        assert len(tools) == 36
+        # With default safety config (allow_moderate=True, allow_destructive=False),
+        # we should get SAFE + MODERATE tools, but not DESTRUCTIVE tools
+        # SAFE: 12 tools (list/inspect/logs/stats/version/info/df/healthcheck/events/image_history)
+        # MODERATE: 17 tools (create/start/stop/restart/exec/pull/build/push/tag/connect/disconnect)
+        # DESTRUCTIVE: 7 tools (remove_container/image/network/volume/prune variants)
+        # Expected: 12 + 17 = 29 tools
+        assert len(tools) == 29
         assert all("name" in tool for tool in tools)
         assert all("description" in tool for tool in tools)
         assert all("inputSchema" in tool for tool in tools)
@@ -115,6 +121,126 @@ class TestMCPDockerServer:
         container_tools = [t for t in tools if t["name"] == "docker_list_containers"]
         assert len(container_tools) == 1
         assert "List Docker containers" in container_tools[0]["description"]
+
+    def test_list_tools_with_all_operations_allowed(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test listing tools when all operations are allowed."""
+        from mcp_docker.config import SafetyConfig
+
+        # Allow everything
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get all 36 tools
+        assert len(tools) == 36
+
+    def test_list_tools_read_only_mode(self, mock_config: Any, mock_docker_client: Any) -> None:
+        """Test listing tools in read-only mode (no moderate or destructive operations)."""
+        from mcp_docker.config import SafetyConfig
+
+        # Read-only mode: only SAFE operations
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=False,
+            allow_destructive_operations=False,
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should only get SAFE tools
+        # SAFE tools include: list, inspect, logs, stats, version, info, df, healthcheck, events, image_history, system_df, system_info
+        # Count: docker_list_containers, docker_inspect_container, docker_container_logs,
+        #        docker_container_stats, docker_list_images, docker_inspect_image,
+        #        docker_image_history, docker_list_networks, docker_inspect_network,
+        #        docker_list_volumes, docker_inspect_volume, docker_version,
+        #        docker_system_info, docker_system_df, docker_healthcheck, docker_events
+        # Expected: approximately 12-16 SAFE tools
+        assert len(tools) < 36
+        assert len(tools) >= 12  # At minimum the core read-only tools
+
+        # Verify SAFE tools are present
+        tool_names = [t["name"] for t in tools]
+        assert "docker_list_containers" in tool_names
+        assert "docker_inspect_container" in tool_names
+        assert "docker_container_logs" in tool_names
+        assert "docker_list_images" in tool_names
+
+        # Verify MODERATE tools are absent
+        assert "docker_create_container" not in tool_names
+        assert "docker_start_container" not in tool_names
+        assert "docker_pull_image" not in tool_names
+
+        # Verify DESTRUCTIVE tools are absent
+        assert "docker_remove_container" not in tool_names
+        assert "docker_remove_image" not in tool_names
+        assert "docker_prune_volumes" not in tool_names
+
+    def test_list_tools_moderate_only(self, mock_config: Any, mock_docker_client: Any) -> None:
+        """Test listing tools with moderate operations allowed but not destructive."""
+        from mcp_docker.config import SafetyConfig
+
+        # Allow moderate operations but not destructive (default config)
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=False,
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get SAFE + MODERATE tools
+        tool_names = [t["name"] for t in tools]
+
+        # Verify SAFE tools are present
+        assert "docker_list_containers" in tool_names
+        assert "docker_inspect_container" in tool_names
+
+        # Verify MODERATE tools are present
+        assert "docker_create_container" in tool_names
+        assert "docker_start_container" in tool_names
+        assert "docker_stop_container" in tool_names
+        assert "docker_pull_image" in tool_names
+
+        # Verify DESTRUCTIVE tools are absent
+        assert "docker_remove_container" not in tool_names
+        assert "docker_remove_image" not in tool_names
+        assert "docker_prune_volumes" not in tool_names
+        assert "docker_system_prune" not in tool_names
+
+    def test_list_tools_destructive_filtered(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that destructive tools are filtered when not allowed."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=False,  # Block destructive
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Count destructive tools that should be filtered
+        tool_names = [t["name"] for t in tools]
+        destructive_tools = [
+            "docker_remove_container",
+            "docker_remove_image",
+            "docker_remove_network",
+            "docker_remove_volume",
+            "docker_prune_images",
+            "docker_prune_volumes",
+            "docker_system_prune",
+        ]
+
+        for destructive_tool in destructive_tools:
+            assert destructive_tool not in tool_names
 
     @pytest.mark.asyncio
     async def test_call_tool_success(self, mock_config: Any, mock_docker_client: Any) -> None:
