@@ -17,9 +17,9 @@ on:
 permissions:
   contents: read
 
-# Allow one concurrent deployment
+# Allow one concurrent documentation check (separate from Pages deployment)
 concurrency:
-  group: "pages"
+  group: "docs-check-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
