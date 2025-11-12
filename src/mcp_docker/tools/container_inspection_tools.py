@@ -228,7 +228,7 @@ class ListContainersTool(BaseTool):
             logger.info(f"Found {len(container_list)} containers (total: {original_count})")
             return ListContainersOutput(
                 containers=container_list,
-                count=len(container_list),
+                count=original_count,
                 truncation_info=truncation_info,
             )
 
