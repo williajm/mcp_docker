@@ -31,6 +31,7 @@ logger = get_logger(__name__)
 # Safety limit for log streaming to prevent memory exhaustion in follow mode
 MAX_STREAMING_LOG_LINES = 10000  # Prevents OOM when collecting streaming logs
 CONTAINER_ID_DESCRIPTION = "Container ID or name"
+TRUNCATION_INFO_DESCRIPTION = "Information about output truncation if applied"
 
 
 # Input/Output Models
@@ -57,7 +58,7 @@ class ListContainersOutput(BaseModel):
     count: int = Field(description="Total number of containers")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=TRUNCATION_INFO_DESCRIPTION,
     )
 
 
@@ -73,7 +74,7 @@ class InspectContainerOutput(BaseModel):
     details: dict[str, Any] = Field(description="Detailed container information")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=TRUNCATION_INFO_DESCRIPTION,
     )
 
 
@@ -97,7 +98,7 @@ class ContainerLogsOutput(BaseModel):
     container_id: str = Field(description="Container ID")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=TRUNCATION_INFO_DESCRIPTION,
     )
 
 
@@ -132,7 +133,7 @@ class ExecCommandOutput(BaseModel):
     output: str = Field(description="Command output (stdout and stderr combined)")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=TRUNCATION_INFO_DESCRIPTION,
     )
 
 

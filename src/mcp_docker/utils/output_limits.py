@@ -115,6 +115,36 @@ def truncate_list(
     return truncated, True
 
 
+def _truncate_string_field(
+    text: str,
+    path: str,
+    max_bytes: int,
+    truncation_info: dict[str, int],
+) -> str:
+    """Truncate a single string field if it exceeds max bytes.
+
+    Args:
+        text: String to truncate
+        path: Field path for tracking
+        max_bytes: Maximum bytes allowed
+        truncation_info: Dict to update with truncation info
+
+    Returns:
+        Truncated or original string
+    """
+    size = len(text.encode("utf-8"))
+    if size <= max_bytes:
+        return text
+
+    truncated, _ = truncate_text(
+        text,
+        max_bytes,
+        truncation_message=None,  # Don't add message to preserve data structure
+    )
+    truncation_info[path] = size
+    return truncated
+
+
 def truncate_dict_fields(
     data: dict[str, Any],
     max_field_bytes: int,
@@ -137,26 +167,16 @@ def truncate_dict_fields(
     def _truncate_recursive(obj: Any, path: str = "") -> Any:
         """Recursively truncate fields in nested structures."""
         if isinstance(obj, dict):
-            result = {}
-            for key, value in obj.items():
-                field_path = f"{path}.{key}" if path else key
-                result[key] = _truncate_recursive(value, field_path)
-            return result
+            return {
+                key: _truncate_recursive(value, f"{path}.{key}" if path else key)
+                for key, value in obj.items()
+            }
 
         if isinstance(obj, list):
             return [_truncate_recursive(item, f"{path}[{i}]") for i, item in enumerate(obj)]
 
         if isinstance(obj, str):
-            size = len(obj.encode("utf-8"))
-            if size > max_field_bytes:
-                truncated, _ = truncate_text(
-                    obj,
-                    max_field_bytes,
-                    truncation_message=None,  # Don't add message to preserve data structure
-                )
-                truncation_info[path] = size
-                return truncated
-            return obj
+            return _truncate_string_field(obj, path, max_field_bytes, truncation_info)
 
         # Return other types as-is (int, float, bool, None, etc.)
         return obj
