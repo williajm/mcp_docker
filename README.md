@@ -7,7 +7,7 @@
 | **Security** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/williajm/mcp_docker/badge)](https://scorecard.dev/viewer/?uri=github.com/williajm/mcp_docker) [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot) [![Fuzzing](https://github.com/williajm/mcp_docker/actions/workflows/cflite.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/cflite.yml) |
 | **Package** | [![GitHub release](https://img.shields.io/github/v/release/williajm/mcp_docker)](https://github.com/williajm/mcp_docker/releases) [![PyPI version](https://img.shields.io/pypi/v/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) [![PyPI status](https://img.shields.io/pypi/status/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) [![PyPI downloads](https://img.shields.io/pypi/dm/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) |
 | **Technology** | [![Python 3.11-3.14](https://img.shields.io/badge/python-3.11--3.14-blue.svg)](https://www.python.org/downloads/) [![Docker](https://img.shields.io/badge/Docker-Management-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff) [![type-checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue.svg)](https://mypy-lang.org/) [![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io) |
-| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-English-blue)](https://williajm.github.io/mcp_docker/) [![Dogfennaeth Cymraeg](https://img.shields.io/badge/docs-Cymraeg-blue)](https://williajm.github.io/mcp_docker/README.cy) [![Documentation en Français](https://img.shields.io/badge/docs-Fran%C3%A7ais-blue)](https://williajm.github.io/mcp_docker/README.fr) [![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-blue)](https://williajm.github.io/mcp_docker/README.de) [![Documentazione in Italiano](https://img.shields.io/badge/docs-Italiano-blue)](https://williajm.github.io/mcp_docker/README.it) [![Documentação em Português](https://img.shields.io/badge/docs-Portugu%C3%AAs-blue)](https://williajm.github.io/mcp_docker/README.pt) [![Documentación en Español](https://img.shields.io/badge/docs-Espa%C3%B1ol-blue)](https://williajm.github.io/mcp_docker/README.es) [![Dokumentacja po polsku](https://img.shields.io/badge/docs-Polski-blue)](https://williajm.github.io/mcp_docker/README.pl) [![Документація Українською](https://img.shields.io/badge/docs-%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-blue)](https://williajm.github.io/mcp_docker/README.uk) [![日本語ドキュメント](https://img.shields.io/badge/docs-%E6%97%A5%E6%9C%AC%E8%AA%9E-blue)](https://williajm.github.io/mcp_docker/README.ja) [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-blue)](https://williajm.github.io/mcp_docker/README.zh) |
+| **Documentation** | [![Documentation](https://img.shields.io/badge/docs-English-blue)](https://williajm.github.io/mcp_docker/) [![Documentation en Français](https://img.shields.io/badge/docs-Fran%C3%A7ais-blue)](https://williajm.github.io/mcp_docker/README.fr) [![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-blue)](https://williajm.github.io/mcp_docker/README.de) [![Documentazione in Italiano](https://img.shields.io/badge/docs-Italiano-blue)](https://williajm.github.io/mcp_docker/README.it) [![Documentação em Português](https://img.shields.io/badge/docs-Portugu%C3%AAs-blue)](https://williajm.github.io/mcp_docker/README.pt) [![Documentación en Español](https://img.shields.io/badge/docs-Espa%C3%B1ol-blue)](https://williajm.github.io/mcp_docker/README.es) [![Dokumentacja po polsku](https://img.shields.io/badge/docs-Polski-blue)](https://williajm.github.io/mcp_docker/README.pl) [![Документація Українською](https://img.shields.io/badge/docs-%D0%A3%D0%BA%D1%80%D0%B0%D1%97%D0%BD%D1%81%D1%8C%D0%BA%D0%B0-blue)](https://williajm.github.io/mcp_docker/README.uk) [![日本語ドキュメント](https://img.shields.io/badge/docs-%E6%97%A5%E6%9C%AC%E8%AA%9E-blue)](https://williajm.github.io/mcp_docker/README.ja) [![中文文档](https://img.shields.io/badge/docs-%E4%B8%AD%E6%96%87-blue)](https://williajm.github.io/mcp_docker/README.zh) |
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
@@ -24,7 +24,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **Continuous Fuzzing**: ClusterFuzzLite integration for security and robustness (OpenSSF Scorecard compliant)
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
-## Quick Start
+## Install Instructions
 
 ### Prerequisites
 
@@ -56,15 +56,7 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system. See [docs/SETUP.md](docs/SETUP.md) for advanced configuration options.
-
-### Manual Testing
-
-Run directly with uvx (no installation needed):
-
-```bash
-uvx mcp-docker
-```
+**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system.
 
 **Getting Updates:** `uvx` caches packages and won't automatically update. To get the latest version:
 
@@ -75,8 +67,6 @@ uvx --reinstall mcp-docker
 # Or clear cache
 uv cache clean mcp-docker
 ```
-
-For detailed installation options (pip, from source, development setup), custom configuration, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
 
 ### Advanced Usage
 
@@ -121,17 +111,11 @@ The MCP Docker server includes comprehensive security features for production de
 
 See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation strategies.
 
-### Quick Production Setup
+### Server-sent events startup
 
 ```bash
-# Generate certificates
-./scripts/generate-certs.sh
-
 # Start with all security features enabled
 ./start-mcp-docker-sse.sh
-
-# Test security configuration
-./test-mcp-sse.sh
 ```
 
 ### Security Configuration
@@ -325,9 +309,9 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 
 > **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
 
-## MCP Server vs. Docker CLI: An Honest Comparison
+## MCP Server vs. Docker CLI: A Comparison
 
-**Should you use this MCP server or just let Claude run `docker` commands directly?** Here's an honest assessment:
+**Should you use this MCP server or just let Claude run `docker` commands directly?** Here's an assessment:
 
 ### Using Docker CLI Directly
 
@@ -440,11 +424,6 @@ The MCP server doesn't replace the Docker CLI - it provides a safer, more struct
 ## Documentation
 
 - [Security Guide](SECURITY.md) - Security features, TLS/HTTPS, authentication, production checklist
-- [API Reference](docs/API.md) - Complete tool documentation with examples
-- [Setup Guide](docs/SETUP.md) - Installation, configuration, and troubleshooting
-- [Usage Examples](docs/EXAMPLES.md) - Practical usage scenarios
-- [Testing Guide](docs/TESTING.md) - Testing strategy and running tests
-- [Architecture](docs/ARCHITECTURE.md) - Design principles and implementation
 
 ## Development
 
@@ -510,7 +489,7 @@ python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
 
 #### Fuzzing
 
-The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) for continuous fuzzing to meet [OpenSSF Scorecard](https://github.com/ossf/scorecard) requirements. Fuzz tests run automatically in CI/CD to discover security vulnerabilities and edge cases. See [docs/FUZZING.md](docs/FUZZING.md) for details.
+The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) for continuous fuzzing to meet [OpenSSF Scorecard](https://github.com/ossf/scorecard) requirements. Fuzz tests run automatically in CI/CD to discover security vulnerabilities and edge cases.
 
 ### Project Structure
 
@@ -561,11 +540,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with the [Model Context Protocol](https://modelcontextprotocol.io) by Anthropic
 - Uses the official [Docker SDK for Python](https://docker-py.readthedocs.io/)
 - Powered by modern Python tooling: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
-
-## Roadmap
-
-- [ ] Docker Swarm operations
-- [ ] Remote Docker host support
-- [ ] Enhanced streaming (build/pull progress)
-- [ ] WebSocket transport option
-- [ ] Docker Scout integration

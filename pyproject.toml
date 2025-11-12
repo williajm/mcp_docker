@@ -137,22 +137,6 @@ ignore = []
     "PLR0915",  # Too many statements (integration/E2E tests naturally have many steps)
     "ERA001",   # Commented code (tests sometimes keep old approaches as documentation)
 ]
-# Examples prioritize educational clarity over strict linting
-"examples/**/*.py" = [
-    "E501",     # Line length (examples can have long lines for clarity)
-    "PLR0913",  # Too many arguments (examples may show various parameters)
-    "PLR2004",  # Magic values (acceptable for demonstration)
-    "T201",     # Print statements (examples use print for output)
-    "ERA001",   # Commented code (examples may show alternative approaches)
-    "PLC0415",  # Imports not at top (examples may show imports inline for clarity)
-    "F401",     # Unused imports (examples may import for demonstration)
-    "F541",     # f-string without placeholders (acceptable for consistency)
-    "F821",     # Undefined names (examples may be incomplete)
-    "F841",     # Unused variables (examples may show syntax without using all vars)
-    "I001",     # Import sorting (not critical for examples)
-    "UP012",    # Unnecessary encoding (explicit encoding is clearer in examples)
-    "UP031",    # Use format specifiers (% formatting is shown for comparison)
-]
 # Fuzz tests use Atheris conventions (TestOneInput is required entry point)
 "tests/fuzz/**/*.py" = [
     "N802",     # TestOneInput function name is required by Atheris fuzzing framework
