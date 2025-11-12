@@ -1,3 +1,9 @@
+---
+layout: default
+title: MCP Docker Server - Deutsch
+permalink: /README.de
+---
+
 # MCP Docker Server
 
 | Category | Status |
