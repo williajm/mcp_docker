@@ -371,7 +371,7 @@ python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
 
 #### Ffwzialu
 
-Mae'r prosiect yn defnyddio [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) ar gyfer ffwzialu parhaus i fodloni gofynion [OpenSSF Scorecard](https://github.com/ossf/scorecard). Mae profion fuzz yn rhedeg yn awtomatig mewn CI/CD i ddarganfod bregusrwydd diogelwch ac achosion ymyl. Gweler [docs/FUZZING.md](docs/FUZZING.md) am fanylion.
+Mae'r prosiect yn defnyddio [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) ar gyfer ffwzialu parhaus i fodloni gofynion [OpenSSF Scorecard](https://github.com/ossf/scorecard). Mae profion fuzz yn rhedeg yn awtomatig mewn CI/CD i ddarganfod bregusrwydd diogelwch ac achosion ymyl.
 
 ## Gofynion
 

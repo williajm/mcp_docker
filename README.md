@@ -56,15 +56,7 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system. See [docs/SETUP.md](docs/SETUP.md) for advanced configuration options.
-
-### Manual Testing
-
-Run directly with uvx (no installation needed):
-
-```bash
-uvx mcp-docker
-```
+**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system.
 
 **Getting Updates:** `uvx` caches packages and won't automatically update. To get the latest version:
 
@@ -75,8 +67,6 @@ uvx --reinstall mcp-docker
 # Or clear cache
 uv cache clean mcp-docker
 ```
-
-For detailed installation options (pip, from source, development setup), custom configuration, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
 
 ### Advanced Usage
 
@@ -121,12 +111,9 @@ The MCP Docker server includes comprehensive security features for production de
 
 See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation strategies.
 
-### Quick Production Setup
+### Install Instructions
 
 ```bash
-# Generate certificates
-./scripts/generate-certs.sh
-
 # Start with all security features enabled
 ./start-mcp-docker-sse.sh
 
@@ -440,11 +427,6 @@ The MCP server doesn't replace the Docker CLI - it provides a safer, more struct
 ## Documentation
 
 - [Security Guide](SECURITY.md) - Security features, TLS/HTTPS, authentication, production checklist
-- [API Reference](docs/API.md) - Complete tool documentation with examples
-- [Setup Guide](docs/SETUP.md) - Installation, configuration, and troubleshooting
-- [Usage Examples](docs/EXAMPLES.md) - Practical usage scenarios
-- [Testing Guide](docs/TESTING.md) - Testing strategy and running tests
-- [Architecture](docs/ARCHITECTURE.md) - Design principles and implementation
 
 ## Development
 
@@ -510,7 +492,7 @@ python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
 
 #### Fuzzing
 
-The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) for continuous fuzzing to meet [OpenSSF Scorecard](https://github.com/ossf/scorecard) requirements. Fuzz tests run automatically in CI/CD to discover security vulnerabilities and edge cases. See [docs/FUZZING.md](docs/FUZZING.md) for details.
+The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) for continuous fuzzing to meet [OpenSSF Scorecard](https://github.com/ossf/scorecard) requirements. Fuzz tests run automatically in CI/CD to discover security vulnerabilities and edge cases.
 
 ### Project Structure
 
