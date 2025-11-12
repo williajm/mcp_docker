@@ -85,7 +85,6 @@ Relates to #
 
 <!-- Final checks before submitting -->
 
-- [ ] My code follows the contribution guidelines in CONTRIBUTING.md
 - [ ] I have performed a self-review of my code
 - [ ] I have commented my code, particularly in hard-to-understand areas
 - [ ] I have updated the documentation accordingly
