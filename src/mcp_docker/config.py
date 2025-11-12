@@ -1,5 +1,6 @@
 """Configuration management for MCP Docker server."""
 
+import platform
 import warnings
 from pathlib import Path
 
@@ -13,6 +14,21 @@ DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS = 60  # 1 minute (secure default)
 MAX_SSH_SIGNATURE_AGE_SECONDS = 300  # 5 minutes (maximum for replay protection)
 
 
+def _get_default_docker_socket() -> str:
+    """Detect OS and return appropriate Docker socket URL.
+
+    Returns:
+        str: Platform-specific Docker socket URL:
+            - Windows: npipe:////./pipe/docker_engine
+            - Linux/macOS/WSL: unix:///var/run/docker.sock
+    """
+    system = platform.system().lower()
+    if system == "windows":
+        return "npipe:////./pipe/docker_engine"
+    # Linux, macOS, WSL all use Unix socket
+    return "unix:///var/run/docker.sock"
+
+
 class DockerConfig(BaseSettings):
     """Docker client configuration."""
 
@@ -24,8 +40,10 @@ class DockerConfig(BaseSettings):
     )
 
     base_url: str = Field(
-        default="unix:///var/run/docker.sock",
-        description="Docker daemon socket URL",
+        default_factory=_get_default_docker_socket,
+        description=(
+            "Docker daemon socket URL (auto-detected based on OS, overridable via DOCKER_BASE_URL)"
+        ),
     )
     timeout: int = Field(
         default=60,
@@ -99,7 +117,7 @@ class DockerConfig(BaseSettings):
                 "TLS certificates configured but tls_verify=False. "
                 "Set DOCKER_TLS_VERIFY=true to enable TLS verification.",
                 UserWarning,
-                stacklevel=1,
+                stacklevel=2,
             )
 
         return self

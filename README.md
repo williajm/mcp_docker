@@ -11,6 +11,8 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
+**Quick Start:** `claude mcp add --transport stdio docker uvx mcp-docker`
+
 ## Features
 
 - **36 Docker Tools**: Complete container, image, network, volume, and system management
@@ -27,36 +29,19 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ### Prerequisites
 
 - Python 3.11+ and Docker installed
-- [uv](https://github.com/astral-sh/uv) package manager (recommended)
+- [uv](https://github.com/astral-sh/uv) package manager (automatically installed by `uvx`)
 
-### Installation
+### Installation with Claude Code
 
-Run directly with uvx (no installation needed):
-
-```bash
-uvx mcp-docker
-```
-
-For detailed installation options (pip, from source, development setup), see [docs/SETUP.md](docs/SETUP.md).
-
-### Configuration
-
-**Basic configuration:**
+Run this command in your terminal:
 
 ```bash
-# Linux/macOS (default)
-export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-
-# Windows
-export DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-
-# Safety (default: moderate operations allowed, destructive blocked)
-export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+claude mcp add --transport stdio docker uvx mcp-docker
 ```
 
-For all configuration options (Docker, safety, logging, security), see [docs/SETUP.md](docs/SETUP.md).
+That's it! The Docker socket is auto-detected for your OS (Windows, Linux, macOS, WSL).
 
-### Claude Desktop Setup
+### Installation with Claude Desktop
 
 Add to your `claude_desktop_config.json`:
 
@@ -71,11 +56,27 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-**Note:** Authentication is not needed for local Claude Desktop use (stdio transport). The security model is the same as running `docker` commands directly on your machine.
+**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system. See [docs/SETUP.md](docs/SETUP.md) for advanced configuration options.
 
-**For Remote Access:** SSH key-based authentication is required for SSE transport over the network. Anthropic's Remote Connectors (paid plans) require OAuth, which is not currently implemented. For direct SSE clients, use SSH authentication. See [SECURITY.md](SECURITY.md) and [docs/SETUP.md](docs/SETUP.md) for details.
+### Manual Testing
 
-For platform-specific configuration, Windows setup, custom environments, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
+Run directly with uvx (no installation needed):
+
+```bash
+uvx mcp-docker
+```
+
+**Getting Updates:** `uvx` caches packages and won't automatically update. To get the latest version:
+
+```bash
+# Force reinstall latest version
+uvx --reinstall mcp-docker
+
+# Or clear cache
+uv cache clean mcp-docker
+```
+
+For detailed installation options (pip, from source, development setup), custom configuration, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
 
 ### Advanced Usage
 

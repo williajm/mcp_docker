@@ -15,12 +15,19 @@ class TestDockerConfig:
     def test_default_values(self) -> None:
         """Test default configuration values."""
         import os
+        import platform
 
         # Clear DOCKER_BASE_URL env var if set
         old_base_url = os.environ.pop("DOCKER_BASE_URL", None)
         try:
             config = DockerConfig()
-            assert config.base_url == "unix:///var/run/docker.sock"
+            # Check that base_url is auto-detected based on OS
+            expected_socket = (
+                "npipe:////./pipe/docker_engine"
+                if platform.system().lower() == "windows"
+                else "unix:///var/run/docker.sock"
+            )
+            assert config.base_url == expected_socket
             assert config.timeout == 60
             assert config.tls_verify is False
             assert config.tls_ca_cert is None

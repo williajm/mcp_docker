@@ -33,6 +33,10 @@ from cryptography.x509.oid import NameOID
 SSE_TEST_PORT_HTTP = 8765  # HTTP test port
 SSE_TEST_PORT_HTTPS = 8766  # HTTPS test port
 SSE_STARTUP_TIMEOUT = 10.0  # seconds
+SSE_HEALTH_CHECK_TIMEOUT = 2.0  # seconds - timeout for individual health check requests
+SSE_RETRY_DELAY = 0.5  # seconds - delay between server startup retries
+SSE_CLEANUP_TIMEOUT = 5.0  # seconds - timeout for graceful process termination
+SSE_ERROR_CHECK_DELAY = 2.0  # seconds - delay to check if server exited with error
 
 
 def generate_self_signed_cert(cert_dir: Path) -> tuple[Path, Path]:
@@ -67,8 +71,8 @@ def generate_self_signed_cert(cert_dir: Path) -> tuple[Path, Path]:
         .issuer_name(issuer)
         .public_key(private_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.utcnow())
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=1))
+        .not_valid_before(datetime.datetime.now(UTC))
+        .not_valid_after(datetime.datetime.now(UTC) + datetime.timedelta(days=1))
         .add_extension(
             x509.SubjectAlternativeName(
                 [
@@ -201,15 +205,61 @@ async def wait_for_server(
                     "GET",
                     f"{base_url}/sse",
                     headers={"Accept": "text/event-stream"},
-                    timeout=2.0,
+                    timeout=SSE_HEALTH_CHECK_TIMEOUT,
                 ) as response:
                     if response.status_code == 200:
                         return  # Server is up and responding
             except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadTimeout):
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(SSE_RETRY_DELAY)
                 continue
 
     raise TimeoutError(f"Server at {base_url} did not start within {timeout}s")
+
+
+def start_sse_server(
+    env: dict[str, str],
+    host: str = "127.0.0.1",
+    port: int = SSE_TEST_PORT_HTTP,
+) -> subprocess.Popen:
+    """Start SSE server with given environment.
+
+    Args:
+        env: Environment variables for the server
+        host: Host address to bind to
+        port: Port number to bind to
+
+    Returns:
+        subprocess.Popen: Server process
+    """
+    return subprocess.Popen(
+        [
+            "python",
+            "-m",
+            "mcp_docker",
+            "--transport",
+            "sse",
+            "--host",
+            host,
+            "--port",
+            str(port),
+        ],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def cleanup_server(process: subprocess.Popen) -> None:
+    """Clean up server process.
+
+    Args:
+        process: Server process to clean up
+    """
+    process.terminate()
+    try:
+        process.wait(timeout=SSE_CLEANUP_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        process.kill()
 
 
 @pytest.mark.e2e
@@ -222,22 +272,7 @@ async def test_http_sse_server_starts() -> None:
     env["MCP_TLS_ENABLED"] = "false"  # HTTP only
 
     # Start SSE server
-    process = subprocess.Popen(
-        [
-            "python",
-            "-m",
-            "mcp_docker",
-            "--transport",
-            "sse",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(SSE_TEST_PORT_HTTP),
-        ],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    process = start_sse_server(env, port=SSE_TEST_PORT_HTTP)
 
     try:
         base_url = f"http://127.0.0.1:{SSE_TEST_PORT_HTTP}"
@@ -271,11 +306,7 @@ async def test_http_sse_server_starts() -> None:
 
     finally:
         # Cleanup
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
+        cleanup_server(process)
 
 
 @pytest.mark.e2e
@@ -296,22 +327,7 @@ async def test_https_sse_with_tls() -> None:
         env["MCP_TLS_KEY_FILE"] = str(key_file)
 
         # Start SSE server with HTTPS
-        process = subprocess.Popen(
-            [
-                "python",
-                "-m",
-                "mcp_docker",
-                "--transport",
-                "sse",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(SSE_TEST_PORT_HTTPS),
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        process = start_sse_server(env, port=SSE_TEST_PORT_HTTPS)
 
         try:
             base_url = f"https://127.0.0.1:{SSE_TEST_PORT_HTTPS}"
@@ -337,11 +353,7 @@ async def test_https_sse_with_tls() -> None:
 
         finally:
             # Cleanup
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+            cleanup_server(process)
 
 
 @pytest.mark.e2e
@@ -360,22 +372,7 @@ async def test_sse_security_headers() -> None:
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
 
-        process = subprocess.Popen(
-            [
-                "python",
-                "-m",
-                "mcp_docker",
-                "--transport",
-                "sse",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(SSE_TEST_PORT_HTTPS),
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        process = start_sse_server(env, port=SSE_TEST_PORT_HTTPS)
 
         try:
             base_url = f"https://127.0.0.1:{SSE_TEST_PORT_HTTPS}"
@@ -412,11 +409,7 @@ async def test_sse_security_headers() -> None:
 
         finally:
             # Cleanup
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+            cleanup_server(process)
 
 
 @pytest.mark.e2e
@@ -443,22 +436,7 @@ async def test_sse_with_ssh_auth_enabled() -> None:
         env["MCP_TLS_ENABLED"] = "false"
 
         # Start SSE server with SSH auth
-        process = subprocess.Popen(
-            [
-                "python",
-                "-m",
-                "mcp_docker",
-                "--transport",
-                "sse",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(SSE_TEST_PORT_HTTP),
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        process = start_sse_server(env, port=SSE_TEST_PORT_HTTP)
 
         try:
             base_url = f"http://127.0.0.1:{SSE_TEST_PORT_HTTP}"
@@ -482,11 +460,7 @@ async def test_sse_with_ssh_auth_enabled() -> None:
 
         finally:
             # Cleanup
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+            cleanup_server(process)
 
 
 @pytest.mark.e2e
@@ -518,22 +492,7 @@ async def test_https_sse_with_ssh_auth() -> None:
         env["MCP_TLS_KEY_FILE"] = str(key_file)
 
         # Start HTTPS SSE server with SSH auth
-        process = subprocess.Popen(
-            [
-                "python",
-                "-m",
-                "mcp_docker",
-                "--transport",
-                "sse",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(SSE_TEST_PORT_HTTPS),
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        process = start_sse_server(env, port=SSE_TEST_PORT_HTTPS)
 
         try:
             base_url = f"https://127.0.0.1:{SSE_TEST_PORT_HTTPS}"
@@ -558,11 +517,7 @@ async def test_https_sse_with_ssh_auth() -> None:
 
         finally:
             # Cleanup
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+            cleanup_server(process)
 
 
 @pytest.mark.e2e
@@ -583,26 +538,11 @@ async def test_sse_ssh_auth_key_validation() -> None:
         env["MCP_TLS_ENABLED"] = "false"
 
         # Start SSE server with invalid auth config
-        process = subprocess.Popen(
-            [
-                "python",
-                "-m",
-                "mcp_docker",
-                "--transport",
-                "sse",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(SSE_TEST_PORT_HTTP),
-            ],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        process = start_sse_server(env, port=SSE_TEST_PORT_HTTP)
 
         try:
             # Wait and check if process exited with error
-            await asyncio.sleep(2)
+            await asyncio.sleep(SSE_ERROR_CHECK_DELAY)
             returncode = process.poll()
 
             # Server should fail to start or warn about missing file
@@ -616,11 +556,7 @@ async def test_sse_ssh_auth_key_validation() -> None:
         finally:
             # Cleanup
             if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
+                cleanup_server(process)
 
 
 @pytest.mark.e2e
@@ -634,26 +570,11 @@ async def test_http_sse_refuses_non_localhost() -> None:
 
     # Try to bind to 0.0.0.0 (non-localhost) without authentication
     # This should fail with a RuntimeError
-    process = subprocess.Popen(
-        [
-            "python",
-            "-m",
-            "mcp_docker",
-            "--transport",
-            "sse",
-            "--host",
-            "0.0.0.0",  # Non-localhost
-            "--port",
-            str(SSE_TEST_PORT_HTTP),
-        ],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    process = start_sse_server(env, host="0.0.0.0", port=SSE_TEST_PORT_HTTP)
 
     try:
         # Wait a bit and check if process exited
-        await asyncio.sleep(2)
+        await asyncio.sleep(SSE_ERROR_CHECK_DELAY)
         returncode = process.poll()
 
         # Server should have exited with error
@@ -670,8 +591,4 @@ async def test_http_sse_refuses_non_localhost() -> None:
     finally:
         # Cleanup
         if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
+            cleanup_server(process)
