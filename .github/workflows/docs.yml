@@ -47,4 +47,3 @@ jobs:
         globs: |
           docs/**/*.md
           README.md
-
