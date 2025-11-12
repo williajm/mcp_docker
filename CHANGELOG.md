@@ -85,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API key authentication code (`src/mcp_docker/auth/api_key.py`)
 - API key authentication tests
 - API key references from all documentation
+- Legacy SSE startup script (`start_sse_server.sh`) - replaced by `start-mcp-docker-sse.sh` with TLS/HTTPS support
 
 ## [1.0.1] - 2025-11-09
 
@@ -179,10 +180,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unix timestamps (e.g., "1699456800")
   - ISO format (e.g., "2025-11-04T16:30:00Z")
   - Relative times (e.g., "5m", "1h", "24h", "7d")
-- **SSE Startup Script**: New `start_sse_server.sh` convenience script
+- **SSE Startup Script**: New `start_sse_server.sh` convenience script (**Deprecated in v1.0.2**)
   - Enables all Docker operations including destructive ones
   - Pre-configured for SSE transport mode
   - Simplified server startup for development and testing
+  - **Note**: Replaced by `start-mcp-docker-sse.sh` with TLS/HTTPS and secure defaults
 - **Improved API Key Hashing**: Replaced Python's hash() with SHA-256
   - Deterministic hashes across process restarts
   - Reliable audit log correlation over time
