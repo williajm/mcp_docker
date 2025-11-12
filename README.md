@@ -309,9 +309,9 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 
 > **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
 
-## MCP Server vs. Docker CLI: An Honest Comparison
+## MCP Server vs. Docker CLI: A Comparison
 
-**Should you use this MCP server or just let Claude run `docker` commands directly?** Here's an honest assessment:
+**Should you use this MCP server or just let Claude run `docker` commands directly?** Here's an assessment:
 
 ### Using Docker CLI Directly
 
