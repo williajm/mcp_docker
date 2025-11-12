@@ -1,3 +1,9 @@
+---
+layout: default
+title: MCP Docker Server - Italiano
+permalink: /README.it
+---
+
 # Server MCP Docker
 
 | Category | Status |

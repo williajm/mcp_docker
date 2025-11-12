@@ -1,3 +1,9 @@
+---
+layout: default
+title: MCP Docker Server - 中文
+permalink: /README.zh
+---
+
 # MCP Docker 服务器
 
 | Category | Status |
