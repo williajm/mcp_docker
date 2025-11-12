@@ -577,3 +577,145 @@ class TestReadOnlyModeSafety:
         # Get version - should work
         version_result = await server.call_tool("docker_version", {})
         assert version_result["success"] is True
+
+
+@pytest.mark.integration
+class TestToolFilteringBySafetyConfig:
+    """Test that tools are filtered from list_tools() based on safety configuration."""
+
+    @pytest.mark.asyncio
+    async def test_all_tools_listed_when_all_operations_allowed(self) -> None:
+        """Test that all 36 tools are listed when all operations are allowed."""
+        cfg = Config()
+        cfg.safety.allow_moderate_operations = True
+        cfg.safety.allow_destructive_operations = True
+
+        server = MCPDockerServer(cfg)
+        tools = server.list_tools()
+
+        # Should get all 36 tools
+        assert len(tools) == 36
+
+    @pytest.mark.asyncio
+    async def test_destructive_tools_filtered_by_default(self) -> None:
+        """Test that destructive tools are filtered with default config."""
+        cfg = Config()
+        # Default config: allow_moderate=True, allow_destructive=False
+
+        server = MCPDockerServer(cfg)
+        tools = server.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        # Should have SAFE + MODERATE tools but not DESTRUCTIVE
+        assert "docker_list_containers" in tool_names
+        assert "docker_create_container" in tool_names
+        assert "docker_remove_container" not in tool_names
+        assert "docker_prune_volumes" not in tool_names
+        assert "docker_system_prune" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_only_safe_tools_listed_in_readonly_mode(self) -> None:
+        """Test that only SAFE tools are listed in read-only mode."""
+        cfg = Config()
+        cfg.safety.allow_moderate_operations = False
+        cfg.safety.allow_destructive_operations = False
+
+        server = MCPDockerServer(cfg)
+        tools = server.list_tools()
+        tool_names = [t["name"] for t in tools]
+
+        # Should only have SAFE tools
+        assert "docker_list_containers" in tool_names
+        assert "docker_inspect_container" in tool_names
+        assert "docker_container_logs" in tool_names
+        assert "docker_list_images" in tool_names
+        assert "docker_version" in tool_names
+
+        # Should NOT have MODERATE tools
+        assert "docker_create_container" not in tool_names
+        assert "docker_start_container" not in tool_names
+        assert "docker_pull_image" not in tool_names
+
+        # Should NOT have DESTRUCTIVE tools
+        assert "docker_remove_container" not in tool_names
+        assert "docker_prune_images" not in tool_names
+
+    @pytest.mark.asyncio
+    async def test_filtered_tools_cannot_be_called(self, test_container_name: str) -> None:
+        """Test that calling a filtered destructive tool still fails at execution time.
+
+        This is a defense-in-depth test: even though the tool won't be in list_tools(),
+        if a client somehow tries to call it directly, the execution-time safety check
+        should still block it.
+        """
+        cfg = Config()
+        cfg.safety.allow_moderate_operations = True
+        cfg.safety.allow_destructive_operations = False
+
+        server = MCPDockerServer(cfg)
+
+        # First create a container to test with
+        create_result = await server.call_tool(
+            "docker_create_container",
+            {
+                "image": "alpine:latest",
+                "name": test_container_name,
+                "command": ["sleep", "10"],
+            },
+        )
+        assert create_result["success"] is True
+
+        try:
+            # Verify docker_remove_container is NOT in the filtered list
+            tools = server.list_tools()
+            tool_names = [t["name"] for t in tools]
+            assert "docker_remove_container" not in tool_names
+
+            # But if we try to call it directly, it should still fail at execution time
+            remove_result = await server.call_tool(
+                "docker_remove_container",
+                {"container_id": test_container_name, "force": True},
+            )
+
+            assert remove_result["success"] is False
+            assert "not allowed" in remove_result["error"].lower()
+
+        finally:
+            # Cleanup with permissive config
+            cleanup_cfg = Config()
+            cleanup_cfg.safety.allow_destructive_operations = True
+            cleanup_server = MCPDockerServer(cleanup_cfg)
+            await cleanup_server.call_tool(
+                "docker_remove_container",
+                {"container_id": test_container_name, "force": True},
+            )
+
+    @pytest.mark.asyncio
+    async def test_context_window_reduction_in_readonly_mode(self) -> None:
+        """Test that read-only mode significantly reduces the number of exposed tools.
+
+        This verifies the core benefit: reduced context window usage.
+        """
+        # Full mode
+        full_cfg = Config()
+        full_cfg.safety.allow_moderate_operations = True
+        full_cfg.safety.allow_destructive_operations = True
+        full_server = MCPDockerServer(full_cfg)
+        full_tools = full_server.list_tools()
+
+        # Read-only mode
+        readonly_cfg = Config()
+        readonly_cfg.safety.allow_moderate_operations = False
+        readonly_cfg.safety.allow_destructive_operations = False
+        readonly_server = MCPDockerServer(readonly_cfg)
+        readonly_tools = readonly_server.list_tools()
+
+        # Read-only should have significantly fewer tools
+        assert len(readonly_tools) < len(full_tools)
+        # Should be less than half the tools
+        assert len(readonly_tools) < len(full_tools) / 2
+
+        # Verify the reduction is meaningful (at least 19 tools filtered)
+        # 19 = 12 MODERATE tools + 7 DESTRUCTIVE tools
+        filtered_count = len(full_tools) - len(readonly_tools)
+        assert filtered_count >= 19

@@ -14,6 +14,13 @@ from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, Uns
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
+from mcp_docker.utils.output_limits import (
+    create_truncation_metadata,
+    truncate_dict_fields,
+    truncate_lines,
+    truncate_list,
+    truncate_text,
+)
 from mcp_docker.utils.safety import OperationSafety, validate_command_safety
 from mcp_docker.utils.validation import validate_command
 
@@ -24,6 +31,7 @@ logger = get_logger(__name__)
 # Safety limit for log streaming to prevent memory exhaustion in follow mode
 MAX_STREAMING_LOG_LINES = 10000  # Prevents OOM when collecting streaming logs
 CONTAINER_ID_DESCRIPTION = "Container ID or name"
+TRUNCATION_INFO_DESCRIPTION = "Information about output truncation if applied"
 
 
 # Input/Output Models
@@ -48,6 +56,10 @@ class ListContainersOutput(BaseModel):
 
     containers: list[dict[str, Any]] = Field(description="List of containers with basic info")
     count: int = Field(description="Total number of containers")
+    truncation_info: dict[str, Any] = Field(
+        default_factory=dict,
+        description=TRUNCATION_INFO_DESCRIPTION,
+    )
 
 
 class InspectContainerInput(BaseModel):
@@ -60,6 +72,10 @@ class InspectContainerOutput(BaseModel):
     """Output for inspecting a container."""
 
     details: dict[str, Any] = Field(description="Detailed container information")
+    truncation_info: dict[str, Any] = Field(
+        default_factory=dict,
+        description=TRUNCATION_INFO_DESCRIPTION,
+    )
 
 
 class ContainerLogsInput(BaseModel):
@@ -80,6 +96,10 @@ class ContainerLogsOutput(BaseModel):
 
     logs: str = Field(description="Container logs")
     container_id: str = Field(description="Container ID")
+    truncation_info: dict[str, Any] = Field(
+        default_factory=dict,
+        description=TRUNCATION_INFO_DESCRIPTION,
+    )
 
 
 class ExecCommandInput(BaseModel):
@@ -111,6 +131,10 @@ class ExecCommandOutput(BaseModel):
 
     exit_code: int = Field(description="Command exit code")
     output: str = Field(description="Command output (stdout and stderr combined)")
+    truncation_info: dict[str, Any] = Field(
+        default_factory=dict,
+        description=TRUNCATION_INFO_DESCRIPTION,
+    )
 
 
 class ContainerStatsInput(BaseModel):
@@ -183,8 +207,31 @@ class ListContainersTool(BaseTool):
                 for c in containers
             ]
 
-            logger.info(f"Found {len(container_list)} containers")
-            return ListContainersOutput(containers=container_list, count=len(container_list))
+            # Apply output limits
+            original_count = len(container_list)
+            truncation_info = {}
+            if self.safety.max_list_results > 0:
+                container_list, was_truncated = truncate_list(
+                    container_list,
+                    self.safety.max_list_results,
+                )
+                if was_truncated:
+                    truncation_info = create_truncation_metadata(
+                        was_truncated=True,
+                        original_count=original_count,
+                        truncated_count=len(container_list),
+                    )
+                    truncation_info["message"] = (
+                        f"Results truncated: showing {len(container_list)} of {original_count} "
+                        f"containers. Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
+                    )
+
+            logger.info(f"Found {len(container_list)} containers (total: {original_count})")
+            return ListContainersOutput(
+                containers=container_list,
+                count=original_count,
+                truncation_info=truncation_info,
+            )
 
         except APIError as e:
             logger.error(f"Failed to list containers: {e}")
@@ -232,8 +279,21 @@ class InspectContainerTool(BaseTool):
             container = self.docker.client.containers.get(input_data.container_id)
             details = container.attrs
 
+            # Apply output limits if enabled
+            truncation_info = {}
+            if self.safety.truncate_inspect_output:
+                details, truncated_fields = truncate_dict_fields(
+                    details,
+                    self.safety.max_inspect_field_bytes,
+                )
+                if truncated_fields:
+                    truncation_info = create_truncation_metadata(
+                        was_truncated=True,
+                        truncated_fields=truncated_fields,
+                    )
+
             logger.info(f"Successfully inspected container: {input_data.container_id}")
-            return InspectContainerOutput(details=details)
+            return InspectContainerOutput(details=details, truncation_info=truncation_info)
 
         except NotFound as e:
             logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
@@ -347,8 +407,34 @@ class ContainerLogsTool(BaseTool):
             else:
                 logs_str = self._decode_static_logs(logs)
 
+            # Apply output limits (non-streaming logs only)
+            truncation_info = {}
+            if not input_data.follow and self.safety.max_log_lines > 0:
+                original_lines = len(logs_str.splitlines())
+                truncation_msg = (
+                    f"\n[Output truncated: showing first {self.safety.max_log_lines} of "
+                    f"{original_lines} lines. "
+                    f"Set SAFETY_MAX_LOG_LINES=0 to disable limit.]"
+                )
+                logs_str, was_truncated = truncate_lines(
+                    logs_str,
+                    self.safety.max_log_lines,
+                    truncation_message=truncation_msg,
+                )
+
+                if was_truncated:
+                    truncation_info = create_truncation_metadata(
+                        was_truncated=True,
+                        original_count=original_lines,
+                        truncated_count=self.safety.max_log_lines,
+                    )
+
             logger.info(f"Successfully retrieved logs for container: {input_data.container_id}")
-            return ContainerLogsOutput(logs=logs_str, container_id=str(container.id))
+            return ContainerLogsOutput(
+                logs=logs_str,
+                container_id=str(container.id),
+                truncation_info=truncation_info,
+            )
 
         except NotFound as e:
             logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))
@@ -445,10 +531,37 @@ class ExecCommandTool(BaseTool):
             # Convert bytes to string
             output_str = output.decode("utf-8") if isinstance(output, bytes) else str(output)
 
+            # Apply output limits
+            truncation_info = {}
+            if self.safety.max_exec_output_bytes > 0:
+                original_bytes = len(output_str.encode("utf-8"))
+                truncation_msg = (
+                    f"\n[Output truncated: showing first "
+                    f"{self.safety.max_exec_output_bytes} bytes of {original_bytes} bytes. "
+                    f"Set SAFETY_MAX_EXEC_OUTPUT_BYTES=0 to disable limit.]"
+                )
+                output_str, was_truncated = truncate_text(
+                    output_str,
+                    self.safety.max_exec_output_bytes,
+                    truncation_message=truncation_msg,
+                )
+
+                if was_truncated:
+                    truncated_bytes = len(output_str.encode("utf-8"))
+                    truncation_info = create_truncation_metadata(
+                        was_truncated=True,
+                        original_size=original_bytes,
+                        truncated_size=truncated_bytes,
+                    )
+
             logger.info(
                 f"Command executed in container: {input_data.container_id}, exit_code: {exit_code}"
             )
-            return ExecCommandOutput(exit_code=exit_code, output=output_str)
+            return ExecCommandOutput(
+                exit_code=exit_code,
+                output=output_str,
+                truncation_info=truncation_info,
+            )
 
         except NotFound as e:
             logger.error(ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id))

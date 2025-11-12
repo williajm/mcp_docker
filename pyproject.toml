@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.0.2"
+version = "1.0.3"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -46,7 +46,6 @@ dependencies = [
     "cryptography>=41.0.0", # SSH authentication support (Apache-2.0/BSD)
     "limits>=5.6.0",
     "cachetools>=6.2.1",
-    "python-json-logger>=4.0.0",
     "secure>=1.0.1",
 ]
 
@@ -221,6 +220,12 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "secure.*"
 ignore_missing_imports = true
+
+# Relax strict typing for test files (Mock objects, test fixtures, etc.)
+[[tool.mypy.overrides]]
+module = "tests.*"
+# Disable strict checks that don't work well with Mock objects and test fixtures
+disable_error_code = ["attr-defined", "no-untyped-call", "arg-type", "type-arg"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

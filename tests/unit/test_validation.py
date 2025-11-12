@@ -171,7 +171,7 @@ class TestSanitizeCommand:
             sanitize_command(["echo", 123])  # type: ignore[list-item]
 
         with pytest.raises(ValidationError):
-            sanitize_command(123)  # type: ignore[arg-type]
+            sanitize_command(123)
 
 
 class TestValidateCommand:
@@ -224,7 +224,7 @@ class TestValidateCommand:
     def test_invalid_command_type(self) -> None:
         """Test invalid command type."""
         with pytest.raises(ValidationError, match="Command must be a string or list"):
-            validate_command(123)  # type: ignore[arg-type]
+            validate_command(123)
 
     def test_string_command_exceeds_length_limit(self) -> None:
         """Test string command exceeding 64KB limit."""

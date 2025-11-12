@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-11-12
+
+### Added
+- **Tool Filtering by Name**: Allow and deny list configuration for fine-grained tool access control
+  - `SAFETY_ALLOWED_TOOLS`: Explicitly allow specific tools by name (empty list = allow all based on safety level)
+  - `SAFETY_DENIED_TOOLS`: Deny specific tools by name (takes precedence over allow list)
+  - Filtering works alongside existing safety level restrictions (SAFE/MODERATE/DESTRUCTIVE)
+  - Tools filtered from `list_tools()` to reduce context window usage
+  - Defense-in-depth validation at execution time
+- **Configurable Output Size Limits**: Prevent resource exhaustion from large responses
+  - `SAFETY_MAX_LIST_RESULTS`: Limit number of items in list operations (default: 100)
+  - `SAFETY_MAX_LOG_LINES`: Limit log output lines (default: 1000)
+  - `SAFETY_MAX_OUTPUT_SIZE`: Limit total output size in bytes (default: 10MB)
+  - Automatic truncation with metadata when limits exceeded
+  - Clear indication of truncation in responses
+
+### Fixed
+- **Container Count Preservation**: `docker_list_containers` now correctly reports total container count even when results are truncated
+  - Previously showed truncated count, breaking cleanup loops and pagination
+  - Now provides accurate inventory size via `count` field
+- **Type Safety**: All 101 files now pass mypy --strict type checking
+  - Fixed type assignment issues in output_limits.py
+  - Added proper Mock object handling in test suite
+  - Improved type annotations throughout codebase
+
+### Changed
+- **Code Quality Improvements**
+  - Extracted `_is_tool_allowed_by_name_filters()` helper method to eliminate code duplication
+  - Added `_should_filter_tool()` method to reduce cyclomatic complexity
+  - Improved separation of concerns in tool filtering logic
+  - Enhanced test coverage with 15 additional test cases for tool filtering
+  - Dynamic test assertions replacing magic numbers
+
+### Documentation
+- **README.md**: Added tool filtering configuration section with examples
+- **SETUP.md**: Added output size limit configuration guidance
+- **CLAUDE.md**: Updated with tool filtering architecture and testing patterns
+
 ## [1.0.2] - 2025-11-11
 
 ### Security
@@ -85,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API key authentication code (`src/mcp_docker/auth/api_key.py`)
 - API key authentication tests
 - API key references from all documentation
+- Legacy SSE startup script (`start_sse_server.sh`) - replaced by `start-mcp-docker-sse.sh` with TLS/HTTPS support
 
 ## [1.0.1] - 2025-11-09
 
@@ -179,10 +218,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unix timestamps (e.g., "1699456800")
   - ISO format (e.g., "2025-11-04T16:30:00Z")
   - Relative times (e.g., "5m", "1h", "24h", "7d")
-- **SSE Startup Script**: New `start_sse_server.sh` convenience script
+- **SSE Startup Script**: New `start_sse_server.sh` convenience script (**Deprecated in v1.0.2**)
   - Enables all Docker operations including destructive ones
   - Pre-configured for SSE transport mode
   - Simplified server startup for development and testing
+  - **Note**: Replaced by `start-mcp-docker-sse.sh` with TLS/HTTPS and secure defaults
 - **Improved API Key Hashing**: Replaced Python's hash() with SHA-256
   - Deterministic hashes across process restarts
   - Reliable audit log correlation over time

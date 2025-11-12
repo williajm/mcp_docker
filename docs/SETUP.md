@@ -465,10 +465,12 @@ Most restrictive settings (read-only operations only):
       "command": "uvx",
       "args": ["mcp-docker"],
       "env": {
+        "SAFETY_ALLOW_MODERATE_OPERATIONS": "false",
         "SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS": "false",
         "SAFETY_ALLOW_PRIVILEGED_CONTAINERS": "false",
         "SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE": "true",
-        "SAFETY_MAX_CONCURRENT_OPERATIONS": "5"
+        "SAFETY_MAX_CONCURRENT_OPERATIONS": "5",
+        "SAFETY_ALLOWED_TOOLS": "docker_list_containers,docker_list_images,docker_inspect_container,docker_inspect_image,docker_container_logs,docker_container_stats,docker_version,docker_system_info"
       }
     }
   }
@@ -489,6 +491,7 @@ More permissive settings for development:
         "SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS": "true",
         "SAFETY_ALLOW_PRIVILEGED_CONTAINERS": "true",
         "SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE": "false",
+        "SAFETY_DENIED_TOOLS": "docker_system_prune",
         "MCP_LOG_LEVEL": "DEBUG"
       }
     }
@@ -575,6 +578,8 @@ Control what operations are allowed:
 | `SAFETY_ALLOW_PRIVILEGED_CONTAINERS` | `false` | Allow creating privileged containers that can access host resources |
 | `SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE` | `true` | Require explicit confirmation before destructive operations |
 | `SAFETY_MAX_CONCURRENT_OPERATIONS` | `10` | Maximum number of concurrent Docker operations (1-100) |
+| `SAFETY_ALLOWED_TOOLS` | (empty) | Comma-separated list of allowed tool names. Empty = allow all based on safety level. Example: `docker_list_containers,docker_inspect_container,docker_version` |
+| `SAFETY_DENIED_TOOLS` | (empty) | Comma-separated list of denied tool names. Takes precedence over allowed list. Example: `docker_remove_container,docker_prune_images,docker_system_prune` |
 
 **Safety Levels:**
 
@@ -608,6 +613,16 @@ export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE="false"
 
 # Limit concurrent operations
 export SAFETY_MAX_CONCURRENT_OPERATIONS="5"
+
+# Read-only monitoring (using allow list)
+export SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_list_images,docker_inspect_container,docker_inspect_image,docker_container_logs,docker_container_stats,docker_version,docker_system_info"
+
+# Block specific dangerous operations (using deny list)
+export SAFETY_DENIED_TOOLS="docker_remove_container,docker_prune_images,docker_system_prune,docker_prune_volumes"
+
+# Allow destructive operations but block system-wide prune
+export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS="true"
+export SAFETY_DENIED_TOOLS="docker_system_prune"
 ```
 
 ### Server Configuration
@@ -651,6 +666,10 @@ DOCKER_TIMEOUT=60
 
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 SAFETY_ALLOW_PRIVILEGED_CONTAINERS=false
+
+# Optional: Tool filtering
+# SAFETY_ALLOWED_TOOLS=docker_list_containers,docker_inspect_container,docker_version
+# SAFETY_DENIED_TOOLS=docker_remove_container,docker_system_prune
 
 MCP_LOG_LEVEL=INFO
 ```

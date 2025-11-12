@@ -119,6 +119,45 @@ class TestListContainersTool:
         with pytest.raises(DockerOperationError):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_list_containers_with_truncation(
+        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+    ) -> None:
+        """Test that count field reflects total containers, not truncated count."""
+        # Create 5 mock containers
+        mock_containers = []
+        for i in range(5):
+            container = Mock()
+            container.id = f"container{i}"
+            container.short_id = f"cont{i}"
+            container.name = f"test_container_{i}"
+            container.status = "running"
+            container.labels = {}
+            container.image = Mock()
+            container.image.tags = [f"image:tag{i}"]
+            container.image.id = f"img{i}"
+            mock_containers.append(container)
+
+        mock_docker_client.client.containers.list.return_value = mock_containers
+
+        # Set max_list_results to 3 to trigger truncation
+        safety_config.max_list_results = 3
+
+        tool = ListContainersTool(mock_docker_client, safety_config)
+        input_data = ListContainersInput(all=True)
+        result = await tool.execute(input_data)
+
+        # count should reflect the total number of containers (5), not the truncated count (3)
+        assert result.count == 5, "count should be the total number of containers"
+        assert len(result.containers) == 3, "containers list should be truncated to 3"
+
+        # Truncation info should be present
+        assert result.truncation_info is not None
+        assert result.truncation_info.get("truncated") is True
+        assert result.truncation_info.get("original_count") == 5
+        assert result.truncation_info.get("truncated_count") == 3
+        assert "5" in result.truncation_info.get("message", "")
+
 
 class TestInspectContainerTool:
     """Tests for InspectContainerTool."""
