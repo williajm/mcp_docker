@@ -186,6 +186,48 @@ class SafetyConfig(BaseSettings):
         le=1048576,  # 1 MB maximum
     )
 
+    # Tool filtering (works alongside safety level restrictions)
+    allowed_tools: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Allowed tool names (empty list = allow all based on safety level). "
+            "Example: ['docker_list_containers', 'docker_inspect_container']. "
+            "Can be set via SAFETY_ALLOWED_TOOLS as comma-separated string."
+        ),
+    )
+    denied_tools: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Denied tool names (takes precedence over allowed_tools). "
+            "Example: ['docker_remove_container', 'docker_prune_images']. "
+            "Can be set via SAFETY_DENIED_TOOLS as comma-separated string."
+        ),
+    )
+
+    @field_validator("allowed_tools", "denied_tools", mode="before")
+    @classmethod
+    def parse_tool_list(cls, value: str | list[str] | None) -> list[str]:
+        """Parse tool list from comma-separated string or list.
+
+        Handles environment variable input as comma-separated strings
+        and normalizes them to lists.
+
+        Args:
+            value: Tool list as string (comma-separated), list, or None
+
+        Returns:
+            Normalized list of tool names (empty list if None/empty)
+        """
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            # Split by comma, strip whitespace, filter empty strings
+            return [tool.strip() for tool in value.split(",") if tool.strip()]
+        if isinstance(value, list):
+            # Already a list, just filter empty strings and strip
+            return [tool.strip() for tool in value if tool and tool.strip()]
+        return []
+
 
 class SecurityConfig(BaseSettings):
     """Security configuration for authentication, authorization, and audit."""

@@ -178,11 +178,12 @@ def format_size(bytes_value: int) -> str:
     Returns:
         Formatted string (e.g., "1.5 MB")
     """
+    size = float(bytes_value)
     for unit in ["B", "KB", "MB", "GB"]:
-        if bytes_value < BYTES_PER_UNIT:
-            return f"{bytes_value:.1f} {unit}"
-        bytes_value /= BYTES_PER_UNIT
-    return f"{bytes_value:.1f} TB"
+        if size < BYTES_PER_UNIT:
+            return f"{size:.1f} {unit}"
+        size /= BYTES_PER_UNIT
+    return f"{size:.1f} TB"
 
 
 def create_truncation_metadata(  # noqa: PLR0913

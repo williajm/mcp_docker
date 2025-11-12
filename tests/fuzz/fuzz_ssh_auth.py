@@ -7,6 +7,7 @@ to find potential security vulnerabilities or crashes.
 
 # Import without instrumentation
 import base64
+import binascii
 import struct
 import sys
 
@@ -111,7 +112,7 @@ def fuzz_base64_signature(data: bytes) -> None:
         # Test SSH wire format parsing
         msg = SSHWireMessage(decoded)
         _ = msg.get_string()
-    except (ValueError, base64.binascii.Error, IndexError):
+    except (ValueError, binascii.Error, IndexError):
         # Expected for invalid input
         pass
 

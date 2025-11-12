@@ -220,7 +220,7 @@ def start_sse_server(
     env: dict[str, str],
     host: str = "127.0.0.1",
     port: int = SSE_TEST_PORT_HTTP,
-) -> subprocess.Popen:
+) -> subprocess.Popen[bytes]:
     """Start SSE server with given environment.
 
     Args:
@@ -249,7 +249,7 @@ def start_sse_server(
     )
 
 
-def cleanup_server(process: subprocess.Popen) -> None:
+def cleanup_server(process: subprocess.Popen[bytes]) -> None:
     """Clean up server process.
 
     Args:

@@ -174,7 +174,7 @@ class TestCommandSanitization:
     def test_sanitize_command_invalid_type(self) -> None:
         """Test sanitizing command with invalid type."""
         with pytest.raises(ValidationError, match="Command must be a string or list"):
-            sanitize_command(123)  # type: ignore
+            sanitize_command(123)
 
     def test_sanitize_command_non_string_items(self) -> None:
         """Test sanitizing command list with non-string items."""

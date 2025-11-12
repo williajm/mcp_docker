@@ -221,6 +221,12 @@ ignore_missing_imports = true
 module = "secure.*"
 ignore_missing_imports = true
 
+# Relax strict typing for test files (Mock objects, test fixtures, etc.)
+[[tool.mypy.overrides]]
+module = "tests.*"
+# Disable strict checks that don't work well with Mock objects and test fixtures
+disable_error_code = ["attr-defined", "no-untyped-call", "arg-type", "type-arg"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

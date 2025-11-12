@@ -1,7 +1,5 @@
 """Unit tests for output limiting utilities."""
 
-import pytest
-
 from mcp_docker.utils.output_limits import (
     create_truncation_metadata,
     format_size,

@@ -667,3 +667,183 @@ class TestMCPDockerServer:
             # Should raise the exception
             with pytest.raises(Exception, match="Prompt not found"):
                 await server.get_prompt("nonexistent_prompt", {})
+
+    def test_list_tools_with_allowed_tools(self, mock_config: Any, mock_docker_client: Any) -> None:
+        """Test listing tools with allowed_tools filter."""
+        from mcp_docker.config import SafetyConfig
+
+        # Configure to allow only specific tools
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            allowed_tools=["docker_list_containers", "docker_inspect_container", "docker_version"],
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should only get the 3 allowed tools
+        assert len(tools) == 3
+        tool_names = [t["name"] for t in tools]
+        assert "docker_list_containers" in tool_names
+        assert "docker_inspect_container" in tool_names
+        assert "docker_version" in tool_names
+
+        # Other tools should be filtered out
+        assert "docker_create_container" not in tool_names
+        assert "docker_remove_container" not in tool_names
+
+    def test_list_tools_with_denied_tools(self, mock_config: Any, mock_docker_client: Any) -> None:
+        """Test listing tools with denied_tools filter."""
+        from mcp_docker.config import SafetyConfig
+
+        # Configure to deny specific tools
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            denied_tools=["docker_remove_container", "docker_prune_images", "docker_system_prune"],
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should get all tools except the 3 denied ones
+        assert len(tools) == 33  # 36 total - 3 denied
+        tool_names = [t["name"] for t in tools]
+
+        # Denied tools should not be present
+        assert "docker_remove_container" not in tool_names
+        assert "docker_prune_images" not in tool_names
+        assert "docker_system_prune" not in tool_names
+
+        # Other tools should be present
+        assert "docker_list_containers" in tool_names
+        assert "docker_create_container" in tool_names
+
+    def test_list_tools_with_allowed_and_denied_tools(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that denied_tools takes precedence over allowed_tools."""
+        from mcp_docker.config import SafetyConfig
+
+        # Configure both allowed and denied tools
+        # docker_list_containers is in both lists - deny should win
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            allowed_tools=[
+                "docker_list_containers",
+                "docker_inspect_container",
+                "docker_version",
+            ],
+            denied_tools=["docker_list_containers"],  # Deny one of the allowed tools
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should only get 2 tools (docker_list_containers denied even though allowed)
+        assert len(tools) == 2
+        tool_names = [t["name"] for t in tools]
+
+        # docker_list_containers should be filtered out (deny takes precedence)
+        assert "docker_list_containers" not in tool_names
+        assert "docker_inspect_container" in tool_names
+        assert "docker_version" in tool_names
+
+    def test_list_tools_with_allowed_and_safety_levels(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that allowed_tools works alongside safety level filtering."""
+        from mcp_docker.config import SafetyConfig
+
+        # Configure allowed tools including a destructive one, but disable destructive operations
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=False,  # Destructive disabled
+            allowed_tools=[
+                "docker_list_containers",
+                "docker_create_container",
+                "docker_remove_container",  # This is destructive - should be filtered by safety level
+            ],
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Should only get 2 tools (docker_remove_container filtered by safety level)
+        assert len(tools) == 2
+        tool_names = [t["name"] for t in tools]
+        assert "docker_list_containers" in tool_names
+        assert "docker_create_container" in tool_names
+        assert "docker_remove_container" not in tool_names  # Filtered by safety level
+
+    @pytest.mark.asyncio
+    async def test_call_tool_denied_by_deny_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that calling a denied tool fails at execution time."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            denied_tools=["docker_remove_container"],
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Try to call a denied tool
+        result = await server.call_tool("docker_remove_container", {"container_id": "test"})
+
+        assert result["success"] is False
+        assert "Tool denied by configuration" in result["error"]
+        assert result["error_type"] == "UnsafeOperationError"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_not_in_allow_list(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that calling a tool not in allow list fails at execution time."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allow_destructive_operations=True,
+            allowed_tools=["docker_list_containers", "docker_version"],
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Try to call a tool not in the allow list
+        result = await server.call_tool("docker_create_container", {"image": "alpine"})
+
+        assert result["success"] is False
+        assert "Tool not in allow list" in result["error"]
+        assert result["error_type"] == "UnsafeOperationError"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_in_allow_list_succeeds(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that calling a tool in the allow list succeeds."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=True,
+            allowed_tools=["docker_list_containers"],
+        )
+
+        server = MCPDockerServer(mock_config)
+
+        # Mock the tool's run method
+        mock_tool = Mock()
+        mock_tool.name = "docker_list_containers"
+        mock_tool.run = AsyncMock(return_value=Mock(model_dump=lambda: {"containers": []}))
+
+        server.tools["docker_list_containers"] = mock_tool
+
+        # Call the allowed tool
+        result = await server.call_tool("docker_list_containers", {})
+
+        assert result["success"] is True

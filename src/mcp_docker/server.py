@@ -158,6 +158,21 @@ class MCPDockerServer:
                 logger.debug(f"Filtered destructive tool: {tool_name}")
                 continue
 
+            # Filter based on deny list (takes precedence)
+            if self.config.safety.denied_tools and tool_name in self.config.safety.denied_tools:
+                filtered_count += 1
+                logger.debug(f"Filtered tool from deny list: {tool_name}")
+                continue
+
+            # Filter based on allow list (if non-empty, only allow listed tools)
+            if (
+                self.config.safety.allowed_tools
+                and tool_name not in self.config.safety.allowed_tools
+            ):
+                filtered_count += 1
+                logger.debug(f"Filtered tool not in allow list: {tool_name}")
+                continue
+
             tool_def = {
                 "name": tool_name,
                 "description": tool.description,
@@ -302,6 +317,19 @@ class MCPDockerServer:
 
         tool = self.tools[tool_name]
         logger.info(f"Calling tool: {tool_name} (client: {client_info['client_id']})")
+
+        # Check allow/deny lists (defense in depth - should already be filtered in list_tools)
+        if self.config.safety.denied_tools and tool_name in self.config.safety.denied_tools:
+            error_msg = f"Tool denied by configuration: {tool_name}"
+            logger.error(error_msg)
+            self.audit_logger.log_tool_call(client_info_obj, tool_name, arguments, error=error_msg)
+            return {"success": False, "error": error_msg, "error_type": "UnsafeOperationError"}
+
+        if self.config.safety.allowed_tools and tool_name not in self.config.safety.allowed_tools:
+            error_msg = f"Tool not in allow list: {tool_name}"
+            logger.error(error_msg)
+            self.audit_logger.log_tool_call(client_info_obj, tool_name, arguments, error=error_msg)
+            return {"success": False, "error": error_msg, "error_type": "UnsafeOperationError"}
 
         # Use semaphore to limit concurrent operations
         async with self._operation_semaphore:
