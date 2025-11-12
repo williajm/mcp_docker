@@ -11,6 +11,8 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
+**Quick Start:** `claude mcp add --transport stdio docker uvx mcp-docker`
+
 ## Features
 
 - **36 Docker Tools**: Complete container, image, network, volume, and system management
@@ -27,36 +29,19 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ### Prerequisites
 
 - Python 3.11+ and Docker installed
-- [uv](https://github.com/astral-sh/uv) package manager (recommended)
+- [uv](https://github.com/astral-sh/uv) package manager (automatically installed by `uvx`)
 
-### Installation
+### Installation with Claude Code
 
-Run directly with uvx (no installation needed):
-
-```bash
-uvx mcp-docker
-```
-
-For detailed installation options (pip, from source, development setup), see [docs/SETUP.md](docs/SETUP.md).
-
-### Configuration
-
-**Basic configuration:**
+Run this command in your terminal:
 
 ```bash
-# Linux/macOS (default)
-export DOCKER_BASE_URL="unix:///var/run/docker.sock"
-
-# Windows
-export DOCKER_BASE_URL="npipe:////./pipe/docker_engine"
-
-# Safety (default: moderate operations allowed, destructive blocked)
-export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+claude mcp add --transport stdio docker uvx mcp-docker
 ```
 
-For all configuration options (Docker, safety, logging, security), see [docs/SETUP.md](docs/SETUP.md).
+That's it! The Docker socket is auto-detected for your OS (Windows, Linux, macOS, WSL).
 
-### Claude Desktop Setup
+### Installation with Claude Desktop
 
 Add to your `claude_desktop_config.json`:
 
@@ -71,11 +56,27 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-**Note:** Authentication is not needed for local Claude Desktop use (stdio transport). The security model is the same as running `docker` commands directly on your machine.
+**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system. See [docs/SETUP.md](docs/SETUP.md) for advanced configuration options.
 
-**For Remote Access:** SSH key-based authentication is required for SSE transport over the network. Anthropic's Remote Connectors (paid plans) require OAuth, which is not currently implemented. For direct SSE clients, use SSH authentication. See [SECURITY.md](SECURITY.md) and [docs/SETUP.md](docs/SETUP.md) for details.
+### Manual Testing
 
-For platform-specific configuration, Windows setup, custom environments, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
+Run directly with uvx (no installation needed):
+
+```bash
+uvx mcp-docker
+```
+
+**Getting Updates:** `uvx` caches packages and won't automatically update. To get the latest version:
+
+```bash
+# Force reinstall latest version
+uvx --reinstall mcp-docker
+
+# Or clear cache
+uv cache clean mcp-docker
+```
+
+For detailed installation options (pip, from source, development setup), custom configuration, and troubleshooting, see [docs/SETUP.md](docs/SETUP.md).
 
 ### Advanced Usage
 
@@ -227,7 +228,7 @@ Two resources provide real-time access to container data:
 
 ## Safety System
 
-The server implements a three-tier safety system with configurable operation modes:
+The server implements a three-tier safety system with configurable operation modes and fine-grained tool filtering:
 
 ### Operation Safety Levels
 
@@ -247,6 +248,38 @@ The server implements a three-tier safety system with configurable operation mod
    - Can require confirmation
    - Examples: `docker_remove_container`, `docker_prune_images`, `docker_system_prune`
 
+### Tool Filtering (Allow/Deny Lists)
+
+In addition to safety levels, you can control exactly which tools are available using allow and deny lists:
+
+**Deny List** - Block specific tools (takes precedence over allow list)
+
+```bash
+# Block destructive operations by tool name
+SAFETY_DENIED_TOOLS="docker_remove_container,docker_prune_images,docker_system_prune"
+```
+
+**Allow List** - Only permit specific tools (empty = allow all based on safety level)
+
+```bash
+# Only allow read-only monitoring tools
+SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_inspect_container,docker_container_logs,docker_container_stats,docker_version"
+```
+
+**How it works:**
+
+1. Safety level restrictions apply first (MODERATE/DESTRUCTIVE settings)
+2. Deny list blocks specific tools regardless of safety level
+3. Allow list (if non-empty) restricts to only listed tools
+4. Tools are filtered in both `list_tools()` and at execution time
+
+**Use cases:**
+
+- Restrict AI agents to read-only operations for monitoring
+- Block specific dangerous tools while allowing others at same safety level
+- Create custom tool subsets for different user roles or environments
+- Prevent accidental execution of critical operations
+
 ### Safety Modes
 
 Configure the safety mode using environment variables:
@@ -256,6 +289,9 @@ Configure the safety mode using environment variables:
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+
+# Optional: Explicitly allow only monitoring tools
+SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_list_images,docker_inspect_container,docker_inspect_image,docker_container_logs,docker_container_stats,docker_version,docker_system_info"
 ```
 
 - ✅ List, inspect, logs, stats
@@ -267,6 +303,9 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true  # or omit (default)
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
+
+# Optional: Deny only the most dangerous operations
+SAFETY_DENIED_TOOLS="docker_system_prune,docker_prune_volumes"
 ```
 
 - ✅ List, inspect, logs, stats

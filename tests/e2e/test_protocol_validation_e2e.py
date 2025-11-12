@@ -221,7 +221,7 @@ async def test_deeply_nested_objects(skip_if_no_docker: Any) -> None:
     This tests protection against billion laughs / nested object attacks.
     """
     # Create deeply nested object (100 levels - more realistic for actual attacks)
-    nested = {"a": "value"}
+    nested: dict[str, Any] = {"a": "value"}
     for _ in range(100):
         nested = {"nested": nested}
 

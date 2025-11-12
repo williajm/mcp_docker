@@ -57,20 +57,131 @@ MODERATE_OPERATIONS = {
     "docker_compose_write_file",  # Write compose files to compose_files directory
 }
 
+
+def _build_filesystem_destruction_patterns() -> list[str]:
+    """Build patterns for detecting dangerous filesystem destruction commands."""
+    return [
+        r"rm\s+-rf\s+/",  # Recursive deletion from root
+        r"rm\s+.*-rf\s+/",  # Recursive deletion from root (flags in different order)
+        r"rm\s+-[rf]+\s+/\*",  # Deletion with wildcards at root
+        r"rm\s+.*-r.*-f.*\s+/",  # Recursive deletion with separated flags
+        r"rm\s+.*-f.*-r.*\s+/",  # Recursive deletion with separated flags (reversed)
+        r"rm\s+.*~/\s+\*",  # rm with extra space before wildcard (common mistake)
+        r":\(\)\{\s*:\|:&\s*\};:",  # Fork bomb
+    ]
+
+
+def _build_disk_operation_patterns() -> list[str]:
+    """Build patterns for detecting dangerous disk operations."""
+    return [
+        r"dd\s+if=/dev/(zero|random)",  # Disk filling
+        r"dd\s+.*of=/dev/(sd[a-z]|hd[a-z]|nvme[0-9])",  # Overwriting physical disks
+        r">\s*/dev/(sd[a-z]|hd[a-z]|nvme[0-9])",  # Redirecting to physical disks
+        r"mkfs\.",  # Filesystem creation
+        r"fdisk",  # Partition management
+        r"parted",  # Partition editor
+    ]
+
+
+def _build_permission_bomb_patterns() -> list[str]:
+    """Build patterns for detecting dangerous permission changes."""
+    return [
+        r"chmod\s+-R\s+777\s+/",  # Recursive 777 from root
+        r"chmod\s+777\s+/",  # 777 permissions on root
+        r"chmod\s+.*-R.*777.*[/~]",  # Recursive 777 with various flag orders
+        r"chown\s+-R\s+.*\s+/",  # Recursive ownership change from root
+    ]
+
+
+def _build_system_control_patterns() -> list[str]:
+    """Build patterns for detecting system shutdown/reboot commands."""
+    return [
+        r"shutdown",  # System shutdown
+        r"reboot",  # System reboot
+        r"halt",  # System halt
+        r"poweroff",  # Power off system
+        r"init\s+[06]",  # Init level change
+        r"systemctl\s+(poweroff|reboot|halt)",  # Systemd power commands
+    ]
+
+
+def _build_remote_execution_patterns() -> list[str]:
+    """Build patterns for detecting remote code execution attempts."""
+    return [
+        r"curl.*\|\s*bash",  # Piping curl to shell
+        r"wget.*\|\s*sh",  # Piping wget to shell
+        r"curl.*\|\s*sh",  # Piping curl to sh
+        r"wget.*\|\s*bash",  # Piping wget to bash
+        r"fetch.*\|\s*(bash|sh)",  # Piping fetch to shell
+    ]
+
+
+def _build_command_injection_patterns() -> list[str]:
+    """Build patterns for detecting command injection via substitution."""
+    return [
+        r"\$\([^)]*rm[^)]*\)",  # Command substitution with rm
+        r"`[^`]*rm[^`]*`",  # Backtick substitution with rm
+        r"\$\([^)]*dd[^)]*\)",  # Command substitution with dd
+        r"`[^`]*dd[^`]*`",  # Backtick substitution with dd
+    ]
+
+
+def _build_file_destruction_patterns() -> list[str]:
+    """Build patterns for detecting file destruction commands."""
+    return [
+        r":\s*>\s*/",  # Truncating files at root
+        r"mv\s+.*\s+/dev/null",  # Moving to null device
+    ]
+
+
+def _build_device_access_patterns() -> list[str]:
+    """Build patterns for detecting direct device access."""
+    return [
+        r"/dev/(sd[a-z]|hd[a-z]|nvme[0-9])",  # Physical disk device access
+        r"/dev/mem",  # Direct memory access
+    ]
+
+
+def _build_decompression_bomb_patterns() -> list[str]:
+    """Build patterns for detecting decompression bombs."""
+    return [
+        r"tar\s+.*--to-command",  # Tar with command execution
+        r"unzip.*-p.*\|",  # Unzip piped to commands
+    ]
+
+
+def _build_dangerous_patterns() -> list[str]:
+    """Build comprehensive list of dangerous command patterns.
+
+    Patterns are organized by category for maintainability:
+    - Filesystem destruction (rm, fork bombs)
+    - Disk operations (dd, mkfs, fdisk, parted)
+    - Permission bombs (chmod 777, chown)
+    - System control (shutdown, reboot, halt)
+    - Remote execution (curl|bash, wget|sh)
+    - Command injection (command substitution)
+    - File destruction (truncation, /dev/null)
+    - Device access (/dev/sd*, /dev/mem)
+    - Decompression bombs (tar, unzip)
+
+    Returns:
+        list[str]: Complete list of dangerous command regex patterns
+    """
+    patterns = []
+    patterns.extend(_build_filesystem_destruction_patterns())
+    patterns.extend(_build_disk_operation_patterns())
+    patterns.extend(_build_permission_bomb_patterns())
+    patterns.extend(_build_system_control_patterns())
+    patterns.extend(_build_remote_execution_patterns())
+    patterns.extend(_build_command_injection_patterns())
+    patterns.extend(_build_file_destruction_patterns())
+    patterns.extend(_build_device_access_patterns())
+    patterns.extend(_build_decompression_bomb_patterns())
+    return patterns
+
+
 # Dangerous patterns in commands that should be blocked or warned about
-DANGEROUS_COMMAND_PATTERNS = [
-    r"rm\s+-rf\s+/",  # Recursive deletion from root
-    r":\(\)\{\s*:\|:&\s*\};:",  # Fork bomb
-    r"dd\s+if=/dev/(zero|random)",  # Disk filling
-    r"mkfs\.",  # Filesystem creation
-    r"fdisk",  # Partition management
-    r"shutdown",  # System shutdown
-    r"reboot",  # System reboot
-    r"halt",  # System halt
-    r"init\s+[06]",  # Init level change
-    r"curl.*\|\s*bash",  # Piping to shell
-    r"wget.*\|\s*sh",  # Piping to shell
-]
+DANGEROUS_COMMAND_PATTERNS = _build_dangerous_patterns()
 
 # Privileged operations that require special permissions
 PRIVILEGED_OPERATIONS = {

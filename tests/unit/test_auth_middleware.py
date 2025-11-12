@@ -141,7 +141,7 @@ class TestAuthMiddleware:
         return SecurityConfig(
             auth_enabled=True,
             ssh_auth_enabled=True,
-            ssh_authorized_keys_file=str(keys_file),
+            ssh_authorized_keys_file=keys_file,
             allowed_client_ips=[],
         )
 
@@ -162,7 +162,7 @@ class TestAuthMiddleware:
         config = SecurityConfig(
             auth_enabled=False,
             ssh_auth_enabled=False,
-            ssh_authorized_keys_file=str(tmp_path / "keys"),
+            ssh_authorized_keys_file=tmp_path / "keys",
         )
         middleware = AuthMiddleware(config)
         assert middleware.ssh_key_authenticator is None
@@ -172,7 +172,7 @@ class TestAuthMiddleware:
         config = SecurityConfig(
             auth_enabled=True,
             ssh_auth_enabled=False,
-            ssh_authorized_keys_file=str(tmp_path / "keys"),
+            ssh_authorized_keys_file=tmp_path / "keys",
         )
         middleware = AuthMiddleware(config)
         assert middleware.ssh_key_authenticator is None
@@ -182,7 +182,7 @@ class TestAuthMiddleware:
         config = SecurityConfig(
             auth_enabled=False,
             ssh_auth_enabled=False,
-            ssh_authorized_keys_file=str(tmp_path / "keys"),
+            ssh_authorized_keys_file=tmp_path / "keys",
         )
         middleware = AuthMiddleware(config)
 
@@ -218,7 +218,7 @@ class TestAuthMiddleware:
         config = SecurityConfig(
             auth_enabled=True,
             ssh_auth_enabled=False,
-            ssh_authorized_keys_file=str(tmp_path / "keys"),
+            ssh_authorized_keys_file=tmp_path / "keys",
         )
         middleware = AuthMiddleware(config)
 
@@ -366,6 +366,7 @@ class TestAuthMiddleware:
     def test_reload_keys_with_ssh(self, auth_middleware: AuthMiddleware) -> None:
         """Test reloading SSH keys."""
         mock_key_manager = MagicMock()
+        assert auth_middleware.ssh_key_authenticator is not None
         auth_middleware.ssh_key_authenticator.key_manager = mock_key_manager
 
         auth_middleware.reload_keys()
@@ -377,7 +378,7 @@ class TestAuthMiddleware:
         config = SecurityConfig(
             auth_enabled=False,
             ssh_auth_enabled=False,
-            ssh_authorized_keys_file=str(tmp_path / "keys"),
+            ssh_authorized_keys_file=tmp_path / "keys",
         )
         middleware = AuthMiddleware(config)
 

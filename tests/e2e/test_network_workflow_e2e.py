@@ -67,7 +67,7 @@ def cleanup_docker_resources(request: Any) -> Any:
         # Remove networks with e2e labels
         for network in client.networks.list(filters={"label": "test"}):
             # Only remove e2e test networks (those starting with 'e2e-')
-            if network.name.startswith("e2e-"):
+            if network.name and network.name.startswith("e2e-"):
                 try:
                     network.remove()
                 except Exception:
