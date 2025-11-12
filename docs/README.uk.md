@@ -1,3 +1,9 @@
+---
+layout: default
+title: MCP Docker Server - Українська
+permalink: /README.uk
+---
+
 # Сервер MCP Docker
 
 | Category | Status |

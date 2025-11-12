@@ -1,3 +1,9 @@
+---
+layout: default
+title: MCP Docker Server - 日本語
+permalink: /README.ja
+---
+
 # MCP Docker サーバー
 
 | Category | Status |
