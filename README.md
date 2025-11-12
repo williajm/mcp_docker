@@ -116,9 +116,6 @@ See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation 
 ```bash
 # Start with all security features enabled
 ./start-mcp-docker-sse.sh
-
-# Test security configuration
-./test-mcp-sse.sh
 ```
 
 ### Security Configuration
