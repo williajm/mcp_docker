@@ -24,7 +24,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **Continuous Fuzzing**: ClusterFuzzLite integration for security and robustness (OpenSSF Scorecard compliant)
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
-## Quick Start
+## Install Instructions
 
 ### Prerequisites
 
