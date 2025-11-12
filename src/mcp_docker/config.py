@@ -156,6 +156,36 @@ class SafetyConfig(BaseSettings):
         le=100,
     )
 
+    # Output size limits (prevent resource exhaustion and token limit issues)
+    max_log_lines: int = Field(
+        default=10000,
+        description="Maximum number of log lines to return from containers (0 = unlimited)",
+        ge=0,
+        le=100000,
+    )
+    max_exec_output_bytes: int = Field(
+        default=1048576,  # 1 MB
+        description="Maximum bytes of output from exec commands (0 = unlimited)",
+        ge=0,
+        le=10485760,  # 10 MB max
+    )
+    max_list_results: int = Field(
+        default=1000,
+        description="Maximum number of items to return from list operations (0 = unlimited)",
+        ge=0,
+        le=10000,
+    )
+    truncate_inspect_output: bool = Field(
+        default=False,
+        description="Truncate large inspect output fields to prevent token limit issues",
+    )
+    max_inspect_field_bytes: int = Field(
+        default=65536,  # 64 KB
+        description="Maximum bytes for individual inspect output fields when truncation enabled",
+        ge=1024,  # 1 KB minimum
+        le=1048576,  # 1 MB maximum
+    )
+
 
 class SecurityConfig(BaseSettings):
     """Security configuration for authentication, authorization, and audit."""
