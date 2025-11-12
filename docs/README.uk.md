@@ -449,4 +449,3 @@ mcp_docker/
 - Побудовано з [Model Context Protocol](https://modelcontextprotocol.io) від Anthropic
 - Використовує офіційний [Docker SDK для Python](https://docker-py.readthedocs.io/)
 - Працює на сучасних інструментах Python: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
-

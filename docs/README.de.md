@@ -444,4 +444,3 @@ Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe die Datei [LICENSE](.
 - Entwickelt mit dem [Model Context Protocol](https://modelcontextprotocol.io) von Anthropic
 - Verwendet das offizielle [Docker SDK für Python](https://docker-py.readthedocs.io/)
 - Unterstützt von modernen Python-Tools: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
-
