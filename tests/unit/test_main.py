@@ -608,6 +608,295 @@ class TestHelperFunctions:
             # Verify task was cancelled
             server_task.cancel.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_authenticate_sse_request_head_bypass(self) -> None:
+        """Test _authenticate_sse_request bypasses authentication for HEAD requests."""
+        is_authenticated, error_body = await main_module._authenticate_sse_request(
+            "HEAD", "/sse", "127.0.0.1", None
+        )
+        assert is_authenticated is True
+        assert error_body is None
+
+    @pytest.mark.asyncio
+    async def test_authenticate_sse_request_non_sse_path(self) -> None:
+        """Test _authenticate_sse_request bypasses auth for non-SSE paths."""
+        is_authenticated, error_body = await main_module._authenticate_sse_request(
+            "GET", "/health", "127.0.0.1", None
+        )
+        assert is_authenticated is True
+        assert error_body is None
+
+    @pytest.mark.asyncio
+    async def test_authenticate_sse_request_success(self) -> None:
+        """Test _authenticate_sse_request with successful authentication."""
+        with patch.object(
+            main_module.docker_server.auth_middleware, "authenticate_request"
+        ) as mock_auth:
+            mock_auth.return_value = None  # Successful auth returns None
+
+            is_authenticated, error_body = await main_module._authenticate_sse_request(
+                "GET", "/sse", "127.0.0.1", "valid_token"
+            )
+
+            assert is_authenticated is True
+            assert error_body is None
+            mock_auth.assert_called_once_with(ip_address="127.0.0.1", bearer_token="valid_token")
+
+    @pytest.mark.asyncio
+    async def test_authenticate_sse_request_failure(self) -> None:
+        """Test _authenticate_sse_request with failed authentication."""
+        with patch.object(
+            main_module.docker_server.auth_middleware, "authenticate_request"
+        ) as mock_auth:
+            mock_auth.side_effect = Exception("Invalid token")
+
+            is_authenticated, error_body = await main_module._authenticate_sse_request(
+                "GET", "/sse", "127.0.0.1", "invalid_token"
+            )
+
+            assert is_authenticated is False
+            assert error_body is not None
+            assert b"Invalid token" in error_body
+
+    @pytest.mark.asyncio
+    async def test_send_unauthorized_response(self) -> None:
+        """Test _send_unauthorized_response sends correct 401 response."""
+        mock_send = AsyncMock()
+        error_body = b'{"error": "Unauthorized"}'
+
+        await main_module._send_unauthorized_response(mock_send, error_body)
+
+        assert mock_send.call_count == 2
+        # Check response start
+        first_call = mock_send.call_args_list[0][0][0]
+        assert first_call["status"] == 401
+        assert any(b"www-authenticate" in h[0].lower() for h in first_call["headers"])
+        # Check response body
+        second_call = mock_send.call_args_list[1][0][0]
+        assert second_call["body"] == error_body
+
+    @pytest.mark.asyncio
+    async def test_route_sse_request_get(self) -> None:
+        """Test _route_sse_request routes GET /sse correctly."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/sse", "method": "GET"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        # Mock SSE connection
+        mock_streams = (AsyncMock(), AsyncMock())
+        mock_sse.connect_sse = Mock()
+        mock_sse.connect_sse.return_value.__aenter__ = AsyncMock(return_value=mock_streams)
+        mock_sse.connect_sse.return_value.__aexit__ = AsyncMock()
+
+        with patch.object(main_module, "mcp_server") as mock_mcp_server:
+            mock_mcp_server.run = AsyncMock()
+            mock_mcp_server.create_initialization_options = Mock(return_value={})
+
+            await main_module._route_sse_request(mock_sse, mock_scope, mock_receive, mock_send)
+
+            mock_mcp_server.run.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_sse_request_head(self) -> None:
+        """Test _route_sse_request handles HEAD /sse correctly."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/sse", "method": "HEAD"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        await main_module._route_sse_request(mock_sse, mock_scope, mock_receive, mock_send)
+
+        # Should send 200 with appropriate headers
+        assert mock_send.call_count == 2
+        first_call = mock_send.call_args_list[0][0][0]
+        assert first_call["status"] == 200
+
+    @pytest.mark.asyncio
+    async def test_route_sse_request_post_messages(self) -> None:
+        """Test _route_sse_request routes POST /messages correctly."""
+        mock_sse = Mock()
+        mock_sse.handle_post_message = AsyncMock()
+        mock_scope = {"path": "/messages", "method": "POST"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        await main_module._route_sse_request(mock_sse, mock_scope, mock_receive, mock_send)
+
+        mock_sse.handle_post_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_route_sse_request_404(self) -> None:
+        """Test _route_sse_request returns 404 for unknown paths."""
+        mock_sse = Mock()
+        mock_scope = {"path": "/unknown", "method": "GET"}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        await main_module._route_sse_request(mock_sse, mock_scope, mock_receive, mock_send)
+
+        # Should send 404
+        assert mock_send.call_count == 2
+        first_call = mock_send.call_args_list[0][0][0]
+        assert first_call["status"] == 404
+
+    def test_create_sse_handler(self) -> None:
+        """Test _create_sse_handler creates a handler function."""
+        mock_sse = Mock()
+
+        handler = main_module._create_sse_handler(mock_sse)
+
+        assert callable(handler)
+        # Check it's an async function
+        assert asyncio.iscoroutinefunction(handler)
+
+    @pytest.mark.asyncio
+    async def test_create_sse_handler_flow(self) -> None:
+        """Test _create_sse_handler creates handler with correct flow."""
+        mock_sse = Mock()
+        mock_sse.handle_post_message = AsyncMock()
+
+        handler = main_module._create_sse_handler(mock_sse)
+
+        # Mock scope with POST to /messages (bypasses auth for this test)
+        mock_scope = {"path": "/messages", "method": "POST", "client": ("127.0.0.1", 12345)}
+        mock_receive = AsyncMock()
+        mock_send = AsyncMock()
+
+        with patch.object(main_module.docker_server.auth_middleware, "authenticate_request"):
+            await handler(mock_scope, mock_receive, mock_send)
+
+        # Verify handler was called
+        mock_sse.handle_post_message.assert_called_once()
+
+    def test_create_security_headers_middleware(self) -> None:
+        """Test _create_security_headers_middleware creates middleware."""
+        mock_handler = AsyncMock()
+        mock_secure = Mock()
+        mock_secure.set_headers_async = AsyncMock()
+
+        middleware = main_module._create_security_headers_middleware(mock_handler, mock_secure)
+
+        assert callable(middleware)
+        assert asyncio.iscoroutinefunction(middleware)
+
+    @pytest.mark.asyncio
+    async def test_create_security_headers_middleware_applies_headers(self) -> None:
+        """Test security headers middleware applies headers to responses."""
+
+        # Create a mock handler that sends a response
+        async def mock_handler(scope: Any, receive: Any, send: Any) -> None:
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 200,
+                    "headers": [[b"content-type", b"text/plain"]],
+                }
+            )
+
+        mock_secure = Mock()
+        mock_secure.set_headers_async = AsyncMock()
+
+        middleware = main_module._create_security_headers_middleware(mock_handler, mock_secure)
+
+        mock_scope: dict[str, Any] = {}
+        mock_receive = AsyncMock()
+        sent_messages: list[Any] = []
+
+        async def capture_send(message: Any) -> None:
+            sent_messages.append(message)
+
+        await middleware(mock_scope, mock_receive, capture_send)
+
+        # Verify set_headers_async was called
+        mock_secure.set_headers_async.assert_called_once()
+
+    def test_setup_signal_handlers(self) -> None:
+        """Test _setup_signal_handlers registers signal handlers."""
+        import signal as signal_module
+
+        shutdown_event = asyncio.Event()
+
+        with patch("mcp_docker.__main__.signal.signal") as mock_signal:
+            main_module._setup_signal_handlers(shutdown_event)
+
+            # Verify SIGINT and SIGTERM handlers were registered
+            assert mock_signal.call_count == 2
+            calls = mock_signal.call_args_list
+            registered_signals = [call[0][0] for call in calls]
+            assert signal_module.SIGINT in registered_signals
+            assert signal_module.SIGTERM in registered_signals
+
+    def test_setup_signal_handlers_sets_event(self) -> None:
+        """Test signal handlers set the shutdown event."""
+        import signal as signal_module
+
+        shutdown_event = asyncio.Event()
+        captured_handler = None
+
+        def capture_handler(sig: int, handler: Any) -> None:
+            nonlocal captured_handler
+            if sig == signal_module.SIGINT:
+                captured_handler = handler
+
+        with patch("mcp_docker.__main__.signal.signal", side_effect=capture_handler):
+            main_module._setup_signal_handlers(shutdown_event)
+
+            # Call the captured handler
+            assert captured_handler is not None
+            captured_handler(signal_module.SIGINT, None)
+
+            # Verify event was set
+            assert shutdown_event.is_set()
+
+    def test_extract_client_ip_from_scope(self) -> None:
+        """Test _extract_client_ip extracts IP from scope."""
+        scope = {"client": ("192.168.1.100", 12345)}
+        ip = main_module._extract_client_ip(scope)
+        assert ip == "192.168.1.100"
+
+    def test_extract_client_ip_no_client(self) -> None:
+        """Test _extract_client_ip returns None when no client."""
+        scope: dict[str, Any] = {}
+        ip = main_module._extract_client_ip(scope)
+        assert ip is None
+
+    def test_extract_bearer_token_from_scope(self) -> None:
+        """Test _extract_bearer_token extracts token from Authorization header."""
+        scope = {"headers": [[b"authorization", b"Bearer test_token_123"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_123"
+
+    def test_extract_bearer_token_no_header(self) -> None:
+        """Test _extract_bearer_token returns None when no Authorization header."""
+        scope = {"headers": [[b"content-type", b"application/json"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token is None
+
+    def test_extract_bearer_token_not_bearer(self) -> None:
+        """Test _extract_bearer_token returns None for non-Bearer auth."""
+        scope = {"headers": [[b"authorization", b"Basic dXNlcjpwYXNz"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token is None
+
+    def test_extract_bearer_token_lowercase_bearer(self) -> None:
+        """Test _extract_bearer_token accepts lowercase 'bearer' (RFC 7235 compliance)."""
+        scope = {"headers": [[b"authorization", b"bearer test_token_456"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_456"
+
+    def test_extract_bearer_token_uppercase_bearer(self) -> None:
+        """Test _extract_bearer_token accepts uppercase 'BEARER' (RFC 7235 compliance)."""
+        scope = {"headers": [[b"authorization", b"BEARER test_token_789"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_789"
+
+    def test_extract_bearer_token_mixed_case_bearer(self) -> None:
+        """Test _extract_bearer_token accepts mixed case 'BeArEr' (RFC 7235 compliance)."""
+        scope = {"headers": [[b"authorization", b"BeArEr test_token_abc"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_abc"
+
 
 class TestMainFunction:
     """Tests for main function."""
