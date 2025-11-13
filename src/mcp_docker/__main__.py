@@ -898,9 +898,7 @@ async def run_httpstream(host: str, port: int) -> None:
                 f"allowed_origins={allowed_origins}"
             )
         else:
-            logger.warning(
-                "DNS rebinding protection DISABLED - not recommended for production"
-            )
+            logger.warning("DNS rebinding protection DISABLED - not recommended for production")
 
         # Create session manager with MCP SDK
         session_manager = StreamableHTTPSessionManager(

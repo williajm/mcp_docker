@@ -876,6 +876,7 @@ async def test_httpstream_oauth_authentication_expired_token(
         finally:
             cleanup_server(process)
 
+
 # ============================================================================
 # Phase 2: Additional E2E Tests for Advanced Features
 # ============================================================================
@@ -959,7 +960,7 @@ async def test_httpstream_rate_limiting() -> None:
             # First 5 requests should succeed
             for i in range(5):
                 response = await client.head(f"{base_url}/")
-                assert response.status_code == 200, f"Request {i+1} should succeed"
+                assert response.status_code == 200, f"Request {i + 1} should succeed"
 
             # 6th request should be rate limited (429)
             # Note: Rate limiting may not trigger immediately depending on timing
