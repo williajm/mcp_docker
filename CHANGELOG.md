@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - BREAKING: Removed `_auth` parameter from tool calls
   - Rationale: No standard MCP clients support custom SSH authentication; simplified to IP-based access control
   - Migration: Use `SECURITY_ALLOWED_CLIENT_IPS` for network-level access control instead
-  - Removed files: `src/mcp_docker/auth/ssh_*.py` and related tests
+  - Removed files: `src/mcp_docker/auth/ssh_*.py`, all SSH auth tests, and SSH-specific E2E workflow tests
   - Simplified `AuthMiddleware` to focus on IP allowlist filtering only
+  - Removed `cryptography` from production dependencies (re-added to dev dependencies for TLS testing)
 
 ## [1.0.3] - 2025-11-12
 

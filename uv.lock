@@ -599,6 +599,7 @@ dev = [
 dev = [
     { name = "atheris" },
     { name = "coverage" },
+    { name = "cryptography" },
     { name = "hypothesis" },
     { name = "mypy" },
     { name = "pytest" },
@@ -642,6 +643,7 @@ provides-extras = ["dev"]
 dev = [
     { name = "atheris", specifier = ">=2.3.0" },
     { name = "coverage", specifier = ">=7.11.0" },
+    { name = "cryptography", specifier = ">=46.0.3" },
     { name = "hypothesis", specifier = ">=6.147.0" },
     { name = "mypy", specifier = ">=1.18.2" },
     { name = "pytest", specifier = ">=8.4.2" },

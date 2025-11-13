@@ -247,6 +247,7 @@ exclude_lines = [
 dev = [
     "atheris>=2.3.0",
     "coverage>=7.11.0",
+    "cryptography>=46.0.3",  # Needed for TLS certificate generation in E2E tests
     "hypothesis>=6.147.0",
     "mypy>=1.18.2",
     "pytest>=8.4.2",
