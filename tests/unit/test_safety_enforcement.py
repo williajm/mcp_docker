@@ -17,7 +17,6 @@ class TestSafetyEnforcement:
         """Test that destructive operations are blocked when safety config disallows them."""
         # Create config with destructive operations disabled
         config = Config()
-        config.security.auth_enabled = False
         config.safety = SafetyConfig(
             allow_destructive_operations=False,
             allow_privileged_containers=True,
