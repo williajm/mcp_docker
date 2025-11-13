@@ -6,13 +6,14 @@ This document describes the security features of the MCP Docker server and how t
 
 The MCP Docker server implements multiple layers of security:
 
-1. **IP Filtering** - Network-level access control (optional)
-2. **Rate Limiting** - Prevent abuse and resource exhaustion
-3. **Audit Logging** - Track all operations with client IP tracking
-4. **TLS/HTTPS** - Encrypted transport for SSE mode (required for production)
-5. **Security Headers** - HSTS, Cache-Control, X-Content-Type-Options
-6. **Error Sanitization** - Prevent information disclosure
-7. **Safety Controls** - Three-tier operation classification
+1. **OAuth/OIDC Authentication** - Industry-standard bearer token authentication (network transports only)
+2. **IP Filtering** - Network-level access control (optional, defense-in-depth with OAuth)
+3. **Rate Limiting** - Prevent abuse and resource exhaustion
+4. **Audit Logging** - Track all operations with client IP tracking
+5. **TLS/HTTPS** - Encrypted transport for SSE mode (required for production)
+6. **Security Headers** - HSTS, Cache-Control, X-Content-Type-Options
+7. **Error Sanitization** - Prevent information disclosure
+8. **Safety Controls** - Three-tier operation classification
 
 ## Quick Start
 
@@ -38,9 +39,114 @@ Claude Desktop uses stdio transport (local process). The server relies on OS-lev
 For production deployment using SSE transport with security features:
 
 ```bash
-# Start server with TLS and security features
+# Start server with TLS, OAuth, and security features
 ./start-mcp-docker-sse.sh
 ```
+
+See the OAuth/OIDC Authentication and TLS/HTTPS sections below for configuration details.
+
+## OAuth/OIDC Authentication
+
+OAuth 2.0 and OpenID Connect (OIDC) authentication provides industry-standard bearer token authentication for network transports (SSE/HTTP Stream).
+
+### Key Features
+
+- **JWT Validation**: RFC 8725 compliant with JWKS endpoint discovery
+- **Token Introspection**: Fallback for opaque tokens
+- **Scope Validation**: Enforce required scopes (e.g., `docker.read`, `docker.write`)
+- **Audience Validation**: Verify token intended for this service
+- **Multiple Providers**: Works with Auth0, Keycloak, Okta, Azure AD, AWS Cognito, Google, etc.
+- **Defense-in-Depth**: Combines with IP allowlist for layered security
+
+### Configuration
+
+```bash
+# Enable OAuth authentication (network transports only)
+SECURITY_OAUTH_ENABLED=true
+
+# Identity provider settings
+SECURITY_OAUTH_ISSUER=https://auth.example.com/
+SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
+
+# Token validation
+SECURITY_OAUTH_AUDIENCE=mcp-docker-api
+SECURITY_OAUTH_REQUIRED_SCOPES=docker.read,docker.write
+
+# Optional: Token introspection fallback for opaque tokens
+SECURITY_OAUTH_INTROSPECTION_URL=https://auth.example.com/oauth/introspect
+SECURITY_OAUTH_CLIENT_ID=mcp-docker-client
+SECURITY_OAUTH_CLIENT_SECRET=your-client-secret
+```
+
+### Popular Identity Providers
+
+**Auth0**
+```bash
+SECURITY_OAUTH_ISSUER=https://YOUR_DOMAIN.auth0.com/
+SECURITY_OAUTH_JWKS_URL=https://YOUR_DOMAIN.auth0.com/.well-known/jwks.json
+SECURITY_OAUTH_AUDIENCE=https://mcp-docker-api
+```
+
+**Keycloak**
+```bash
+SECURITY_OAUTH_ISSUER=https://keycloak.example.com/realms/YOUR_REALM
+SECURITY_OAUTH_JWKS_URL=https://keycloak.example.com/realms/YOUR_REALM/protocol/openid-connect/certs
+SECURITY_OAUTH_AUDIENCE=mcp-docker
+```
+
+**Azure AD (Entra ID)**
+```bash
+SECURITY_OAUTH_ISSUER=https://login.microsoftonline.com/YOUR_TENANT_ID/v2.0
+SECURITY_OAUTH_JWKS_URL=https://login.microsoftonline.com/YOUR_TENANT_ID/discovery/v2.0/keys
+SECURITY_OAUTH_AUDIENCE=YOUR_CLIENT_ID
+```
+
+**AWS Cognito**
+```bash
+SECURITY_OAUTH_ISSUER=https://cognito-idp.REGION.amazonaws.com/YOUR_USER_POOL_ID
+SECURITY_OAUTH_JWKS_URL=https://cognito-idp.REGION.amazonaws.com/YOUR_USER_POOL_ID/.well-known/jwks.json
+SECURITY_OAUTH_AUDIENCE=YOUR_APP_CLIENT_ID
+```
+
+See `examples/.env.oauth` for complete configuration examples.
+
+### Client Usage
+
+Clients must include an `Authorization: Bearer <token>` header with every request:
+
+```bash
+# SSE transport with OAuth
+curl -H "Authorization: Bearer eyJhbGc..." https://localhost:8443/sse
+```
+
+The server supports case-insensitive Bearer scheme names per RFC 7235 (`bearer`, `Bearer`, `BEARER`).
+
+### stdio Transport Bypass
+
+**Important**: OAuth authentication is only enforced for network transports (SSE/HTTP Stream). The stdio transport always bypasses authentication as it operates in a local trusted process model - the same security model as running `docker` CLI commands directly.
+
+### Defense-in-Depth with IP Allowlist
+
+For maximum security, combine OAuth with IP allowlist:
+
+```bash
+SECURITY_OAUTH_ENABLED=true
+SECURITY_ALLOWED_CLIENT_IPS=["192.168.1.100", "10.0.0.50"]
+```
+
+With this configuration, clients must have:
+1. ✅ Valid OAuth token (proper signature, issuer, audience, scopes)
+2. ✅ IP address in allowlist
+
+Both checks must pass for network access.
+
+### Security Considerations
+
+**Token Storage**: Protect bearer tokens - they provide access equivalent to passwords
+**Token Expiration**: Configure short-lived tokens (e.g., 1 hour) with refresh tokens
+**Scope Principle**: Grant minimum required scopes (`docker.read` for read-only, add `docker.write` for modifications)
+**HTTPS Required**: Always use TLS/HTTPS with OAuth - tokens are sensitive credentials
+**Audit Logging**: Enable audit logging to track OAuth-authenticated operations
 
 ## IP Filtering
 
@@ -267,6 +373,21 @@ SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true
 
 Before deploying to production:
 
+### Authentication & Access Control
+- [ ] **OAuth/OIDC** (recommended for network transports):
+  - [ ] Set up identity provider (Auth0, Keycloak, Azure AD, etc.)
+  - [ ] Configure OAuth settings: `SECURITY_OAUTH_ENABLED=true`
+  - [ ] Set issuer and JWKS URL
+  - [ ] Configure audience and required scopes
+  - [ ] Test token validation with real OAuth tokens
+  - [ ] Document token acquisition process for clients
+- [ ] **IP Allowlist** (optional, defense-in-depth with OAuth):
+  - [ ] Configure allowed client IPs if applicable
+  - [ ] Test with allowed and blocked IPs
+  - [ ] Document IP allowlist for operators
+- [ ] Verify stdio transport bypasses authentication (expected behavior)
+- [ ] Document authentication requirements for clients
+
 ### TLS/HTTPS (SSE Transport)
 - [ ] Generate or obtain TLS certificates (use Let's Encrypt for production)
 - [ ] Configure TLS: `MCP_TLS_ENABLED=true`
@@ -298,11 +419,11 @@ Before deploying to production:
 - [ ] Document which operations are allowed
 
 ### Network & Access Control
-- [ ] Configure IP allowlist if applicable (`SECURITY_ALLOWED_CLIENT_IPS`)
 - [ ] Restrict Docker socket/pipe permissions at OS level
 - [ ] Use firewall rules to restrict network access
 - [ ] If using reverse proxy, configure X-Forwarded-For handling
-- [ ] Test IP filtering with allowed and blocked IPs
+- [ ] Verify OAuth + IP allowlist work together (if both enabled)
+- [ ] Test authentication flow end-to-end
 
 ### Testing & Verification
 - [ ] Verify error messages are sanitized (no sensitive info leaked)
