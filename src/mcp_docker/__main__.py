@@ -836,6 +836,144 @@ async def run_sse(host: str, port: int) -> None:
         logger.info(SHUTDOWN_COMPLETE_MSG)
 
 
+def _create_event_store() -> InMemoryEventStore | None:
+    """Create event store for resumability if enabled.
+
+    Returns:
+        InMemoryEventStore instance if resumability is enabled, None otherwise
+    """
+    if not config.httpstream.resumability_enabled:
+        logger.info("Resumability disabled - EventStore not created")
+        return None
+
+    event_store = InMemoryEventStore(
+        max_events=config.httpstream.event_store_max_events,
+        ttl_seconds=config.httpstream.event_store_ttl_seconds,
+    )
+    logger.info(
+        f"EventStore enabled: max_events={config.httpstream.event_store_max_events}, "
+        f"ttl={config.httpstream.event_store_ttl_seconds}s"
+    )
+    return event_store
+
+
+def _create_transport_security_settings(host: str) -> TransportSecuritySettings | None:
+    """Create TransportSecuritySettings for DNS rebinding protection.
+
+    Args:
+        host: The host the server is binding to
+
+    Returns:
+        TransportSecuritySettings instance if protection is enabled, None otherwise
+    """
+    if not config.httpstream.dns_rebinding_protection:
+        logger.warning("DNS rebinding protection DISABLED - not recommended for production")
+        return None
+
+    # Start with localhost defaults
+    allowed_hosts = ["localhost", "127.0.0.1"]
+
+    # Add bind host if it's not a wildcard (0.0.0.0 or ::)
+    if host not in ("0.0.0.0", "::"):
+        allowed_hosts.append(host)
+
+    # Add user-configured additional hosts (production hostnames, IPs, etc.)
+    if config.httpstream.allowed_hosts:
+        allowed_hosts.extend(config.httpstream.allowed_hosts)
+        count = len(config.httpstream.allowed_hosts)
+        logger.info(f"Added {count} configured hosts to allow-list")
+
+    # Configure allowed origins for browser clients
+    allowed_origins = config.cors.allow_origins if config.cors.enabled else []
+
+    security_settings = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
+    )
+    logger.info(
+        f"DNS rebinding protection enabled: allowed_hosts={allowed_hosts}, "
+        f"allowed_origins={allowed_origins}"
+    )
+    return security_settings
+
+
+async def _handle_httpstream_request(
+    scope: MutableMapping[str, Any],
+    receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+    send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    session_manager: StreamableHTTPSessionManager,
+) -> None:
+    """Handle HTTP Stream requests with security checks.
+
+    Args:
+        scope: ASGI scope dictionary
+        receive: ASGI receive callable
+        send: ASGI send callable
+        session_manager: StreamableHTTPSessionManager instance
+    """
+    path = scope.get("path", "")
+    method = scope.get("method", "")
+
+    # Extract and store client IP for authentication/logging
+    client_ip = _extract_client_ip(scope)
+    client_ip_context.set(client_ip)
+
+    # Extract and store bearer token for OAuth authentication
+    bearer_token = _extract_bearer_token(scope)
+    bearer_token_context.set(bearer_token)
+
+    logger.debug(
+        f"Request: {method} {path} from {client_ip or 'unknown'}"
+        f"{' with bearer token' if bearer_token else ''}"
+    )
+
+    # HEALTH CHECK BYPASS: Allow HEAD requests without authentication
+    if method == "HEAD":
+        logger.debug("HEAD request - bypassing authentication for health check")
+        await send(
+            {
+                "type": HTTP_RESPONSE_START,
+                "status": 200,
+                "headers": [
+                    [b"content-type", CONTENT_TYPE_JSON],
+                    [b"cache-control", b"no-cache"],
+                ],
+            }
+        )
+        await send({"type": HTTP_RESPONSE_BODY, "body": b""})
+        return
+
+    # AUTHENTICATION: OAuth or IP allowlist
+    try:
+        await docker_server.auth_middleware.authenticate_request(
+            ip_address=client_ip,
+            bearer_token=bearer_token,
+        )
+    except Exception as auth_error:
+        # Authentication failed - return 401
+        client_desc = client_ip or "unknown"
+        error_msg = f"Auth failed for {method} {path} from {client_desc}"
+        logger.warning(f"{error_msg}: {auth_error}")
+        error_body = json.dumps({"error": "Unauthorized", "message": str(auth_error)}).encode()
+
+        await send(
+            {
+                "type": HTTP_RESPONSE_START,
+                "status": 401,
+                "headers": [
+                    [b"content-type", CONTENT_TYPE_JSON],
+                    [b"www-authenticate", b"Bearer"],
+                ],
+            }
+        )
+        await send({"type": HTTP_RESPONSE_BODY, "body": error_body})
+        return
+
+    # DELEGATE TO MCP SDK: Let session manager handle the request
+    await session_manager.handle_request(scope, receive, send)
+
+
 async def run_httpstream(host: str, port: int) -> None:
     """Run the MCP server with HTTP Stream Transport over HTTP/HTTPS."""
     protocol = "https" if config.server.tls_enabled else "http"
@@ -853,54 +991,10 @@ async def run_httpstream(host: str, port: int) -> None:
 
     try:
         # Create event store for resumability if enabled
-        event_store = None
-        if config.httpstream.resumability_enabled:
-            event_store = InMemoryEventStore(
-                max_events=config.httpstream.event_store_max_events,
-                ttl_seconds=config.httpstream.event_store_ttl_seconds,
-            )
-            logger.info(
-                f"EventStore enabled: max_events={config.httpstream.event_store_max_events}, "
-                f"ttl={config.httpstream.event_store_ttl_seconds}s"
-            )
-        else:
-            logger.info("Resumability disabled - EventStore not created")
+        event_store = _create_event_store()
 
         # Create TransportSecuritySettings for DNS rebinding protection
-        security_settings = None
-        if config.httpstream.dns_rebinding_protection:
-            # Configure allowed hosts for DNS rebinding protection
-            # Start with localhost defaults
-            allowed_hosts = ["localhost", "127.0.0.1"]
-
-            # Add bind host if it's not a wildcard (0.0.0.0 or ::)
-            if host not in ("0.0.0.0", "::"):
-                allowed_hosts.append(host)
-
-            # Add user-configured additional hosts (production hostnames, IPs, etc.)
-            # This is critical for production deployments where clients send
-            # Host headers like "my-api.company.com" instead of "0.0.0.0"
-            if config.httpstream.allowed_hosts:
-                allowed_hosts.extend(config.httpstream.allowed_hosts)
-                count = len(config.httpstream.allowed_hosts)
-                logger.info(f"Added {count} configured hosts to allow-list")
-
-            # Configure allowed origins for browser clients
-            # If CORS is enabled, use the configured origins
-            # Otherwise, allow no origins (blocks browser requests with Origin header)
-            allowed_origins = config.cors.allow_origins if config.cors.enabled else []
-
-            security_settings = TransportSecuritySettings(
-                enable_dns_rebinding_protection=True,
-                allowed_hosts=allowed_hosts,
-                allowed_origins=allowed_origins,
-            )
-            logger.info(
-                f"DNS rebinding protection enabled: allowed_hosts={allowed_hosts}, "
-                f"allowed_origins={allowed_origins}"
-            )
-        else:
-            logger.warning("DNS rebinding protection DISABLED - not recommended for production")
+        security_settings = _create_transport_security_settings(host)
 
         # Create session manager with MCP SDK
         session_manager = StreamableHTTPSessionManager(
@@ -920,78 +1014,13 @@ async def run_httpstream(host: str, port: int) -> None:
 
         # Start session manager (required before handling requests)
         async with session_manager.run():
-            # Create HTTP Stream handler with security checks
+            # Create HTTP Stream handler wrapper
             async def httpstream_handler(
                 scope: MutableMapping[str, Any],
                 receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
                 send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
             ) -> None:
-                """Handle HTTP Stream requests with security checks."""
-                path = scope.get("path", "")
-                method = scope.get("method", "")
-
-                # Extract and store client IP for authentication/logging
-                # SECURITY: ProxyHeadersMiddleware has already validated trusted proxies
-                client_ip = _extract_client_ip(scope)
-                client_ip_context.set(client_ip)
-
-                # Extract and store bearer token for OAuth authentication
-                bearer_token = _extract_bearer_token(scope)
-                bearer_token_context.set(bearer_token)
-
-                logger.debug(
-                    f"Request: {method} {path} from {client_ip or 'unknown'}"
-                    f"{' with bearer token' if bearer_token else ''}"
-                )
-
-                # HEALTH CHECK BYPASS: Allow HEAD requests without authentication
-                # This enables monitoring/readiness probes without OAuth tokens
-                if method == "HEAD":
-                    logger.debug("HEAD request - bypassing authentication for health check")
-                    await send(
-                        {
-                            "type": HTTP_RESPONSE_START,
-                            "status": 200,
-                            "headers": [
-                                [b"content-type", CONTENT_TYPE_JSON],
-                                [b"cache-control", b"no-cache"],
-                            ],
-                        }
-                    )
-                    await send({"type": HTTP_RESPONSE_BODY, "body": b""})
-                    return
-
-                # AUTHENTICATION: OAuth or IP allowlist (reuse existing logic)
-                # Only authenticate non-HEAD requests
-                try:
-                    await docker_server.auth_middleware.authenticate_request(
-                        ip_address=client_ip,
-                        bearer_token=bearer_token,
-                    )
-                except Exception as auth_error:
-                    # Authentication failed - return 401
-                    client_desc = client_ip or "unknown"
-                    error_msg = f"Auth failed for {method} {path} from {client_desc}"
-                    logger.warning(f"{error_msg}: {auth_error}")
-                    error_body = json.dumps(
-                        {"error": "Unauthorized", "message": str(auth_error)}
-                    ).encode()
-
-                    await send(
-                        {
-                            "type": HTTP_RESPONSE_START,
-                            "status": 401,
-                            "headers": [
-                                [b"content-type", CONTENT_TYPE_JSON],
-                                [b"www-authenticate", b"Bearer"],
-                            ],
-                        }
-                    )
-                    await send({"type": HTTP_RESPONSE_BODY, "body": error_body})
-                    return
-
-                # DELEGATE TO MCP SDK: Let session manager handle the request
-                await session_manager.handle_request(scope, receive, send)
+                await _handle_httpstream_request(scope, receive, send, session_manager)
 
             # Log debug mode warning if enabled
             if config.server.debug_mode:
@@ -1004,7 +1033,6 @@ async def run_httpstream(host: str, port: int) -> None:
             secure_headers = _create_security_headers(config)
 
             # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
-            # SECURITY: Only trusts X-Forwarded-For from configured trusted_proxies
             trusted_proxies = (
                 config.security.trusted_proxies
                 if config.security.trusted_proxies
