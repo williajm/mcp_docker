@@ -19,7 +19,6 @@ def mock_config(tmp_path: Any) -> Any:
     config.docker = Mock()
     config.safety = SafetyConfig()  # Use real SafetyConfig with defaults
     config.security = SecurityConfig(
-        auth_enabled=False,  # Disable auth for tests
         audit_log_file=tmp_path / "audit.log",
     )
     return config
