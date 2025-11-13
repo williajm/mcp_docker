@@ -9,10 +9,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
 
-# SSH Authentication Constants
-DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS = 60  # 1 minute (secure default)
-MAX_SSH_SIGNATURE_AGE_SECONDS = 300  # 5 minutes (maximum for replay protection)
-
 
 def _get_default_docker_socket() -> str:
     """Detect OS and return appropriate Docker socket URL.
@@ -239,12 +235,6 @@ class SecurityConfig(BaseSettings):
         extra="ignore",
     )
 
-    # Authentication
-    auth_enabled: bool = Field(
-        default=False,
-        description="Enable authentication (SSH key-based only)",
-    )
-
     # Rate Limiting
     rate_limit_enabled: bool = Field(
         default=True,
@@ -286,22 +276,6 @@ class SecurityConfig(BaseSettings):
             "Supports CIDR notation (e.g., '10.0.0.0/24'). "
             "Only connections from these IPs will have their X-Forwarded-For header respected."
         ),
-    )
-
-    # SSH Authentication
-    ssh_auth_enabled: bool = Field(
-        default=False,
-        description="Enable SSH key-based authentication",
-    )
-    ssh_authorized_keys_file: Path = Field(
-        default=Path.home() / ".ssh" / "mcp_authorized_keys",
-        description="Path to authorized SSH public keys file (OpenSSH format)",
-    )
-    ssh_signature_max_age: int = Field(
-        default=DEFAULT_SSH_SIGNATURE_MAX_AGE_SECONDS,
-        description="Maximum age of SSH signature timestamp in seconds (replay protection)",
-        gt=0,
-        le=MAX_SSH_SIGNATURE_AGE_SECONDS,
     )
 
     @field_validator("audit_log_file")
