@@ -1,5 +1,6 @@
 """Configuration management for MCP Docker server."""
 
+import json
 import platform
 import warnings
 from pathlib import Path
@@ -11,7 +12,13 @@ from mcp_docker.version import __version__
 
 
 def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
-    """Parse comma-separated string or list into list of strings.
+    """Parse comma-separated string or JSON array into list of strings.
+
+    Supports multiple input formats:
+    - JSON array: '["value1","value2"]' or '["value1", "value2"]'
+    - Comma-separated: 'value1,value2' or 'value1, value2'
+    - Already a list: ['value1', 'value2']
+    - None or empty string: []
 
     Args:
         value: Input value (string, list, or None)
@@ -21,10 +28,20 @@ def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
     """
     if value is None or value == "":
         return []
-    if isinstance(value, str):
-        return [item.strip() for item in value.split(",") if item.strip()]
     if isinstance(value, list):
         return value
+    if isinstance(value, str):
+        # Try to parse as JSON first
+        value_stripped = value.strip()
+        if value_stripped.startswith("[") and value_stripped.endswith("]"):
+            try:
+                parsed = json.loads(value_stripped)
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed]
+            except json.JSONDecodeError:
+                pass
+        # Fall back to comma-separated parsing
+        return [item.strip() for item in value.split(",") if item.strip()]
     return []
 
 
