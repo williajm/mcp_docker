@@ -493,6 +493,230 @@ def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
     return middleware_stack
 
 
+async def _authenticate_sse_request(
+    method: str, path: str, client_ip: str | None, bearer_token: str | None
+) -> tuple[bool, bytes | None]:
+    """Authenticate SSE/messages requests.
+
+    Args:
+        method: HTTP method
+        path: Request path
+        client_ip: Client IP address
+        bearer_token: Bearer token from Authorization header
+
+    Returns:
+        Tuple of (is_authenticated, error_body). error_body is None if authenticated.
+    """
+    # HEAD requests (health checks) bypass authentication
+    if method == "HEAD":
+        return True, None
+
+    # Only authenticate SSE and messages endpoints
+    if not (path.startswith("/sse") or path.startswith("/messages")):
+        return True, None
+
+    try:
+        # Authenticate the request (OAuth or IP allowlist)
+        await docker_server.auth_middleware.authenticate_request(
+            ip_address=client_ip, bearer_token=bearer_token
+        )
+        return True, None
+    except Exception as auth_error:
+        # Authentication failed - prepare 401 response
+        client_desc = client_ip or "unknown"
+        error_msg = f"Auth failed for {method} {path} from {client_desc}"
+        logger.warning(f"{error_msg}: {auth_error}")
+        error_body = json.dumps({"error": "Unauthorized", "message": str(auth_error)}).encode()
+        return False, error_body
+
+
+async def _send_unauthorized_response(
+    send: Callable[[MutableMapping[str, Any]], Awaitable[None]], error_body: bytes
+) -> None:
+    """Send a 401 Unauthorized response.
+
+    Args:
+        send: ASGI send callable
+        error_body: Error message body
+    """
+    await send(
+        {
+            "type": HTTP_RESPONSE_START,
+            "status": 401,
+            "headers": [
+                [b"content-type", b"application/json"],
+                [b"www-authenticate", b"Bearer"],
+            ],
+        }
+    )
+    await send({"type": HTTP_RESPONSE_BODY, "body": error_body})
+
+
+async def _route_sse_request(
+    sse: SseServerTransport,
+    scope: MutableMapping[str, Any],
+    receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+    send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+) -> None:
+    """Route SSE request to appropriate handler.
+
+    Args:
+        sse: SSE transport instance
+        scope: ASGI connection scope
+        receive: ASGI receive callable
+        send: ASGI send callable
+    """
+    path = scope.get("path", "")
+    method = scope.get("method", "")
+
+    # Create logging wrappers
+    log_receive, log_send = _create_logging_wrappers(receive, send)
+
+    # Route based on path and method
+    if path.startswith("/sse") and method == "GET":
+        await _handle_sse_connection(sse, scope, log_receive, log_send)
+    elif path.startswith("/sse") and method == "HEAD":
+        # Handle HEAD request for health checks
+        await send(
+            {
+                "type": HTTP_RESPONSE_START,
+                "status": 200,
+                "headers": [
+                    [b"content-type", b"text/event-stream"],
+                    [b"cache-control", b"no-cache"],
+                    [b"connection", b"keep-alive"],
+                ],
+            }
+        )
+        await send({"type": HTTP_RESPONSE_BODY, "body": b""})
+    elif path.startswith("/messages") and method == "POST":
+        await _handle_post_message(sse, scope, log_receive, log_send)
+    else:
+        await _handle_404(send, method, path)
+
+
+def _create_sse_handler(
+    sse: SseServerTransport,
+) -> Callable[
+    [
+        MutableMapping[str, Any],
+        Callable[[], Awaitable[MutableMapping[str, Any]]],
+        Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    ],
+    Awaitable[None],
+]:
+    """Create the SSE request handler.
+
+    Args:
+        sse: SSE transport instance
+
+    Returns:
+        ASGI application callable for handling SSE requests
+    """
+
+    async def sse_handler(
+        scope: MutableMapping[str, Any],
+        receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+        send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    ) -> None:
+        """Handle both /sse (GET) and /messages (POST) through the SSE transport."""
+        path = scope.get("path", "")
+        method = scope.get("method", "")
+
+        # Extract and store client IP for authentication/logging
+        # SECURITY: ProxyHeadersMiddleware has already validated trusted proxies
+        client_ip = _extract_client_ip(scope)
+        client_ip_context.set(client_ip)
+
+        # Extract and store bearer token for OAuth authentication
+        bearer_token = _extract_bearer_token(scope)
+        bearer_token_context.set(bearer_token)
+
+        logger.debug(
+            f"Request: {method} {path} from {client_ip or 'unknown'}"
+            f"{' with bearer token' if bearer_token else ''}"
+        )
+
+        # AUTHENTICATION ENFORCEMENT: Validate OAuth tokens for SSE/messages endpoints
+        is_authenticated, error_body = await _authenticate_sse_request(
+            method, path, client_ip, bearer_token
+        )
+        if not is_authenticated and error_body:
+            await _send_unauthorized_response(send, error_body)
+            return
+
+        # Route to appropriate handler
+        await _route_sse_request(sse, scope, receive, send)
+
+    return sse_handler
+
+
+def _create_security_headers_middleware(
+    wrapped_handler: Any, secure_headers: Secure
+) -> Callable[
+    [
+        MutableMapping[str, Any],
+        Callable[[], Awaitable[MutableMapping[str, Any]]],
+        Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    ],
+    Awaitable[None],
+]:
+    """Create security headers middleware wrapper.
+
+    Args:
+        wrapped_handler: Handler to wrap with security headers
+        secure_headers: Secure headers configuration
+
+    Returns:
+        ASGI application callable that applies security headers
+    """
+
+    async def security_headers_middleware(
+        scope: MutableMapping[str, Any],
+        receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+        send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    ) -> None:
+        """Apply security headers using the secure library."""
+
+        async def send_wrapper(message: MutableMapping[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                # Create a simple response object that the secure library can work with
+                class SimpleResponse:
+                    def __init__(self, headers: list[tuple[bytes, bytes]]) -> None:
+                        self.headers: MutableMapping[str, str] = {
+                            k.decode(): v.decode() for k, v in headers
+                        }
+
+                response = SimpleResponse(message.get("headers", []))
+                await secure_headers.set_headers_async(response)
+
+                # Convert headers back to ASGI format
+                message["headers"] = [(k.encode(), v.encode()) for k, v in response.headers.items()]
+
+            await send(message)
+
+        await wrapped_handler(scope, receive, send_wrapper)
+
+    return security_headers_middleware
+
+
+def _setup_signal_handlers(shutdown_event: asyncio.Event) -> None:
+    """Setup signal handlers for graceful shutdown.
+
+    Args:
+        shutdown_event: Event to set when shutdown is signaled
+    """
+
+    def signal_handler(sig: int, frame: Any) -> None:  # noqa: ARG001
+        """Handle shutdown signals."""
+        logger.info(f"Received signal {sig}, initiating shutdown...")
+        shutdown_event.set()
+
+    # Install signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+
 async def run_sse(host: str, port: int) -> None:
     """Run the MCP server with SSE transport over HTTP/HTTPS."""
     protocol = "https" if config.server.tls_enabled else "http"
@@ -506,98 +730,14 @@ async def run_sse(host: str, port: int) -> None:
 
     # Shutdown event for graceful termination
     shutdown_event = asyncio.Event()
-
-    def signal_handler(sig: int, frame: Any) -> None:  # noqa: ARG001
-        """Handle shutdown signals."""
-        logger.info(f"Received signal {sig}, initiating shutdown...")
-        shutdown_event.set()
-
-    # Install signal handlers
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    _setup_signal_handlers(shutdown_event)
 
     try:
-        # Create SSE transport
+        # Create SSE transport and handler
         sse = SseServerTransport("/messages")
+        sse_handler = _create_sse_handler(sse)
 
-        async def sse_handler(
-            scope: MutableMapping[str, Any],
-            receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
-            send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
-        ) -> None:
-            """Handle both /sse (GET) and /messages (POST) through the SSE transport."""
-            path = scope.get("path", "")
-            method = scope.get("method", "")
-
-            # Extract and store client IP for authentication/logging
-            # SECURITY: ProxyHeadersMiddleware has already validated trusted proxies
-            client_ip = _extract_client_ip(scope)
-            client_ip_context.set(client_ip)
-
-            # Extract and store bearer token for OAuth authentication
-            bearer_token = _extract_bearer_token(scope)
-            bearer_token_context.set(bearer_token)
-
-            logger.debug(
-                f"Request: {method} {path} from {client_ip or 'unknown'}"
-                f"{' with bearer token' if bearer_token else ''}"
-            )
-
-            # AUTHENTICATION ENFORCEMENT: Validate OAuth tokens for SSE/messages endpoints
-            # HEAD requests (health checks) bypass authentication
-            if method != "HEAD" and (path.startswith("/sse") or path.startswith("/messages")):
-                try:
-                    # Authenticate the request (OAuth or IP allowlist)
-                    await docker_server.auth_middleware.authenticate_request(
-                        ip_address=client_ip, bearer_token=bearer_token
-                    )
-                except Exception as auth_error:
-                    # Authentication failed - return 401
-                    client_desc = client_ip or "unknown"
-                    error_msg = f"Auth failed for {method} {path} from {client_desc}"
-                    logger.warning(f"{error_msg}: {auth_error}")
-                    error_body = json.dumps(
-                        {"error": "Unauthorized", "message": str(auth_error)}
-                    ).encode()
-                    await send(
-                        {
-                            "type": HTTP_RESPONSE_START,
-                            "status": 401,
-                            "headers": [
-                                [b"content-type", b"application/json"],
-                                [b"www-authenticate", b"Bearer"],
-                            ],
-                        }
-                    )
-                    await send({"type": HTTP_RESPONSE_BODY, "body": error_body})
-                    return
-
-            # Create logging wrappers
-            log_receive, log_send = _create_logging_wrappers(receive, send)
-
-            # Route based on path and method
-            if path.startswith("/sse") and method == "GET":
-                await _handle_sse_connection(sse, scope, log_receive, log_send)
-            elif path.startswith("/sse") and method == "HEAD":
-                # Handle HEAD request for health checks
-                await send(
-                    {
-                        "type": HTTP_RESPONSE_START,
-                        "status": 200,
-                        "headers": [
-                            [b"content-type", b"text/event-stream"],
-                            [b"cache-control", b"no-cache"],
-                            [b"connection", b"keep-alive"],
-                        ],
-                    }
-                )
-                await send({"type": HTTP_RESPONSE_BODY, "body": b""})
-            elif path.startswith("/messages") and method == "POST":
-                await _handle_post_message(sse, scope, log_receive, log_send)
-            else:
-                await _handle_404(send, method, path)
-
-        # Mount handler at root
+        # Log debug mode warning if enabled
         if config.server.debug_mode:
             logger.warning(
                 "⚠️  Debug mode enabled - detailed errors will be exposed to clients. "
@@ -605,7 +745,6 @@ async def run_sse(host: str, port: int) -> None:
             )
 
         # SECURITY: Initialize secure headers middleware with OWASP recommended defaults
-        # This replaces custom security header code with a battle-tested library
         secure_headers = _create_security_headers(config)
 
         # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
@@ -613,51 +752,25 @@ async def run_sse(host: str, port: int) -> None:
         trusted_proxies = (
             config.security.trusted_proxies if config.security.trusted_proxies else ["127.0.0.1"]
         )
-        # Type ignore needed due to ASGI type variance between MutableMapping and specific types
         wrapped_handler = ProxyHeadersMiddleware(
             sse_handler,  # type: ignore[arg-type]
             trusted_hosts=trusted_proxies,
         )
 
         # Wrap with secure headers middleware
-        async def security_headers_middleware(
-            scope: MutableMapping[str, Any],
-            receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
-            send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
-        ) -> None:
-            """Apply security headers using the secure library."""
+        security_headers_middleware = _create_security_headers_middleware(
+            wrapped_handler, secure_headers
+        )
 
-            async def send_wrapper(message: MutableMapping[str, Any]) -> None:
-                if message["type"] == "http.response.start":
-                    # Create a simple response object that the secure library can work with
-                    class SimpleResponse:
-                        def __init__(self, headers: list[tuple[bytes, bytes]]) -> None:
-                            self.headers: MutableMapping[str, str] = {
-                                k.decode(): v.decode() for k, v in headers
-                            }
-
-                    response = SimpleResponse(message.get("headers", []))
-                    await secure_headers.set_headers_async(response)
-
-                    # Convert headers back to ASGI format
-                    message["headers"] = [
-                        (k.encode(), v.encode()) for k, v in response.headers.items()
-                    ]
-
-                await send(message)
-
-            await wrapped_handler(scope, receive, send_wrapper)  # type: ignore[arg-type]
-
-        # Build middleware stack (from innermost to outermost)
+        # Build middleware stack and create Starlette app
         middleware_stack = _create_middleware_stack(host, config)
-
         app = Starlette(
             debug=config.server.debug_mode,
             routes=[Mount("/", app=security_headers_middleware)],
             middleware=middleware_stack,
         )
 
-        # Run server with timeout configuration and TLS support
+        # Create and run server with TLS support
         config_uvicorn = _create_uvicorn_config(app, host, port, config)
         server = uvicorn.Server(config_uvicorn)
 
@@ -666,8 +779,6 @@ async def run_sse(host: str, port: int) -> None:
         # Run server with shutdown monitoring
         server_task = asyncio.create_task(server.serve())
         shutdown_task = asyncio.create_task(shutdown_event.wait())
-
-        # Monitor shutdown and handle gracefully
         await _monitor_shutdown(server_task, shutdown_task, server)
 
     finally:
