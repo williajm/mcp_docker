@@ -51,6 +51,10 @@ LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodie
 CSP_SELF = "'self'"
 CSP_NONE = "'none'"
 
+# SSE Endpoint Path Constants
+SSE_PATH = "/sse"
+MESSAGES_PATH = "/messages"
+
 # Context variables for SSE transport
 client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "client_ip", default=None
@@ -512,7 +516,7 @@ async def _authenticate_sse_request(
         return True, None
 
     # Only authenticate SSE and messages endpoints
-    if not (path.startswith("/sse") or path.startswith("/messages")):
+    if not (path.startswith(SSE_PATH) or path.startswith(MESSAGES_PATH)):
         return True, None
 
     try:
@@ -573,9 +577,9 @@ async def _route_sse_request(
     log_receive, log_send = _create_logging_wrappers(receive, send)
 
     # Route based on path and method
-    if path.startswith("/sse") and method == "GET":
+    if path.startswith(SSE_PATH) and method == "GET":
         await _handle_sse_connection(sse, scope, log_receive, log_send)
-    elif path.startswith("/sse") and method == "HEAD":
+    elif path.startswith(SSE_PATH) and method == "HEAD":
         # Handle HEAD request for health checks
         await send(
             {
@@ -589,7 +593,7 @@ async def _route_sse_request(
             }
         )
         await send({"type": HTTP_RESPONSE_BODY, "body": b""})
-    elif path.startswith("/messages") and method == "POST":
+    elif path.startswith(MESSAGES_PATH) and method == "POST":
         await _handle_post_message(sse, scope, log_receive, log_send)
     else:
         await _handle_404(send, method, path)
@@ -734,7 +738,7 @@ async def run_sse(host: str, port: int) -> None:
 
     try:
         # Create SSE transport and handler
-        sse = SseServerTransport("/messages")
+        sse = SseServerTransport(MESSAGES_PATH)
         sse_handler = _create_sse_handler(sse)
 
         # Log debug mode warning if enabled
