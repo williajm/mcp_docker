@@ -10,7 +10,10 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
-**Quick Start:** `claude mcp add --transport stdio docker uvx mcp-docker`
+**Quick Start:**
+
+- **Claude Code**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
+- **Codex**: `codex mcp add docker -- uvx mcp-docker@latest`
 
 ## Features
 
@@ -35,7 +38,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 Run this command in your terminal:
 
 ```bash
-claude mcp add --transport stdio docker uvx mcp-docker
+claude mcp add --transport stdio docker uvx mcp-docker@latest
 ```
 
 That's it! The Docker socket is auto-detected for your OS (Windows, Linux, macOS, WSL).
@@ -60,11 +63,11 @@ Add to your `claude_desktop_config.json`:
 **Getting Updates:** `uvx` caches packages and won't automatically update. To get the latest version:
 
 ```bash
-# Force reinstall latest version
-uvx --reinstall mcp-docker
+# Run the latest version (recommended - no caching)
+uvx mcp-docker@latest
 
-# Or clear cache
-uv cache clean mcp-docker
+# Or clear all cached tool environments
+uv cache prune
 ```
 
 ### Advanced Usage
