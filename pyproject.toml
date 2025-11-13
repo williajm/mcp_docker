@@ -46,6 +46,8 @@ dependencies = [
     "limits>=5.6.0",
     "cachetools>=6.2.1",
     "secure>=1.0.1",
+    "authlib>=1.6.5",
+    "httpx>=0.28.1",
 ]
 
 [project.optional-dependencies]

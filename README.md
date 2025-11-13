@@ -89,6 +89,7 @@ The MCP Docker server includes comprehensive security features for production de
 
 ### Key Security Features
 
+- **OAuth/OIDC Authentication**: Industry-standard bearer token authentication for network transports (JWTs with JWKS validation, optional introspection support)
 - **TLS/HTTPS**: Encrypted transport for SSE mode (required for production)
 - **IP Filtering**: Restrict access by client IP address
 - **Rate Limiting**: Prevent abuse (60 req/min default)
@@ -119,10 +120,17 @@ See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation 
 ### Security Configuration
 
 ```bash
-# TLS/HTTPS
+# TLS/HTTPS (required for production SSE deployments)
 MCP_TLS_ENABLED=true
 MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
 MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
+
+# OAuth/OIDC Authentication (for network transports only, stdio bypasses auth)
+SECURITY_OAUTH_ENABLED=true
+SECURITY_OAUTH_ISSUER=https://auth.example.com
+SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
+SECURITY_OAUTH_AUDIENCE=mcp-docker-api
+SECURITY_OAUTH_REQUIRED_SCOPES=docker.read,docker.write
 
 # IP Filtering (optional - empty list allows all IPs)
 SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
@@ -131,6 +139,8 @@ SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
 SECURITY_RATE_LIMIT_ENABLED=true
 SECURITY_RATE_LIMIT_RPM=60
 ```
+
+**Note**: OAuth authentication is only enforced for network transports (SSE/HTTP Stream Transport). The stdio transport always bypasses authentication as it operates in a local trusted process model (same security model as running `docker` CLI directly).
 
 For complete security documentation, production deployment checklist, and best practices, see [SECURITY.md](SECURITY.md).
 
@@ -525,6 +535,46 @@ mcp_docker/
 - Write docstrings (Google style)
 - Maintain high test coverage
 - Pass all linting and type checking
+
+## Roadmap
+
+### HTTP Stream Transport
+
+We're planning to add support for the [HTTP Stream Transport](https://mcp-framework.com/docs/Transports/http-stream-transport), which is the modern replacement for the SSE transport in MCP specification version 2025-03-26.
+
+**Why HTTP Stream Transport?**
+
+The HTTP Stream Transport offers several advantages over the current SSE implementation:
+
+- **Single unified endpoint** for all MCP communication (instead of separate `/sse` and `/messages` endpoints)
+- **Flexible response modes**: Choose between batch (JSON) or streaming (SSE) responses based on operation type
+- **Built-in session management** via `Mcp-Session-Id` header for stateful connections
+- **Stream resumability**: Clients can reconnect and replay missed messages if connections drop
+- **Enhanced web support**: Flexible CORS configuration and better authentication integration
+- **Improved reliability**: Better error handling and connection state management
+
+**Implementation Plan:**
+
+1. **Phase 1: Core Transport Layer**
+   - Implement HTTP Stream Transport protocol handler
+   - Add session management with `Mcp-Session-Id` header tracking
+   - Support both batch and streaming response modes
+   - Maintain backward compatibility with existing SSE transport
+
+2. **Phase 2: Advanced Features**
+   - Add stream resumability for reconnection support
+   - Implement enhanced CORS configuration options
+   - Add comprehensive E2E tests for HTTP Stream Transport
+   - Update documentation and examples
+
+3. **Phase 3: Migration & Deprecation**
+   - Provide migration guide from SSE to HTTP Stream Transport
+   - Mark SSE transport as deprecated (but maintain for backward compatibility)
+   - Update Claude Desktop and Claude Code configuration examples
+
+**Current Status:** Planning phase. Contributions and feedback welcome!
+
+**Reference:** [MCP HTTP Stream Transport Documentation](https://mcp-framework.com/docs/Transports/http-stream-transport)
 
 ## License
 

@@ -66,16 +66,13 @@ class TestClientInfo:
         assert any(error["loc"] == ("client_id",) for error in errors)
         assert any(error["type"] == "missing" for error in errors)
 
-    def test_api_key_hash_validation(self) -> None:
-        """Test that api_key_hash is required."""
-        with pytest.raises(ValidationError) as exc_info:
-            ClientInfo(
-                client_id="client-001",
-            )  # type: ignore
-
-        errors = exc_info.value.errors()
-        assert any(error["loc"] == ("api_key_hash",) for error in errors)
-        assert any(error["type"] == "missing" for error in errors)
+    def test_api_key_hash_default(self) -> None:
+        """Test that api_key_hash has a default value of 'none'."""
+        client = ClientInfo(
+            client_id="client-001",
+        )
+        assert client.api_key_hash == "none"
+        assert client.auth_method == "ip"  # Default auth method
 
     def test_description_can_be_none(self) -> None:
         """Test that description can be None."""

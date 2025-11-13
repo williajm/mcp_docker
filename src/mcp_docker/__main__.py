@@ -51,9 +51,12 @@ LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodie
 CSP_SELF = "'self'"
 CSP_NONE = "'none'"
 
-# Context variable for client IP address in SSE transport
+# Context variables for SSE transport
 client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "client_ip", default=None
+)
+bearer_token_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "bearer_token", default=None
 )
 
 # Load configuration
@@ -109,14 +112,16 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     logger.debug(f"call_tool: {name}")
     logger.debug(f"Arguments: {arguments}")
 
-    # Get client IP from context variable (set by SSE transport)
+    # Get client IP and bearer token from context variables (set by SSE transport)
     ip_address = client_ip_context.get()
+    bearer_token = bearer_token_context.get()
 
     # Call tool
     result = await docker_server.call_tool(
         name,
         arguments,
         ip_address=ip_address,
+        bearer_token=bearer_token,
     )
 
     # Return result in MCP format (list of content items)
@@ -358,6 +363,26 @@ def _extract_client_ip(scope: MutableMapping[str, Any]) -> str | None:
     return None
 
 
+def _extract_bearer_token(scope: MutableMapping[str, Any]) -> str | None:
+    """Extract bearer token from Authorization header.
+
+    Args:
+        scope: ASGI connection scope with headers
+
+    Returns:
+        Bearer token string or None if not present
+    """
+    headers: list[tuple[bytes, bytes]] = scope.get("headers", [])
+    for name, value in headers:
+        if name.lower() == b"authorization":
+            auth_value: str = value.decode("utf-8", errors="ignore")
+            # Check if it's a Bearer token
+            if auth_value.startswith("Bearer "):
+                token: str = auth_value[7:].strip()  # Remove "Bearer " prefix
+                return token
+    return None
+
+
 def _create_security_headers(config: Config) -> Secure:
     """Create security headers middleware configuration.
 
@@ -509,7 +534,43 @@ async def run_sse(host: str, port: int) -> None:
             client_ip = _extract_client_ip(scope)
             client_ip_context.set(client_ip)
 
-            logger.debug(f"Request: {method} {path} from {client_ip or 'unknown'}")
+            # Extract and store bearer token for OAuth authentication
+            bearer_token = _extract_bearer_token(scope)
+            bearer_token_context.set(bearer_token)
+
+            logger.debug(
+                f"Request: {method} {path} from {client_ip or 'unknown'}"
+                f"{' with bearer token' if bearer_token else ''}"
+            )
+
+            # AUTHENTICATION ENFORCEMENT: Validate OAuth tokens for SSE/messages endpoints
+            # HEAD requests (health checks) bypass authentication
+            if method != "HEAD" and (path.startswith("/sse") or path.startswith("/messages")):
+                try:
+                    # Authenticate the request (OAuth or IP allowlist)
+                    await docker_server.auth_middleware.authenticate_request(
+                        ip_address=client_ip, bearer_token=bearer_token
+                    )
+                except Exception as auth_error:
+                    # Authentication failed - return 401
+                    client_desc = client_ip or "unknown"
+                    error_msg = f"Auth failed for {method} {path} from {client_desc}"
+                    logger.warning(f"{error_msg}: {auth_error}")
+                    error_body = json.dumps(
+                        {"error": "Unauthorized", "message": str(auth_error)}
+                    ).encode()
+                    await send(
+                        {
+                            "type": HTTP_RESPONSE_START,
+                            "status": 401,
+                            "headers": [
+                                [b"content-type", b"application/json"],
+                                [b"www-authenticate", b"Bearer"],
+                            ],
+                        }
+                    )
+                    await send({"type": HTTP_RESPONSE_BODY, "body": error_body})
+                    return
 
             # Create logging wrappers
             log_receive, log_send = _create_logging_wrappers(receive, send)

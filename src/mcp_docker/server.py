@@ -225,6 +225,7 @@ class MCPDockerServer:
         tool_name: str,
         arguments: dict[str, Any],
         ip_address: str | None = None,
+        bearer_token: str | None = None,
     ) -> dict[str, Any]:
         """Call a tool with the given arguments.
 
@@ -232,6 +233,7 @@ class MCPDockerServer:
             tool_name: Name of the tool to call
             arguments: Tool arguments
             ip_address: IP address of the client (for audit logging)
+            bearer_token: Bearer token for OAuth authentication (network transports only)
 
         Returns:
             Tool execution result
@@ -241,7 +243,7 @@ class MCPDockerServer:
             PermissionError: If operation is not allowed by safety config
         """
         # Authenticate the client
-        client_info = self._authenticate_client(ip_address)
+        client_info = await self._authenticate_client(ip_address, bearer_token)
         if "error" in client_info:
             return client_info
 
@@ -257,21 +259,24 @@ class MCPDockerServer:
             # Always release the concurrent slot
             self.rate_limiter.release_concurrent_slot(client_info["client_id"])
 
-    def _authenticate_client(
+    async def _authenticate_client(
         self,
         ip_address: str | None,
+        bearer_token: str | None = None,
     ) -> dict[str, Any]:
         """Authenticate the client request.
 
         Args:
             ip_address: IP address of the client
+            bearer_token: Bearer token for OAuth authentication
 
         Returns:
             Client info dict on success, or error dict on failure
         """
         try:
-            client_info = self.auth_middleware.authenticate_request(
+            client_info = await self.auth_middleware.authenticate_request(
                 ip_address=ip_address,
+                bearer_token=bearer_token,
             )
             return {"client_id": client_info.client_id, "client_info_obj": client_info}
         except Exception as e:
@@ -400,9 +405,10 @@ class MCPDockerServer:
             logger.warning(f"Docker daemon health check failed: {e}")
 
     async def stop(self) -> None:
-        """Stop the MCP server."""
+        """Stop the MCP server and cleanup resources."""
         logger.info("Stopping MCP Docker server")
         await asyncio.to_thread(self.docker_client.close)
+        await self.auth_middleware.close()
         logger.info("MCP Docker server stopped")
 
     def list_resources(self) -> list[dict[str, Any]]:
