@@ -10,7 +10,7 @@ pip3 install --no-deps -e $SRC/mcp-docker
 
 # PyInstaller hidden imports for dependencies not auto-detected
 # These are third-party libraries used by the auth/security modules
-export PYINSTALLER_HIDDEN_IMPORTS="limits,limits.aio,limits.aio.strategies,limits.aio.storage,cachetools,loguru"
+export PYINSTALLER_HIDDEN_IMPORTS="limits,limits.aio,limits.aio.strategies,limits.aio.storage,cachetools,loguru,authlib,authlib.jose,httpx,httpcore"
 
 # Build each fuzz target using the compile_python_fuzzer helper
 for fuzzer in $SRC/mcp-docker/tests/fuzz/fuzz_*.py; do
@@ -21,7 +21,11 @@ for fuzzer in $SRC/mcp-docker/tests/fuzz/fuzz_*.py; do
         --hidden-import=limits.aio.strategies \
         --hidden-import=limits.aio.storage \
         --hidden-import=cachetools \
-        --hidden-import=loguru
+        --hidden-import=loguru \
+        --hidden-import=authlib \
+        --hidden-import=authlib.jose \
+        --hidden-import=httpx \
+        --hidden-import=httpcore
 done
 
 echo "Fuzz targets built successfully:"
