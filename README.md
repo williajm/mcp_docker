@@ -525,8 +525,10 @@ mcp_docker/
   - `pydantic>=2.0.0` - Data validation
   - `loguru>=0.7.0` - Logging
   - `secure>=1.0.1` - Security headers
-  - `cryptography>=41.0.0` - SSH authentication
+  - `authlib>=1.6.5` - OAuth/OIDC authentication (JWT validation)
+  - `httpx>=0.28.1` - HTTP client for OAuth token introspection
   - `limits>=5.6.0` - Rate limiting
+  - `cachetools>=6.2.1` - JWKS caching
 
 ### Code Standards
 
