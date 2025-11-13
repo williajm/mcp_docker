@@ -452,6 +452,268 @@ class TestServerRunFunction:
                 mock_docker_server.stop.assert_called_once()
 
 
+class TestHttpStreamTransport:
+    """Tests for run_httpstream function."""
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_basic(self) -> None:
+        """Test run_httpstream basic flow."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Run the HTTP Stream server function
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify calls
+                mock_docker_server.start.assert_called_once()
+                mock_session_mgr.assert_called_once()
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_cleanup_on_error(self) -> None:
+        """Test run_httpstream cleans up on error."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr:
+                mock_session_mgr.side_effect = Exception("HTTP Stream error")
+
+                # Should raise the exception
+                with pytest.raises(Exception, match="HTTP Stream error"):
+                    await main_module.run_httpstream("localhost", 8080)
+
+                # But should still call stop
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_with_resumability_enabled(self) -> None:
+        """Test run_httpstream creates event store when resumability is enabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.InMemoryEventStore") as mock_event_store,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "resumability_enabled", True),
+                patch.object(main_module.config.httpstream, "event_store_max_events", 1000),
+                patch.object(main_module.config.httpstream, "event_store_ttl_seconds", 300),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify event store was created
+                mock_event_store.assert_called_once_with(max_events=1000, ttl_seconds=300)
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_with_resumability_disabled(self) -> None:
+        """Test run_httpstream does not create event store when resumability is disabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.InMemoryEventStore") as mock_event_store,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "resumability_enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify event store was NOT created
+                mock_event_store.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_dns_rebinding_protection_enabled(self) -> None:
+        """Test run_httpstream configures DNS rebinding protection when enabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com"]),
+                patch.object(main_module.config.cors, "enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify TransportSecuritySettings was created with proper config
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+                assert call_kwargs["enable_dns_rebinding_protection"] is True
+                # Should include localhost, 127.0.0.1, the bind host, and configured hosts
+                assert "localhost" in call_kwargs["allowed_hosts"]
+                assert "127.0.0.1" in call_kwargs["allowed_hosts"]
+                assert "localhost" in call_kwargs["allowed_hosts"]
+                assert "api.example.com" in call_kwargs["allowed_hosts"]
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_dns_rebinding_protection_disabled(self) -> None:
+        """Test run_httpstream skips DNS rebinding protection when disabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify TransportSecuritySettings was NOT created
+                mock_security_settings.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_wildcard_host_not_in_allowed_hosts(self) -> None:
+        """Test run_httpstream excludes wildcard hosts from allowed_hosts."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", []),
+                patch.object(main_module.config.cors, "enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Bind to 0.0.0.0 (wildcard)
+                await main_module.run_httpstream("0.0.0.0", 8080)
+
+                # Verify TransportSecuritySettings was created
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+                # Wildcard host should NOT be in allowed_hosts
+                assert "0.0.0.0" not in call_kwargs["allowed_hosts"]
+                assert "::" not in call_kwargs["allowed_hosts"]
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_cors_allowed_origins(self) -> None:
+        """Test run_httpstream includes CORS origins in security settings."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", []),
+                patch.object(main_module.config.cors, "enabled", True),
+                patch.object(main_module.config.cors, "allow_origins", ["https://app.example.com"]),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify TransportSecuritySettings includes CORS origins
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+                assert call_kwargs["allowed_origins"] == ["https://app.example.com"]
+
+
 class TestHelperFunctions:
     """Tests for helper functions."""
 
@@ -927,6 +1189,27 @@ class TestMainFunction:
         with (
             patch("asyncio.run") as mock_asyncio_run,
             patch("sys.argv", ["mcp-docker", "--transport", "sse", "--port", "9000"]),
+        ):
+            main_module.main()
+            mock_asyncio_run.assert_called_once()
+
+    def test_main_httpstream_transport(self) -> None:
+        """Test main function with HTTP Stream transport."""
+        with (
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("sys.argv", ["mcp-docker", "--transport", "httpstream"]),
+        ):
+            main_module.main()
+            mock_asyncio_run.assert_called_once()
+            # Verify it was called with run_httpstream
+            call_arg = mock_asyncio_run.call_args[0][0]
+            assert call_arg.__name__ == "run_httpstream"
+
+    def test_main_httpstream_custom_port(self) -> None:
+        """Test main function with custom HTTP Stream port."""
+        with (
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("sys.argv", ["mcp-docker", "--transport", "httpstream", "--port", "9000"]),
         ):
             main_module.main()
             mock_asyncio_run.assert_called_once()
