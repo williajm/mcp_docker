@@ -79,6 +79,7 @@ uv cache prune
 The HTTP Stream Transport is a modern MCP transport protocol using a single unified endpoint (`POST /`) for all operations.
 
 **Features:**
+
 - **Single Endpoint**: All MCP communication through `POST /` (no separate SSE/messages endpoints)
 - **Session Management**: Automatic session tracking via `mcp-session-id` header
 - **Stream Resumability**: Reconnect and replay missed messages using `last-event-id` header

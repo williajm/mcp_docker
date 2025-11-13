@@ -261,6 +261,7 @@ async def test_https_httpstream_with_tls() -> None:
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
+        env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
         # Start HTTP Stream server with HTTPS
         process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTPS)
@@ -303,6 +304,7 @@ async def test_httpstream_session_management() -> None:
     env["SECURITY_AUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_STATELESS_MODE"] = "false"  # Enable session management
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
     process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
 
@@ -335,6 +337,7 @@ async def test_httpstream_batch_json_response() -> None:
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
     env["SECURITY_AUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
     process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
 
@@ -674,6 +677,7 @@ async def test_httpstream_oauth_authentication_success(
         env["SECURITY_OAUTH_JWKS_URL"] = f"{mock_httpstream_jwks_server}/.well-known/jwks.json"
         env["SECURITY_OAUTH_AUDIENCE"] = "mcp-docker-api"
         env["SECURITY_OAUTH_REQUIRED_SCOPES"] = "docker.read"
+        env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
         # Start HTTP Stream server with OAuth
         port = HTTPSTREAM_TEST_PORT_HTTPS + 20
