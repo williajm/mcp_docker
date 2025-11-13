@@ -71,9 +71,11 @@ from mcp_docker.utils.logger import get_logger, setup_logger
 # HTTP Message Type Constants
 HTTP_RESPONSE_START = "http.response.start"
 HTTP_RESPONSE_BODY = "http.response.body"
+CONTENT_TYPE_JSON = b"application/json"
 
 # Logging Constants
 LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
+SHUTDOWN_COMPLETE_MSG = "MCP server shutdown complete"
 
 # CSP (Content Security Policy) directive constants
 # Used to reduce duplication and improve maintainability
@@ -316,7 +318,7 @@ async def run_stdio() -> None:
             )
     finally:
         await docker_server.stop()
-        logger.info("MCP server shutdown complete")
+        logger.info(SHUTDOWN_COMPLETE_MSG)
 
 
 def _validate_sse_security(host: str) -> None:
@@ -592,7 +594,7 @@ async def _send_unauthorized_response(
             "type": HTTP_RESPONSE_START,
             "status": 401,
             "headers": [
-                [b"content-type", b"application/json"],
+                [b"content-type", CONTENT_TYPE_JSON],
                 [b"www-authenticate", b"Bearer"],
             ],
         }
@@ -831,7 +833,7 @@ async def run_sse(host: str, port: int) -> None:
 
     finally:
         await docker_server.stop()
-        logger.info("MCP server shutdown complete")
+        logger.info(SHUTDOWN_COMPLETE_MSG)
 
 
 async def run_httpstream(host: str, port: int) -> None:
@@ -951,7 +953,7 @@ async def run_httpstream(host: str, port: int) -> None:
                             "type": HTTP_RESPONSE_START,
                             "status": 200,
                             "headers": [
-                                [b"content-type", b"application/json"],
+                                [b"content-type", CONTENT_TYPE_JSON],
                                 [b"cache-control", b"no-cache"],
                             ],
                         }
@@ -980,7 +982,7 @@ async def run_httpstream(host: str, port: int) -> None:
                             "type": HTTP_RESPONSE_START,
                             "status": 401,
                             "headers": [
-                                [b"content-type", b"application/json"],
+                                [b"content-type", CONTENT_TYPE_JSON],
                                 [b"www-authenticate", b"Bearer"],
                             ],
                         }
@@ -1040,7 +1042,7 @@ async def run_httpstream(host: str, port: int) -> None:
 
     finally:
         await docker_server.stop()
-        logger.info("MCP server shutdown complete")
+        logger.info(SHUTDOWN_COMPLETE_MSG)
 
 
 def main() -> None:
