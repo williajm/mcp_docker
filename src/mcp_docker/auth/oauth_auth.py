@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from authlib.jose import (  # type: ignore[import-not-found]
+from authlib.jose import (  # type: ignore[import-untyped]
     JsonWebKey,
     JsonWebToken,
     JWTClaims,
 )
-from authlib.jose.errors import JoseError  # type: ignore[import-not-found]
+from authlib.jose.errors import JoseError  # type: ignore[import-untyped]
 from cachetools import TTLCache
 
 from mcp_docker.auth.models import ClientInfo
@@ -126,7 +126,7 @@ class OAuthAuthenticator:
                 if self.config.oauth_required_scopes:
                     self._validate_scopes(scopes)
 
-                extra: dict[str, str] = {}
+                extra = {}
                 for claim_key in ["client_id", "email", "name", "preferred_username"]:
                     if claim_key in claims and claims[claim_key]:
                         extra[claim_key] = str(claims[claim_key])
