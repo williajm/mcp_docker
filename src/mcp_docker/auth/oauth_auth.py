@@ -81,8 +81,8 @@ class OAuthAuthenticator:
             OAuthAuthenticationError: If authentication fails
         """
         try:
-            # First, try JWT validation
-            claims = await self._validate_jwt(token)
+            # First, try JWT validation with cached JWKS
+            claims = await self._validate_jwt(token, bypass_cache=False)
 
             # Extract client info from claims
             client_id = claims.get("sub") or claims.get("client_id") or "unknown"
@@ -111,22 +111,64 @@ class OAuthAuthenticator:
             )
 
         except JoseError as e:
-            # JWT validation failed, try introspection if configured
-            if self.config.oauth_introspection_url:
-                logger.debug(f"JWT validation failed, trying introspection: {e}")
-                return await self._introspect_token(token)
-            logger.warning(f"JWT validation failed and no introspection configured: {e}")
-            raise OAuthAuthenticationError(f"Invalid JWT token: {e}") from e
+            # JWT validation failed - could be due to key rotation
+            # Clear cache and retry once with fresh JWKS
+            logger.debug(f"JWT validation failed, refreshing JWKS and retrying: {e}")
+            try:
+                # Clear the cache and retry with fresh JWKS
+                self.jwks_cache.clear()
+                claims = await self._validate_jwt(token, bypass_cache=True)
+
+                # Extract client info from claims (same as above)
+                client_id = claims.get("sub") or claims.get("client_id") or "unknown"
+                scopes = self._extract_scopes(claims)
+
+                if self.config.oauth_required_scopes:
+                    self._validate_scopes(scopes)
+
+                extra: dict[str, str] = {}
+                for claim_key in ["client_id", "email", "name", "preferred_username"]:
+                    if claim_key in claims and claims[claim_key]:
+                        extra[claim_key] = str(claims[claim_key])
+
+                logger.info(
+                    f"OAuth authentication successful after JWKS refresh: "
+                    f"client_id={client_id}, scopes={scopes}"
+                )
+
+                return ClientInfo(
+                    client_id=client_id,
+                    auth_method="oauth",
+                    api_key_hash="oauth",
+                    description="OAuth authenticated client",
+                    scopes=scopes,
+                    extra=extra,
+                    authenticated_at=datetime.now(UTC),
+                )
+
+            except JoseError as retry_error:
+                # Still failed after refresh, try introspection if configured
+                if self.config.oauth_introspection_url:
+                    logger.debug(
+                        f"JWT validation failed after refresh, trying introspection: {retry_error}"
+                    )
+                    return await self._introspect_token(token)
+                logger.warning(
+                    f"JWT validation failed after JWKS refresh "
+                    f"and no introspection configured: {retry_error}"
+                )
+                raise OAuthAuthenticationError(f"Invalid JWT token: {retry_error}") from retry_error
 
         except Exception as e:
             logger.error(f"OAuth authentication error: {e}")
             raise OAuthAuthenticationError(f"Authentication failed: {e}") from e
 
-    async def _validate_jwt(self, token: str) -> JWTClaims:
+    async def _validate_jwt(self, token: str, bypass_cache: bool = False) -> JWTClaims:
         """Validate JWT token signature and claims.
 
         Args:
             token: JWT token string
+            bypass_cache: If True, fetch fresh JWKS bypassing cache
 
         Returns:
             Validated JWT claims
@@ -134,8 +176,8 @@ class OAuthAuthenticator:
         Raises:
             JoseError: If validation fails
         """
-        # Fetch JWKS (cached)
-        jwks = await self._fetch_jwks()
+        # Fetch JWKS (cached or fresh based on bypass_cache)
+        jwks = await self._fetch_jwks(bypass_cache=bypass_cache)
 
         # Create JWT validator with supported algorithms
         jwt = JsonWebToken(["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"])
@@ -169,8 +211,11 @@ class OAuthAuthenticator:
 
         return claims
 
-    async def _fetch_jwks(self) -> JsonWebKey:
+    async def _fetch_jwks(self, bypass_cache: bool = False) -> JsonWebKey:
         """Fetch JWKS from the configured URL with caching.
+
+        Args:
+            bypass_cache: If True, fetch fresh JWKS ignoring cache
 
         Returns:
             JsonWebKey object for validation
@@ -178,9 +223,9 @@ class OAuthAuthenticator:
         Raises:
             OAuthAuthenticationError: If JWKS fetch fails
         """
-        # Check cache first
+        # Check cache first (unless bypassing)
         cache_key = "jwks"
-        if cache_key in self.jwks_cache:
+        if not bypass_cache and cache_key in self.jwks_cache:
             logger.debug("Using cached JWKS")
             return self.jwks_cache[cache_key]
 
