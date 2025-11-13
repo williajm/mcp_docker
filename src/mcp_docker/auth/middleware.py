@@ -50,9 +50,12 @@ class AuthMiddleware:
         Raises:
             AuthenticationError: If IP is not allowed
         """
-        # Check IP allowlist if configured
-        if self.config.allowed_client_ips and (
-            not ip_address or ip_address not in self.config.allowed_client_ips
+        # Check IP allowlist if configured (only for network transports)
+        # stdio transport (ip_address=None) bypasses the allowlist
+        if (
+            self.config.allowed_client_ips
+            and ip_address
+            and ip_address not in self.config.allowed_client_ips
         ):
             logger.warning(f"Request blocked: IP {ip_address} not in allowlist")
             raise AuthenticationError(f"IP address not allowed: {ip_address}")
@@ -73,12 +76,13 @@ class AuthMiddleware:
             ip_address: IP address to check
 
         Returns:
-            True if IP is allowed or no allowlist is configured
+            True if IP is allowed, no allowlist is configured, or ip_address is None (stdio)
         """
         if not self.config.allowed_client_ips:
             return True
 
+        # stdio transport (ip_address=None) bypasses the allowlist
         if not ip_address:
-            return False
+            return True
 
         return ip_address in self.config.allowed_client_ips
