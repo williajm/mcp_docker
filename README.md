@@ -12,14 +12,16 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 **Quick Start:**
 
-- **Claude Code**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
-- **Codex**: `codex mcp add docker -- uvx mcp-docker@latest`
+- **Claude Code (stdio)**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
+- **Codex (stdio)**: `codex mcp add docker -- uvx mcp-docker@latest`
+- **HTTP Stream Transport (network)**: `mcp-docker --transport httpstream --host 127.0.0.1 --port 8000`
 
 ## Features
 
 - **36 Docker Tools**: Complete container, image, network, volume, and system management
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
+- **3 Transport Options**: stdio (local), SSE (Server-Sent Events), and HTTP Stream Transport (modern unified endpoint)
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
 - **Comprehensive Testing**: Extensive test coverage with unit, integration, E2E, and fuzz tests
@@ -72,6 +74,67 @@ uv cache prune
 
 ### Advanced Usage
 
+#### HTTP Stream Transport (Recommended for Network Deployments)
+
+The HTTP Stream Transport is the modern MCP transport protocol using a single unified endpoint (`POST /`) for all operations. It's the recommended choice for network deployments.
+
+**Features:**
+- **Single Endpoint**: All MCP communication through `POST /` (no separate SSE/messages endpoints)
+- **Session Management**: Automatic session tracking via `mcp-session-id` header
+- **Stream Resumability**: Reconnect and replay missed messages using `last-event-id` header
+- **Flexible Response Modes**: Choose between streaming (SSE) or batch (JSON) responses
+- **Browser Support**: Enhanced CORS configuration for web clients
+- **DNS Rebinding Protection**: Configure allowed hosts to prevent attacks
+
+**Basic Usage:**
+
+```bash
+# Development (localhost only)
+mcp-docker --transport httpstream --host 127.0.0.1 --port 8000
+
+# Production with TLS
+./start-mcp-docker-httpstream.sh
+```
+
+**Configuration:**
+
+```bash
+# HTTP Stream Transport settings
+HTTPSTREAM_JSON_RESPONSE_DEFAULT=false  # false=streaming (default), true=batch
+HTTPSTREAM_STATELESS_MODE=false         # Enable for stateless deployments
+HTTPSTREAM_RESUMABILITY_ENABLED=true    # Enable message replay (default)
+HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000  # Max events in history
+HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300  # Event expiration (5 minutes)
+
+# DNS rebinding protection (production)
+HTTPSTREAM_DNS_REBINDING_PROTECTION=true  # Enable protection (default)
+HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'  # Allowed hosts
+
+# CORS for browser clients
+CORS_ENABLED=true
+CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOW_CREDENTIALS=true
+
+# Security (OAuth, rate limiting, audit logging)
+SECURITY_OAUTH_ENABLED=true
+SECURITY_OAUTH_ISSUER=https://auth.example.com
+SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
+SECURITY_RATE_LIMIT_ENABLED=true
+SECURITY_AUDIT_LOG_ENABLED=true
+```
+
+**Endpoint Documentation:**
+
+- **POST /**: Main endpoint for all MCP operations
+  - Send JSON-RPC messages in request body
+  - Session tracked via `mcp-session-id` response header
+  - Streaming responses use SSE format
+  - Batch responses return complete JSON arrays
+
+- **Resumability**: Include `last-event-id` header to replay missed events after reconnection
+
+See `docs/examples/httpstream-config.md` for complete configuration examples.
+
 #### SSE Transport with TLS
 
 For network-accessible deployments, use SSE transport with TLS/HTTPS:
@@ -84,7 +147,7 @@ For network-accessible deployments, use SSE transport with TLS/HTTPS:
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
-Command-line options: `--transport` (stdio/sse), `--host`, `--port`
+Command-line options: `--transport` (stdio/sse/httpstream), `--host`, `--port`
 
 ## Security
 
@@ -543,41 +606,23 @@ mcp_docker/
 
 ## Roadmap
 
-### HTTP Stream Transport
+### ✅ HTTP Stream Transport (Completed)
 
-We're planning to add support for the [HTTP Stream Transport](https://mcp-framework.com/docs/Transports/http-stream-transport), which is the modern replacement for the SSE transport in MCP specification version 2025-03-26.
+HTTP Stream Transport has been fully implemented and is now the recommended transport for network deployments.
 
-**Why HTTP Stream Transport?**
+**What's Included:**
 
-The HTTP Stream Transport offers several advantages over the current SSE implementation:
+- ✅ Single unified endpoint (`POST /`) for all MCP communication
+- ✅ Session management with `mcp-session-id` header tracking
+- ✅ Stream resumability with `InMemoryEventStore` for message replay
+- ✅ Flexible response modes (streaming SSE or batch JSON)
+- ✅ Enhanced CORS configuration with credentials support
+- ✅ DNS rebinding protection with configurable allowed hosts
+- ✅ Full OAuth/OIDC authentication integration
+- ✅ Comprehensive E2E test suite
+- ✅ Production-ready with TLS/HTTPS support
 
-- **Single unified endpoint** for all MCP communication (instead of separate `/sse` and `/messages` endpoints)
-- **Flexible response modes**: Choose between batch (JSON) or streaming (SSE) responses based on operation type
-- **Built-in session management** via `Mcp-Session-Id` header for stateful connections
-- **Stream resumability**: Clients can reconnect and replay missed messages if connections drop
-- **Enhanced web support**: Flexible CORS configuration and better authentication integration
-- **Improved reliability**: Better error handling and connection state management
-
-**Implementation Plan:**
-
-1. **Phase 1: Core Transport Layer**
-   - Implement HTTP Stream Transport protocol handler
-   - Add session management with `Mcp-Session-Id` header tracking
-   - Support both batch and streaming response modes
-   - Maintain backward compatibility with existing SSE transport
-
-2. **Phase 2: Advanced Features**
-   - Add stream resumability for reconnection support
-   - Implement enhanced CORS configuration options
-   - Add comprehensive E2E tests for HTTP Stream Transport
-   - Update documentation and examples
-
-3. **Phase 3: Migration & Deprecation**
-   - Provide migration guide from SSE to HTTP Stream Transport
-   - Mark SSE transport as deprecated (but maintain for backward compatibility)
-   - Update Claude Desktop and Claude Code configuration examples
-
-**Current Status:** Planning phase. Contributions and feedback welcome!
+See the "HTTP Stream Transport" section above for usage and configuration details.
 
 **Reference:** [MCP HTTP Stream Transport Documentation](https://mcp-framework.com/docs/Transports/http-stream-transport)
 

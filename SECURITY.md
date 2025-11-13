@@ -10,10 +10,11 @@ The MCP Docker server implements multiple layers of security:
 2. **IP Filtering** - Network-level access control (optional, defense-in-depth with OAuth)
 3. **Rate Limiting** - Prevent abuse and resource exhaustion
 4. **Audit Logging** - Track all operations with client IP tracking
-5. **TLS/HTTPS** - Encrypted transport for SSE mode (required for production)
+5. **TLS/HTTPS** - Encrypted transport for SSE and HTTP Stream Transport (required for production)
 6. **Security Headers** - HSTS, Cache-Control, X-Content-Type-Options
 7. **Error Sanitization** - Prevent information disclosure
 8. **Safety Controls** - Three-tier operation classification
+9. **HTTP Stream Transport Security** - Session management, DNS rebinding protection, CORS security
 
 ## Quick Start
 
@@ -34,9 +35,20 @@ Claude Desktop uses stdio transport (local process). The server relies on OS-lev
 }
 ```
 
-### For Network Deployment (SSE transport)
+### For Network Deployment (HTTP Stream Transport - Recommended)
 
-For production deployment using SSE transport with security features:
+For production deployment using HTTP Stream Transport with security features:
+
+```bash
+# Start server with TLS, OAuth, and security features
+./start-mcp-docker-httpstream.sh
+```
+
+See the HTTP Stream Transport Security, OAuth/OIDC Authentication, and TLS/HTTPS sections below for configuration details.
+
+### For Network Deployment (SSE transport - Legacy)
+
+For production deployment using legacy SSE transport with security features:
 
 ```bash
 # Start server with TLS, OAuth, and security features
@@ -159,7 +171,7 @@ SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
 
 Empty list (default) = allow all IPs.
 
-**Note**: IP filtering is only effective for SSE transport. The stdio transport doesn't expose client IPs.
+**Note**: IP filtering is only effective for SSE and HTTP Stream transports. The stdio transport doesn't expose client IPs.
 
 **Client IP Extraction:**
 
@@ -168,7 +180,7 @@ The server intelligently extracts client IPs supporting:
 - Proxy deployments (`X-Forwarded-For` header)
 - Multiple proxy hops (first IP in comma-separated list)
 
-## TLS/HTTPS (SSE Transport)
+## TLS/HTTPS (Network Transports)
 
 ### Why TLS Is Critical
 
@@ -369,6 +381,199 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true
 ```
 
+## HTTP Stream Transport Security
+
+The HTTP Stream Transport is the modern MCP transport protocol with enhanced security features for network deployments.
+
+### Transport-Level Security
+
+**Single Unified Endpoint**: All MCP operations flow through `POST /`, eliminating the separate `/sse` and `/messages` endpoints of the legacy SSE transport.
+
+**Session Management**: Automatic session tracking via `mcp-session-id` header prevents session confusion and enables proper request correlation.
+
+**Stream Resumability**: Message history with `last-event-id` header allows clients to reconnect and replay missed events after network interruptions.
+
+### DNS Rebinding Protection
+
+DNS rebinding attacks attempt to bypass same-origin policy by manipulating DNS records. HTTP Stream Transport includes built-in protection:
+
+```bash
+# Enable DNS rebinding protection (enabled by default)
+HTTPSTREAM_DNS_REBINDING_PROTECTION=true
+
+# Configure allowed hosts for production
+HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
+```
+
+**How It Works:**
+- Server validates the `Host` header on every request
+- Only requests with allowed hosts are processed
+- Empty allowed hosts list = localhost only (127.0.0.1, ::1, localhost)
+- Protects against malicious websites attempting to access your local MCP server
+
+**Example Attack (Prevented):**
+```javascript
+// Malicious website attempts to access local MCP server
+fetch('http://localhost:8000/', {
+  method: 'POST',
+  headers: {'Host': 'evil.com'},  // Spoofed host
+  body: JSON.stringify({...})
+});
+// Server rejects: Host 'evil.com' not in allowed hosts
+```
+
+**Configuration:**
+- **Development**: Leave empty (localhost only) or disable protection
+- **Production**: Explicitly list all domains/IPs that should access the server
+
+### CORS Security
+
+Enhanced CORS configuration for browser-based MCP clients with strict security validation:
+
+```bash
+# Enable CORS for browser clients
+CORS_ENABLED=true
+CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOW_CREDENTIALS=true
+```
+
+**Security Validation:**
+- ❌ **Prevents insecure configuration**: Wildcard origin (`*`) with credentials is rejected
+- ✅ **Requires explicit origins**: Empty origins with credentials is rejected
+- ✅ **Credentials support**: Allows cookies and Authorization headers with explicit origins
+
+**Secure CORS Example:**
+```bash
+# ✅ GOOD: Explicit origin with credentials
+CORS_ENABLED=true
+CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOW_CREDENTIALS=true
+
+# ❌ BAD: Wildcard with credentials (rejected at startup)
+CORS_ENABLED=true
+CORS_ALLOW_ORIGINS='["*"]'
+CORS_ALLOW_CREDENTIALS=true  # Configuration error!
+
+# ✅ OK: Wildcard without credentials (public API)
+CORS_ENABLED=true
+CORS_ALLOW_ORIGINS='["*"]'
+CORS_ALLOW_CREDENTIALS=false
+```
+
+### Session Hijacking Prevention
+
+HTTP Stream Transport sessions are protected against hijacking:
+
+**Session Isolation:**
+- Each session has a unique `mcp-session-id`
+- Sessions are isolated in the event store
+- Events from one session cannot be replayed by another session
+
+**Message Replay Protection:**
+- Events are identified by unique event IDs
+- Replay only works with correct session ID + event ID combination
+- Expired events are automatically cleaned up (TTL)
+
+**Configuration:**
+```bash
+# Event store settings
+HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000     # Max events in history
+HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300     # 5 minute TTL (adjust for your needs)
+```
+
+**Best Practices:**
+- Use TLS/HTTPS to prevent session ID interception
+- Keep TTL short for sensitive operations (5-10 minutes)
+- Monitor audit logs for unusual session patterns
+- Clear event history regularly (automatic with TTL)
+
+### OAuth Integration
+
+HTTP Stream Transport fully integrates with OAuth/OIDC authentication:
+
+```bash
+# HTTP Stream Transport with OAuth
+SECURITY_OAUTH_ENABLED=true
+SECURITY_OAUTH_ISSUER=https://auth.example.com
+SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
+SECURITY_OAUTH_AUDIENCE=mcp-docker-api
+```
+
+**Client Request:**
+```bash
+# Include Bearer token in Authorization header
+curl -X POST https://api.example.com/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
+```
+
+**Security Notes:**
+- OAuth is enforced on all HTTP Stream Transport requests
+- Sessions require valid authentication
+- Token validation occurs before session creation
+- Expired tokens cannot create or resume sessions
+
+### Stateless Mode for Scalability
+
+Disable session management for horizontally scaled deployments:
+
+```bash
+# Stateless mode (no session tracking)
+HTTPSTREAM_STATELESS_MODE=true
+HTTPSTREAM_RESUMABILITY_ENABLED=false
+```
+
+**Security Implications:**
+- ✅ Simpler to secure (no session state)
+- ✅ Easier horizontal scaling
+- ❌ No message replay (less reliable)
+- ❌ No resumability after disconnect
+
+**Use Case**: Load-balanced deployments with multiple server instances.
+
+### Production Configuration
+
+Complete HTTP Stream Transport security configuration:
+
+```bash
+# TLS/HTTPS (required for production)
+MCP_TLS_ENABLED=true
+MCP_TLS_CERT_FILE=/etc/mcp-docker/certs/cert.pem
+MCP_TLS_KEY_FILE=/etc/mcp-docker/certs/key.pem
+
+# HTTP Stream Transport
+HTTPSTREAM_JSON_RESPONSE_DEFAULT=false      # Streaming mode
+HTTPSTREAM_STATELESS_MODE=false             # Enable sessions
+HTTPSTREAM_RESUMABILITY_ENABLED=true        # Enable replay
+HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000
+HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300
+
+# DNS Rebinding Protection
+HTTPSTREAM_DNS_REBINDING_PROTECTION=true
+HTTPSTREAM_ALLOWED_HOSTS='["api.example.com"]'
+
+# CORS (if browser clients)
+CORS_ENABLED=true
+CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOW_CREDENTIALS=true
+
+# OAuth Authentication
+SECURITY_OAUTH_ENABLED=true
+SECURITY_OAUTH_ISSUER=https://auth.example.com
+SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
+SECURITY_OAUTH_AUDIENCE=mcp-docker-api
+
+# Rate Limiting
+SECURITY_RATE_LIMIT_ENABLED=true
+SECURITY_RATE_LIMIT_RPM=60
+
+# Audit Logging
+SECURITY_AUDIT_LOG_ENABLED=true
+```
+
+See `docs/examples/httpstream-config.md` for complete configuration examples.
+
 ## Production Deployment Checklist
 
 Before deploying to production:
@@ -388,12 +593,27 @@ Before deploying to production:
 - [ ] Verify stdio transport bypasses authentication (expected behavior)
 - [ ] Document authentication requirements for clients
 
-### TLS/HTTPS (SSE Transport)
+### TLS/HTTPS (Network Transports)
 - [ ] Generate or obtain TLS certificates (use Let's Encrypt for production)
 - [ ] Configure TLS: `MCP_TLS_ENABLED=true`
 - [ ] Verify certificate paths are correct
 - [ ] Test HTTPS endpoint with real certificate
 - [ ] Configure HSTS if using reverse proxy
+
+### HTTP Stream Transport (if using httpstream transport)
+- [ ] Configure DNS rebinding protection: `HTTPSTREAM_DNS_REBINDING_PROTECTION=true`
+- [ ] Set allowed hosts: `HTTPSTREAM_ALLOWED_HOSTS='["api.example.com"]'`
+- [ ] Configure event store TTL appropriately (default: 300s)
+- [ ] Enable resumability for reliability: `HTTPSTREAM_RESUMABILITY_ENABLED=true`
+- [ ] Test session management and reconnection
+- [ ] **CORS Configuration** (if browser clients):
+  - [ ] Enable CORS: `CORS_ENABLED=true`
+  - [ ] Set explicit allowed origins (never wildcard with credentials)
+  - [ ] Enable credentials if needed: `CORS_ALLOW_CREDENTIALS=true`
+  - [ ] Test preflight OPTIONS requests
+  - [ ] Verify CORS headers in browser console
+- [ ] Test stream resumability with `last-event-id` header
+- [ ] Review session isolation and event store cleanup
 
 ### Rate Limiting & Resource Controls
 - [ ] Enable rate limiting (`SECURITY_RATE_LIMIT_ENABLED=true`)
@@ -449,7 +669,9 @@ Before deploying to production:
 - [ ] Test with untrusted containers in isolated environment first
 
 ### Deployment
-- [ ] Use the startup script: `./start-mcp-docker-sse.sh`
+- [ ] Use the appropriate startup script:
+  - [ ] HTTP Stream Transport (recommended): `./start-mcp-docker-httpstream.sh`
+  - [ ] SSE Transport (legacy): `./start-mcp-docker-sse.sh`
 - [ ] Verify all security warnings on startup
 - [ ] Confirm server binds to correct interface (not 0.0.0.0 unless intentional)
 - [ ] Test complete workflow end-to-end with production config
@@ -475,12 +697,14 @@ The Docker socket/pipe provides root-level access to the host system. Protect it
 
 ### Network Security
 
-For SSE transport:
+For SSE and HTTP Stream transports:
 
 1. **HTTPS**: Always use HTTPS in production
 2. **Firewall**: Restrict access to known IPs
 3. **Reverse Proxy**: Use nginx/Apache with additional security headers
 4. **Certificate**: Use valid TLS certificates from trusted CA
+5. **DNS Rebinding Protection**: Configure allowed hosts for HTTP Stream Transport
+6. **CORS**: Enable only for trusted origins if using browser clients
 
 ### Audit Logs
 

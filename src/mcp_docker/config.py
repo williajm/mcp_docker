@@ -499,6 +499,176 @@ class ServerConfig(BaseSettings):
         return tls_file
 
 
+class HttpStreamConfig(BaseSettings):
+    """HTTP Stream Transport configuration settings.
+
+    HTTP Stream Transport is the modern MCP transport that replaces SSE.
+    It uses a single unified endpoint with built-in session management
+    and resumability support via the MCP SDK.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="HTTPSTREAM_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    json_response_default: bool = Field(
+        default=False,
+        description="Default response mode: False for streaming (SSE), True for batch (JSON)",
+    )
+
+    stateless_mode: bool = Field(
+        default=False,
+        description="Disable session management (stateless mode)",
+    )
+
+    resumability_enabled: bool = Field(
+        default=True,
+        description="Enable message history and reconnection support",
+    )
+
+    event_store_max_events: int = Field(
+        default=1000,
+        ge=1,
+        le=10000,
+        description="Maximum number of events to store in memory for resumability",
+    )
+
+    event_store_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=3600,
+        description="Time-to-live for stored events in seconds (default: 300 = 5 minutes)",
+    )
+
+    dns_rebinding_protection: bool = Field(
+        default=True,
+        description="Enable DNS rebinding protection (TransportSecuritySettings)",
+    )
+
+    allowed_hosts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Additional allowed hostnames for DNS rebinding protection. "
+            "By default, only localhost and 127.0.0.1 are allowed. "
+            "Add your production hostnames here (e.g., ['my-api.company.com', '203.0.113.50']). "
+            "Can be set via HTTPSTREAM_ALLOWED_HOSTS as JSON array string."
+        ),
+    )
+
+
+class CORSConfig(BaseSettings):
+    """CORS configuration for browser-based clients.
+
+    SECURITY: CORS is disabled by default to prevent unintended exposure.
+    When enabled with OAuth/authentication, you MUST specify explicit
+    origins - wildcards are not allowed with credentials.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="CORS_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable CORS headers (disabled by default for security)",
+    )
+
+    allow_origins: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Allowed origins - MUST be explicit domains, not wildcards. "
+            "Example: ['https://app.example.com', 'https://admin.example.com']"
+        ),
+    )
+
+    allow_methods: list[str] = Field(
+        default_factory=lambda: ["GET", "POST", "OPTIONS"],
+        description="Allowed HTTP methods",
+    )
+
+    allow_headers: list[str] = Field(
+        default_factory=lambda: [
+            "Content-Type",
+            "Authorization",
+            "mcp-session-id",
+            "last-event-id",
+        ],
+        description="Allowed request headers",
+    )
+
+    expose_headers: list[str] = Field(
+        default_factory=lambda: ["mcp-session-id"],
+        description="Headers exposed to browser clients",
+    )
+
+    allow_credentials: bool = Field(
+        default=True,
+        description="Allow credentials (cookies, authorization headers)",
+    )
+
+    max_age: int = Field(
+        default=3600,
+        ge=0,
+        description="Preflight cache duration in seconds",
+    )
+
+    @model_validator(mode="after")
+    def validate_cors_credentials(self) -> "CORSConfig":
+        """Validate that wildcard origins aren't used with credentials.
+
+        This prevents the Starlette runtime error and security regression
+        that occurs when using wildcard origins with credentials=True.
+        """
+        if self.enabled and self.allow_credentials:
+            if "*" in self.allow_origins:
+                raise ValueError(
+                    "CORS: Cannot use wildcard origin ('*') with allow_credentials=True. "
+                    "Specify explicit origins like ['https://app.example.com']"
+                )
+            if not self.allow_origins:
+                raise ValueError(
+                    "CORS: Must specify explicit allow_origins when enabled with credentials. "
+                    "Set CORS_ALLOW_ORIGINS to a list of trusted domains."
+                )
+        return self
+
+    @field_validator("allow_origins", mode="before")
+    @classmethod
+    def parse_allow_origins(cls, v: str | list[str] | None) -> list[str]:
+        """Parse CORS_ALLOW_ORIGINS from comma-separated or JSON format."""
+        return _parse_comma_separated_list(v)
+
+    @field_validator("allow_methods", mode="before")
+    @classmethod
+    def parse_allow_methods(cls, v: str | list[str] | None) -> list[str]:
+        """Parse CORS_ALLOW_METHODS from comma-separated or JSON format."""
+        if v is None:
+            return ["GET", "POST", "OPTIONS"]
+        return _parse_comma_separated_list(v)
+
+    @field_validator("allow_headers", mode="before")
+    @classmethod
+    def parse_allow_headers(cls, v: str | list[str] | None) -> list[str]:
+        """Parse CORS_ALLOW_HEADERS from comma-separated or JSON format."""
+        if v is None:
+            return ["Content-Type", "Authorization", "mcp-session-id", "last-event-id"]
+        return _parse_comma_separated_list(v)
+
+    @field_validator("expose_headers", mode="before")
+    @classmethod
+    def parse_expose_headers(cls, v: str | list[str] | None) -> list[str]:
+        """Parse CORS_EXPOSE_HEADERS from comma-separated or JSON format."""
+        if v is None:
+            return ["mcp-session-id"]
+        return _parse_comma_separated_list(v)
+
+
 class Config:
     """Main configuration container."""
 
@@ -508,10 +678,13 @@ class Config:
         self.safety = SafetyConfig()
         self.security = SecurityConfig()
         self.server = ServerConfig()
+        self.httpstream = HttpStreamConfig()
+        self.cors = CORSConfig()
 
     def __repr__(self) -> str:
         """Return string representation of config."""
         return (
             f"Config(docker={self.docker!r}, safety={self.safety!r}, "
-            f"security={self.security!r}, server={self.server!r})"
+            f"security={self.security!r}, server={self.server!r}, "
+            f"httpstream={self.httpstream!r}, cors={self.cors!r})"
         )
