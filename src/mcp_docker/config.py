@@ -1,13 +1,49 @@
 """Configuration management for MCP Docker server."""
 
+import json
 import platform
 import warnings
 from pathlib import Path
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, HttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
+
+
+def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
+    """Parse comma-separated string or JSON array into list of strings.
+
+    Supports multiple input formats:
+    - JSON array: '["value1","value2"]' or '["value1", "value2"]'
+    - Comma-separated: 'value1,value2' or 'value1, value2'
+    - Already a list: ['value1', 'value2']
+    - None or empty string: []
+
+    Args:
+        value: Input value (string, list, or None)
+
+    Returns:
+        List of strings
+    """
+    if value is None or value == "":
+        return []
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        # Try to parse as JSON first
+        value_stripped = value.strip()
+        if value_stripped.startswith("[") and value_stripped.endswith("]"):
+            try:
+                parsed = json.loads(value_stripped)
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed]
+            except json.JSONDecodeError:
+                # If JSON parsing fails, fall back to comma-separated parsing below
+                pass
+        # Fall back to comma-separated parsing
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
 
 
 def _get_default_docker_socket() -> str:
@@ -278,6 +314,76 @@ class SecurityConfig(BaseSettings):
         ),
     )
 
+    # OAuth/OIDC Authentication
+    oauth_enabled: bool = Field(
+        default=False,
+        description=(
+            "Enable OAuth/OIDC authentication for network transports (stdio always bypasses auth)"
+        ),
+    )
+    oauth_issuer: HttpUrl | None = Field(
+        default=None,
+        description="OAuth/OIDC issuer URL (e.g., https://accounts.google.com, https://auth.example.com)",
+    )
+    oauth_audience: list[str] | str = Field(
+        default=[],
+        description=(
+            "Expected audience values in JWT 'aud' claim. "
+            "If empty, audience validation is skipped. "
+            "Can be set via SECURITY_OAUTH_AUDIENCE as comma-separated string or JSON array."
+        ),
+    )
+    oauth_jwks_url: HttpUrl | None = Field(
+        default=None,
+        description="JWKS endpoint URL for JWT signature verification (e.g., https://auth.example.com/.well-known/jwks.json)",
+    )
+    oauth_required_scopes: list[str] | str = Field(
+        default=[],
+        description=(
+            "Required OAuth scopes for access. "
+            "If empty, scope validation is skipped. "
+            "Can be set via SECURITY_OAUTH_REQUIRED_SCOPES as comma-separated string or JSON array."
+        ),
+    )
+    oauth_introspection_url: HttpUrl | None = Field(
+        default=None,
+        description="Token introspection endpoint URL (optional, for opaque tokens)",
+    )
+    oauth_client_id: str | None = Field(
+        default=None,
+        description="OAuth client ID for token introspection (optional)",
+    )
+    oauth_client_secret: str | None = Field(
+        default=None,
+        description="OAuth client secret for token introspection (optional, sensitive)",
+    )
+    oauth_clock_skew_seconds: int = Field(
+        default=60,
+        description="Allowed clock skew in seconds for JWT exp/nbf validation",
+        ge=0,
+        le=300,
+    )
+
+    @model_validator(mode="after")
+    def parse_oauth_list_fields(self) -> "SecurityConfig":
+        """Parse OAuth list fields from comma-separated strings to lists.
+
+        Handles the case where oauth_audience and oauth_required_scopes
+        are provided as comma-separated strings instead of JSON arrays.
+
+        Returns:
+            Self with parsed list fields
+        """
+        # Parse oauth_audience
+        if isinstance(self.oauth_audience, str):
+            self.oauth_audience = _parse_comma_separated_list(self.oauth_audience)
+
+        # Parse oauth_required_scopes
+        if isinstance(self.oauth_required_scopes, str):
+            self.oauth_required_scopes = _parse_comma_separated_list(self.oauth_required_scopes)
+
+        return self
+
     @field_validator("audit_log_file")
     @classmethod
     def validate_audit_log_path(cls, audit_log_path: Path) -> Path:
@@ -290,6 +396,36 @@ class SecurityConfig(BaseSettings):
         if not audit_log_path.parent.exists():
             audit_log_path.parent.mkdir(parents=True, exist_ok=True)
         return audit_log_path
+
+    @model_validator(mode="after")
+    def validate_oauth_config(self) -> "SecurityConfig":
+        """Validate OAuth configuration consistency."""
+        if self.oauth_enabled:
+            # Require issuer and JWKS URL if OAuth is enabled
+            if not self.oauth_issuer:
+                raise ValueError(
+                    "OAuth enabled but oauth_issuer not configured. "
+                    "Set SECURITY_OAUTH_ISSUER to your OAuth provider's issuer URL."
+                )
+            if not self.oauth_jwks_url:
+                raise ValueError(
+                    "OAuth enabled but oauth_jwks_url not configured. "
+                    "Set SECURITY_OAUTH_JWKS_URL to your OAuth provider's JWKS endpoint."
+                )
+
+            # Warn if introspection URL is set without client credentials
+            if self.oauth_introspection_url and not (
+                self.oauth_client_id and self.oauth_client_secret
+            ):
+                warnings.warn(
+                    "OAuth introspection URL configured but client credentials missing. "
+                    "Set SECURITY_OAUTH_CLIENT_ID and SECURITY_OAUTH_CLIENT_SECRET "
+                    "for introspection.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+        return self
 
 
 class ServerConfig(BaseSettings):
