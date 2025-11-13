@@ -569,7 +569,6 @@ version = "1.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "cachetools" },
-    { name = "cryptography" },
     { name = "docker" },
     { name = "limits" },
     { name = "loguru" },
@@ -617,7 +616,6 @@ dev = [
 requires-dist = [
     { name = "atheris", marker = "extra == 'dev'", specifier = ">=2.3.0" },
     { name = "cachetools", specifier = ">=6.2.1" },
-    { name = "cryptography", specifier = ">=41.0.0" },
     { name = "docker", specifier = ">=7.1.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "httpx-sse", marker = "extra == 'dev'", specifier = ">=0.4.0" },
@@ -636,7 +634,7 @@ requires-dist = [
     { name = "secure", specifier = ">=1.0.1" },
     { name = "starlette", specifier = ">=0.50.0" },
     { name = "types-docker", marker = "extra == 'dev'", specifier = ">=7.1.0" },
-    { name = "uvicorn", specifier = ">=0.27.0" },
+    { name = "uvicorn", specifier = ">=0.38.0" },
 ]
 provides-extras = ["dev"]
 

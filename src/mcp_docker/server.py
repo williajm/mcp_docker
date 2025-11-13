@@ -74,8 +74,7 @@ class MCPDockerServer:
             f"(max concurrent operations: {config.safety.max_concurrent_operations})"
         )
         logger.info(
-            f"Security: auth={config.security.auth_enabled}, "
-            f"rate_limit={config.security.rate_limit_enabled}, "
+            f"Security: rate_limit={config.security.rate_limit_enabled}, "
             f"audit={config.security.audit_log_enabled}"
         )
 
@@ -226,7 +225,6 @@ class MCPDockerServer:
         tool_name: str,
         arguments: dict[str, Any],
         ip_address: str | None = None,
-        ssh_auth_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Call a tool with the given arguments.
 
@@ -234,13 +232,6 @@ class MCPDockerServer:
             tool_name: Name of the tool to call
             arguments: Tool arguments
             ip_address: IP address of the client (for audit logging)
-            ssh_auth_data: SSH authentication data (optional)
-                Format: {
-                    "client_id": str,
-                    "timestamp": str,
-                    "nonce": str,
-                    "signature": str (base64)
-                }
 
         Returns:
             Tool execution result
@@ -250,7 +241,7 @@ class MCPDockerServer:
             PermissionError: If operation is not allowed by safety config
         """
         # Authenticate the client
-        client_info = self._authenticate_client(ip_address, ssh_auth_data)
+        client_info = self._authenticate_client(ip_address)
         if "error" in client_info:
             return client_info
 
@@ -269,13 +260,11 @@ class MCPDockerServer:
     def _authenticate_client(
         self,
         ip_address: str | None,
-        ssh_auth_data: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Authenticate the client request.
 
         Args:
             ip_address: IP address of the client
-            ssh_auth_data: SSH authentication data
 
         Returns:
             Client info dict on success, or error dict on failure
@@ -283,7 +272,6 @@ class MCPDockerServer:
         try:
             client_info = self.auth_middleware.authenticate_request(
                 ip_address=ip_address,
-                ssh_auth_data=ssh_auth_data,
             )
             return {"client_id": client_info.client_id, "client_info_obj": client_info}
         except Exception as e:

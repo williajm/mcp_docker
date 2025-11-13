@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- **SSH Authentication**: Removed SSH key-based authentication system
+  - BREAKING: Removed `SECURITY_AUTH_ENABLED`, `SECURITY_SSH_AUTH_ENABLED`, `SECURITY_SSH_AUTHORIZED_KEYS_FILE`, and `SECURITY_SSH_SIGNATURE_MAX_AGE` configuration options
+  - BREAKING: Removed `_auth` parameter from tool calls
+  - Rationale: No standard MCP clients support custom SSH authentication; simplified to IP-based access control
+  - Migration: Use `SECURITY_ALLOWED_CLIENT_IPS` for network-level access control instead
+  - Removed files: `src/mcp_docker/auth/ssh_*.py` and related tests
+  - Simplified `AuthMiddleware` to focus on IP allowlist filtering only
+
 ## [1.0.3] - 2025-11-12
 
 ### Added

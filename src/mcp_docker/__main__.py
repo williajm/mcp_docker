@@ -102,45 +102,21 @@ async def handle_list_tools() -> list[Tool]:
 async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:
     """Execute a Docker tool.
 
-    Authentication can be provided via the special '_auth' argument:
-    {
-        "_auth": {
-            "ssh": {  # SSH key authentication
-                "client_id": "client-id",
-                "timestamp": "2025-11-04T12:00:00Z",
-                "nonce": "random-nonce",
-                "signature": "base64-signature"
-            }
-        },
-        "actual_arg1": "value1",  # Tool's actual arguments
-        "actual_arg2": "value2"
-    }
+    Args:
+        name: Name of the tool to execute
+        arguments: Tool-specific arguments
     """
     logger.debug(f"call_tool: {name}")
-
-    # Extract authentication data (if present) - must be done before logging
-    auth_data = arguments.pop("_auth", {})
-
-    # Validate auth_data is a dict to prevent AttributeError on malformed requests
-    if not isinstance(auth_data, dict):
-        logger.warning(f"Invalid _auth type: {type(auth_data).__name__}, expected dict")
-        auth_data = {}
-
-    # Safe to log arguments now that _auth has been removed (no credential leakage)
-    # SECURITY: Loguru handles large payloads safely with automatic serialization
-    logger.debug(f"Arguments (auth redacted): {arguments}")
-
-    ssh_auth_data = auth_data.get("ssh")
+    logger.debug(f"Arguments: {arguments}")
 
     # Get client IP from context variable (set by SSE transport)
     ip_address = client_ip_context.get()
 
-    # Call tool with authentication
+    # Call tool
     result = await docker_server.call_tool(
         name,
         arguments,
         ip_address=ip_address,
-        ssh_auth_data=ssh_auth_data,
     )
 
     # Return result in MCP format (list of content items)
@@ -336,23 +312,19 @@ def _validate_sse_security(host: str) -> None:
             "═════════════════════════════════════════════════════════════"
         )
 
-    # Check authentication for non-localhost
-    if not config.security.auth_enabled and not is_localhost:
-        logger.error(
+    # Check IP allowlist for non-localhost
+    if not config.security.allowed_client_ips and not is_localhost:
+        logger.warning(
             "═════════════════════════════════════════════════════════════\n"
-            "⚠️  CRITICAL SECURITY WARNING ⚠️\n"
-            "Authentication is DISABLED while binding to a non-localhost address!\n"
+            "⚠️  SECURITY WARNING ⚠️\n"
+            "IP allowlist is NOT configured while binding to a non-localhost address!\n"
             "Anyone who can reach this server can execute Docker commands\n"
-            "without credentials.\n"
+            "without restriction.\n"
             "\n"
-            "Enable authentication by setting:\n"
-            "  SECURITY_AUTH_ENABLED=true\n"
+            "To restrict access, set:\n"
+            "  SECURITY_ALLOWED_CLIENT_IPS=[\"127.0.0.1\", \"192.168.1.100\"]\n"
             "Or bind to localhost only: --host 127.0.0.1\n"
             "═════════════════════════════════════════════════════════════"
-        )
-        raise RuntimeError(
-            "Authentication MUST be enabled when binding to non-localhost addresses. "
-            "Set SECURITY_AUTH_ENABLED=true or bind to 127.0.0.1 only."
         )
 
     # Validate TLS configuration if enabled

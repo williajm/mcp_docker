@@ -90,10 +90,9 @@ The MCP Docker server includes comprehensive security features for production de
 ### Key Security Features
 
 - **TLS/HTTPS**: Encrypted transport for SSE mode (required for production)
-- **Authentication**: SSH key-based authentication for remote access
-- **Rate Limiting**: Prevent abuse (60 req/min default, auth failures limited)
+- **IP Filtering**: Restrict access by client IP address
+- **Rate Limiting**: Prevent abuse (60 req/min default)
 - **Audit Logging**: Track all operations with client IPs
-- **IP Filtering**: Restrict access by network address
 - **Error Sanitization**: Prevent information disclosure
 - **Security Headers**: OWASP-recommended headers via `secure` library (HSTS, CSP, X-Frame-Options, etc.)
 
@@ -125,10 +124,8 @@ MCP_TLS_ENABLED=true
 MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
 MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
 
-# Authentication
-SECURITY_AUTH_ENABLED=true
-SECURITY_SSH_AUTH_ENABLED=true
-SECURITY_SSH_AUTHORIZED_KEYS_FILE=~/.mcp-docker/authorized_keys
+# IP Filtering (optional - empty list allows all IPs)
+SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
 
 # Rate Limiting
 SECURITY_RATE_LIMIT_ENABLED=true
@@ -482,7 +479,6 @@ uv run pytest tests/e2e/ -v -m e2e
 uv run pytest tests/e2e/ -v -m "e2e and not slow"
 
 # Run fuzz tests locally (requires atheris)
-python3 tests/fuzz/fuzz_ssh_auth.py -atheris_runs=10000
 python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
 ```
 
