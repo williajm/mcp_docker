@@ -342,3 +342,87 @@ class TestAuthMiddlewareOAuth:
             )
 
         assert "OAuth authentication not available" in str(exc_info.value)
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_with_ip_allowlist_defense_in_depth(
+        self, mock_oauth_class: AsyncMock
+    ) -> None:
+        """Test defense-in-depth: valid OAuth token but IP not in allowlist is rejected."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            allowed_client_ips=["192.168.1.100", "192.168.1.101"],
+        )
+
+        # Mock the OAuthAuthenticator instance
+        mock_authenticator = AsyncMock()
+        mock_oauth_class.return_value = mock_authenticator
+
+        # Mock successful OAuth authentication
+        mock_client_info = ClientInfo(
+            client_id="user123",
+            auth_method="oauth",
+            api_key_hash="oauth",
+            description="OAuth authenticated client",
+            scopes=["docker.read"],
+            authenticated_at=datetime.now(UTC),
+        )
+        mock_authenticator.authenticate_token.return_value = mock_client_info
+
+        middleware = AuthMiddleware(config)
+
+        # Try to authenticate with valid OAuth token but IP not in allowlist
+        with pytest.raises(AuthenticationError) as exc_info:
+            await middleware.authenticate_request(
+                ip_address="10.0.0.1",  # Not in allowlist
+                bearer_token="valid_jwt_token",
+            )
+
+        # Should fail due to IP not in allowlist, despite valid OAuth token
+        assert "IP address not allowed" in str(exc_info.value)
+        assert "10.0.0.1" in str(exc_info.value)
+
+        # OAuth authentication should have been called first
+        mock_authenticator.authenticate_token.assert_called_once_with("valid_jwt_token")
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_with_ip_in_allowlist_succeeds(self, mock_oauth_class: AsyncMock) -> None:
+        """Test defense-in-depth: valid OAuth token with IP in allowlist succeeds."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            allowed_client_ips=["192.168.1.100", "192.168.1.101"],
+        )
+
+        # Mock the OAuthAuthenticator instance
+        mock_authenticator = AsyncMock()
+        mock_oauth_class.return_value = mock_authenticator
+
+        # Mock successful OAuth authentication
+        mock_client_info = ClientInfo(
+            client_id="user123",
+            auth_method="oauth",
+            api_key_hash="oauth",
+            description="OAuth authenticated client",
+            scopes=["docker.read"],
+            authenticated_at=datetime.now(UTC),
+        )
+        mock_authenticator.authenticate_token.return_value = mock_client_info
+
+        middleware = AuthMiddleware(config)
+
+        # Authenticate with valid OAuth token and IP in allowlist
+        result = await middleware.authenticate_request(
+            ip_address="192.168.1.100",  # In allowlist
+            bearer_token="valid_jwt_token",
+        )
+
+        # Should succeed - both OAuth and IP allowlist pass
+        assert result.client_id == "user123"
+        assert result.auth_method == "oauth"
+        assert result.ip_address == "192.168.1.100"
+
+        # OAuth authentication should have been called
+        mock_authenticator.authenticate_token.assert_called_once_with("valid_jwt_token")

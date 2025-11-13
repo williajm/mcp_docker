@@ -19,14 +19,17 @@ class AuthMiddleware:
 
     This middleware supports multiple authentication methods:
     - OAuth/OIDC (for network transports when enabled)
-    - IP allowlist (fallback for network transports)
+    - IP allowlist (defense-in-depth with OAuth, or standalone)
     - No authentication (stdio transport)
 
     Authentication flow:
     1. stdio transport (ip_address=None) always bypasses authentication
     2. Network transports (ip_address provided):
-       - If OAuth enabled: require and validate bearer token
+       - If OAuth enabled: require and validate bearer token, then check IP allowlist
        - If OAuth disabled: check IP allowlist (if configured)
+
+    Note: When OAuth is enabled, BOTH the OAuth token AND IP allowlist (if configured)
+    must pass for defense-in-depth security.
     """
 
     def __init__(self, security_config: SecurityConfig) -> None:
@@ -65,7 +68,8 @@ class AuthMiddleware:
 
         Authentication flow:
         1. stdio transport (ip_address=None): Always allowed, no authentication
-        2. Network transport with OAuth enabled: Require and validate bearer token
+        2. Network transport with OAuth enabled: Require and validate bearer token,
+           then check IP allowlist (if configured) for defense-in-depth
         3. Network transport with OAuth disabled: Check IP allowlist
 
         Args:
@@ -76,7 +80,7 @@ class AuthMiddleware:
             ClientInfo for the authenticated client
 
         Raises:
-            AuthenticationError: If authentication fails
+            AuthenticationError: If authentication fails (invalid token or blocked IP)
         """
         # stdio transport always bypasses authentication
         if ip_address is None:
@@ -105,6 +109,19 @@ class AuthMiddleware:
 
                 # Add IP address to client info
                 client_info.ip_address = ip_address
+
+                # Defense in depth: Check IP allowlist even after successful OAuth auth
+                if (
+                    self.config.allowed_client_ips
+                    and ip_address not in self.config.allowed_client_ips
+                ):
+                    logger.warning(
+                        f"OAuth authentication succeeded but IP {ip_address} not in allowlist. "
+                        f"Client: {client_info.client_id}"
+                    )
+                    raise AuthenticationError(
+                        f"Valid OAuth token but IP address not allowed: {ip_address}"
+                    )
 
                 logger.info(
                     f"OAuth authentication successful: client_id={client_info.client_id}, "

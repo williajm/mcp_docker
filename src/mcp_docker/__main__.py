@@ -380,8 +380,8 @@ def _extract_bearer_token(scope: MutableMapping[str, Any]) -> str | None:
     for name, value in headers:
         if name.lower() == b"authorization":
             auth_value: str = value.decode("utf-8", errors="ignore")
-            # Check if it's a Bearer token
-            if auth_value.startswith("Bearer "):
+            # Check if it's a Bearer token (case-insensitive per RFC 7235)
+            if auth_value.lower().startswith("bearer "):
                 token: str = auth_value[7:].strip()  # Remove "Bearer " prefix
                 return token
     return None

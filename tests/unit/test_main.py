@@ -879,6 +879,24 @@ class TestHelperFunctions:
         token = main_module._extract_bearer_token(scope)
         assert token is None
 
+    def test_extract_bearer_token_lowercase_bearer(self) -> None:
+        """Test _extract_bearer_token accepts lowercase 'bearer' (RFC 7235 compliance)."""
+        scope = {"headers": [[b"authorization", b"bearer test_token_456"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_456"
+
+    def test_extract_bearer_token_uppercase_bearer(self) -> None:
+        """Test _extract_bearer_token accepts uppercase 'BEARER' (RFC 7235 compliance)."""
+        scope = {"headers": [[b"authorization", b"BEARER test_token_789"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_789"
+
+    def test_extract_bearer_token_mixed_case_bearer(self) -> None:
+        """Test _extract_bearer_token accepts mixed case 'BeArEr' (RFC 7235 compliance)."""
+        scope = {"headers": [[b"authorization", b"BeArEr test_token_abc"]]}
+        token = main_module._extract_bearer_token(scope)
+        assert token == "test_token_abc"
+
 
 class TestMainFunction:
     """Tests for main function."""
