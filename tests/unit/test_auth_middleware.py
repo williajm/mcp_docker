@@ -1,8 +1,13 @@
 """Unit tests for authentication middleware."""
 
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from mcp_docker.auth.middleware import AuthenticationError, AuthMiddleware
+from mcp_docker.auth.models import ClientInfo
+from mcp_docker.auth.oauth_auth import OAuthAuthenticationError
 from mcp_docker.config import SecurityConfig
 
 
@@ -138,3 +143,202 @@ class TestAuthMiddleware:
         assert middleware.check_ip_allowed("127.0.0.1") is True
         assert middleware.check_ip_allowed("127.0.0.2") is False
         assert middleware.check_ip_allowed(None) is True  # stdio always allowed
+
+
+class TestAuthMiddlewareOAuth:
+    """Test OAuth authentication in middleware."""
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    def test_oauth_authenticator_initialization(self, mock_oauth_class: AsyncMock) -> None:
+        """Test OAuth authenticator is initialized when oauth_enabled=True."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        middleware = AuthMiddleware(config)
+
+        # Verify OAuthAuthenticator was instantiated
+        mock_oauth_class.assert_called_once_with(config)
+        assert middleware.oauth_authenticator is not None
+
+    def test_no_oauth_authenticator_when_disabled(self) -> None:
+        """Test OAuth authenticator is not initialized when oauth_enabled=False."""
+        config = SecurityConfig(oauth_enabled=False)
+
+        middleware = AuthMiddleware(config)
+
+        # Verify OAuth authenticator is None
+        assert middleware.oauth_authenticator is None
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_bearer_token_required(self, mock_oauth_class: AsyncMock) -> None:
+        """Test bearer token is required when OAuth is enabled."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        middleware = AuthMiddleware(config)
+
+        # Try to authenticate without bearer token
+        with pytest.raises(AuthenticationError) as exc_info:
+            await middleware.authenticate_request(ip_address="192.168.1.100", bearer_token=None)
+
+        assert "Bearer token required" in str(exc_info.value)
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_successful_authentication(self, mock_oauth_class: AsyncMock) -> None:
+        """Test successful OAuth authentication with valid bearer token."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_required_scopes=["docker.read"],
+        )
+
+        # Mock the OAuthAuthenticator instance
+        mock_authenticator = AsyncMock()
+        mock_oauth_class.return_value = mock_authenticator
+
+        # Mock successful authentication result
+        mock_client_info = ClientInfo(
+            client_id="user123",
+            auth_method="oauth",
+            api_key_hash="oauth",
+            description="OAuth authenticated client",
+            scopes=["docker.read", "docker.write"],
+            extra={"email": "user@example.com"},
+            authenticated_at=datetime.now(UTC),
+        )
+        mock_authenticator.authenticate_token.return_value = mock_client_info
+
+        middleware = AuthMiddleware(config)
+
+        # Authenticate with bearer token
+        result = await middleware.authenticate_request(
+            ip_address="192.168.1.100",
+            bearer_token="valid_jwt_token",
+        )
+
+        # Verify authentication was successful
+        assert result.client_id == "user123"
+        assert result.auth_method == "oauth"
+        assert result.scopes == ["docker.read", "docker.write"]
+        assert result.ip_address == "192.168.1.100"
+        assert result.extra == {"email": "user@example.com"}
+
+        # Verify the token was validated
+        mock_authenticator.authenticate_token.assert_called_once_with("valid_jwt_token")
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_authentication_failure(self, mock_oauth_class: AsyncMock) -> None:
+        """Test OAuth authentication failure with invalid token."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        # Mock the OAuthAuthenticator instance
+        mock_authenticator = AsyncMock()
+        mock_oauth_class.return_value = mock_authenticator
+
+        # Mock authentication failure
+        mock_authenticator.authenticate_token.side_effect = OAuthAuthenticationError(
+            "Invalid JWT token: signature verification failed"
+        )
+
+        middleware = AuthMiddleware(config)
+
+        # Try to authenticate with invalid token
+        with pytest.raises(AuthenticationError) as exc_info:
+            await middleware.authenticate_request(
+                ip_address="192.168.1.100",
+                bearer_token="invalid_jwt_token",
+            )
+
+        assert "OAuth authentication failed" in str(exc_info.value)
+        assert "signature verification failed" in str(exc_info.value)
+
+        # Verify the token was attempted to be validated
+        mock_authenticator.authenticate_token.assert_called_once_with("invalid_jwt_token")
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_stdio_bypass(self, mock_oauth_class: AsyncMock) -> None:
+        """Test stdio transport bypasses OAuth authentication."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        middleware = AuthMiddleware(config)
+
+        # Authenticate via stdio (ip_address=None, no bearer token)
+        result = await middleware.authenticate_request(ip_address=None, bearer_token=None)
+
+        # Verify stdio bypassed OAuth
+        assert result.client_id == "stdio"
+        assert result.auth_method == "stdio"
+        assert result.ip_address is None
+
+        # Verify OAuth authenticator was never called
+        mock_oauth_class.return_value.authenticate_token.assert_not_called()
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_close_cleanup(self, mock_oauth_class: AsyncMock) -> None:
+        """Test close() method cleans up OAuth authenticator."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        # Mock the OAuthAuthenticator instance
+        mock_authenticator = AsyncMock()
+        mock_oauth_class.return_value = mock_authenticator
+
+        middleware = AuthMiddleware(config)
+
+        # Close the middleware
+        await middleware.close()
+
+        # Verify the OAuth authenticator close was called
+        mock_authenticator.close.assert_called_once()
+
+    async def test_close_without_oauth(self) -> None:
+        """Test close() method when OAuth is disabled."""
+        config = SecurityConfig(oauth_enabled=False)
+
+        middleware = AuthMiddleware(config)
+
+        # Close should not raise an error
+        await middleware.close()
+
+    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    async def test_oauth_authenticator_not_initialized_error(
+        self, mock_oauth_class: AsyncMock
+    ) -> None:
+        """Test error when OAuth enabled but authenticator not initialized (edge case)."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        middleware = AuthMiddleware(config)
+
+        # Manually set authenticator to None to simulate initialization failure
+        middleware.oauth_authenticator = None
+
+        # Try to authenticate with bearer token
+        with pytest.raises(AuthenticationError) as exc_info:
+            await middleware.authenticate_request(
+                ip_address="192.168.1.100",
+                bearer_token="some_token",
+            )
+
+        assert "OAuth authentication not available" in str(exc_info.value)
