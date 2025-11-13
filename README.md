@@ -11,6 +11,7 @@
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
 
 **Quick Start:**
+
 - **Claude Code**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
 - **Codex**: `codex mcp add docker -- uvx mcp-docker@latest`
 
