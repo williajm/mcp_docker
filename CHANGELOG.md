@@ -7,15 +7,87 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-- **SSH Authentication**: Removed SSH key-based authentication system
-  - BREAKING: Removed `SECURITY_AUTH_ENABLED`, `SECURITY_SSH_AUTH_ENABLED`, `SECURITY_SSH_AUTHORIZED_KEYS_FILE`, and `SECURITY_SSH_SIGNATURE_MAX_AGE` configuration options
+## [1.0.4] - 2025-11-13
+
+### Added
+- **OAuth/OIDC Authentication**: Full OAuth 2.0 and OpenID Connect support for network-accessible deployments
+  - JWT signature validation with RS256, RS384, RS512, ES256, ES384, ES512 algorithms
+  - JWKS (JSON Web Key Set) endpoint integration with automatic key discovery
+  - JWKS caching with 15-minute TTL and automatic refresh on key rotation failures
+  - Token introspection endpoint support for opaque tokens
+  - Issuer (`iss`), audience (`aud`), expiration (`exp`), and not-before (`nbf`) claim validation
+  - Required scope enforcement with flexible scope claim detection (OAuth2, Azure AD, custom)
+  - Configurable clock skew tolerance for time-based validations
+  - IP allowlist enforcement with OAuth for defense-in-depth security
+  - Environment variables: `SECURITY_OAUTH_ENABLED`, `SECURITY_OAUTH_ISSUER`, `SECURITY_OAUTH_JWKS_URL`, `SECURITY_OAUTH_AUDIENCE`, `SECURITY_OAUTH_REQUIRED_SCOPES`, `SECURITY_OAUTH_INTROSPECTION_URL`, `SECURITY_OAUTH_CLIENT_ID`, `SECURITY_OAUTH_CLIENT_SECRET`, `SECURITY_OAUTH_CLOCK_SKEW_SECONDS`
+  - Example configuration in `examples/.env.oauth`
+- **OAuth Security Tests**: Comprehensive test suite covering 18 OAuth security vulnerabilities per RFC 8725
+  - Algorithm substitution attacks (`alg: none`, HS256 confusion)
+  - Malformed token handling (invalid JWT structure, missing sections, bad base64)
+  - Token tampering detection (modified payload without signature change)
+  - Claim validation (missing required claims, expired tokens, nbf validation)
+  - JWKS endpoint failure scenarios (404, malformed JSON, timeout)
+  - Key ID (`kid`) mismatch and rotation handling
+  - Audience validation edge cases (multiple audiences, partial matches)
+  - DoS prevention (extremely large tokens, short token lifetimes)
+  - Empty scope handling
+- **ClusterFuzzLite Support for OAuth**: Updated fuzzer configuration
+  - Added authlib==1.6.5, httpx==0.28.1 to requirements.txt with SHA256 hashes
+  - Upgraded cryptography from 44.0.1 to 46.0.3
+  - Added 7 transitive dependencies with hash pinning
+  - Updated PyInstaller hidden imports for authlib.jose, httpx, httpcore
+
+### Security
+- **CRITICAL: IP Allowlist Bypass with OAuth** (P1, Defense-in-Depth Failure)
+  - Fixed: IP allowlist was not enforced when OAuth was enabled
+  - Impact: Any attacker with a stolen valid OAuth token could connect from any IP
+  - Resolution: Now validates both OAuth token AND IP allowlist when both are configured
+  - Prevents lateral movement attacks where tokens are stolen but network access should be restricted
+- **RFC 7235/6750 Compliance: Case-Sensitive Bearer Token Parsing** (P2)
+  - Fixed: Authorization header only accepted "Bearer" (capital B), rejecting lowercase variants
+  - Impact: Clients sending `authorization: bearer <token>` or `AUTHORIZATION: BEARER <token>` received spurious 401 errors
+  - Resolution: Now accepts case-insensitive authentication schemes per RFC 7235 §2.1
+  - Improves compatibility with HTTP stacks that normalize headers
+
+### Fixed
+- **Stdio Transport IP Allowlist Bypass**: Fixed stdio transport incorrectly checking IP allowlist
+  - Previously rejected stdio connections when `SECURITY_ALLOWED_CLIENT_IPS` was configured
+  - Stdio transport (local connections) now correctly bypasses IP filtering as intended
+  - IP allowlist only applies to network transports (SSE over HTTP/HTTPS)
+- **OAuth Cognitive Complexity Reduction**: Refactored `authenticate_token()` from complexity 22 to 15
+  - Extracted `_build_client_info_from_claims()` helper to eliminate code duplication
+  - Extracted `_retry_jwt_with_fresh_jwks()` for JWKS cache refresh flow
+  - Extracted `_handle_jwt_failure_with_introspection()` for introspection fallback
+  - Improved testability and maintainability
+- **SSE Endpoint Cognitive Complexity Reduction**: Refactored `run_sse()` from complexity 25 to 15
+  - Extracted 6 helper functions: `_authenticate_sse_request()`, `_send_unauthorized_response()`, `_route_sse_request()`, `_create_sse_handler()`, `_create_security_headers_middleware()`, `_setup_signal_handlers()`
+  - Eliminated nested try-except blocks and improved code organization
+- **String Literal Duplication**: Replaced 6 occurrences of path literals with constants
+  - Added `SSE_PATH = "/sse"` and `MESSAGES_PATH = "/messages"` constants
+  - Improved maintainability and reduced SonarCloud code smells
+
+### Changed
+- **Authentication System**: Replaced SSH authentication with OAuth/OIDC
+  - BREAKING: Removed `SECURITY_AUTH_ENABLED`, `SECURITY_SSH_AUTH_ENABLED`, `SECURITY_SSH_AUTHORIZED_KEYS_FILE`, and `SECURITY_SSH_SIGNATURE_MAX_AGE`
   - BREAKING: Removed `_auth` parameter from tool calls
-  - Rationale: No standard MCP clients support custom SSH authentication; simplified to IP-based access control
-  - Migration: Use `SECURITY_ALLOWED_CLIENT_IPS` for network-level access control instead
-  - Removed files: `src/mcp_docker/auth/ssh_*.py`, all SSH auth tests, and SSH-specific E2E workflow tests
-  - Simplified `AuthMiddleware` to focus on IP allowlist filtering only
-  - Removed `cryptography` from production dependencies (re-added to dev dependencies for TLS testing)
+  - Rationale: No standard MCP clients support custom SSH authentication; OAuth is industry standard
+  - Migration: Use OAuth configuration or `SECURITY_ALLOWED_CLIENT_IPS` for access control
+  - Removed files: `src/mcp_docker/auth/ssh_*.py`, all SSH auth tests
+  - Simplified `AuthMiddleware` - now supports OAuth + IP filtering or IP filtering only
+  - Removed `cryptography` from production dependencies (OAuth uses authlib's built-in crypto)
+- **Test Coverage**: Added 20 unit tests for SSE authentication helper functions
+  - Covers `_authenticate_sse_request()` edge cases (HEAD bypass, non-SSE paths)
+  - Tests `_extract_bearer_token()` with various case combinations
+  - Tests OAuth + IP allowlist combinations (defense-in-depth)
+  - All 1,350+ OAuth-related tests pass
+
+### Documentation
+- **OAuth Configuration Guide**: Added comprehensive OAuth setup guide in `examples/.env.oauth`
+  - Covers Auth0, Keycloak, Azure AD, and custom OAuth providers
+  - Includes JWKS endpoint configuration and troubleshooting
+  - Documents required scopes and audience validation
+- **README.md**: Updated authentication section with OAuth examples
+- **CLAUDE.md**: Updated architecture section with OAuth authenticator details
 
 ## [1.0.3] - 2025-11-12
 
