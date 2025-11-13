@@ -481,3 +481,381 @@ class TestOAuthAuthenticator:
                 await authenticator.authenticate_token(invalid_token)
 
             await authenticator.close()
+
+
+class TestOAuthSecurityVulnerabilities:
+    """Security-focused tests for OAuth vulnerabilities per RFC 8725 and OAuth 2.0 BCP."""
+
+    async def test_algorithm_none_attack_rejected(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test that JWT with alg=none is rejected (CVE-2015-9235 class vulnerability)."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+        )
+
+        # Create token with alg=none (no signature)
+        import base64
+        import json
+
+        header = {"alg": "none", "typ": "JWT"}
+        payload = {
+            "sub": "user123",
+            "iss": "https://auth.example.com",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+
+        # Encode header and payload, no signature
+        header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).rstrip(b"=")
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=")
+        none_token = f"{header_b64.decode()}.{payload_b64.decode()}."
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(none_token)
+
+            await authenticator.close()
+
+    async def test_algorithm_confusion_hs256_rejected(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test that JWT with HS256 instead of RS256 is rejected (algorithm confusion attack)."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+        )
+
+        # Create token with HS256 (symmetric) instead of RS256 (asymmetric)
+        import base64
+        import hashlib
+        import hmac
+        import json
+
+        header = {"alg": "HS256", "typ": "JWT"}
+        payload = {
+            "sub": "user123",
+            "iss": "https://auth.example.com",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+
+        header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).rstrip(b"=")
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=")
+        message = f"{header_b64.decode()}.{payload_b64.decode()}"
+
+        # Sign with HMAC (using public key as secret - a common attack)
+        signature = hmac.new(b"secret", message.encode(), hashlib.sha256).digest()
+        sig_b64 = base64.urlsafe_b64encode(signature).rstrip(b"=")
+        hs256_token = f"{message}.{sig_b64.decode()}"
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(hs256_token)
+
+            await authenticator.close()
+
+    async def test_malformed_token_not_jwt_rejected(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test that non-JWT token (random string) is rejected gracefully."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+        )
+
+        malformed_tokens = [
+            "not-a-jwt-token",
+            "only.two.parts",  # Missing signature
+            "one-part-only",
+            "",
+            "a" * 1000,  # Very long random string
+        ]
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            for malformed_token in malformed_tokens:
+                with pytest.raises(OAuthAuthenticationError):
+                    await authenticator.authenticate_token(malformed_token)
+
+            await authenticator.close()
+
+    async def test_token_missing_required_claims_rejected(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test that tokens missing required claims (sub, exp, iss) are rejected."""
+        private_key, _ = test_key_pair
+
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+        )
+
+        # Test missing 'sub' claim
+        payload_no_sub = {
+            "iss": "https://auth.example.com",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+        token_no_sub = jwt.encode({"alg": "RS256"}, payload_no_sub, private_key)
+
+        # Test missing 'exp' claim
+        payload_no_exp = {
+            "sub": "user123",
+            "iss": "https://auth.example.com",
+            "aud": ["mcp-docker-api"],
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+        token_no_exp = jwt.encode({"alg": "RS256"}, payload_no_exp, private_key)
+
+        # Test missing 'iss' claim
+        payload_no_iss = {
+            "sub": "user123",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+        token_no_iss = jwt.encode({"alg": "RS256"}, payload_no_iss, private_key)
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            # All should be rejected
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(token_no_sub.decode())
+
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(token_no_exp.decode())
+
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(token_no_iss.decode())
+
+            await authenticator.close()
+
+    async def test_not_before_nbf_claim_validation(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test that tokens with nbf (not before) in the future are rejected."""
+        private_key, _ = test_key_pair
+
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+            oauth_clock_skew_seconds=60,
+        )
+
+        # Create token with nbf 5 minutes in the future (beyond clock skew)
+        payload = {
+            "sub": "user123",
+            "iss": "https://auth.example.com",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+            "nbf": int((datetime.now(UTC) + timedelta(minutes=5)).timestamp()),
+        }
+        token = jwt.encode({"alg": "RS256"}, payload, private_key)
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(token.decode())
+
+            await authenticator.close()
+
+    async def test_multiple_audiences_partial_match(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test token with multiple audiences where one matches is accepted."""
+        private_key, _ = test_key_pair
+
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",  # Trailing slash for Pydantic HttpUrl
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json/",
+            oauth_audience=["mcp-docker-api"],  # We require this audience
+            oauth_required_scopes=[],
+        )
+
+        # Create token with multiple audiences, one matching
+        payload = {
+            "sub": "user123",
+            "iss": "https://auth.example.com/",
+            "aud": [
+                "some-other-api",
+                "mcp-docker-api",
+                "yet-another-api",
+            ],  # Multiple audiences
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+        token = jwt.encode({"alg": "RS256"}, payload, private_key)
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            # Should succeed - one audience matches
+            client_info = await authenticator.authenticate_token(token.decode())
+            assert client_info.client_id == "user123"
+
+            await authenticator.close()
+
+    async def test_jwks_kid_mismatch_rejected(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test that token with kid not in JWKS is rejected."""
+        private_key, _ = test_key_pair
+
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+        )
+
+        # Create token with wrong kid
+        payload = {
+            "sub": "user123",
+            "iss": "https://auth.example.com",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+
+        # Force wrong kid in header
+        header = {"alg": "RS256", "kid": "non-existent-key-id"}
+        token = jwt.encode(header, payload, private_key)
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(token.decode())
+
+            await authenticator.close()
+
+    async def test_empty_scope_handling(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Test handling of empty and whitespace-only scopes."""
+        private_key, _ = test_key_pair
+
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",  # Trailing slash for Pydantic HttpUrl
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json/",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=["docker.read"],  # Require scope
+        )
+
+        test_cases = [
+            "",  # Empty string
+            "   ",  # Whitespace only
+            " docker.read  docker.write ",  # Extra whitespace
+        ]
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            for scope_value in test_cases:
+                payload = {
+                    "sub": "user123",
+                    "iss": "https://auth.example.com/",
+                    "aud": ["mcp-docker-api"],
+                    "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+                    "iat": int(datetime.now(UTC).timestamp()),
+                    "scope": scope_value,
+                }
+                token = jwt.encode({"alg": "RS256"}, payload, private_key)
+
+                if scope_value.strip() and "docker.read" in scope_value:
+                    # Should succeed for valid scopes with whitespace
+                    client_info = await authenticator.authenticate_token(token.decode())
+                    assert "docker.read" in client_info.scopes
+                else:
+                    # Should fail for empty/whitespace-only scopes
+                    with pytest.raises(OAuthAuthenticationError, match="Missing required scopes"):
+                        await authenticator.authenticate_token(token.decode())
+
+            await authenticator.close()

@@ -4,12 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from authlib.jose import (  # type: ignore[import-untyped]
+from authlib.jose import (  # type: ignore[import-not-found]
     JsonWebKey,
     JsonWebToken,
     JWTClaims,
 )
-from authlib.jose.errors import JoseError  # type: ignore[import-untyped]
+from authlib.jose.errors import JoseError  # type: ignore[import-not-found]
 from cachetools import TTLCache
 
 from mcp_docker.auth.models import ClientInfo
