@@ -322,7 +322,7 @@ def _validate_sse_security(host: str) -> None:
             "without restriction.\n"
             "\n"
             "To restrict access, set:\n"
-            "  SECURITY_ALLOWED_CLIENT_IPS=[\"127.0.0.1\", \"192.168.1.100\"]\n"
+            '  SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]\n'
             "Or bind to localhost only: --host 127.0.0.1\n"
             "═════════════════════════════════════════════════════════════"
         )
