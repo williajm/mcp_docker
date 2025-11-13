@@ -74,9 +74,9 @@ uv cache prune
 
 ### Advanced Usage
 
-#### HTTP Stream Transport (Recommended for Network Deployments)
+#### HTTP Stream Transport
 
-The HTTP Stream Transport is the modern MCP transport protocol using a single unified endpoint (`POST /`) for all operations. It's the recommended choice for network deployments.
+The HTTP Stream Transport is a modern MCP transport protocol using a single unified endpoint (`POST /`) for all operations.
 
 **Features:**
 - **Single Endpoint**: All MCP communication through `POST /` (no separate SSE/messages endpoints)
@@ -132,8 +132,6 @@ SECURITY_AUDIT_LOG_ENABLED=true
   - Batch responses return complete JSON arrays
 
 - **Resumability**: Include `last-event-id` header to replay missed events after reconnection
-
-See `docs/examples/httpstream-config.md` for complete configuration examples.
 
 #### SSE Transport with TLS
 
@@ -603,28 +601,6 @@ mcp_docker/
 - Write docstrings (Google style)
 - Maintain high test coverage
 - Pass all linting and type checking
-
-## Roadmap
-
-### ✅ HTTP Stream Transport (Completed)
-
-HTTP Stream Transport has been fully implemented and is now the recommended transport for network deployments.
-
-**What's Included:**
-
-- ✅ Single unified endpoint (`POST /`) for all MCP communication
-- ✅ Session management with `mcp-session-id` header tracking
-- ✅ Stream resumability with `InMemoryEventStore` for message replay
-- ✅ Flexible response modes (streaming SSE or batch JSON)
-- ✅ Enhanced CORS configuration with credentials support
-- ✅ DNS rebinding protection with configurable allowed hosts
-- ✅ Full OAuth/OIDC authentication integration
-- ✅ Comprehensive E2E test suite
-- ✅ Production-ready with TLS/HTTPS support
-
-See the "HTTP Stream Transport" section above for usage and configuration details.
-
-**Reference:** [MCP HTTP Stream Transport Documentation](https://mcp-framework.com/docs/Transports/http-stream-transport)
 
 ## License
 

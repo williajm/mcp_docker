@@ -35,7 +35,7 @@ Claude Desktop uses stdio transport (local process). The server relies on OS-lev
 }
 ```
 
-### For Network Deployment (HTTP Stream Transport - Recommended)
+### For Network Deployment (HTTP Stream Transport)
 
 For production deployment using HTTP Stream Transport with security features:
 
@@ -46,9 +46,9 @@ For production deployment using HTTP Stream Transport with security features:
 
 See the HTTP Stream Transport Security, OAuth/OIDC Authentication, and TLS/HTTPS sections below for configuration details.
 
-### For Network Deployment (SSE transport - Legacy)
+### For Network Deployment (SSE Transport)
 
-For production deployment using legacy SSE transport with security features:
+For production deployment using SSE transport with security features:
 
 ```bash
 # Start server with TLS, OAuth, and security features
@@ -572,8 +572,6 @@ SECURITY_RATE_LIMIT_RPM=60
 SECURITY_AUDIT_LOG_ENABLED=true
 ```
 
-See `docs/examples/httpstream-config.md` for complete configuration examples.
-
 ## Production Deployment Checklist
 
 Before deploying to production:
@@ -670,8 +668,8 @@ Before deploying to production:
 
 ### Deployment
 - [ ] Use the appropriate startup script:
-  - [ ] HTTP Stream Transport (recommended): `./start-mcp-docker-httpstream.sh`
-  - [ ] SSE Transport (legacy): `./start-mcp-docker-sse.sh`
+  - [ ] HTTP Stream Transport: `./start-mcp-docker-httpstream.sh`
+  - [ ] SSE Transport: `./start-mcp-docker-sse.sh`
 - [ ] Verify all security warnings on startup
 - [ ] Confirm server binds to correct interface (not 0.0.0.0 unless intentional)
 - [ ] Test complete workflow end-to-end with production config

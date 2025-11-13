@@ -10,6 +10,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
 
+# HTTP Stream Transport constants
+EVENT_STORE_MAX_EVENTS_DEFAULT = 1000
+EVENT_STORE_MAX_EVENTS_LIMIT = 10000
+EVENT_STORE_TTL_SECONDS_DEFAULT = 300  # 5 minutes
+EVENT_STORE_TTL_SECONDS_MIN = 60  # 1 minute
+EVENT_STORE_TTL_SECONDS_MAX = 3600  # 1 hour
+
+# CORS constants
+CORS_MAX_AGE_DEFAULT = 3600  # 1 hour
+
 
 def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
     """Parse comma-separated string or JSON array into list of strings.
@@ -530,16 +540,16 @@ class HttpStreamConfig(BaseSettings):
     )
 
     event_store_max_events: int = Field(
-        default=1000,
+        default=EVENT_STORE_MAX_EVENTS_DEFAULT,
         ge=1,
-        le=10000,
+        le=EVENT_STORE_MAX_EVENTS_LIMIT,
         description="Maximum number of events to store in memory for resumability",
     )
 
     event_store_ttl_seconds: int = Field(
-        default=300,
-        ge=60,
-        le=3600,
+        default=EVENT_STORE_TTL_SECONDS_DEFAULT,
+        ge=EVENT_STORE_TTL_SECONDS_MIN,
+        le=EVENT_STORE_TTL_SECONDS_MAX,
         description="Time-to-live for stored events in seconds (default: 300 = 5 minutes)",
     )
 
@@ -613,7 +623,7 @@ class CORSConfig(BaseSettings):
     )
 
     max_age: int = Field(
-        default=3600,
+        default=CORS_MAX_AGE_DEFAULT,
         ge=0,
         description="Preflight cache duration in seconds",
     )
