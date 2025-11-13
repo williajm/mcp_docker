@@ -3,6 +3,29 @@
 This module provides the main entry point for running the MCP Docker server.
 """
 
+import sys
+
+# Check for --version/-v and --help/-h flags BEFORE any heavy imports/initialization
+if "--version" in sys.argv or "-v" in sys.argv:
+    from mcp_docker.version import __version__
+
+    print(f"mcp-docker {__version__}")
+    sys.exit(0)
+
+if "--help" in sys.argv or "-h" in sys.argv:
+    print("usage: mcp-docker [--transport {stdio,sse}] [--host HOST] [--port PORT]")
+    print()
+    print("MCP Docker Server")
+    print()
+    print("options:")
+    print("  -h, --help            show this help message and exit")
+    print("  -v, --version         show version and exit")
+    print("  --transport {stdio,sse}")
+    print("                        Transport type (default: stdio)")
+    print("  --host HOST          Host to bind SSE server (default: 127.0.0.1)")
+    print("  --port PORT          Port to bind SSE server (default: 8000)")
+    sys.exit(0)
+
 import argparse
 import asyncio
 import contextvars
@@ -37,7 +60,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from mcp_docker.config import Config
 from mcp_docker.server import MCPDockerServer
 from mcp_docker.utils.logger import get_logger, setup_logger
-from mcp_docker.version import __version__, get_full_version
+from mcp_docker.version import __version__
 
 # HTTP Message Type Constants
 HTTP_RESPONSE_START = "http.response.start"
@@ -73,19 +96,16 @@ log_file = Path(log_path) if log_path else Path("mcp_docker.log")
 setup_logger(config.server, log_file)
 
 logger = get_logger(__name__)
-full_version = get_full_version()
 logger.info("=" * 60)
-logger.info(f"MCP Docker Server v{full_version} Initializing")
+logger.info(f"MCP Docker Server v{__version__} Initializing")
 logger.info("=" * 60)
-logger.info(f"Package version: {__version__}")
-logger.info(f"Full version string: {full_version}")
 logger.info(f"Configuration: {config}")
 
 # Create Docker server wrapper
 docker_server = MCPDockerServer(config)
 
 # Create MCP server with version
-mcp_server = Server("mcp-docker", version=full_version)
+mcp_server = Server("mcp-docker", version=__version__)
 
 logger.info(f"Docker server initialized with {len(docker_server.tools)} tools")
 
