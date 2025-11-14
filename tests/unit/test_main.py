@@ -728,6 +728,87 @@ class TestHttpStreamTransport:
                 assert "api.example.com" in call_kwargs["allowed_hosts"]
 
     @pytest.mark.asyncio
+    async def test_httpstream_options_bypasses_auth(self) -> None:
+        """Test HTTP Stream OPTIONS requests bypass authentication for CORS.
+
+        Regression test for P1 issue: OPTIONS (CORS preflight) must bypass
+        OAuth authentication because browsers never send Authorization headers
+        on preflight requests. This enables CORS + OAuth to work together.
+        """
+        # Create a mock scope for OPTIONS request
+        scope = {
+            "type": "http",
+            "method": "OPTIONS",
+            "path": "/",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+        }
+
+        # Mock receive/send
+        receive_mock = AsyncMock()
+        send_mock = AsyncMock()
+
+        # Mock session manager to verify it gets called
+        session_manager_mock = Mock()
+        session_manager_mock.handle_request = AsyncMock()
+
+        # Mock docker_server auth to fail (to verify OPTIONS bypasses it)
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.auth_middleware.authenticate_request = AsyncMock(
+                side_effect=Exception("Auth should not be called for OPTIONS")
+            )
+
+            # Call the handler
+            await main_module._handle_httpstream_request(
+                scope, receive_mock, send_mock, session_manager_mock
+            )
+
+            # Verify session manager was called (OPTIONS was processed)
+            session_manager_mock.handle_request.assert_called_once()
+
+            # Verify auth was NOT called (OPTIONS bypassed authentication)
+            mock_docker_server.auth_middleware.authenticate_request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_httpstream_post_requires_auth(self) -> None:
+        """Test HTTP Stream POST requests require authentication (not bypassed).
+
+        Verify that non-OPTIONS requests still go through authentication,
+        ensuring we didn't break OAuth security while fixing CORS.
+        """
+        # Create a mock scope for POST request
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+        }
+
+        # Mock receive/send
+        receive_mock = AsyncMock()
+        send_mock = AsyncMock()
+
+        # Mock session manager
+        session_manager_mock = Mock()
+        session_manager_mock.handle_request = AsyncMock()
+
+        # Mock docker_server auth to succeed
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.auth_middleware.authenticate_request = AsyncMock()
+
+            # Call the handler
+            await main_module._handle_httpstream_request(
+                scope, receive_mock, send_mock, session_manager_mock
+            )
+
+            # Verify auth WAS called for POST
+            mock_docker_server.auth_middleware.authenticate_request.assert_called_once()
+
+            # Verify session manager was called after auth passed
+            session_manager_mock.handle_request.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_run_httpstream_cors_allowed_origins(self) -> None:
         """Test run_httpstream includes CORS origins in security settings."""
         with patch.object(main_module, "docker_server") as mock_docker_server:
@@ -1458,6 +1539,79 @@ class TestCreateMiddlewareStack:
 
             # Should contain bind IP + configured hosts only
             assert set(allowed_hosts) == {"192.168.1.100", "api.example.com", "web.example.com"}
+
+    def test_sse_wildcard_binding_includes_localhost(self) -> None:
+        """Test SSE transport with wildcard binding includes localhost (backwards compat).
+
+        Regression test for P1 issue: SSE transport must maintain backwards
+        compatibility by including localhost variants even for wildcard binds,
+        unlike HTTP Stream Transport which has strict DNS rebinding protection.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            # SSE transport should get localhost variants for wildcard bind
+            middleware_stack = main_module._create_middleware_stack(
+                "0.0.0.0", main_module.config, transport="sse"
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # SSE should include localhost variants for backwards compatibility
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should NOT include wildcard
+            assert "0.0.0.0" not in allowed_hosts
+
+    def test_httpstream_wildcard_binding_excludes_localhost(self) -> None:
+        """Test HTTP Stream transport with wildcard binding excludes localhost (strict).
+
+        Regression test for DNS rebinding protection: HTTP Stream Transport
+        should have strict security and NOT include localhost variants for
+        wildcard binds unless explicitly configured.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            # HTTP Stream transport should NOT get localhost variants for wildcard bind
+            middleware_stack = main_module._create_middleware_stack(
+                "0.0.0.0", main_module.config, transport="httpstream"
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # HTTP Stream should NOT include localhost variants (strict security)
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
+
+            # Should NOT include wildcard
+            assert "0.0.0.0" not in allowed_hosts
+
+            # Should be empty (fail-secure)
+            assert allowed_hosts == []
+
+    def test_sse_specific_host_includes_localhost(self) -> None:
+        """Test SSE transport with specific non-localhost host includes localhost.
+
+        Regression test: SSE transport should maintain backwards compatibility
+        by always including localhost variants, even for specific non-localhost binds.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "192.168.1.100", main_module.config, transport="sse"
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # SSE should include localhost variants (backwards compat)
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should also include the bind IP
+            assert "192.168.1.100" in allowed_hosts
 
     def test_cors_middleware_enabled(self) -> None:
         """Test middleware stack includes CORS when enabled."""

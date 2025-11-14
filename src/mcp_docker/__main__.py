@@ -471,33 +471,46 @@ def _create_security_headers(config: Config) -> Secure:
     )
 
 
-def _build_allowed_hosts_list(host: str, config: Config) -> list[str]:
-    """Build allowed hosts list based on bind address.
+def _build_allowed_hosts_list(
+    host: str, config: Config, transport: str = "httpstream"
+) -> list[str]:
+    """Build allowed hosts list based on bind address and transport.
 
     This function constructs a list of hostnames/IPs that should be allowed
     in the Host header for security middleware (TrustedHostMiddleware and
     TransportSecuritySettings).
 
-    Security: Localhost variants (127.0.0.1, localhost, ::1) are ONLY included
-    when the server is actually bound to a localhost address. Including them
-    for public binds would allow attackers to bypass DNS rebinding protection
-    by sending "Host: localhost" in requests to public endpoints.
+    Security: DNS rebinding protection behavior differs by transport:
+    - HTTP Stream Transport (modern): Strict protection - localhost variants
+      ONLY included when binding to localhost. This prevents attackers from
+      bypassing protection by sending "Host: localhost" to public endpoints.
+    - SSE Transport (legacy): Backwards compatible - always includes localhost
+      variants to avoid breaking existing deployments.
 
     Args:
         host: Server bind address (e.g., '127.0.0.1', '0.0.0.0', 'api.example.com')
         config: MCP configuration with user-configured allowed hosts
+        transport: Transport type ("sse" or "httpstream") - affects security policy
 
     Returns:
         List of allowed hostnames/IPs including:
-        - Localhost variants (127.0.0.1, localhost, ::1) ONLY if bound to localhost
+        - Localhost variants (behavior depends on transport type)
         - Bind host (if not wildcard)
         - User-configured hosts from HTTPSTREAM_ALLOWED_HOSTS
     """
     allowed_hosts: list[str] = []
 
+    if transport == "sse":
+        # SSE Transport (legacy): Maintain backwards compatibility
+        # Always include localhost variants to avoid breaking existing deployments
+        # that bind to 0.0.0.0 for network access
+        allowed_hosts.extend(LOCALHOST_VARIANTS)
+        if host not in LOCALHOST_VARIANTS and host not in WILDCARD_BINDS:
+            allowed_hosts.append(host)
+    # HTTP Stream Transport (modern): Strict DNS rebinding protection
     # Only include localhost variants when actually binding to localhost
     # This prevents bypassing DNS rebinding protection on public deployments
-    if host in LOCALHOST_VARIANTS:
+    elif host in LOCALHOST_VARIANTS:
         allowed_hosts.extend(LOCALHOST_VARIANTS)
     elif host not in WILDCARD_BINDS:
         # For specific non-localhost binds (e.g., 'api.example.com'), add that host
@@ -541,12 +554,15 @@ def _create_uvicorn_config(app: Any, host: str, port: int, config: Config) -> uv
     return uvicorn.Config(**uvicorn_config_params)
 
 
-def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
+def _create_middleware_stack(
+    host: str, config: Config, transport: str = "httpstream"
+) -> list[Middleware]:
     """Create middleware stack for Starlette application.
 
     Args:
         host: Server hostname
         config: MCP configuration with TLS settings
+        transport: Transport type ("sse" or "httpstream") - affects security policy
 
     Returns:
         List of configured middleware
@@ -564,7 +580,7 @@ def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
         )
     else:
         # DNS rebinding protection enabled (default) - restrict to specific hosts
-        allowed_hosts = _build_allowed_hosts_list(host, config)
+        allowed_hosts = _build_allowed_hosts_list(host, config, transport)
 
         # Log configuration for debugging
         if config.httpstream.allowed_hosts:
@@ -873,8 +889,8 @@ async def run_sse(host: str, port: int) -> None:
             wrapped_handler, secure_headers
         )
 
-        # Build middleware stack and create Starlette app
-        middleware_stack = _create_middleware_stack(host, config)
+        # Build middleware stack and create Starlette app (SSE transport)
+        middleware_stack = _create_middleware_stack(host, config, transport="sse")
         app = Starlette(
             debug=config.server.debug_mode,
             routes=[Mount("/", app=security_headers_middleware)],
@@ -932,7 +948,8 @@ def _create_transport_security_settings(host: str) -> TransportSecuritySettings 
         return None
 
     # Build allowed hosts list (consistent with TrustedHostMiddleware)
-    allowed_hosts = _build_allowed_hosts_list(host, config)
+    # Always use "httpstream" transport for TransportSecuritySettings
+    allowed_hosts = _build_allowed_hosts_list(host, config, transport="httpstream")
 
     # Log configured hosts if any were added
     if config.httpstream.allowed_hosts:
@@ -998,6 +1015,15 @@ async def _handle_httpstream_request(
             }
         )
         await send({"type": HTTP_RESPONSE_BODY, "body": b""})
+        return
+
+    # CORS PREFLIGHT BYPASS: Allow OPTIONS requests without authentication
+    # Browsers never send Authorization headers on CORS preflight requests,
+    # so we must handle OPTIONS before authentication to enable CORS + OAuth
+    if method == "OPTIONS":
+        logger.debug("OPTIONS request - bypassing authentication for CORS preflight")
+        # Let session manager handle OPTIONS (CORS middleware will add appropriate headers)
+        await session_manager.handle_request(scope, receive, send)
         return
 
     # AUTHENTICATION: OAuth or IP allowlist
@@ -1104,8 +1130,8 @@ async def run_httpstream(host: str, port: int) -> None:
                 wrapped_handler, secure_headers
             )
 
-            # Build middleware stack and create Starlette app
-            middleware_stack = _create_middleware_stack(host, config)
+            # Build middleware stack and create Starlette app (HTTP Stream transport)
+            middleware_stack = _create_middleware_stack(host, config, transport="httpstream")
             app = Starlette(
                 debug=config.server.debug_mode,
                 routes=[Mount("/", app=security_headers_middleware)],
