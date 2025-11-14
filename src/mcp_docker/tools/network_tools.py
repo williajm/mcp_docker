@@ -383,9 +383,18 @@ class ConnectContainerTool(BaseTool):
 
             network = self.docker.client.networks.get(input_data.network_id)
 
+            # Resolve container name/ID to full container ID for comparison
+            # (input can be name or ID, but network.attrs uses full IDs)
+            try:
+                container = self.docker.client.containers.get(input_data.container_id)
+                container_full_id = str(container.id)
+            except NotFound:
+                # Container doesn't exist - will error below, let it proceed
+                container_full_id = input_data.container_id
+
             # Check if already connected (idempotent: avoid error-based detection)
             containers_in_network = network.attrs.get("Containers", {})
-            if input_data.container_id in containers_in_network:
+            if container_full_id in containers_in_network:
                 logger.info(
                     f"Container {input_data.container_id} already connected to "
                     f"network {input_data.network_id}"
@@ -488,9 +497,18 @@ class DisconnectContainerTool(BaseTool):
 
             network = self.docker.client.networks.get(input_data.network_id)
 
+            # Resolve container name/ID to full container ID for comparison
+            # (input can be name or ID, but network.attrs uses full IDs)
+            try:
+                container = self.docker.client.containers.get(input_data.container_id)
+                container_full_id = str(container.id)
+            except NotFound:
+                # Container doesn't exist - will error below, let it proceed
+                container_full_id = input_data.container_id
+
             # Check if already disconnected (idempotent: avoid error-based detection)
             containers_in_network = network.attrs.get("Containers", {})
-            if input_data.container_id not in containers_in_network:
+            if container_full_id not in containers_in_network:
                 logger.info(
                     f"Container {input_data.container_id} not connected to "
                     f"network {input_data.network_id} (already disconnected)"
