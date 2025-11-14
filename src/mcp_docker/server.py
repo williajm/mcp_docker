@@ -87,6 +87,20 @@ class MCPDockerServer:
                 "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false to disable."
             )
 
+        # CRITICAL WARNING: YOLO mode disables ALL safety checks
+        if config.safety.yolo_mode:
+            logger.warning("=" * 60)
+            logger.warning("⚠️  ⚠️  ⚠️  YOLO MODE ENABLED ⚠️  ⚠️  ⚠️")
+            logger.warning("ALL SAFETY CHECKS ARE DISABLED")
+            logger.warning("THIS IS EXTREMELY DANGEROUS")
+            logger.warning("Volume mount validation: BYPASSED")
+            logger.warning("Privileged container checks: BYPASSED")
+            logger.warning("Command injection validation: BYPASSED")
+            logger.warning("Destructive operation checks: BYPASSED")
+            logger.warning("PROCEED AT YOUR OWN RISK")
+            logger.warning("⚠️  ⚠️  ⚠️  ⚠️  ⚠️  ⚠️  ⚠️  ⚠️  ⚠️")
+            logger.warning("=" * 60)
+
     def _register_tools(self) -> None:
         """Auto-register all Docker tools from tool modules.
 

@@ -273,6 +273,79 @@ class TestCreateContainerTool:
         with pytest.raises(DockerOperationError):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_create_container_blocks_dangerous_volume_mount(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test that dangerous volume mounts are blocked."""
+        from mcp_docker.utils.errors import UnsafeOperationError
+
+        tool = CreateContainerTool(mock_docker_client, safety_config)
+
+        # Test Docker socket mount is blocked
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/var/run/docker.sock": {"bind": "/docker.sock", "mode": "rw"}},
+        )
+        with pytest.raises(UnsafeOperationError, match="Docker socket"):
+            await tool.execute(input_data)
+
+        # Test root filesystem mount is blocked
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/": {"bind": "/host_root", "mode": "rw"}},
+        )
+        with pytest.raises(UnsafeOperationError, match="root filesystem"):
+            await tool.execute(input_data)
+
+        # Test /etc mount is blocked
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/etc": {"bind": "/host_etc", "mode": "ro"}},
+        )
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_create_container_allows_safe_volume_mount(
+        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+    ) -> None:
+        """Test that safe volume mounts are allowed."""
+        mock_docker_client.client.containers.create.return_value = mock_container
+
+        tool = CreateContainerTool(mock_docker_client, safety_config)
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/home/user/data": {"bind": "/data", "mode": "ro"}},
+        )
+        result = await tool.execute(input_data)
+
+        assert result.container_id == "abc123def456"
+        mock_docker_client.client.containers.create.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_container_yolo_mode_allows_dangerous_mounts(
+        self, mock_docker_client: Any, mock_container: Any
+    ) -> None:
+        """Test that YOLO mode allows dangerous volume mounts."""
+        from mcp_docker.config import SafetyConfig
+
+        # Create safety config with YOLO mode enabled
+        yolo_config = SafetyConfig(yolo_mode=True)
+        mock_docker_client.client.containers.create.return_value = mock_container
+
+        tool = CreateContainerTool(mock_docker_client, yolo_config)
+
+        # Docker socket mount should be allowed in YOLO mode
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/var/run/docker.sock": {"bind": "/docker.sock", "mode": "rw"}},
+        )
+        result = await tool.execute(input_data)
+
+        assert result.container_id == "abc123def456"
+        mock_docker_client.client.containers.create.assert_called_once()
+
 
 class TestStartContainerTool:
     """Tests for StartContainerTool."""

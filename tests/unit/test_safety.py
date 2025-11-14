@@ -330,7 +330,8 @@ class TestMountPathValidation:
         """Test validating safe mount path."""
         # Should not raise
         validate_mount_path("/home/user/data")
-        validate_mount_path("/var/lib/docker/volumes")
+        validate_mount_path("/tmp/mydata")
+        validate_mount_path("/opt/myapp")
 
     def test_validate_mount_path_dangerous_passwd(self) -> None:
         """Test validating dangerous mount path (passwd)."""
@@ -349,18 +350,101 @@ class TestMountPathValidation:
 
     def test_validate_mount_path_with_allowed_paths(self) -> None:
         """Test validating mount path with allowed paths list."""
-        allowed = ["/home", "/var/lib/docker"]
+        allowed = ["/home", "/opt"]
 
         # Should not raise
         validate_mount_path("/home/user/data", allowed_paths=allowed)
-        validate_mount_path("/var/lib/docker/volumes", allowed_paths=allowed)
+        validate_mount_path("/opt/myapp", allowed_paths=allowed)
 
     def test_validate_mount_path_not_in_allowed(self) -> None:
         """Test validating mount path not in allowed paths."""
-        allowed = ["/home", "/var/lib/docker"]
+        allowed = ["/home", "/opt"]
 
         with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
-            validate_mount_path("/opt/data", allowed_paths=allowed)
+            validate_mount_path("/tmp/data", allowed_paths=allowed)
+
+    def test_validate_mount_path_blocks_docker_socket(self) -> None:
+        """Test that Docker socket mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="Docker socket"):
+            validate_mount_path("/var/run/docker.sock")
+
+        with pytest.raises(UnsafeOperationError, match="Docker socket"):
+            validate_mount_path("/run/docker.sock")
+
+    def test_validate_mount_path_blocks_root_filesystem(self) -> None:
+        """Test that root filesystem mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="root filesystem"):
+            validate_mount_path("/")
+
+    def test_validate_mount_path_blocks_etc_directory(self) -> None:
+        """Test that /etc directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/etc")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/etc/nginx")
+
+    def test_validate_mount_path_blocks_sys_directory(self) -> None:
+        """Test that /sys directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/sys")
+
+    def test_validate_mount_path_blocks_proc_directory(self) -> None:
+        """Test that /proc directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/proc")
+
+    def test_validate_mount_path_blocks_boot_directory(self) -> None:
+        """Test that /boot directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/boot")
+
+    def test_validate_mount_path_blocks_dev_directory(self) -> None:
+        """Test that /dev directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/dev")
+
+    def test_validate_mount_path_blocks_root_home(self) -> None:
+        """Test that /root directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/root")
+
+    def test_validate_mount_path_blocks_docker_data(self) -> None:
+        """Test that Docker data directory mounting is blocked."""
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/var/lib/docker")
+
+    def test_validate_mount_path_blocks_ssh_directories(self) -> None:
+        """Test that SSH directories are blocked."""
+        with pytest.raises(UnsafeOperationError, match="SSH"):
+            validate_mount_path("/home/user/.ssh")
+
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
+            validate_mount_path("/root/.ssh")
+
+    def test_validate_mount_path_blocks_sudoers(self) -> None:
+        """Test that /etc/sudoers file is blocked."""
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
+            validate_mount_path("/etc/sudoers")
+
+    def test_validate_mount_path_path_traversal(self) -> None:
+        """Test that path traversal is normalized and blocked."""
+        # Path traversal should be normalized to /etc/shadow
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
+            validate_mount_path("/home/user/../../etc/shadow")
+
+    def test_validate_mount_path_yolo_mode_bypasses_all(self) -> None:
+        """Test that YOLO mode bypasses all validation."""
+        # All of these should NOT raise when yolo_mode=True
+        validate_mount_path("/", yolo_mode=True)
+        validate_mount_path("/var/run/docker.sock", yolo_mode=True)
+        validate_mount_path("/etc", yolo_mode=True)
+        validate_mount_path("/etc/shadow", yolo_mode=True)
+        validate_mount_path("/root/.ssh", yolo_mode=True)
+        validate_mount_path("/sys", yolo_mode=True)
+        validate_mount_path("/proc", yolo_mode=True)
+        validate_mount_path("/boot", yolo_mode=True)
+        validate_mount_path("/dev", yolo_mode=True)
 
 
 class TestPortBindingValidation:

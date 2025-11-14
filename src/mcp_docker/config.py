@@ -187,6 +187,16 @@ class SafetyConfig(BaseSettings):
         default=False,
         description="Allow creating privileged containers",
     )
+    yolo_mode: bool = Field(
+        default=False,
+        description=(
+            "YOLO MODE: Disable ALL safety checks and validation. "
+            "⚠️  WARNING: This is EXTREMELY DANGEROUS and should only be used "
+            "if you fully understand the security implications. "
+            "Enables: dangerous volume mounts, privileged containers, destructive operations, "
+            "command injection, etc. USE AT YOUR OWN RISK."
+        ),
+    )
     require_confirmation_for_destructive: bool = Field(
         default=True,
         description="Require explicit confirmation for destructive operations",

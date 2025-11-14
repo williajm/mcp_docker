@@ -10,11 +10,11 @@ from docker.errors import APIError, NotFound
 from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.tools.base import BaseTool
-from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, ValidationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
-from mcp_docker.utils.safety import OperationSafety
+from mcp_docker.utils.safety import OperationSafety, validate_mount_path
 from mcp_docker.utils.validation import (
     validate_command,
     validate_container_name,
@@ -184,6 +184,29 @@ class CreateContainerTool(BaseTool):
             for container_port, host_port in input_data.ports.items():
                 if isinstance(host_port, int):
                     validate_port_mapping(container_port, host_port)
+
+        # Validate volume mounts for security
+        if input_data.volumes:
+            # After field validation, volumes is always a dict or None (never str)
+            assert isinstance(input_data.volumes, dict)
+
+            # Validate each host path for dangerous mounts
+            for host_path, bind_config in input_data.volumes.items():
+                # Validate the host-side path
+                # Pass yolo_mode to bypass validation if enabled
+                validate_mount_path(host_path, yolo_mode=self.safety.yolo_mode)
+
+                # Also validate the bind config structure (skip if YOLO mode)
+                if not self.safety.yolo_mode:
+                    if not isinstance(bind_config, dict):
+                        raise ValidationError(
+                            f"Volume bind config must be a dict, got {type(bind_config).__name__}"
+                        )
+
+                    if "bind" not in bind_config:
+                        raise ValidationError(
+                            f"Volume bind config must contain 'bind' key: {bind_config}"
+                        )
 
     def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
         """Prepare kwargs dictionary for container creation.

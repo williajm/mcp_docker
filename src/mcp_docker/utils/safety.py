@@ -1,5 +1,6 @@
 """Safety controls and validation for Docker operations."""
 
+import os
 import re
 from enum import Enum
 from typing import Any
@@ -361,35 +362,115 @@ def check_privileged_mode(
         )
 
 
-def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> None:
+def validate_mount_path(
+    path: str,
+    allowed_paths: list[str] | None = None,
+    yolo_mode: bool = False,
+) -> None:
     """Validate that a mount path is safe.
 
     Args:
-        path: Path to validate
-        allowed_paths: List of allowed path prefixes (None = allow all)
+        path: Path to validate (host-side path)
+        allowed_paths: List of allowed path prefixes (None = block dangerous only)
+        yolo_mode: If True, skip all validation (EXTREMELY DANGEROUS!)
 
     Raises:
         UnsafeOperationError: If path is not allowed
+        ValidationError: If path format is invalid
 
     """
-    # Block sensitive system paths
-    dangerous_paths = [
-        "/etc/passwd",
-        "/etc/shadow",
-        "/root/.ssh",
-        "/home/.ssh",
-        "/.ssh",
-    ]
+    # YOLO mode bypasses all validation
+    if yolo_mode:
+        return
 
-    for dangerous_path in dangerous_paths:
-        if path.startswith(dangerous_path):
+    # Normalize path (resolve .., remove trailing slashes, etc.)
+    try:
+        normalized_path = os.path.normpath(path)
+    except (ValueError, TypeError) as e:
+        raise ValidationError(f"Invalid path format: {path}") from e
+
+    # Block root filesystem mount (most dangerous)
+    if normalized_path in ["/", "C:\\", "C:/"]:
+        raise UnsafeOperationError(
+            "Mounting the entire root filesystem is not allowed. "
+            "This would grant full host access from the container."
+        )
+
+    # Block Docker socket (equivalent to root access)
+    docker_sockets = [
+        "/var/run/docker.sock",
+        "/run/docker.sock",
+        "//./pipe/docker_engine",  # Windows
+        "\\\\.\\pipe\\docker_engine",  # Windows (escaped)
+    ]
+    for socket_path in docker_sockets:
+        if normalized_path == socket_path or normalized_path.startswith(socket_path + "/"):
             raise UnsafeOperationError(
-                f"Mount path '{path}' is not allowed. "
-                f"Mounting sensitive system paths like '{dangerous_path}' is blocked."
+                f"Mounting Docker socket '{socket_path}' is not allowed. "
+                "This grants root-equivalent access to the host. "
+                "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
             )
 
-    # Check against allowed paths if specified
-    if allowed_paths is not None and not any(path.startswith(allowed) for allowed in allowed_paths):
+    # Block entire system directories
+    dangerous_prefixes = [
+        "/etc",  # System configuration
+        "/sys",  # Kernel/system information
+        "/proc",  # Process information
+        "/boot",  # Boot files and kernel
+        "/dev",  # Device files
+        "/var/lib/docker",  # Docker's internal data
+        "/var/lib/containerd",  # Containerd data
+        "/root",  # Root user home
+        "/run",  # Runtime data (includes docker.sock)
+        "C:/Windows",  # Windows system
+        "C:\\Windows",  # Windows system (escaped)
+        "C:/Program Files",  # Windows programs
+        "C:\\Program Files",  # Windows programs (escaped)
+    ]
+
+    for dangerous_prefix in dangerous_prefixes:
+        is_dangerous = (
+            normalized_path.startswith(dangerous_prefix + "/")
+            or normalized_path == dangerous_prefix
+        )
+        if is_dangerous:
+            raise UnsafeOperationError(
+                f"Mount path '{path}' is not allowed. "
+                f"Mounting system directory '{dangerous_prefix}' is blocked for security. "
+                "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
+            )
+
+    # Block specific sensitive files
+    dangerous_files = [
+        "/etc/passwd",
+        "/etc/shadow",
+        "/etc/sudoers",
+        "/etc/ssh/ssh_host_rsa_key",
+        "/etc/ssh/ssh_host_ed25519_key",
+        "/root/.ssh/id_rsa",
+        "/root/.ssh/authorized_keys",
+    ]
+
+    for dangerous_file in dangerous_files:
+        if normalized_path == dangerous_file:
+            raise UnsafeOperationError(
+                f"Mount path '{path}' is not allowed. "
+                f"Mounting sensitive file '{dangerous_file}' is blocked. "
+                "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
+            )
+
+    # Block SSH directories (prevent key theft)
+    if "/.ssh/" in normalized_path or normalized_path.endswith("/.ssh"):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not allowed. "
+            "Mounting SSH directories is blocked to prevent key theft. "
+            "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
+        )
+
+    # Check against allowed paths allowlist if specified
+    if allowed_paths is not None and not any(
+        normalized_path.startswith(allowed) for allowed in allowed_paths
+    ):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not in the allowed paths list: {allowed_paths}"
         )
