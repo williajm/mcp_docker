@@ -150,37 +150,15 @@ Command-line options: `--transport` (stdio/sse/httpstream), `--host`, `--port`
 
 ## Security
 
-The MCP Docker server includes comprehensive security features for production deployments:
+The MCP Docker server provides enterprise-grade security for production deployments with OAuth authentication, TLS encryption, rate limiting, audit logging, and safety controls.
 
-### Key Security Features
+**⚠️ Important**: Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for threat model and mitigations.
 
-- **OAuth/OIDC Authentication**: Industry-standard bearer token authentication for network transports (JWTs with JWKS validation, optional introspection support)
-- **TLS/HTTPS**: Encrypted transport for SSE mode (required for production)
-- **IP Filtering**: Restrict access by client IP address
-- **Rate Limiting**: Prevent abuse (60 req/min default)
-- **Audit Logging**: Track all operations with client IPs
-- **Error Sanitization**: Prevent information disclosure
-- **Security Headers**: OWASP-recommended headers via `secure` library (HSTS, CSP, X-Frame-Options, etc.)
-
-### ⚠️ Important Security Considerations
-
-**Retrieval Agent Deception (RADE) Risk**: Container logs are returned unfiltered and may contain malicious prompts injected by untrusted containers. AI agents retrieving logs via `docker_container_logs` could be manipulated by these embedded instructions.
-
-**Mitigation**:
-
-- Treat container logs as untrusted user input
-- Implement content filtering before presenting logs to AI agents
-- Use read-only mode for untrusted containers
-- Review audit logs for suspicious patterns
-
-See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation strategies.
-
-### Server-sent events startup
-
-```bash
-# Start with all security features enabled
-./start-mcp-docker-sse.sh
-```
+**For production deployment**, see [SECURITY.md](SECURITY.md) for:
+- Complete security feature guide (OAuth, TLS, IP filtering, rate limiting, audit logging)
+- Production deployment checklist
+- Threat model and mitigation strategies
+- Security best practices
 
 ### Configuration
 
@@ -202,9 +180,7 @@ CORS_ENABLED=true                          # Enable CORS for browsers
 
 **Documentation:**
 - [CONFIGURATION.md](CONFIGURATION.md) - Complete configuration reference (all options)
-- [SECURITY.md](SECURITY.md) - Production security guidelines and best practices
-
-**Note**: OAuth authentication is only enforced for network transports (SSE/HTTP Stream Transport). The stdio transport always bypasses authentication as it operates in a local trusted process model (same security model as running `docker` CLI directly).
+- [SECURITY.md](SECURITY.md) - Security features and production guidelines
 
 ## Tools Overview
 
