@@ -238,7 +238,8 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests requiring Docker",
     "e2e: End-to-end tests with realistic scenarios",
-    "slow: Slow running tests",
+    "slow: Slow running tests (but still functional)",
+    "stress: Stress/performance tests (high resource usage, skip in CI)",
     "fuzz: Fuzz tests (run by ClusterFuzzLite)",
 ]
 

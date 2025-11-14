@@ -25,7 +25,7 @@ from tests.e2e.test_httpstream_transport_e2e import (
 
 
 @pytest.mark.e2e
-@pytest.mark.slow
+@pytest.mark.stress
 @pytest.mark.asyncio
 async def test_httpstream_resumability_1000_events() -> None:
     """Stress test: Reconnect with 1000+ events in history."""
@@ -114,7 +114,7 @@ async def test_httpstream_resumability_1000_events() -> None:
 
 
 @pytest.mark.e2e
-@pytest.mark.slow
+@pytest.mark.stress
 @pytest.mark.asyncio
 async def test_httpstream_concurrent_sessions_with_replay() -> None:
     """Stress test: Multiple concurrent sessions with event replay."""
