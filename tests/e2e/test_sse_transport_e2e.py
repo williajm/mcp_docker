@@ -358,7 +358,9 @@ async def test_http_sse_refuses_non_localhost() -> None:
         returncode = process.poll()
 
         # Server should exit with error (fail-secure)
-        assert returncode is not None, "Server should fail to start without HTTPSTREAM_ALLOWED_HOSTS for wildcard bind"
+        assert returncode is not None, (
+            "Server should fail to start without HTTPSTREAM_ALLOWED_HOSTS for wildcard bind"
+        )
         assert returncode != 0, "Server should exit with error code"
 
     finally:
