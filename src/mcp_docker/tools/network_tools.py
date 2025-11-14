@@ -392,9 +392,18 @@ class ConnectContainerTool(BaseTool):
                 # Container doesn't exist - will error below, let it proceed
                 container_full_id = input_data.container_id
 
-            # Check if already connected (idempotent: avoid error-based detection)
+            # Check if already connected (idempotent behavior for basic connect)
+            # Only return early if no aliases/IPs are specified - otherwise proceed
+            # and let Docker error if user is trying to change network settings
+            has_network_config = bool(
+                input_data.aliases
+                or input_data.ipv4_address
+                or input_data.ipv6_address
+                or input_data.links
+            )
             containers_in_network = network.attrs.get("Containers", {})
-            if container_full_id in containers_in_network:
+            if not has_network_config and container_full_id in containers_in_network:
+                # Basic connect without config changes - safe to return early (idempotent)
                 logger.info(
                     f"Container {input_data.container_id} already connected to "
                     f"network {input_data.network_id}"

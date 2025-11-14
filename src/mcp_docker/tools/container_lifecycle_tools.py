@@ -404,11 +404,6 @@ class RestartContainerTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
-    @property
-    def idempotent(self) -> bool:
-        """Idempotent: restarting always results in a running container."""
-        return True
-
     async def execute(self, input_data: RestartContainerInput) -> RestartContainerOutput:
         """Execute the restart container operation.
 

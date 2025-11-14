@@ -366,6 +366,34 @@ class TestConnectContainerTool:
         with pytest.raises(DockerOperationError, match="network is full"):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_connect_container_with_aliases_bypasses_idempotent_check(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test that providing aliases bypasses idempotent check to allow Docker error."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Container is already connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
+        # Docker will error when trying to connect with new aliases
+        mock_network.connect.side_effect = APIError("container already connected")
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        # User is trying to add aliases to already-connected container
+        input_data = ConnectContainerInput(
+            network_id="my-network", container_id="container123", aliases=["newAlias"]
+        )
+
+        # Should NOT return early (idempotent check skipped), should proceed and error
+        with pytest.raises(DockerOperationError, match="already connected"):
+            await tool.execute(input_data)
+        # Verify connect was actually called (not skipped by idempotent check)
+        mock_network.connect.assert_called_once()
+
 
 class TestDisconnectContainerTool:
     """Tests for DisconnectContainerTool."""
