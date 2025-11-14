@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
-      issues: read
+      pull-requests: write  # Required for Claude to reply to PR comments
+      issues: write          # Required for Claude to reply to issue comments
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
