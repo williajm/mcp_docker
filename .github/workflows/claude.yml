@@ -18,12 +18,14 @@ jobs:
   claude:
     # SECURITY: Only run for repo owner (williajm)
     # No other users can trigger this workflow with secrets/write permissions
+    # Uses github.event.sender.login to check the actor who triggered the event
     if: |
+      github.event.sender.login == 'williajm' &&
       (
-        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == 'williajm') ||
-        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude') && github.event.comment.user.login == 'williajm') ||
-        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.review.user.login == 'williajm') ||
-        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) && github.event.issue.user.login == 'williajm')
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
       )
     runs-on: ubuntu-latest
     permissions:
