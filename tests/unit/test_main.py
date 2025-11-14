@@ -1303,39 +1303,61 @@ class TestCreateMiddlewareStack:
             assert "::1" in allowed_hosts
 
     def test_wildcard_binding_without_configured_hosts(self) -> None:
-        """Test middleware stack for 0.0.0.0 binding without configured hosts."""
+        """Test middleware stack for 0.0.0.0 binding without configured hosts.
+
+        Security: Wildcard binds (0.0.0.0) should NOT include localhost variants
+        unless explicitly configured. Empty allowed_hosts list is fail-secure behavior
+        that requires operators to explicitly configure HTTPSTREAM_ALLOWED_HOSTS
+        for production deployments.
+        """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
 
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # Should only allow localhost variants
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
+            # Security: Should NOT include localhost variants for wildcard bind
+            # This prevents DNS rebinding bypass on public deployments
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
 
             # Should NOT include wildcard
             assert "0.0.0.0" not in allowed_hosts
 
+            # Should be empty (fail-secure)
+            assert allowed_hosts == []
+
     def test_wildcard_ipv6_binding_without_configured_hosts(self) -> None:
-        """Test middleware stack for :: binding without configured hosts."""
+        """Test middleware stack for :: binding without configured hosts.
+
+        Security: Wildcard binds (::) should NOT include localhost variants
+        unless explicitly configured. Empty allowed_hosts list is fail-secure behavior.
+        """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack("::", main_module.config)
 
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # Should only allow localhost variants
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
+            # Security: Should NOT include localhost variants for wildcard bind
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
 
             # Should NOT include wildcard
             assert "::" not in allowed_hosts
 
+            # Should be empty (fail-secure)
+            assert allowed_hosts == []
+
     def test_wildcard_binding_with_configured_hosts(self) -> None:
-        """Test middleware stack for 0.0.0.0 binding with configured hosts."""
+        """Test middleware stack for 0.0.0.0 binding with configured hosts.
+
+        Security: Even with configured hosts, localhost variants should NOT be
+        automatically included for wildcard binds. Operators must explicitly add
+        localhost to HTTPSTREAM_ALLOWED_HOSTS if needed.
+        """
         with patch.object(
             main_module.config.httpstream, "allowed_hosts", ["api.example.com", "203.0.113.10"]
         ):
@@ -1344,10 +1366,11 @@ class TestCreateMiddlewareStack:
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # Should allow localhost variants
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
+            # Security: Should NOT automatically include localhost variants
+            # This prevents DNS rebinding bypass on public deployments
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
 
             # Should allow configured hosts
             assert "api.example.com" in allowed_hosts
@@ -1356,8 +1379,15 @@ class TestCreateMiddlewareStack:
             # Should NOT include wildcard
             assert "0.0.0.0" not in allowed_hosts
 
+            # Should only contain configured hosts
+            assert set(allowed_hosts) == {"api.example.com", "203.0.113.10"}
+
     def test_specific_ip_binding(self) -> None:
-        """Test middleware stack for specific IP binding."""
+        """Test middleware stack for specific IP binding.
+
+        Security: Binding to a specific non-localhost IP should ONLY allow that IP,
+        not localhost variants. This prevents DNS rebinding bypass attacks.
+        """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack(
                 "192.168.1.100", main_module.config
@@ -1366,16 +1396,21 @@ class TestCreateMiddlewareStack:
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # Should allow localhost variants
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
+            # Security: Should NOT include localhost variants for specific IP binding
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
 
-            # Should also allow the bind IP
+            # Should only allow the bind IP
             assert "192.168.1.100" in allowed_hosts
+            assert allowed_hosts == ["192.168.1.100"]
 
     def test_specific_hostname_binding(self) -> None:
-        """Test middleware stack for specific hostname binding."""
+        """Test middleware stack for specific hostname binding.
+
+        Security: Binding to a specific non-localhost hostname should ONLY allow
+        that hostname, not localhost variants. This prevents DNS rebinding bypass.
+        """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack(
                 "api.internal.example.com", main_module.config
@@ -1384,16 +1419,21 @@ class TestCreateMiddlewareStack:
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # Should allow localhost variants
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
+            # Security: Should NOT include localhost variants for specific hostname binding
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
 
-            # Should also allow the bind hostname
+            # Should only allow the bind hostname
             assert "api.internal.example.com" in allowed_hosts
+            assert allowed_hosts == ["api.internal.example.com"]
 
     def test_specific_ip_binding_with_configured_hosts(self) -> None:
-        """Test middleware stack for specific IP with configured additional hosts."""
+        """Test middleware stack for specific IP with configured additional hosts.
+
+        Security: Even with configured hosts, localhost variants should NOT be
+        automatically included for specific IP binds.
+        """
         with patch.object(
             main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]
         ):
@@ -1404,10 +1444,10 @@ class TestCreateMiddlewareStack:
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # Should allow localhost variants
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
+            # Security: Should NOT include localhost variants
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
 
             # Should allow the bind IP
             assert "192.168.1.100" in allowed_hosts
@@ -1415,6 +1455,9 @@ class TestCreateMiddlewareStack:
             # Should allow configured hosts
             assert "api.example.com" in allowed_hosts
             assert "web.example.com" in allowed_hosts
+
+            # Should contain bind IP + configured hosts only
+            assert set(allowed_hosts) == {"192.168.1.100", "api.example.com", "web.example.com"}
 
     def test_cors_middleware_enabled(self) -> None:
         """Test middleware stack includes CORS when enabled."""
