@@ -327,5 +327,4 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=0
 
 - [SECURITY.md](SECURITY.md) - Production security guidelines
 - [README.md](README.md) - Getting started and features
-- [CLAUDE.md](CLAUDE.md) - Development and architecture
 - [src/mcp_docker/config.py](src/mcp_docker/config.py) - Configuration implementation
