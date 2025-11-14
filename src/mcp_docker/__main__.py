@@ -494,19 +494,16 @@ def _build_allowed_hosts_list(host: str, config: Config) -> list[str]:
     Raises:
         ValueError: If binding to non-localhost without HTTPSTREAM_ALLOWED_HOSTS
     """
-    # Localhost binds: Accept all localhost variants for convenience
-    if host in LOCALHOST_VARIANTS:
-        return list(LOCALHOST_VARIANTS)
-
-    # Non-localhost binds (including wildcards 0.0.0.0, ::):
-    # Require explicit HTTPSTREAM_ALLOWED_HOSTS configuration
     allowed_hosts: list[str] = []
 
+    # Add localhost variants if binding to localhost
+    if host in LOCALHOST_VARIANTS:
+        allowed_hosts.extend(LOCALHOST_VARIANTS)
     # Add the bind host itself (unless it's a wildcard bind)
-    if host not in WILDCARD_BINDS:
+    elif host not in WILDCARD_BINDS:
         allowed_hosts.append(host)
 
-    # Add user-configured hosts (required for wildcard binds, optional for specific binds)
+    # Always add user-configured hosts (if provided)
     if config.httpstream.allowed_hosts:
         allowed_hosts.extend(config.httpstream.allowed_hosts)
 

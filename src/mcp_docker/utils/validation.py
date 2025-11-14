@@ -7,7 +7,7 @@ from typing import Any
 from mcp_docker.utils.errors import ValidationError
 
 # Docker naming patterns based on Docker documentation
-CONTAINER_NAME_PATTERN = re.compile(r"^/?[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+CONTAINER_NAME_PATTERN = re.compile(r"^/?[a-zA-Z0-9][a-zA-Z0-9_.-]*\Z")
 IMAGE_NAME_PATTERN = re.compile(
     # optional registry (hostname[:port])
     r"^(?:(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?::[0-9]{1,5})?/)?"
@@ -16,9 +16,9 @@ IMAGE_NAME_PATTERN = re.compile(
     # name
     r"[a-z0-9]+(?:[._-][a-z0-9]+)*"
     # optional tag
-    r"(?::[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127})?$"
+    r"(?::[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127})?\Z"
 )
-LABEL_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+$")
+LABEL_KEY_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+\Z")
 
 # Docker length limits
 MAX_CONTAINER_NAME_LENGTH = 255  # Maximum container name length in Docker
@@ -165,7 +165,7 @@ def validate_memory_string(memory: str) -> str:
         raise ValidationError("Memory limit cannot be empty")
 
     # Pattern: number followed by optional unit (b, k, m, g)
-    pattern = re.compile(r"^\d+[bkmg]?$", re.IGNORECASE)
+    pattern = re.compile(r"^\d+[bkmg]?\Z", re.IGNORECASE)
 
     if not pattern.match(memory):
         raise ValidationError(

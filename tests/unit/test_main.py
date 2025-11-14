@@ -652,7 +652,7 @@ class TestHttpStreamTransport:
                 patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
                 patch("mcp_docker.__main__.signal.signal"),
                 patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
-                patch.object(main_module.config.httpstream, "allowed_hosts", []),
+                patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com"]),
                 patch.object(main_module.config.cors, "enabled", False),
             ):
                 # Mock session manager
@@ -667,7 +667,7 @@ class TestHttpStreamTransport:
                 mock_server_instance.serve = AsyncMock()
                 mock_uvicorn_server.return_value = mock_server_instance
 
-                # Bind to 0.0.0.0 (wildcard)
+                # Bind to 0.0.0.0 (wildcard) with configured allowed hosts
                 await main_module.run_httpstream("0.0.0.0", 8080)
 
                 # Verify TransportSecuritySettings was created
@@ -676,6 +676,8 @@ class TestHttpStreamTransport:
                 # Wildcard host should NOT be in allowed_hosts
                 assert "0.0.0.0" not in call_kwargs["allowed_hosts"]
                 assert "::" not in call_kwargs["allowed_hosts"]
+                # Should include the configured host
+                assert "api.example.com" in call_kwargs["allowed_hosts"]
 
     @pytest.mark.asyncio
     async def test_run_httpstream_public_host_excludes_localhost(self) -> None:
