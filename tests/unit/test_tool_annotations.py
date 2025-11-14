@@ -110,7 +110,7 @@ class TestToolAnnotations:
         push_tool = next((t for t in tools if t["name"] == "docker_push_image"), None)
         assert push_tool is not None
         assert "annotations" in push_tool
-        assert pull_tool["annotations"].get("openWorldInteraction") is True
+        assert push_tool["annotations"].get("openWorldInteraction") is True
 
         # docker_exec_command may access external networks
         exec_tool = next((t for t in tools if t["name"] == "docker_exec_command"), None)
