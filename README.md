@@ -97,32 +97,10 @@ mcp-docker --transport httpstream --host 127.0.0.1 --port 8000
 ./start-mcp-docker-httpstream.sh
 ```
 
-**Configuration:**
-
-```bash
-# HTTP Stream Transport settings
-HTTPSTREAM_JSON_RESPONSE_DEFAULT=false  # false=streaming (default), true=batch
-HTTPSTREAM_STATELESS_MODE=false         # Enable for stateless deployments
-HTTPSTREAM_RESUMABILITY_ENABLED=true    # Enable message replay (default)
-HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000  # Max events in history
-HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300  # Event expiration (5 minutes)
-
-# DNS rebinding protection (production)
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true  # Enable protection (default)
-HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'  # Allowed hosts
-
-# CORS for browser clients
-CORS_ENABLED=true
-CORS_ALLOW_ORIGINS='["https://app.example.com"]'
-CORS_ALLOW_CREDENTIALS=true
-
-# Security (OAuth, rate limiting, audit logging)
-SECURITY_OAUTH_ENABLED=true
-SECURITY_OAUTH_ISSUER=https://auth.example.com
-SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
-SECURITY_RATE_LIMIT_ENABLED=true
-SECURITY_AUDIT_LOG_ENABLED=true
-```
+**Configuration:** The complete list of HTTP Stream, CORS, and DNS-rebinding settings lives in
+[CONFIGURATION.md](CONFIGURATION.md#http-stream-transport-configuration) (including the security
+toggles that pair with OAuth, rate limiting, and audit logging). Use that reference to keep runtime
+behavior in sync with CI and production deployments.
 
 **Endpoint Documentation:**
 
@@ -163,21 +141,9 @@ The MCP Docker server provides enterprise-grade security for production deployme
 
 ### Configuration
 
-All configuration is via environment variables. Key settings:
-
-```bash
-# Safety - Control which operations are allowed
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # Prevent accidental deletions
-
-# Security - TLS, auth, rate limiting
-MCP_TLS_ENABLED=true                       # Enable HTTPS
-SECURITY_OAUTH_ENABLED=true                # Require authentication
-SECURITY_RATE_LIMIT_RPM=60                 # Rate limit requests
-
-# HTTP Stream Transport - Modern network transport
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true   # Security protection
-CORS_ENABLED=true                          # Enable CORS for browsers
-```
+All environment variables (safety, server, transports, OAuth, rate limits, CORS) are documented in
+[CONFIGURATION.md](CONFIGURATION.md). Production hardening steps, threat models, and deployment
+checklists live in [SECURITY.md](SECURITY.md).
 
 **Documentation:**
 

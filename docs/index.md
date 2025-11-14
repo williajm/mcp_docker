@@ -37,27 +37,17 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **Comprehensive Testing**: Extensive test coverage with unit and integration tests
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
-## Quick Links
+## Canonical Docs
 
-### Getting Started
+The project docs live in three Markdown sources. Each section in this site links directly to them:
 
-- [Setup Guide](SETUP.md) - Installation, configuration, and quick start
-- [Examples](EXAMPLES.md) - Real-world usage examples and tutorials
-
-### Reference
-
-- [API Reference](API.md) - Complete API documentation for all 36 tools, prompts, and resources
-- [Architecture](ARCHITECTURE.md) - Technical design, patterns, and implementation details
-
-### Resources
-
-- [GitHub Repository](https://github.com/williajm/mcp_docker)
-- [Issues & Bug Reports](https://github.com/williajm/mcp_docker/issues)
-- [Model Context Protocol](https://modelcontextprotocol.io)
+- [README.md](https://github.com/williajm/mcp_docker/blob/main/README.md) — Overview, features, install flow, tools/prompts/resources
+- [CONFIGURATION.md](https://github.com/williajm/mcp_docker/blob/main/CONFIGURATION.md) — All environment variables for Docker, transports, safety, and server settings
+- [SECURITY.md](https://github.com/williajm/mcp_docker/blob/main/SECURITY.md) — Threat model, OAuth/TLS guidance, deployment checklist
 
 ## Quick Start
 
-See [Installation Instructions](../README.md#install-instructions) in the main README for complete setup guide including:
+See [Installation Instructions](https://github.com/williajm/mcp_docker/blob/main/README.md#install-instructions) in the main README for a complete setup guide including:
 
 - Prerequisites (Python 3.11+, Docker, uv/pip)
 - Installation methods (uvx, uv, pip)
@@ -70,7 +60,7 @@ Three-tier classification: **SAFE** (read-only) → **MODERATE** (create/modify)
 
 Control via environment variables: `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS`, `SAFETY_ALLOW_PRIVILEGED_CONTAINERS`, etc.
 
-See [README.md](../README.md#safety-system) for complete safety system documentation.
+See [README.md](https://github.com/williajm/mcp_docker/blob/main/README.md#safety-system) for complete safety system documentation.
 
 ## What's Available
 
@@ -78,7 +68,7 @@ See [README.md](../README.md#safety-system) for complete safety system documenta
 - **5 AI Prompts** - Troubleshooting, optimization, networking debug, security audit, compose generation
 - **2 Resources** - Container logs and stats streaming
 
-For complete list see [README.md](../README.md#tools-overview).
+For complete list see [README.md](https://github.com/williajm/mcp_docker/blob/main/README.md#tools-overview).
 
 ## Example Usage
 
@@ -106,17 +96,17 @@ prompt = await client.get_prompt("troubleshoot_container", {
 
 ```python
 # Using the resource
-logs = await client.read_resource(
-    "container_logs://my-container?tail=100&follow=true"
-)
+logs = await client.read_resource("container://logs/my-container")
+# Pass tail/follow arguments via your MCP client options
 ```
 
-## Documentation Structure
+## Documentation Sources
 
-- **[Setup Guide](SETUP.md)**: Installation, configuration, and environment setup
-- **[API Reference](API.md)**: Complete tool, prompt, and resource documentation
-- **[Examples](EXAMPLES.md)**: Real-world usage scenarios and code samples
-- **[Architecture](ARCHITECTURE.md)**: Design patterns, testing strategy, and implementation
+- **README.md**: Overview, onboarding, tool/prompt/resource catalog
+- **CONFIGURATION.md**: Canonical environment variable reference (Docker, transports, safety, TLS)
+- **SECURITY.md**: OAuth/TLS configuration, IP filtering, audit trail, production hardening guide
+
+For questions or issues, open a ticket in the [GitHub repository](https://github.com/williajm/mcp_docker).
 
 ## Contributing
 
@@ -138,7 +128,7 @@ MIT License - see [LICENSE](https://github.com/williajm/mcp_docker/blob/main/LIC
 
 ---
 
-**Version**: 0.2.0
-**Last Updated**: 2025-10-28
+**Version**: 1.1.0
+**Last Updated**: 2025-11-14
 **Python**: 3.11+
 **Docker**: API version 1.41+
