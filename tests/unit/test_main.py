@@ -1540,15 +1540,15 @@ class TestCreateMiddlewareStack:
             # Should contain bind IP + configured hosts only
             assert set(allowed_hosts) == {"192.168.1.100", "api.example.com", "web.example.com"}
 
-    def test_sse_wildcard_binding_includes_localhost(self) -> None:
-        """Test SSE transport with wildcard binding includes localhost (backwards compat).
+    def test_sse_wildcard_binding_accepts_any_host(self) -> None:
+        """Test SSE transport with wildcard binding accepts any Host header.
 
-        Regression test for P1 issue: SSE transport must maintain backwards
-        compatibility by including localhost variants even for wildcard binds,
-        unlike HTTP Stream Transport which has strict DNS rebinding protection.
+        For wildcard binds (0.0.0.0, ::), SSE transport uses allowed_hosts=["*"]
+        to accept any Host header, matching the network-wide access implied by
+        the bind address.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
-            # SSE transport should get localhost variants for wildcard bind
+            # SSE transport should accept any Host header for wildcard bind
             middleware_stack = main_module._create_middleware_stack(
                 "0.0.0.0", main_module.config, transport="sse"
             )
@@ -1556,13 +1556,8 @@ class TestCreateMiddlewareStack:
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # SSE should include localhost variants for backwards compatibility
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
-
-            # Should NOT include wildcard
-            assert "0.0.0.0" not in allowed_hosts
+            # SSE should use wildcard for wildcard binds
+            assert allowed_hosts == ["*"]
 
     def test_httpstream_wildcard_binding_excludes_localhost(self) -> None:
         """Test HTTP Stream transport with wildcard binding excludes localhost (strict).
