@@ -65,19 +65,27 @@ async def test_httpstream_resumability_1000_events() -> None:
 
             # Step 2: Make 1000 tool list requests to generate events
             for i in range(1000):
+                # Check if server is still alive periodically
+                if i % 100 == 0 and process.poll() is not None:
+                    raise RuntimeError(f"Server process died at request {i}")
+
                 list_request = {
                     "jsonrpc": "2.0",
                     "id": i + 2,
                     "method": "tools/list",
                     "params": {},
                 }
-                await client.post(
+                response = await client.post(
                     f"{base_url}/",
                     json=list_request,
                     headers={
                         "mcp-session-id": session_id,
                         "Accept": "application/json, text/event-stream",
                     },
+                )
+                # Check response to catch errors early
+                assert response.status_code == 200, (
+                    f"Request {i} failed with status {response.status_code}"
                 )
 
             # Step 3: Reconnect with same session ID and verify we can resume
