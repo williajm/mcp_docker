@@ -543,17 +543,28 @@ def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
     Returns:
         List of configured middleware
     """
-    # SECURITY: Configure TrustedHostMiddleware based on environment
-    # Build allowed hosts list (includes localhost, bind host if applicable, and configured hosts)
-    allowed_hosts = _build_allowed_hosts_list(host, config)
-
-    # Log configuration for debugging
-    if config.httpstream.allowed_hosts:
-        logger.info(
-            f"TrustedHostMiddleware: Added {len(config.httpstream.allowed_hosts)} "
-            f"configured hosts to allow-list"
+    # SECURITY: Configure TrustedHostMiddleware based on DNS rebinding protection setting
+    # If DNS rebinding protection is disabled, allow all hosts (development mode)
+    # If enabled (default), restrict to specific allowed hosts (production mode)
+    if not config.httpstream.dns_rebinding_protection:
+        # DNS rebinding protection disabled - allow any Host header
+        # This is useful for development but UNSAFE for production
+        allowed_hosts = ["*"]
+        logger.warning(
+            "⚠️  DNS rebinding protection DISABLED - accepting connections from any host. "
+            "This is UNSAFE for production deployments."
         )
-    logger.info(f"TrustedHostMiddleware: allowed_hosts={allowed_hosts}")
+    else:
+        # DNS rebinding protection enabled (default) - restrict to specific hosts
+        allowed_hosts = _build_allowed_hosts_list(host, config)
+
+        # Log configuration for debugging
+        if config.httpstream.allowed_hosts:
+            logger.info(
+                f"TrustedHostMiddleware: Added {len(config.httpstream.allowed_hosts)} "
+                f"configured hosts to allow-list"
+            )
+        logger.info(f"TrustedHostMiddleware: allowed_hosts={allowed_hosts}")
 
     middleware_stack = [
         # Trusted host middleware (validate Host header to prevent Host header injection)
