@@ -481,11 +481,11 @@ def _build_allowed_hosts_list(
     TransportSecuritySettings).
 
     Security: DNS rebinding protection behavior differs by transport:
-    - HTTP Stream Transport (modern): Strict protection - localhost variants
-      ONLY included when binding to localhost. This prevents attackers from
+    - HTTP Stream Transport: Strict protection - localhost variants ONLY
+      included when binding to localhost. This prevents attackers from
       bypassing protection by sending "Host: localhost" to public endpoints.
-    - SSE Transport (legacy): Backwards compatible - always includes localhost
-      variants to avoid breaking existing deployments.
+    - SSE Transport: Wildcard binds (0.0.0.0, ::) accept any Host header.
+      Specific binds accept that host plus localhost variants.
 
     Args:
         host: Server bind address (e.g., '127.0.0.1', '0.0.0.0', 'api.example.com')
@@ -494,20 +494,24 @@ def _build_allowed_hosts_list(
 
     Returns:
         List of allowed hostnames/IPs including:
-        - Localhost variants (behavior depends on transport type)
+        - Wildcard (*) for SSE wildcard binds
+        - Localhost variants (behavior depends on transport and bind address)
         - Bind host (if not wildcard)
         - User-configured hosts from HTTPSTREAM_ALLOWED_HOSTS
     """
     allowed_hosts: list[str] = []
 
     if transport == "sse":
-        # SSE Transport (legacy): Maintain backwards compatibility
-        # Always include localhost variants to avoid breaking existing deployments
-        # that bind to 0.0.0.0 for network access
-        allowed_hosts.extend(LOCALHOST_VARIANTS)
-        if host not in LOCALHOST_VARIANTS and host not in WILDCARD_BINDS:
-            allowed_hosts.append(host)
-    # HTTP Stream Transport (modern): Strict DNS rebinding protection
+        # SSE Transport: For wildcard binds (0.0.0.0, ::), accept any Host header
+        # to match the network-wide access implied by the bind address
+        if host in WILDCARD_BINDS:
+            allowed_hosts.append("*")
+        else:
+            # For specific binds, include localhost variants and the bind address
+            allowed_hosts.extend(LOCALHOST_VARIANTS)
+            if host not in LOCALHOST_VARIANTS:
+                allowed_hosts.append(host)
+    # HTTP Stream Transport: Strict DNS rebinding protection
     # Only include localhost variants when actually binding to localhost
     # This prevents bypassing DNS rebinding protection on public deployments
     elif host in LOCALHOST_VARIANTS:
