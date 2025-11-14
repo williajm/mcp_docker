@@ -1,6 +1,6 @@
 #!/bin/bash
 # MCP Docker Server - HTTP Stream Transport with TLS
-# Startup script for running the server with HTTPS and authentication
+# Startup script for running the server with HTTPS (authentication disabled by default)
 
 set -e  # Exit on error
 
@@ -63,7 +63,13 @@ export CORS_ENABLED=false
 # export CORS_ALLOW_CREDENTIALS=true
 
 # Security configuration
-export SECURITY_AUTH_ENABLED=false
+# OAuth/OIDC Authentication (disabled by default)
+export SECURITY_OAUTH_ENABLED=false
+# export SECURITY_OAUTH_ISSUER="https://accounts.google.com"
+# export SECURITY_OAUTH_AUDIENCE='["mcp-docker-api"]'
+# export SECURITY_OAUTH_JWKS_URL="https://accounts.google.com/.well-known/jwks.json"
+# export SECURITY_OAUTH_REQUIRED_SCOPES='["docker:read", "docker:write"]'
+
 export SECURITY_RATE_LIMIT_ENABLED=true
 export SECURITY_RATE_LIMIT_RPM=60
 export SECURITY_AUDIT_LOG_ENABLED=true
