@@ -280,10 +280,10 @@ class StartContainerTool(BaseTool):
 
     @property
     def idempotent(self) -> bool:
-        """Idempotent: starting an already running container is harmless.
+        """Idempotent: starting converges to running state.
 
-        Docker's start operation is idempotent - calling start on an already-running
-        container succeeds without error. Multiple calls converge to the same state.
+        We check container status first and skip start if already running,
+        making retries safe and truly idempotent.
         """
         return True
 
@@ -303,6 +303,13 @@ class StartContainerTool(BaseTool):
         try:
             logger.info(f"Starting container: {input_data.container_id}")
             container = self.docker.client.containers.get(input_data.container_id)
+
+            # Check if already running (idempotent: safe to retry)
+            if container.status == "running":
+                logger.info(f"Container {input_data.container_id} already running")
+                return StartContainerOutput(container_id=str(container.id), status=container.status)
+
+            # Not running - start it
             container.start()
             container.reload()
 
@@ -344,7 +351,11 @@ class StopContainerTool(BaseTool):
 
     @property
     def idempotent(self) -> bool:
-        """Idempotent: stopping an already stopped container is harmless."""
+        """Idempotent: stopping converges to stopped state.
+
+        We check container status first and skip stop if not running,
+        making retries safe and truly idempotent.
+        """
         return True
 
     async def execute(self, input_data: StopContainerInput) -> StopContainerOutput:
@@ -365,6 +376,13 @@ class StopContainerTool(BaseTool):
                 f"Stopping container: {input_data.container_id} (timeout={input_data.timeout})"
             )
             container = self.docker.client.containers.get(input_data.container_id)
+
+            # Check if already stopped (idempotent: safe to retry)
+            if container.status in ("exited", "created"):
+                logger.info(f"Container {input_data.container_id} already stopped")
+                return StopContainerOutput(container_id=str(container.id), status=container.status)
+
+            # Still running - stop it
             container.stop(timeout=input_data.timeout)
             container.reload()
 

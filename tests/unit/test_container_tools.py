@@ -283,6 +283,9 @@ class TestStartContainerTool:
     ) -> None:
         """Test successful container start."""
         mock_docker_client.client.containers.get.return_value = mock_container
+        mock_container.status = "exited"  # Container is stopped
+        # Simulate container becoming running after start() and reload()
+        mock_container.reload.side_effect = lambda: setattr(mock_container, "status", "running")
 
         tool = StartContainerTool(mock_docker_client, safety_config)
         input_data = StartContainerInput(container_id="abc123")
@@ -312,6 +315,7 @@ class TestStartContainerTool:
     ) -> None:
         """Test handling of API errors."""
         mock_docker_client.client.containers.get.return_value = mock_container
+        mock_container.status = "exited"  # Container is stopped
         mock_container.start.side_effect = APIError("API error")
 
         tool = StartContainerTool(mock_docker_client, safety_config)
@@ -319,6 +323,24 @@ class TestStartContainerTool:
 
         with pytest.raises(DockerOperationError):
             await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_start_container_already_running_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+    ) -> None:
+        """Test idempotent behavior when container already running."""
+        mock_docker_client.client.containers.get.return_value = mock_container
+        mock_container.status = "running"  # Container already running
+
+        tool = StartContainerTool(mock_docker_client, safety_config)
+        input_data = StartContainerInput(container_id="abc123")
+        result = await tool.execute(input_data)
+
+        assert result.container_id == "abc123def456"
+        assert result.status == "running"
+        # Verify start was NOT called (idempotent check)
+        mock_container.start.assert_not_called()
+        mock_container.reload.assert_not_called()
 
 
 class TestStopContainerTool:
@@ -329,7 +351,9 @@ class TestStopContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_container: Any
     ) -> None:
         """Test successful container stop."""
-        mock_container.status = "exited"
+        mock_container.status = "running"  # Container is running
+        # Simulate container becoming stopped after stop() and reload()
+        mock_container.reload.side_effect = lambda: setattr(mock_container, "status", "exited")
         mock_docker_client.client.containers.get.return_value = mock_container
 
         tool = StopContainerTool(mock_docker_client, safety_config)
@@ -346,7 +370,9 @@ class TestStopContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_container: Any
     ) -> None:
         """Test stopping container with custom timeout."""
-        mock_container.status = "exited"
+        mock_container.status = "running"  # Container is running
+        # Simulate container becoming stopped after stop() and reload()
+        mock_container.reload.side_effect = lambda: setattr(mock_container, "status", "exited")
         mock_docker_client.client.containers.get.return_value = mock_container
 
         tool = StopContainerTool(mock_docker_client, safety_config)
@@ -354,6 +380,24 @@ class TestStopContainerTool:
         await tool.execute(input_data)
 
         mock_container.stop.assert_called_once_with(timeout=30)
+
+    @pytest.mark.asyncio
+    async def test_stop_container_already_stopped_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+    ) -> None:
+        """Test idempotent behavior when container already stopped."""
+        mock_container.status = "exited"  # Container already stopped
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = StopContainerTool(mock_docker_client, safety_config)
+        input_data = StopContainerInput(container_id="abc123", timeout=10)
+        result = await tool.execute(input_data)
+
+        assert result.container_id == "abc123def456"
+        assert result.status == "exited"
+        # Verify stop was NOT called (idempotent check)
+        mock_container.stop.assert_not_called()
+        mock_container.reload.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_stop_container_not_found(

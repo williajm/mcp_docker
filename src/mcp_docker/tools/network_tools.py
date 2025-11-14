@@ -353,15 +353,6 @@ class ConnectContainerTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
-    @property
-    def idempotent(self) -> bool:
-        """Idempotent: connecting an already connected container is harmless.
-
-        Implementation checks current state before attempting connection to avoid
-        relying on Docker error messages, making the idempotent behavior robust.
-        """
-        return True
-
     async def execute(self, input_data: ConnectContainerInput) -> ConnectContainerOutput:
         """Execute the connect container operation.
 
