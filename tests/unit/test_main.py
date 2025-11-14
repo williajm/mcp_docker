@@ -1526,7 +1526,9 @@ class TestCreateMiddlewareStack:
 
         Wildcard binds with HTTPSTREAM_ALLOWED_HOSTS should accept those hosts.
         """
-        with patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]):
+        with patch.object(
+            main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]
+        ):
             middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
 
             first_middleware = middleware_stack[0]
@@ -1542,9 +1544,7 @@ class TestCreateMiddlewareStack:
         include all localhost variants for convenience.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
-            middleware_stack = main_module._create_middleware_stack(
-                "127.0.0.1", main_module.config
-            )
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
 
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
