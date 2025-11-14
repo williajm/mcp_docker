@@ -155,6 +155,7 @@ The MCP Docker server provides enterprise-grade security for production deployme
 **⚠️ Important**: Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for threat model and mitigations.
 
 **For production deployment**, see [SECURITY.md](SECURITY.md) for:
+
 - Complete security feature guide (OAuth, TLS, IP filtering, rate limiting, audit logging)
 - Production deployment checklist
 - Threat model and mitigation strategies
@@ -179,6 +180,7 @@ CORS_ENABLED=true                          # Enable CORS for browsers
 ```
 
 **Documentation:**
+
 - [CONFIGURATION.md](CONFIGURATION.md) - Complete configuration reference (all options)
 - [SECURITY.md](SECURITY.md) - Security features and production guidelines
 
@@ -369,10 +371,12 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 | **Complexity** | Low (standard commands) | Medium (MCP protocol) |
 
 **When to use MCP Server:**
+
 - **Required:** Claude Desktop (no other option)
 - **Recommended:** Production automation, compliance requirements, multi-user access, safety controls needed
 
 **When to use CLI directly:**
+
 - **Best for:** Claude Code with simple tasks, advanced Docker features, minimal setup
 
 **Hybrid approach:** Use MCP for common operations + CLI for advanced features.

@@ -159,6 +159,7 @@ Cross-Origin Resource Sharing for browser clients.
 | `CORS_MAX_AGE` | `3600` | Preflight cache duration (seconds) |
 
 **CORS Security Notes:**
+
 - Cannot combine wildcard origins (`["*"]`) with `CORS_ALLOW_CREDENTIALS=true`
 - Always specify explicit origins in production
 - See [MDN CORS Documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)

@@ -58,6 +58,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 ## Quick Start
 
 See [Installation Instructions](../README.md#install-instructions) in the main README for complete setup guide including:
+
 - Prerequisites (Python 3.11+, Docker, uv/pip)
 - Installation methods (uvx, uv, pip)
 - Configuration for Claude Desktop (Linux/macOS/Windows)
