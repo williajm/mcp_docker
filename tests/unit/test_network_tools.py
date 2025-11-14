@@ -280,18 +280,20 @@ class TestConnectContainerTool:
     ) -> None:
         """Test idempotent behavior when container is already connected."""
         mock_docker_client.client.networks.get.return_value = mock_network
-        # Simulate Docker error when container is already connected
-        mock_network.connect.side_effect = APIError("container is already connected to network")
+        # Mock network.attrs to show container is already connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
 
         tool = ConnectContainerTool(mock_docker_client, safety_config)
         input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
 
-        # Should succeed (idempotent) instead of raising error
+        # Should succeed (idempotent) without calling connect
         result = await tool.execute(input_data)
 
-        assert result.network_id == "my-network"
+        assert result.network_id == "net123"
         assert result.container_id == "container123"
         assert result.status == "connected"
+        # Verify connect was NOT called (container already connected)
+        mock_network.connect.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_connect_container_other_api_error(
@@ -319,6 +321,8 @@ class TestDisconnectContainerTool:
     ) -> None:
         """Test successful container disconnection."""
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
         input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
@@ -335,6 +339,8 @@ class TestDisconnectContainerTool:
     ) -> None:
         """Test disconnecting container with force."""
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
         input_data = DisconnectContainerInput(
@@ -364,6 +370,8 @@ class TestDisconnectContainerTool:
     ) -> None:
         """Test handling of container not found."""
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected (so disconnect will be called)
+        mock_network.attrs = {"Containers": {"nonexistent": {"IPv4Address": "172.18.0.10"}}}
         mock_network.disconnect.side_effect = NotFound("Container not found")
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
@@ -378,18 +386,20 @@ class TestDisconnectContainerTool:
     ) -> None:
         """Test idempotent behavior when container is not connected."""
         mock_docker_client.client.networks.get.return_value = mock_network
-        # Simulate Docker error when container is not connected to network
-        mock_network.disconnect.side_effect = APIError("container is not connected to the network")
+        # Mock network.attrs to show container is NOT connected (empty Containers dict)
+        mock_network.attrs = {"Containers": {}}
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
         input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
 
-        # Should succeed (idempotent) instead of raising error
+        # Should succeed (idempotent) without calling disconnect
         result = await tool.execute(input_data)
 
-        assert result.network_id == "my-network"
+        assert result.network_id == "net123"
         assert result.container_id == "container123"
         assert result.status == "disconnected"
+        # Verify disconnect was NOT called (container not connected)
+        mock_network.disconnect.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_disconnect_container_other_api_error(
@@ -397,7 +407,9 @@ class TestDisconnectContainerTool:
     ) -> None:
         """Test that non-idempotent API errors still raise exceptions."""
         mock_docker_client.client.networks.get.return_value = mock_network
-        # Simulate a different Docker error (not "not connected")
+        # Mock network.attrs to show container is connected (so disconnect will be called)
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
+        # Simulate a different Docker error (not related to idempotency)
         mock_network.disconnect.side_effect = APIError("network operation failed")
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
