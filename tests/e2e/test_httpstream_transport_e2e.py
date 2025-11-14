@@ -217,7 +217,7 @@ async def test_httpstream_protocol_initialization() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -263,7 +263,7 @@ async def test_httpstream_protocol_list_tools() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -316,7 +316,7 @@ async def test_httpstream_protocol_call_tool() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -368,7 +368,7 @@ async def test_httpstream_protocol_list_resources() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -410,7 +410,7 @@ async def test_httpstream_protocol_list_prompts() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -456,7 +456,7 @@ async def test_httpstream_protocol_session_persistence() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
     env["HTTPSTREAM_RESUMABILITY_ENABLED"] = "true"
@@ -522,7 +522,7 @@ async def test_httpstream_protocol_https_with_tls() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
@@ -572,7 +572,7 @@ async def test_httpstream_protocol_error_handling() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -626,7 +626,7 @@ async def test_http_httpstream_server_starts() -> None:
     """Test HTTP Stream server starts and endpoint is accessible."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"  # Localhost without auth is ok for testing
+    env["SECURITY_OAUTH_ENABLED"] = "false"  # Localhost without auth is ok for testing
     env["MCP_TLS_ENABLED"] = "false"  # HTTP only
     # Disable DNS rebinding protection for simpler testing
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
@@ -686,7 +686,7 @@ async def test_https_httpstream_with_tls() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
@@ -730,7 +730,7 @@ async def test_httpstream_session_management() -> None:
     """Test HTTP Stream session management with mcp-session-id header."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_STATELESS_MODE"] = "false"  # Enable session management
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
@@ -764,7 +764,7 @@ async def test_httpstream_batch_json_response() -> None:
     """Test HTTP Stream batch/JSON response mode (Accept: application/json)."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -857,7 +857,7 @@ async def test_httpstream_security_headers() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
@@ -900,7 +900,7 @@ async def test_httpstream_cors_headers() -> None:
     """Test CORS headers when CORS is enabled."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Enable CORS with explicit origin
     env["CORS_ENABLED"] = "true"
@@ -1321,7 +1321,7 @@ async def test_httpstream_batch_mode() -> None:
     """Test batch (JSON) response mode configuration."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Enable batch mode (JSON responses instead of SSE)
     env["HTTPSTREAM_JSON_RESPONSE_DEFAULT"] = "true"
@@ -1349,7 +1349,7 @@ async def test_httpstream_stateless_mode() -> None:
     """Test stateless mode (no session management)."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Enable stateless mode (disable session tracking)
     env["HTTPSTREAM_STATELESS_MODE"] = "true"
@@ -1376,7 +1376,7 @@ async def test_httpstream_rate_limiting() -> None:
     """Test rate limiting with HTTP Stream Transport."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Enable strict rate limiting
     env["SECURITY_RATE_LIMIT_ENABLED"] = "true"
@@ -1410,7 +1410,7 @@ async def test_httpstream_resumability_disabled() -> None:
     """Test that resumability can be disabled via configuration."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Disable resumability (no EventStore)
     env["HTTPSTREAM_RESUMABILITY_ENABLED"] = "false"
@@ -1436,7 +1436,7 @@ async def test_httpstream_eventstore_enabled() -> None:
     """Test that EventStore is created when resumability is enabled."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Enable resumability with custom EventStore settings
     env["HTTPSTREAM_RESUMABILITY_ENABLED"] = "true"
@@ -1464,7 +1464,7 @@ async def test_httpstream_eventstore_config_validation() -> None:
     """Test EventStore configuration validation."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     # Test with different valid EventStore configs
     env["HTTPSTREAM_RESUMABILITY_ENABLED"] = "true"
@@ -1492,7 +1492,7 @@ async def test_httpstream_resumability_with_last_event_id() -> None:
     """Test that server accepts Last-Event-ID header for resumability."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
 
     # Enable resumability (it's enabled by default)
@@ -1545,7 +1545,7 @@ async def test_httpstream_resumability_event_replay() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_RESUMABILITY_ENABLED"] = "true"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
@@ -1617,7 +1617,7 @@ async def test_httpstream_cors_comprehensive_headers() -> None:
     """Test comprehensive CORS header validation including exposed headers."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
 
     # Enable CORS with explicit origin
@@ -1691,7 +1691,7 @@ async def test_httpstream_cors_disabled_no_headers() -> None:
     """Test that CORS headers are NOT present when CORS is disabled."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
 
     # Explicitly disable CORS

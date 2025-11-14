@@ -31,7 +31,7 @@ async def test_httpstream_resumability_1000_events() -> None:
     """Stress test: Reconnect with 1000+ events in history."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -55,7 +55,9 @@ async def test_httpstream_resumability_1000_events() -> None:
             }
 
             response = await client.post(
-                f"{base_url}/", json=init_request, headers={"Accept": "application/json"}
+                f"{base_url}/",
+                json=init_request,
+                headers={"Accept": "application/json, text/event-stream"},
             )
             assert response.status_code == 200
             session_id = response.headers.get("mcp-session-id")
@@ -74,7 +76,7 @@ async def test_httpstream_resumability_1000_events() -> None:
                     json=list_request,
                     headers={
                         "mcp-session-id": session_id,
-                        "Accept": "application/json",
+                        "Accept": "application/json, text/event-stream",
                     },
                 )
 
@@ -91,7 +93,7 @@ async def test_httpstream_resumability_1000_events() -> None:
                 json=reconnect_request,
                 headers={
                     "mcp-session-id": session_id,
-                    "Accept": "application/json",
+                    "Accept": "application/json, text/event-stream",
                 },
             )
 
@@ -110,7 +112,7 @@ async def test_httpstream_concurrent_sessions_with_replay() -> None:
     """Stress test: Multiple concurrent sessions with event replay."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -141,7 +143,7 @@ async def test_httpstream_concurrent_sessions_with_replay() -> None:
                 response = await client.post(
                     f"{base_url}/",
                     json=init_request,
-                    headers={"Accept": "application/json"},
+                    headers={"Accept": "application/json, text/event-stream"},
                 )
                 session_id = response.headers.get("mcp-session-id")
                 assert session_id is not None
@@ -159,7 +161,7 @@ async def test_httpstream_concurrent_sessions_with_replay() -> None:
                         json=list_request,
                         headers={
                             "mcp-session-id": session_id,
-                            "Accept": "application/json",
+                            "Accept": "application/json, text/event-stream",
                         },
                     )
 
@@ -179,7 +181,7 @@ async def test_httpstream_concurrent_sessions_with_replay() -> None:
                     json=reconnect_request,
                     headers={
                         "mcp-session-id": session_id,
-                        "Accept": "application/json",
+                        "Accept": "application/json, text/event-stream",
                     },
                 )
                 assert response.status_code == 200
@@ -201,7 +203,7 @@ async def test_httpstream_event_ttl_expiration() -> None:
     """
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -225,7 +227,9 @@ async def test_httpstream_event_ttl_expiration() -> None:
             }
 
             response = await client.post(
-                f"{base_url}/", json=init_request, headers={"Accept": "application/json"}
+                f"{base_url}/",
+                json=init_request,
+                headers={"Accept": "application/json, text/event-stream"},
             )
             session_id = response.headers.get("mcp-session-id")
             assert session_id is not None
@@ -243,7 +247,7 @@ async def test_httpstream_event_ttl_expiration() -> None:
                     json=list_request,
                     headers={
                         "mcp-session-id": session_id,
-                        "Accept": "application/json",
+                        "Accept": "application/json, text/event-stream",
                     },
                 )
 
@@ -288,7 +292,7 @@ async def test_httpstream_malformed_session_id_too_long() -> None:
     """Security test: Reject session ID that is too long."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -318,7 +322,7 @@ async def test_httpstream_malformed_session_id_too_long() -> None:
                 json=init_request,
                 headers={
                     "mcp-session-id": malformed_id,
-                    "Accept": "application/json",
+                    "Accept": "application/json, text/event-stream",
                 },
             )
 
@@ -338,7 +342,7 @@ async def test_httpstream_malformed_session_id_invalid_chars() -> None:
     """Security test: Reject session ID with invalid characters."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
 
@@ -376,7 +380,7 @@ async def test_httpstream_malformed_session_id_invalid_chars() -> None:
                         json=init_request,
                         headers={
                             "mcp-session-id": malformed_id,
-                            "Accept": "application/json",
+                            "Accept": "application/json, text/event-stream",
                         },
                     )
 
@@ -403,7 +407,7 @@ async def test_httpstream_host_header_injection() -> None:
     """Security test: Reject Host header injection attempts."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "true"
     env["HTTPSTREAM_ALLOWED_HOSTS"] = '["127.0.0.1", "localhost"]'
@@ -442,7 +446,7 @@ async def test_httpstream_host_header_injection() -> None:
                         json=init_request,
                         headers={
                             "Host": malicious_host,
-                            "Accept": "application/json",
+                            "Accept": "application/json, text/event-stream",
                         },
                     )
                     # Should reject when DNS protection enabled
@@ -462,7 +466,7 @@ async def test_httpstream_cors_preflight_disallowed_origin() -> None:
     """Security test: CORS preflight with disallowed origin."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["CORS_ENABLED"] = "true"
     env["CORS_ALLOW_ORIGINS"] = '["https://trusted.com"]'  # Only allow specific origin
@@ -509,7 +513,7 @@ async def test_httpstream_cors_credentials_without_specific_origin() -> None:
     """Security test: CORS should not allow credentials with wildcard origin."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["SECURITY_OAUTH_ENABLED"] = "false"
     env["MCP_TLS_ENABLED"] = "false"
     env["CORS_ENABLED"] = "true"
     env["CORS_ALLOW_ORIGINS"] = '["http://localhost:3000"]'  # Specific origin (not wildcard)

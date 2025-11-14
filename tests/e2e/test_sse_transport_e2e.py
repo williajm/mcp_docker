@@ -195,7 +195,7 @@ async def test_http_sse_server_starts() -> None:
     """Test HTTP SSE server starts and SSE endpoint is accessible."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"  # Localhost without auth is ok for testing
+    env["SECURITY_OAUTH_ENABLED"] = "false"  # Localhost without auth is ok for testing
     env["MCP_TLS_ENABLED"] = "false"  # HTTP only
 
     # Start SSE server
@@ -248,7 +248,7 @@ async def test_https_sse_with_tls() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
@@ -294,7 +294,7 @@ async def test_sse_security_headers() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
