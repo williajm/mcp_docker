@@ -478,24 +478,32 @@ def _build_allowed_hosts_list(host: str, config: Config) -> list[str]:
     in the Host header for security middleware (TrustedHostMiddleware and
     TransportSecuritySettings).
 
+    Security: Localhost variants (127.0.0.1, localhost, ::1) are ONLY included
+    when the server is actually bound to a localhost address. Including them
+    for public binds would allow attackers to bypass DNS rebinding protection
+    by sending "Host: localhost" in requests to public endpoints.
+
     Args:
         host: Server bind address (e.g., '127.0.0.1', '0.0.0.0', 'api.example.com')
         config: MCP configuration with user-configured allowed hosts
 
     Returns:
         List of allowed hostnames/IPs including:
-        - Localhost variants (127.0.0.1, localhost, ::1)
-        - Bind host (if not localhost or wildcard)
+        - Localhost variants (127.0.0.1, localhost, ::1) ONLY if bound to localhost
+        - Bind host (if not wildcard)
         - User-configured hosts from HTTPSTREAM_ALLOWED_HOSTS
     """
-    # Always include localhost variants for local testing
-    allowed_hosts = list(LOCALHOST_VARIANTS)
+    allowed_hosts: list[str] = []
 
-    # Add bind host only if it's a specific IP/hostname (not localhost or wildcard)
-    if host not in LOCALHOST_VARIANTS and host not in WILDCARD_BINDS:
+    # Only include localhost variants when actually binding to localhost
+    # This prevents bypassing DNS rebinding protection on public deployments
+    if host in LOCALHOST_VARIANTS:
+        allowed_hosts.extend(LOCALHOST_VARIANTS)
+    elif host not in WILDCARD_BINDS:
+        # For specific non-localhost binds (e.g., 'api.example.com'), add that host
         allowed_hosts.append(host)
 
-    # Add user-configured hosts (critical for wildcard bindings)
+    # Add user-configured hosts (critical for wildcard bindings like 0.0.0.0)
     if config.httpstream.allowed_hosts:
         allowed_hosts.extend(config.httpstream.allowed_hosts)
 

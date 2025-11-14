@@ -678,6 +678,56 @@ class TestHttpStreamTransport:
                 assert "::" not in call_kwargs["allowed_hosts"]
 
     @pytest.mark.asyncio
+    async def test_run_httpstream_public_host_excludes_localhost(self) -> None:
+        """Test run_httpstream excludes localhost when binding to public host.
+
+        Security: This test verifies the fix for DNS rebinding protection bypass.
+        When binding to a public hostname/IP, localhost variants must NOT be in
+        the allowed_hosts list, otherwise attackers could bypass protection by
+        sending "Host: localhost" in requests to public endpoints.
+        """
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com"]),
+                patch.object(main_module.config.cors, "enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Bind to public hostname
+                await main_module.run_httpstream("api.example.com", 8443)
+
+                # Verify TransportSecuritySettings was created
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+
+                # CRITICAL: Localhost variants should NOT be in allowed_hosts
+                # to prevent DNS rebinding protection bypass
+                assert "localhost" not in call_kwargs["allowed_hosts"]
+                assert "127.0.0.1" not in call_kwargs["allowed_hosts"]
+                assert "::1" not in call_kwargs["allowed_hosts"]
+
+                # Public hostname SHOULD be in allowed_hosts
+                assert "api.example.com" in call_kwargs["allowed_hosts"]
+
+    @pytest.mark.asyncio
     async def test_run_httpstream_cors_allowed_origins(self) -> None:
         """Test run_httpstream includes CORS origins in security settings."""
         with patch.object(main_module, "docker_server") as mock_docker_server:

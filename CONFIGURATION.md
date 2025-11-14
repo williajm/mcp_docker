@@ -176,7 +176,7 @@ See [README.md](README.md#usage) for transport options and startup commands.
 
 **Local Development (stdio):** No configuration needed - `uv run mcp-docker`
 
-**Development Server (no TLS):** Set `SECURITY_AUTH_ENABLED=false`, `MCP_TLS_ENABLED=false`, `HTTPSTREAM_DNS_REBINDING_PROTECTION=false` ⚠️ Trusted networks only
+**Development Server (no TLS):** Set `SECURITY_OAUTH_ENABLED=false`, `MCP_TLS_ENABLED=false`, `HTTPSTREAM_DNS_REBINDING_PROTECTION=false` ⚠️ Trusted networks only
 
 **Production Server (HTTP Stream + TLS + OAuth):**
 
