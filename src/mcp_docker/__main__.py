@@ -86,6 +86,11 @@ CSP_NONE = "'none'"
 SSE_PATH = "/sse"
 MESSAGES_PATH = "/messages"
 
+# Network binding constants
+# Used for host validation and security middleware configuration
+LOCALHOST_VARIANTS = frozenset(["127.0.0.1", "localhost", "::1"])
+WILDCARD_BINDS = frozenset(["0.0.0.0", "::"])
+
 # Context variables for SSE transport
 client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "client_ip", default=None
@@ -466,6 +471,37 @@ def _create_security_headers(config: Config) -> Secure:
     )
 
 
+def _build_allowed_hosts_list(host: str, config: Config) -> list[str]:
+    """Build allowed hosts list based on bind address.
+
+    This function constructs a list of hostnames/IPs that should be allowed
+    in the Host header for security middleware (TrustedHostMiddleware and
+    TransportSecuritySettings).
+
+    Args:
+        host: Server bind address (e.g., '127.0.0.1', '0.0.0.0', 'api.example.com')
+        config: MCP configuration with user-configured allowed hosts
+
+    Returns:
+        List of allowed hostnames/IPs including:
+        - Localhost variants (127.0.0.1, localhost, ::1)
+        - Bind host (if not localhost or wildcard)
+        - User-configured hosts from HTTPSTREAM_ALLOWED_HOSTS
+    """
+    # Always include localhost variants for local testing
+    allowed_hosts = list(LOCALHOST_VARIANTS)
+
+    # Add bind host only if it's a specific IP/hostname (not localhost or wildcard)
+    if host not in LOCALHOST_VARIANTS and host not in WILDCARD_BINDS:
+        allowed_hosts.append(host)
+
+    # Add user-configured hosts (critical for wildcard bindings)
+    if config.httpstream.allowed_hosts:
+        allowed_hosts.extend(config.httpstream.allowed_hosts)
+
+    return allowed_hosts
+
+
 def _create_uvicorn_config(app: Any, host: str, port: int, config: Config) -> uvicorn.Config:
     """Create Uvicorn server configuration with optional TLS.
 
@@ -508,26 +544,15 @@ def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
         List of configured middleware
     """
     # SECURITY: Configure TrustedHostMiddleware based on environment
-    # Start with localhost defaults
-    allowed_hosts = ["127.0.0.1", "localhost", "::1"]
+    # Build allowed hosts list (includes localhost, bind host if applicable, and configured hosts)
+    allowed_hosts = _build_allowed_hosts_list(host, config)
 
-    # Add bind host if it's not a wildcard (0.0.0.0 or ::) or localhost
-    is_localhost = host in ["127.0.0.1", "localhost", "::1"]
-    is_wildcard = host in ["0.0.0.0", "::"]
-
-    if not is_localhost and not is_wildcard:
-        # Specific IP/hostname binding - add it to allowed list
-        allowed_hosts.append(host)
-
-    # Add user-configured additional hosts (production hostnames, IPs)
-    # This is critical for wildcard bindings where real hostnames must be specified
+    # Log configuration for debugging
     if config.httpstream.allowed_hosts:
-        allowed_hosts.extend(config.httpstream.allowed_hosts)
         logger.info(
             f"TrustedHostMiddleware: Added {len(config.httpstream.allowed_hosts)} "
             f"configured hosts to allow-list"
         )
-
     logger.info(f"TrustedHostMiddleware: allowed_hosts={allowed_hosts}")
 
     middleware_stack = [
@@ -887,16 +912,11 @@ def _create_transport_security_settings(host: str) -> TransportSecuritySettings 
         logger.warning("DNS rebinding protection DISABLED - not recommended for production")
         return None
 
-    # Start with localhost defaults
-    allowed_hosts = ["localhost", "127.0.0.1"]
+    # Build allowed hosts list (consistent with TrustedHostMiddleware)
+    allowed_hosts = _build_allowed_hosts_list(host, config)
 
-    # Add bind host if it's not a wildcard (0.0.0.0 or ::)
-    if host not in ("0.0.0.0", "::"):
-        allowed_hosts.append(host)
-
-    # Add user-configured additional hosts (production hostnames, IPs, etc.)
+    # Log configured hosts if any were added
     if config.httpstream.allowed_hosts:
-        allowed_hosts.extend(config.httpstream.allowed_hosts)
         count = len(config.httpstream.allowed_hosts)
         logger.info(f"Added {count} configured hosts to allow-list")
 
