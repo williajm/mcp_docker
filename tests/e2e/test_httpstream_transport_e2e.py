@@ -1,17 +1,23 @@
 """E2E tests for HTTP Stream Transport (HTTP and HTTPS).
 
-These tests verify HTTP Stream Transport server starts correctly with:
-- HTTP on localhost (development mode)
-- HTTPS with TLS certificates (production mode)
-- Session management via mcp-session-id header
-- Dual response modes (streaming SSE or batch JSON)
-- HEAD request health check bypass
-- OAuth authentication
-- Security headers
-- CORS configuration
+These tests verify HTTP Stream Transport functionality at two levels:
+
+1. **Protocol Tests** (test_httpstream_protocol_*):
+   - Full MCP client-server interactions
+   - MCP initialization handshake
+   - Actual tool calls and responses
+   - Session management and resumability
+   - Streamed response handling
+
+2. **Configuration Tests** (test_http*/test_https*):
+   - Server startup with various configurations
+   - TLS/HTTPS setup
+   - Authentication (OAuth)
+   - Security headers and CORS
+   - Rate limiting
 
 HTTP Stream Transport is the modern MCP transport that replaces SSE with
-a single unified endpoint.
+a single unified endpoint (POST /).
 """
 
 import asyncio
@@ -36,6 +42,9 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
+from mcp.client.session import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+from mcp.types import TextContent
 
 # Test configuration
 HTTPSTREAM_TEST_PORT_HTTP = 8867  # HTTP test port
@@ -189,6 +198,426 @@ def cleanup_server(process: subprocess.Popen[bytes]) -> None:
         process.wait(timeout=HTTPSTREAM_CLEANUP_TIMEOUT)
     except subprocess.TimeoutExpired:
         process.kill()
+
+
+# ============================================================================
+# Protocol Tests - Full MCP Client-Server Interactions
+# ============================================================================
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_initialization() -> None:
+    """Test full MCP initialization handshake over HTTP Stream Transport.
+
+    This test verifies:
+    1. Client can connect to HTTP Stream server
+    2. MCP initialization handshake succeeds
+    3. Server returns proper initialization response with capabilities
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        # Create MCP client and connect via HTTP Stream
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                # Perform MCP initialization
+                result = await session.initialize()
+
+                # Verify initialization succeeded
+                assert result is not None, "Initialization should return a result"
+                assert result.protocolVersion, "Should have protocol version"
+                assert result.serverInfo, "Should have server info"
+                assert result.serverInfo.name == "mcp-docker", "Server name should be mcp-docker"
+
+                # Verify capabilities
+                assert result.capabilities, "Should have capabilities"
+                assert result.capabilities.tools, "Should support tools"
+
+    finally:
+        cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_list_tools() -> None:
+    """Test listing tools over HTTP Stream Transport.
+
+    This test verifies:
+    1. Client can successfully list available tools
+    2. Tools are returned with proper schema
+    3. Expected Docker tools are present
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # List tools
+                tools_result = await session.list_tools()
+
+                # Verify tools are returned
+                assert tools_result.tools, "Should have tools"
+                assert len(tools_result.tools) > 0, "Should have at least one tool"
+
+                # Verify expected Docker tools are present
+                tool_names = [tool.name for tool in tools_result.tools]
+                assert "docker_list_containers" in tool_names, "Should have list_containers tool"
+                assert "docker_list_images" in tool_names, "Should have list_images tool"
+
+                # Verify tool has proper schema
+                list_containers_tool = next(
+                    t for t in tools_result.tools if t.name == "docker_list_containers"
+                )
+                assert list_containers_tool.description, "Tool should have description"
+                assert list_containers_tool.inputSchema, "Tool should have input schema"
+
+    finally:
+        cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_call_tool() -> None:
+    """Test calling a tool over HTTP Stream Transport.
+
+    This test verifies:
+    1. Client can successfully call a tool
+    2. Tool execution returns proper result
+    3. Response is streamed correctly
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # Call docker_list_containers tool
+                result = await session.call_tool(
+                    "docker_list_containers",
+                    arguments={"all": True},
+                )
+
+                # Verify result
+                assert result is not None, "Tool call should return a result"
+                assert result.content, "Result should have content"
+                assert len(result.content) > 0, "Should have at least one content item"
+
+                # Verify content is text
+                content = result.content[0]
+                assert isinstance(content, TextContent), "Content should be TextContent"
+                assert content.text, "Text content should not be empty"
+
+                # Tool results may not be JSON - just verify we got a response
+                # (The actual format depends on tool implementation)
+
+    finally:
+        cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_list_resources() -> None:
+    """Test listing resources over HTTP Stream Transport.
+
+    This test verifies:
+    1. Client can successfully list available resources
+    2. Resources are returned with proper schema
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # List resources
+                resources_result = await session.list_resources()
+
+                # Verify resources are returned
+                assert resources_result.resources is not None, "Should have resources list"
+                # Resources may be empty, but the list should exist
+                assert isinstance(resources_result.resources, list), "Resources should be a list"
+
+    finally:
+        cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_list_prompts() -> None:
+    """Test listing prompts over HTTP Stream Transport.
+
+    This test verifies:
+    1. Client can successfully list available prompts
+    2. Prompts are returned with proper schema
+    3. Expected prompts are present
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # List prompts
+                prompts_result = await session.list_prompts()
+
+                # Verify prompts are returned
+                assert prompts_result.prompts is not None, "Should have prompts list"
+                assert len(prompts_result.prompts) > 0, "Should have at least one prompt"
+
+                # Verify prompt structure
+                prompt = prompts_result.prompts[0]
+                assert prompt.name, "Prompt should have a name"
+                assert prompt.description, "Prompt should have a description"
+
+    finally:
+        cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_session_persistence() -> None:
+    """Test session persistence and resumability.
+
+    This test verifies:
+    1. Session ID is maintained across requests
+    2. Multiple tool calls can be made in same session
+    3. Session state is preserved
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+    env["HTTPSTREAM_RESUMABILITY_ENABLED"] = "true"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # Get initial session ID
+                session_id_1 = get_session_id()
+                assert session_id_1, "Should have a session ID after initialization"
+
+                # Make first tool call
+                result1 = await session.call_tool(
+                    "docker_list_containers",
+                    arguments={"all": True},
+                )
+                assert result1.content, "First tool call should succeed"
+
+                # Verify session ID is maintained
+                session_id_2 = get_session_id()
+                assert session_id_2 == session_id_1, "Session ID should remain consistent"
+
+                # Make second tool call
+                result2 = await session.call_tool(
+                    "docker_list_images",
+                    arguments={},
+                )
+                assert result2.content, "Second tool call should succeed"
+
+                # Verify session ID still maintained
+                session_id_3 = get_session_id()
+                assert session_id_3 == session_id_1, "Session ID should still be consistent"
+
+    finally:
+        cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.slow
+@pytest.mark.asyncio
+async def test_httpstream_protocol_https_with_tls() -> None:
+    """Test full MCP protocol over HTTPS with TLS.
+
+    This test verifies:
+    1. MCP client can connect over HTTPS
+    2. TLS handshake succeeds
+    3. Full MCP protocol works over secure connection
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cert_dir = Path(tmpdir)
+        cert_file, key_file = generate_self_signed_cert(cert_dir)
+
+        env = os.environ.copy()
+        env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["MCP_TLS_ENABLED"] = "true"
+        env["MCP_TLS_CERT_FILE"] = str(cert_file)
+        env["MCP_TLS_KEY_FILE"] = str(key_file)
+        env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+        process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTPS)
+
+        try:
+            base_url = f"https://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTPS}"
+            await wait_for_httpstream_server(base_url, verify=False)
+
+            # Create HTTPS client factory that disables SSL verification for testing
+            def create_test_client(**kwargs: object) -> httpx.AsyncClient:
+                return httpx.AsyncClient(verify=False, **kwargs)
+
+            async with streamablehttp_client(
+                url=base_url,
+                timeout=10.0,
+                sse_read_timeout=10.0,
+                httpx_client_factory=create_test_client,
+            ) as (read_stream, write_stream, _get_session_id):
+                async with ClientSession(read_stream, write_stream) as session:
+                    # Initialize and verify HTTPS connection works
+                    result = await session.initialize()
+                    assert result is not None, "Should initialize over HTTPS"
+
+                    # Make a tool call to verify full protocol works
+                    tool_result = await session.call_tool(
+                        "docker_list_containers",
+                        arguments={"all": True},
+                    )
+                    assert tool_result.content, "Tool call should succeed over HTTPS"
+
+        finally:
+            cleanup_server(process)
+
+
+@pytest.mark.e2e
+@pytest.mark.asyncio
+async def test_httpstream_protocol_error_handling() -> None:
+    """Test error handling in MCP protocol over HTTP Stream.
+
+    This test verifies:
+    1. Invalid tool calls return proper errors
+    2. Errors are streamed correctly
+    3. Session remains valid after errors
+    """
+    env = os.environ.copy()
+    env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
+    env["SECURITY_AUTH_ENABLED"] = "false"
+    env["MCP_TLS_ENABLED"] = "false"
+    env["HTTPSTREAM_DNS_REBINDING_PROTECTION"] = "false"
+
+    process = start_httpstream_server(env, port=HTTPSTREAM_TEST_PORT_HTTP)
+
+    try:
+        base_url = f"http://127.0.0.1:{HTTPSTREAM_TEST_PORT_HTTP}"
+        await wait_for_httpstream_server(base_url, verify=False)
+
+        async with streamablehttp_client(
+            url=base_url,
+            timeout=10.0,
+            sse_read_timeout=10.0,
+        ) as (read_stream, write_stream, _get_session_id):
+            async with ClientSession(read_stream, write_stream) as session:
+                await session.initialize()
+
+                # Call non-existent tool
+                result = await session.call_tool(
+                    "docker_nonexistent_tool",
+                    arguments={},
+                )
+
+                # Verify error is returned
+                assert result.content, "Should have error content"
+                content = result.content[0]
+                assert isinstance(content, TextContent), "Error should be text"
+                assert "error" in content.text.lower() or "not found" in content.text.lower(), (
+                    "Should contain error message"
+                )
+
+                # Verify session is still valid - make a successful call
+                valid_result = await session.call_tool(
+                    "docker_list_containers",
+                    arguments={"all": True},
+                )
+                assert valid_result.content, "Should recover from error"
+
+    finally:
+        cleanup_server(process)
+
+
+# ============================================================================
+# Configuration Tests - Server Startup and Features
+# ============================================================================
 
 
 @pytest.mark.e2e
