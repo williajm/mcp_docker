@@ -508,10 +508,27 @@ def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
         List of configured middleware
     """
     # SECURITY: Configure TrustedHostMiddleware based on environment
-    # For localhost: allow localhost variants
-    # For production: restrict to specific hostnames/domains
+    # Start with localhost defaults
+    allowed_hosts = ["127.0.0.1", "localhost", "::1"]
+
+    # Add bind host if it's not a wildcard (0.0.0.0 or ::) or localhost
     is_localhost = host in ["127.0.0.1", "localhost", "::1"]
-    allowed_hosts = ["127.0.0.1", "localhost", "::1"] if is_localhost else [host]
+    is_wildcard = host in ["0.0.0.0", "::"]
+
+    if not is_localhost and not is_wildcard:
+        # Specific IP/hostname binding - add it to allowed list
+        allowed_hosts.append(host)
+
+    # Add user-configured additional hosts (production hostnames, IPs)
+    # This is critical for wildcard bindings where real hostnames must be specified
+    if config.httpstream.allowed_hosts:
+        allowed_hosts.extend(config.httpstream.allowed_hosts)
+        logger.info(
+            f"TrustedHostMiddleware: Added {len(config.httpstream.allowed_hosts)} "
+            f"configured hosts to allow-list"
+        )
+
+    logger.info(f"TrustedHostMiddleware: allowed_hosts={allowed_hosts}")
 
     middleware_stack = [
         # Trusted host middleware (validate Host header to prevent Host header injection)

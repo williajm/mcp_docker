@@ -43,7 +43,11 @@ echo -e "  Key:  $KEY_FILE"
 export MCP_TLS_ENABLED=true
 export MCP_TLS_CERT_FILE="$CERT_FILE"
 export MCP_TLS_KEY_FILE="$KEY_FILE"
-export MCP_DEBUG_MODE=true
+
+# SECURITY: Debug mode is DISABLED by default for production
+# Debug mode exposes detailed error messages, tracebacks, and internal state to clients
+# Only enable for local development/testing by setting: export MCP_DEBUG_MODE=true
+# export MCP_DEBUG_MODE=true
 
 # HTTP Stream Transport configuration
 export HTTPSTREAM_JSON_RESPONSE_DEFAULT=false  # Streaming mode (SSE)

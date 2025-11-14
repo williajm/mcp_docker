@@ -40,7 +40,11 @@ echo -e "  Key:  $KEY_FILE"
 export MCP_TLS_ENABLED=true
 export MCP_TLS_CERT_FILE="$CERT_FILE"
 export MCP_TLS_KEY_FILE="$KEY_FILE"
-export MCP_DEBUG_MODE=true
+
+# SECURITY: Debug mode is DISABLED by default for production
+# Debug mode exposes detailed error messages, tracebacks, and internal state to clients
+# Only enable for local development/testing by setting: export MCP_DEBUG_MODE=true
+# export MCP_DEBUG_MODE=true
 
 export SECURITY_AUTH_ENABLED=false
 export SECURITY_RATE_LIMIT_ENABLED=true

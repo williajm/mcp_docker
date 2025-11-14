@@ -1233,6 +1233,179 @@ class TestMainFunction:
             main_module.main()
 
 
+class TestCreateMiddlewareStack:
+    """Tests for _create_middleware_stack function."""
+
+    def test_localhost_binding(self) -> None:
+        """Test middleware stack for localhost binding."""
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            # Should have TrustedHostMiddleware
+            assert len(middleware_stack) > 0
+            first_middleware = middleware_stack[0]
+            assert first_middleware.cls.__name__ == "TrustedHostMiddleware"
+
+            # Should allow localhost variants
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+    def test_wildcard_binding_without_configured_hosts(self) -> None:
+        """Test middleware stack for 0.0.0.0 binding without configured hosts."""
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should only allow localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should NOT include wildcard
+            assert "0.0.0.0" not in allowed_hosts
+
+    def test_wildcard_ipv6_binding_without_configured_hosts(self) -> None:
+        """Test middleware stack for :: binding without configured hosts."""
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack("::", main_module.config)
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should only allow localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should NOT include wildcard
+            assert "::" not in allowed_hosts
+
+    def test_wildcard_binding_with_configured_hosts(self) -> None:
+        """Test middleware stack for 0.0.0.0 binding with configured hosts."""
+        with patch.object(
+            main_module.config.httpstream, "allowed_hosts", ["api.example.com", "203.0.113.10"]
+        ):
+            middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should allow localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should allow configured hosts
+            assert "api.example.com" in allowed_hosts
+            assert "203.0.113.10" in allowed_hosts
+
+            # Should NOT include wildcard
+            assert "0.0.0.0" not in allowed_hosts
+
+    def test_specific_ip_binding(self) -> None:
+        """Test middleware stack for specific IP binding."""
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "192.168.1.100", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should allow localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should also allow the bind IP
+            assert "192.168.1.100" in allowed_hosts
+
+    def test_specific_hostname_binding(self) -> None:
+        """Test middleware stack for specific hostname binding."""
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "api.internal.example.com", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should allow localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should also allow the bind hostname
+            assert "api.internal.example.com" in allowed_hosts
+
+    def test_specific_ip_binding_with_configured_hosts(self) -> None:
+        """Test middleware stack for specific IP with configured additional hosts."""
+        with patch.object(
+            main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]
+        ):
+            middleware_stack = main_module._create_middleware_stack(
+                "192.168.1.100", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should allow localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+            # Should allow the bind IP
+            assert "192.168.1.100" in allowed_hosts
+
+            # Should allow configured hosts
+            assert "api.example.com" in allowed_hosts
+            assert "web.example.com" in allowed_hosts
+
+    def test_cors_middleware_enabled(self) -> None:
+        """Test middleware stack includes CORS when enabled."""
+        with (
+            patch.object(main_module.config.httpstream, "allowed_hosts", []),
+            patch.object(main_module.config.cors, "enabled", True),
+            patch.object(main_module.config.cors, "allow_origins", ["https://app.example.com"]),
+        ):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            # Should have both TrustedHostMiddleware and CORSMiddleware
+            assert len(middleware_stack) >= 2
+
+            # Find CORS middleware
+            cors_middleware = None
+            for mw in middleware_stack:
+                if mw.cls.__name__ == "CORSMiddleware":
+                    cors_middleware = mw
+                    break
+
+            assert cors_middleware is not None
+            assert cors_middleware.kwargs["allow_origins"] == ["https://app.example.com"]
+
+    def test_https_redirect_middleware_with_tls(self) -> None:
+        """Test middleware stack includes HTTPSRedirect when TLS is enabled."""
+        with (
+            patch.object(main_module.config.httpstream, "allowed_hosts", []),
+            patch.object(main_module.config.server, "tls_enabled", True),
+        ):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            # Find HTTPS redirect middleware
+            https_redirect = None
+            for mw in middleware_stack:
+                if mw.cls.__name__ == "HTTPSRedirectMiddleware":
+                    https_redirect = mw
+                    break
+
+            assert https_redirect is not None
+
+
 class TestLogPathConfiguration:
     """Tests for log path configuration."""
 
