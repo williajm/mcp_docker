@@ -16,6 +16,7 @@ from mcp_docker.resources.providers import ResourceProvider
 from mcp_docker.security.audit import AuditLogger
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
 from mcp_docker.tools import base as tools_base
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.tools import (
     container_inspection_tools,
     container_lifecycle_tools,
@@ -186,6 +187,30 @@ class MCPDockerServer:
 
         return False, ""
 
+    @staticmethod
+    def _build_tool_annotations(tool: BaseTool) -> dict[str, bool]:
+        """Build MCP annotations dict for a tool.
+
+        Per MCP spec, only include annotations with True values.
+        Properties use Python snake_case but MCP spec requires camelCase in JSON.
+
+        Args:
+            tool: Tool instance to build annotations for
+
+        Returns:
+            Dict of annotation name to True (never includes False values)
+        """
+        annotations = {}
+        if tool.read_only:
+            annotations["readOnly"] = True
+        if tool.destructive:
+            annotations["destructive"] = True
+        if tool.idempotent:
+            annotations["idempotent"] = True
+        if tool.open_world_interaction:
+            annotations["openWorldInteraction"] = True
+        return annotations
+
     def list_tools(self) -> list[dict[str, Any]]:
         """List available tools filtered by safety configuration.
 
@@ -208,18 +233,7 @@ class MCPDockerServer:
                 continue
 
             # Tool is allowed - add to list with annotations
-            # Build annotations dict (only include True values per MCP spec)
-            # Note: Properties use Python snake_case (read_only, open_world_interaction)
-            # but MCP spec requires camelCase in JSON (readOnly, openWorldInteraction)
-            annotations = {}
-            if tool.read_only:
-                annotations["readOnly"] = True
-            if tool.destructive:
-                annotations["destructive"] = True
-            if tool.idempotent:
-                annotations["idempotent"] = True
-            if tool.open_world_interaction:
-                annotations["openWorldInteraction"] = True
+            annotations = self._build_tool_annotations(tool)
 
             tool_def = {
                 "name": tool_name,

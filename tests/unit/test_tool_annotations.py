@@ -208,12 +208,12 @@ class TestToolAnnotations:
         tools = server.list_tools()
 
         # docker_create_container is MODERATE with no special properties
-        # It should either have no annotations field, or have an empty dict
+        # Per MCP spec, we only include True values, so annotations field should not exist
         create_tool = next((t for t in tools if t["name"] == "docker_create_container"), None)
         assert create_tool is not None
 
-        # Per MCP spec, we only include True values
-        # So if all annotations are False, the annotations field should not exist
-        if "annotations" in create_tool:
-            # If it exists, it should be empty
-            assert len(create_tool["annotations"]) == 0
+        # Strict assertion: annotations field must NOT exist if all annotations are False
+        assert "annotations" not in create_tool, (
+            f"Tool {create_tool['name']} should not have annotations field when all annotations "
+            "are False, per MCP spec (only include True values)"
+        )
