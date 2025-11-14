@@ -14,7 +14,6 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 - **Claude Code (stdio)**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
 - **Codex (stdio)**: `codex mcp add docker -- uvx mcp-docker@latest`
-- **HTTP Stream Transport (network)**: `mcp-docker --transport httpstream --host 127.0.0.1 --port 8000`
 
 ## Features
 
