@@ -209,6 +209,8 @@ class MCPDockerServer:
 
             # Tool is allowed - add to list with annotations
             # Build annotations dict (only include True values per MCP spec)
+            # Note: Properties use Python snake_case (read_only, open_world_interaction)
+            # but MCP spec requires camelCase in JSON (readOnly, openWorldInteraction)
             annotations = {}
             if tool.read_only:
                 annotations["readOnly"] = True

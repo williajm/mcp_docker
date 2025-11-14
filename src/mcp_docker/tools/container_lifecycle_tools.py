@@ -280,7 +280,11 @@ class StartContainerTool(BaseTool):
 
     @property
     def idempotent(self) -> bool:
-        """Idempotent: starting an already running container is harmless."""
+        """Idempotent: starting an already running container is harmless.
+
+        Docker's start operation is idempotent - calling start on an already-running
+        container succeeds without error. Multiple calls converge to the same state.
+        """
         return True
 
     async def execute(self, input_data: StartContainerInput) -> StartContainerOutput:

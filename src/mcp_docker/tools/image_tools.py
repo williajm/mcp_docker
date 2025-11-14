@@ -346,12 +346,20 @@ class PullImageTool(BaseTool):
 
     @property
     def idempotent(self) -> bool:
-        """Idempotent: pulling the same image again is safe."""
+        """Idempotent: pulling the same image again is safe.
+
+        Pulling an image that's already present locally succeeds without changes.
+        Multiple pull operations with the same image:tag converge to the same state.
+        """
         return True
 
     @property
     def open_world_interaction(self) -> bool:
-        """Interacts with external Docker registries."""
+        """Interacts with external Docker registries.
+
+        Communicates with registries (Docker Hub, ghcr.io, ECR, etc.) to download images.
+        Important for network isolation policies and compliance requirements.
+        """
         return True
 
     async def execute(self, input_data: PullImageInput) -> PullImageOutput:

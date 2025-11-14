@@ -471,7 +471,12 @@ class ExecCommandTool(BaseTool):
 
     @property
     def open_world_interaction(self) -> bool:
-        """Commands inside containers may access external networks/APIs."""
+        """Commands inside containers may access external networks/APIs.
+
+        Conservative marking: Not all commands access external networks (e.g., ls, cat),
+        but this tool can execute arbitrary commands that may perform network operations,
+        API calls, or data exfiltration. Better to mark as open-world for security policies.
+        """
         return True
 
     def check_privileged_arguments(self, arguments: dict[str, Any]) -> None:
