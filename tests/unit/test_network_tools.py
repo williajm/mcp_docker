@@ -274,6 +274,41 @@ class TestConnectContainerTool:
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_connect_container_already_connected_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test idempotent behavior when container is already connected."""
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Simulate Docker error when container is already connected
+        mock_network.connect.side_effect = APIError("container is already connected to network")
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should succeed (idempotent) instead of raising error
+        result = await tool.execute(input_data)
+
+        assert result.network_id == "my-network"
+        assert result.container_id == "container123"
+        assert result.status == "connected"
+
+    @pytest.mark.asyncio
+    async def test_connect_container_other_api_error(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test that non-idempotent API errors still raise exceptions."""
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Simulate a different Docker error (not "already connected")
+        mock_network.connect.side_effect = APIError("network is full")
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should raise error for non-idempotent failures
+        with pytest.raises(DockerOperationError, match="network is full"):
+            await tool.execute(input_data)
+
 
 class TestDisconnectContainerTool:
     """Tests for DisconnectContainerTool."""
@@ -335,6 +370,41 @@ class TestDisconnectContainerTool:
         input_data = DisconnectContainerInput(network_id="my-network", container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_disconnect_container_not_connected_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test idempotent behavior when container is not connected."""
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Simulate Docker error when container is not connected to network
+        mock_network.disconnect.side_effect = APIError("container is not connected to the network")
+
+        tool = DisconnectContainerTool(mock_docker_client, safety_config)
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should succeed (idempotent) instead of raising error
+        result = await tool.execute(input_data)
+
+        assert result.network_id == "my-network"
+        assert result.container_id == "container123"
+        assert result.status == "disconnected"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_container_other_api_error(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test that non-idempotent API errors still raise exceptions."""
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Simulate a different Docker error (not "not connected")
+        mock_network.disconnect.side_effect = APIError("network operation failed")
+
+        tool = DisconnectContainerTool(mock_docker_client, safety_config)
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should raise error for non-idempotent failures
+        with pytest.raises(DockerOperationError, match="network operation failed"):
             await tool.execute(input_data)
 
 

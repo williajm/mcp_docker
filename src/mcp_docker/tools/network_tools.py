@@ -355,7 +355,12 @@ class ConnectContainerTool(BaseTool):
 
     @property
     def idempotent(self) -> bool:
-        """Idempotent: connecting an already connected container is harmless."""
+        """Idempotent: connecting an already connected container is harmless.
+
+        If the container is already connected to the network, the operation succeeds
+        without error (treats "already connected" as success). This allows safe retries
+        after timeouts or network failures.
+        """
         return True
 
     async def execute(self, input_data: ConnectContainerInput) -> ConnectContainerOutput:
@@ -413,6 +418,20 @@ class ConnectContainerTool(BaseTool):
                 ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
             ) from e
         except APIError as e:
+            # Check if container is already connected (idempotent behavior)
+            error_msg = str(e).lower()
+            if "already" in error_msg and "connect" in error_msg:
+                # Container is already connected - treat as success for idempotency
+                logger.info(
+                    f"Container {input_data.container_id} already connected to "
+                    f"network {input_data.network_id}"
+                )
+                return ConnectContainerOutput(
+                    network_id=input_data.network_id,
+                    container_id=input_data.container_id,
+                    status="connected",
+                )
+            # Other API errors are real failures
             logger.error(f"Failed to connect container: {e}")
             raise DockerOperationError(f"Failed to connect container: {e}") from e
 
@@ -442,7 +461,12 @@ class DisconnectContainerTool(BaseTool):
 
     @property
     def idempotent(self) -> bool:
-        """Idempotent: disconnecting an already disconnected container is harmless."""
+        """Idempotent: disconnecting an already disconnected container is harmless.
+
+        If the container is not connected to the network, the operation succeeds
+        without error (treats "not connected" as success). This allows safe retries
+        after timeouts or network failures.
+        """
         return True
 
     async def execute(self, input_data: DisconnectContainerInput) -> DisconnectContainerOutput:
@@ -489,6 +513,20 @@ class DisconnectContainerTool(BaseTool):
                 ERROR_CONTAINER_NOT_FOUND.format(input_data.container_id)
             ) from e
         except APIError as e:
+            # Check if container is not connected (idempotent behavior)
+            error_msg = str(e).lower()
+            if "not" in error_msg and "connect" in error_msg:
+                # Container is not connected to network - treat as success for idempotency
+                logger.info(
+                    f"Container {input_data.container_id} not connected to "
+                    f"network {input_data.network_id} (already disconnected)"
+                )
+                return DisconnectContainerOutput(
+                    network_id=input_data.network_id,
+                    container_id=input_data.container_id,
+                    status="disconnected",
+                )
+            # Other API errors are real failures
             logger.error(f"Failed to disconnect container: {e}")
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e
 
