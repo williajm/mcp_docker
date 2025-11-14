@@ -7,8 +7,6 @@ These tests address Claude's review feedback for missing coverage:
 
 import asyncio
 import os
-import time
-from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -20,7 +18,6 @@ from tests.e2e.test_httpstream_transport_e2e import (
     start_httpstream_server,
     wait_for_httpstream_server,
 )
-
 
 # ============================================================================
 # Resumability Stress Tests
