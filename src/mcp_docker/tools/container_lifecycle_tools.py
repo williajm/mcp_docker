@@ -278,6 +278,11 @@ class StartContainerTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: starting an already running container is harmless."""
+        return True
+
     async def execute(self, input_data: StartContainerInput) -> StartContainerOutput:
         """Execute the start container operation.
 
@@ -332,6 +337,11 @@ class StopContainerTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: stopping an already stopped container is harmless."""
+        return True
 
     async def execute(self, input_data: StopContainerInput) -> StopContainerOutput:
         """Execute the stop container operation.
@@ -389,6 +399,11 @@ class RestartContainerTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: restarting always results in a running container."""
+        return True
 
     async def execute(self, input_data: RestartContainerInput) -> RestartContainerOutput:
         """Execute the restart container operation.

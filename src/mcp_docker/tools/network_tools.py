@@ -353,6 +353,11 @@ class ConnectContainerTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: connecting an already connected container is harmless."""
+        return True
+
     async def execute(self, input_data: ConnectContainerInput) -> ConnectContainerOutput:
         """Execute the connect container operation.
 
@@ -434,6 +439,11 @@ class DisconnectContainerTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: disconnecting an already disconnected container is harmless."""
+        return True
 
     async def execute(self, input_data: DisconnectContainerInput) -> DisconnectContainerOutput:
         """Execute the disconnect container operation.

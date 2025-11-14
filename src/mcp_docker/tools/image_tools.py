@@ -344,6 +344,16 @@ class PullImageTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: pulling the same image again is safe."""
+        return True
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """Interacts with external Docker registries."""
+        return True
+
     async def execute(self, input_data: PullImageInput) -> PullImageOutput:
         """Execute the pull image operation.
 
@@ -402,6 +412,11 @@ class BuildImageTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """May pull base images from external registries."""
+        return True
 
     async def execute(self, input_data: BuildImageInput) -> BuildImageOutput:
         """Execute the build image operation.
@@ -474,6 +489,11 @@ class PushImageTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """Pushes images to external Docker registries."""
+        return True
 
     async def execute(self, input_data: PushImageInput) -> PushImageOutput:
         """Execute the push image operation.
@@ -559,6 +579,11 @@ class TagImageTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.SAFE
+
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: tagging with the same tag overwrites."""
+        return True
 
     async def execute(self, input_data: TagImageInput) -> TagImageOutput:
         """Execute the tag image operation.

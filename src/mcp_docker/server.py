@@ -207,12 +207,28 @@ class MCPDockerServer:
                 logger.debug(f"Filtered tool {tool_name}: {reason}")
                 continue
 
-            # Tool is allowed - add to list
+            # Tool is allowed - add to list with annotations
+            # Build annotations dict (only include True values per MCP spec)
+            annotations = {}
+            if tool.read_only:
+                annotations["readOnly"] = True
+            if tool.destructive:
+                annotations["destructive"] = True
+            if tool.idempotent:
+                annotations["idempotent"] = True
+            if tool.open_world_interaction:
+                annotations["openWorldInteraction"] = True
+
             tool_def = {
                 "name": tool_name,
                 "description": tool.description,
                 "inputSchema": tool.input_schema.model_json_schema(),
             }
+
+            # Add annotations if any exist
+            if annotations:
+                tool_def["annotations"] = annotations
+
             tool_list.append(tool_def)
 
         logger.debug(

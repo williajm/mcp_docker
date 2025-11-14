@@ -469,6 +469,11 @@ class ExecCommandTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
+    @property
+    def open_world_interaction(self) -> bool:
+        """Commands inside containers may access external networks/APIs."""
+        return True
+
     def check_privileged_arguments(self, arguments: dict[str, Any]) -> None:
         """Check if privileged exec command is allowed.
 
