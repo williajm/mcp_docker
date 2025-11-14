@@ -37,191 +37,38 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **Comprehensive Testing**: Extensive test coverage with unit and integration tests
 - **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
 
-## Quick Links
+## Canonical Docs
 
-### Getting Started
+The project docs live in three Markdown sources. Each section in this site links directly to them:
 
-- [Setup Guide](SETUP.md) - Installation, configuration, and quick start
-- [Examples](EXAMPLES.md) - Real-world usage examples and tutorials
-
-### Reference
-
-- [API Reference](API.md) - Complete API documentation for all 36 tools, prompts, and resources
-- [Architecture](ARCHITECTURE.md) - Technical design, patterns, and implementation details
-
-### Resources
-
-- [GitHub Repository](https://github.com/williajm/mcp_docker)
-- [Issues & Bug Reports](https://github.com/williajm/mcp_docker/issues)
-- [Model Context Protocol](https://modelcontextprotocol.io)
+- [README.md](https://github.com/williajm/mcp_docker/blob/main/README.md) — Overview, features, install flow, tools/prompts/resources
+- [CONFIGURATION.md](https://github.com/williajm/mcp_docker/blob/main/CONFIGURATION.md) — All environment variables for Docker, transports, safety, and server settings
+- [SECURITY.md](https://github.com/williajm/mcp_docker/blob/main/SECURITY.md) — Threat model, OAuth/TLS guidance, deployment checklist
 
 ## Quick Start
 
-### Prerequisites
+See [Installation Instructions](https://github.com/williajm/mcp_docker/blob/main/README.md#install-instructions) in the main README for a complete setup guide including:
 
-- Python 3.11 or higher
-- Docker installed and running
-- [uv](https://github.com/astral-sh/uv) package manager (recommended) or pip
-
-### Installation
-
-#### Using uvx (Recommended)
-
-```bash
-# Run directly without installation
-uvx mcp-docker
-```
-
-#### Using uv
-
-```bash
-# Install from source
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
-uv sync
-uv run mcp-docker
-```
-
-#### Using pip
-
-```bash
-# Install from PyPI (when published)
-pip install mcp-docker
-
-# Or install from source
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
-pip install -e .
-```
-
-### Configuration
-
-Add to your MCP client configuration (e.g., Claude Desktop).
-
-**IMPORTANT**: Use the correct `DOCKER_BASE_URL` for your platform:
-
-#### Linux / macOS
-
-Configuration file location: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `~/.config/Claude/claude_desktop_config.json` (Linux)
-
-```json
-{
-  "mcpServers": {
-    "docker": {
-      "command": "uvx",
-      "args": ["mcp-docker"],
-      "env": {
-        "DOCKER_BASE_URL": "unix:///var/run/docker.sock"
-      }
-    }
-  }
-}
-```
-
-#### Windows
-
-Configuration file location: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "docker": {
-      "command": "uvx",
-      "args": ["mcp-docker"],
-      "env": {
-        "DOCKER_BASE_URL": "npipe:////./pipe/docker_engine"
-      }
-    }
-  }
-}
-```
-
-**Note**: Ensure Docker Desktop is running before starting the MCP server.
+- Prerequisites (Python 3.11+, Docker, uv/pip)
+- Installation methods (uvx, uv, pip)
+- Configuration for Claude Desktop (Linux/macOS/Windows)
+- Platform-specific Docker socket URLs
 
 ## Safety System
 
-The MCP Docker server includes a three-tier safety classification system:
+Three-tier classification: **SAFE** (read-only) → **MODERATE** (create/modify) → **DESTRUCTIVE** (delete).
 
-### Safety Levels
+Control via environment variables: `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS`, `SAFETY_ALLOW_PRIVILEGED_CONTAINERS`, etc.
 
-1. **SAFE** - Read-only operations with no risk
-   - List containers, images, networks, volumes
-   - Inspect resources
-   - View logs and stats
-
-2. **MODERATE** - Operations that create or modify but don't destroy
-   - Create containers, networks, volumes
-   - Start/stop/restart containers
-   - Pull images
-   - Connect/disconnect networks
-
-3. **DESTRUCTIVE** - Operations that permanently delete data
-   - Remove containers, images, networks, volumes
-   - Prune operations
-   - System cleanup
-
-### Configuration
-
-Control safety levels via environment variables:
-
-```bash
-# Allow all destructive operations
-export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-
-# Allow privileged containers
-export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true
-
-# Require confirmation for destructive operations
-export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
-```
+See [README.md](https://github.com/williajm/mcp_docker/blob/main/README.md#safety-system) for complete safety system documentation.
 
 ## What's Available
 
-### 36 Docker Tools
+- **36 Docker Tools** - Container, image, network, volume, and system management
+- **5 AI Prompts** - Troubleshooting, optimization, networking debug, security audit, compose generation
+- **2 Resources** - Container logs and stats streaming
 
-#### Container Management (10 tools)
-
-- List, inspect, create, start, stop, restart containers
-- View logs, execute commands, get stats
-- Remove containers
-
-#### Image Management (9 tools)
-
-- List, inspect, pull, build, push images
-- Tag, remove, prune images
-- View image history
-
-#### Network Management (6 tools)
-
-- List, inspect, create, remove networks
-- Connect/disconnect containers
-- Manage network configurations
-
-#### Volume Management (5 tools)
-
-- List, inspect, create, remove volumes
-- Prune unused volumes
-- Manage volume drivers
-
-#### System Operations (6 tools)
-
-- System info, disk usage, version
-- System-wide pruning
-- Event monitoring
-- Health checks
-
-### 5 AI Prompts
-
-1. **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
-2. **optimize_container** - Suggest performance improvements and security best practices
-3. **generate_compose** - Create docker-compose.yml files from containers or descriptions
-4. **debug_networking** - Deep-dive network troubleshooting with systematic L3-L7 analysis
-5. **security_audit** - Comprehensive security analysis following CIS Docker Benchmark
-
-### 2 Resources
-
-1. **Container Logs** - Stream real-time logs from containers
-2. **Container Stats** - Monitor resource usage metrics
+For complete list see [README.md](https://github.com/williajm/mcp_docker/blob/main/README.md#tools-overview).
 
 ## Example Usage
 
@@ -249,17 +96,17 @@ prompt = await client.get_prompt("troubleshoot_container", {
 
 ```python
 # Using the resource
-logs = await client.read_resource(
-    "container_logs://my-container?tail=100&follow=true"
-)
+logs = await client.read_resource("container://logs/my-container")
+# Pass tail/follow arguments via your MCP client options
 ```
 
-## Documentation Structure
+## Documentation Sources
 
-- **[Setup Guide](SETUP.md)**: Installation, configuration, and environment setup
-- **[API Reference](API.md)**: Complete tool, prompt, and resource documentation
-- **[Examples](EXAMPLES.md)**: Real-world usage scenarios and code samples
-- **[Architecture](ARCHITECTURE.md)**: Design patterns, testing strategy, and implementation
+- **README.md**: Overview, onboarding, tool/prompt/resource catalog
+- **CONFIGURATION.md**: Canonical environment variable reference (Docker, transports, safety, TLS)
+- **SECURITY.md**: OAuth/TLS configuration, IP filtering, audit trail, production hardening guide
+
+For questions or issues, open a ticket in the [GitHub repository](https://github.com/williajm/mcp_docker).
 
 ## Contributing
 
@@ -281,7 +128,7 @@ MIT License - see [LICENSE](https://github.com/williajm/mcp_docker/blob/main/LIC
 
 ---
 
-**Version**: 0.2.0
-**Last Updated**: 2025-10-28
+**Version**: 1.1.0
+**Last Updated**: 2025-11-14
 **Python**: 3.11+
 **Docker**: API version 1.41+

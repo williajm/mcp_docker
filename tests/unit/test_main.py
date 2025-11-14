@@ -452,6 +452,401 @@ class TestServerRunFunction:
                 mock_docker_server.stop.assert_called_once()
 
 
+class TestHttpStreamTransport:
+    """Tests for run_httpstream function."""
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_basic(self) -> None:
+        """Test run_httpstream basic flow."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Run the HTTP Stream server function
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify calls
+                mock_docker_server.start.assert_called_once()
+                mock_session_mgr.assert_called_once()
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_cleanup_on_error(self) -> None:
+        """Test run_httpstream cleans up on error."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr:
+                mock_session_mgr.side_effect = Exception("HTTP Stream error")
+
+                # Should raise the exception
+                with pytest.raises(Exception, match="HTTP Stream error"):
+                    await main_module.run_httpstream("localhost", 8080)
+
+                # But should still call stop
+                mock_docker_server.stop.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_with_resumability_enabled(self) -> None:
+        """Test run_httpstream creates event store when resumability is enabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.InMemoryEventStore") as mock_event_store,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "resumability_enabled", True),
+                patch.object(main_module.config.httpstream, "event_store_max_events", 1000),
+                patch.object(main_module.config.httpstream, "event_store_ttl_seconds", 300),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify event store was created
+                mock_event_store.assert_called_once_with(max_events=1000, ttl_seconds=300)
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_with_resumability_disabled(self) -> None:
+        """Test run_httpstream does not create event store when resumability is disabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.InMemoryEventStore") as mock_event_store,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "resumability_enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify event store was NOT created
+                mock_event_store.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_dns_rebinding_protection_enabled(self) -> None:
+        """Test run_httpstream configures DNS rebinding protection when enabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com"]),
+                patch.object(main_module.config.cors, "enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify TransportSecuritySettings was created with proper config
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+                assert call_kwargs["enable_dns_rebinding_protection"] is True
+                # Should include localhost, 127.0.0.1, the bind host, and configured hosts
+                assert "localhost" in call_kwargs["allowed_hosts"]
+                assert "127.0.0.1" in call_kwargs["allowed_hosts"]
+                assert "localhost" in call_kwargs["allowed_hosts"]
+                assert "api.example.com" in call_kwargs["allowed_hosts"]
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_dns_rebinding_protection_disabled(self) -> None:
+        """Test run_httpstream skips DNS rebinding protection when disabled."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify TransportSecuritySettings was NOT created
+                mock_security_settings.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_wildcard_host_not_in_allowed_hosts(self) -> None:
+        """Test run_httpstream excludes wildcard hosts from allowed_hosts."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com"]),
+                patch.object(main_module.config.cors, "enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Bind to 0.0.0.0 (wildcard) with configured allowed hosts
+                await main_module.run_httpstream("0.0.0.0", 8080)
+
+                # Verify TransportSecuritySettings was created
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+                # Wildcard host should NOT be in allowed_hosts
+                assert "0.0.0.0" not in call_kwargs["allowed_hosts"]
+                assert "::" not in call_kwargs["allowed_hosts"]
+                # Should include the configured host
+                assert "api.example.com" in call_kwargs["allowed_hosts"]
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_public_host_excludes_localhost(self) -> None:
+        """Test run_httpstream excludes localhost when binding to public host.
+
+        Security: This test verifies the fix for DNS rebinding protection bypass.
+        When binding to a public hostname/IP, localhost variants must NOT be in
+        the allowed_hosts list, otherwise attackers could bypass protection by
+        sending "Host: localhost" in requests to public endpoints.
+        """
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com"]),
+                patch.object(main_module.config.cors, "enabled", False),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                # Bind to public hostname
+                await main_module.run_httpstream("api.example.com", 8443)
+
+                # Verify TransportSecuritySettings was created
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+
+                # CRITICAL: Localhost variants should NOT be in allowed_hosts
+                # to prevent DNS rebinding protection bypass
+                assert "localhost" not in call_kwargs["allowed_hosts"]
+                assert "127.0.0.1" not in call_kwargs["allowed_hosts"]
+                assert "::1" not in call_kwargs["allowed_hosts"]
+
+                # Public hostname SHOULD be in allowed_hosts
+                assert "api.example.com" in call_kwargs["allowed_hosts"]
+
+    @pytest.mark.asyncio
+    async def test_httpstream_options_bypasses_auth(self) -> None:
+        """Test HTTP Stream OPTIONS requests bypass authentication for CORS.
+
+        Regression test for P1 issue: OPTIONS (CORS preflight) must bypass
+        OAuth authentication because browsers never send Authorization headers
+        on preflight requests. This enables CORS + OAuth to work together.
+        """
+        # Create a mock scope for OPTIONS request
+        scope = {
+            "type": "http",
+            "method": "OPTIONS",
+            "path": "/",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+        }
+
+        # Mock receive/send
+        receive_mock = AsyncMock()
+        send_mock = AsyncMock()
+
+        # Mock session manager to verify it gets called
+        session_manager_mock = Mock()
+        session_manager_mock.handle_request = AsyncMock()
+
+        # Mock docker_server auth to fail (to verify OPTIONS bypasses it)
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.auth_middleware.authenticate_request = AsyncMock(
+                side_effect=Exception("Auth should not be called for OPTIONS")
+            )
+
+            # Call the handler
+            await main_module._handle_httpstream_request(
+                scope, receive_mock, send_mock, session_manager_mock
+            )
+
+            # Verify session manager was called (OPTIONS was processed)
+            session_manager_mock.handle_request.assert_called_once()
+
+            # Verify auth was NOT called (OPTIONS bypassed authentication)
+            mock_docker_server.auth_middleware.authenticate_request.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_httpstream_post_requires_auth(self) -> None:
+        """Test HTTP Stream POST requests require authentication (not bypassed).
+
+        Verify that non-OPTIONS requests still go through authentication,
+        ensuring we didn't break OAuth security while fixing CORS.
+        """
+        # Create a mock scope for POST request
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+        }
+
+        # Mock receive/send
+        receive_mock = AsyncMock()
+        send_mock = AsyncMock()
+
+        # Mock session manager
+        session_manager_mock = Mock()
+        session_manager_mock.handle_request = AsyncMock()
+
+        # Mock docker_server auth to succeed
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.auth_middleware.authenticate_request = AsyncMock()
+
+            # Call the handler
+            await main_module._handle_httpstream_request(
+                scope, receive_mock, send_mock, session_manager_mock
+            )
+
+            # Verify auth WAS called for POST
+            mock_docker_server.auth_middleware.authenticate_request.assert_called_once()
+
+            # Verify session manager was called after auth passed
+            session_manager_mock.handle_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_httpstream_cors_allowed_origins(self) -> None:
+        """Test run_httpstream includes CORS origins in security settings."""
+        with patch.object(main_module, "docker_server") as mock_docker_server:
+            mock_docker_server.start = AsyncMock()
+            mock_docker_server.stop = AsyncMock()
+
+            with (
+                patch("mcp_docker.__main__.StreamableHTTPSessionManager") as mock_session_mgr,
+                patch("mcp_docker.__main__.TransportSecuritySettings") as mock_security_settings,
+                patch("mcp_docker.__main__.uvicorn.Server") as mock_uvicorn_server,
+                patch("mcp_docker.__main__.signal.signal"),
+                patch.object(main_module.config.httpstream, "dns_rebinding_protection", True),
+                patch.object(main_module.config.httpstream, "allowed_hosts", []),
+                patch.object(main_module.config.cors, "enabled", True),
+                patch.object(main_module.config.cors, "allow_origins", ["https://app.example.com"]),
+            ):
+                # Mock session manager
+                mock_session_instance = Mock()
+                mock_session_instance.run = Mock()
+                mock_session_instance.run.return_value.__aenter__ = AsyncMock()
+                mock_session_instance.run.return_value.__aexit__ = AsyncMock()
+                mock_session_mgr.return_value = mock_session_instance
+
+                # Mock uvicorn server
+                mock_server_instance = Mock()
+                mock_server_instance.serve = AsyncMock()
+                mock_uvicorn_server.return_value = mock_server_instance
+
+                await main_module.run_httpstream("localhost", 8080)
+
+                # Verify TransportSecuritySettings includes CORS origins
+                mock_security_settings.assert_called_once()
+                call_kwargs = mock_security_settings.call_args[1]
+                assert call_kwargs["allowed_origins"] == ["https://app.example.com"]
+
+
 class TestHelperFunctions:
     """Tests for helper functions."""
 
@@ -931,6 +1326,27 @@ class TestMainFunction:
             main_module.main()
             mock_asyncio_run.assert_called_once()
 
+    def test_main_httpstream_transport(self) -> None:
+        """Test main function with HTTP Stream transport."""
+        with (
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("sys.argv", ["mcp-docker", "--transport", "httpstream"]),
+        ):
+            main_module.main()
+            mock_asyncio_run.assert_called_once()
+            # Verify it was called with run_httpstream
+            call_arg = mock_asyncio_run.call_args[0][0]
+            assert call_arg.__name__ == "run_httpstream"
+
+    def test_main_httpstream_custom_port(self) -> None:
+        """Test main function with custom HTTP Stream port."""
+        with (
+            patch("asyncio.run") as mock_asyncio_run,
+            patch("sys.argv", ["mcp-docker", "--transport", "httpstream", "--port", "9000"]),
+        ):
+            main_module.main()
+            mock_asyncio_run.assert_called_once()
+
     def test_main_keyboard_interrupt(self) -> None:
         """Test main function handles KeyboardInterrupt."""
         with (
@@ -948,6 +1364,255 @@ class TestMainFunction:
             pytest.raises(Exception, match="Test error"),
         ):
             main_module.main()
+
+
+class TestCreateMiddlewareStack:
+    """Tests for _create_middleware_stack function."""
+
+    def test_localhost_binding(self) -> None:
+        """Test middleware stack for localhost binding."""
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            # Should have TrustedHostMiddleware
+            assert len(middleware_stack) > 0
+            first_middleware = middleware_stack[0]
+            assert first_middleware.cls.__name__ == "TrustedHostMiddleware"
+
+            # Should allow localhost variants
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+
+    def test_wildcard_binding_without_configured_hosts(self) -> None:
+        """Test middleware stack for 0.0.0.0 binding without configured hosts.
+
+        Security: Wildcard binds (0.0.0.0) MUST fail with ValueError when
+        HTTPSTREAM_ALLOWED_HOSTS is empty. This prevents accidental exposure.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            with pytest.raises(ValueError, match="requires explicit HTTPSTREAM_ALLOWED_HOSTS"):
+                main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+    def test_wildcard_ipv6_binding_without_configured_hosts(self) -> None:
+        """Test middleware stack for :: binding without configured hosts.
+
+        Security: Wildcard binds (::) MUST fail with ValueError when
+        HTTPSTREAM_ALLOWED_HOSTS is empty. This prevents accidental exposure.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            with pytest.raises(ValueError, match="requires explicit HTTPSTREAM_ALLOWED_HOSTS"):
+                main_module._create_middleware_stack("::", main_module.config)
+
+    def test_wildcard_binding_with_configured_hosts(self) -> None:
+        """Test middleware stack for 0.0.0.0 binding with configured hosts.
+
+        Security: Even with configured hosts, localhost variants should NOT be
+        automatically included for wildcard binds. Operators must explicitly add
+        localhost to HTTPSTREAM_ALLOWED_HOSTS if needed.
+        """
+        with patch.object(
+            main_module.config.httpstream, "allowed_hosts", ["api.example.com", "203.0.113.10"]
+        ):
+            middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Security: Should NOT automatically include localhost variants
+            # This prevents DNS rebinding bypass on public deployments
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
+
+            # Should allow configured hosts
+            assert "api.example.com" in allowed_hosts
+            assert "203.0.113.10" in allowed_hosts
+
+            # Should NOT include wildcard
+            assert "0.0.0.0" not in allowed_hosts
+
+            # Should only contain configured hosts
+            assert set(allowed_hosts) == {"api.example.com", "203.0.113.10"}
+
+    def test_specific_ip_binding(self) -> None:
+        """Test middleware stack for specific IP binding.
+
+        Security: Binding to a specific non-localhost IP should ONLY allow that IP,
+        not localhost variants. This prevents DNS rebinding bypass attacks.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "192.168.1.100", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Security: Should NOT include localhost variants for specific IP binding
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
+
+            # Should only allow the bind IP
+            assert "192.168.1.100" in allowed_hosts
+            assert allowed_hosts == ["192.168.1.100"]
+
+    def test_specific_hostname_binding(self) -> None:
+        """Test middleware stack for specific hostname binding.
+
+        Security: Binding to a specific non-localhost hostname should ONLY allow
+        that hostname, not localhost variants. This prevents DNS rebinding bypass.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "api.internal.example.com", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Security: Should NOT include localhost variants for specific hostname binding
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
+
+            # Should only allow the bind hostname
+            assert "api.internal.example.com" in allowed_hosts
+            assert allowed_hosts == ["api.internal.example.com"]
+
+    def test_specific_ip_binding_with_configured_hosts(self) -> None:
+        """Test middleware stack for specific IP with configured additional hosts.
+
+        Security: Even with configured hosts, localhost variants should NOT be
+        automatically included for specific IP binds.
+        """
+        with patch.object(
+            main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]
+        ):
+            middleware_stack = main_module._create_middleware_stack(
+                "192.168.1.100", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Security: Should NOT include localhost variants
+            assert "127.0.0.1" not in allowed_hosts
+            assert "localhost" not in allowed_hosts
+            assert "::1" not in allowed_hosts
+
+            # Should allow the bind IP
+            assert "192.168.1.100" in allowed_hosts
+
+            # Should allow configured hosts
+            assert "api.example.com" in allowed_hosts
+            assert "web.example.com" in allowed_hosts
+
+            # Should contain bind IP + configured hosts only
+            assert set(allowed_hosts) == {"192.168.1.100", "api.example.com", "web.example.com"}
+
+    def test_wildcard_binding_requires_config(self) -> None:
+        """Test wildcard binding requires explicit configuration.
+
+        Security: Wildcard binds (0.0.0.0, ::) MUST fail with ValueError when
+        HTTPSTREAM_ALLOWED_HOSTS is empty.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            with pytest.raises(ValueError, match="requires explicit HTTPSTREAM_ALLOWED_HOSTS"):
+                main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+    def test_wildcard_binding_with_config(self) -> None:
+        """Test wildcard binding with configured hosts.
+
+        Wildcard binds with HTTPSTREAM_ALLOWED_HOSTS should accept those hosts.
+        """
+        with patch.object(
+            main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]
+        ):
+            middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should contain configured hosts only (no wildcard IP)
+            assert set(allowed_hosts) == {"api.example.com", "web.example.com"}
+
+    def test_localhost_binding_includes_localhost_variants(self) -> None:
+        """Test localhost binding includes all localhost variants.
+
+        When binding to localhost (127.0.0.1, localhost, ::1), server should
+        include all localhost variants for convenience.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should include all localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+            assert set(allowed_hosts) == {"127.0.0.1", "localhost", "::1"}
+
+    def test_specific_host_excludes_localhost(self) -> None:
+        """Test specific non-localhost host excludes localhost.
+
+        Security: Specific non-localhost binds should NOT include localhost
+        variants to prevent DNS rebinding attacks. Only the actual bind
+        address should be allowed.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "192.168.1.100", main_module.config
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should only include the bind IP (no localhost variants)
+            assert allowed_hosts == ["192.168.1.100"]
+
+    def test_cors_middleware_enabled(self) -> None:
+        """Test middleware stack includes CORS when enabled."""
+        with (
+            patch.object(main_module.config.httpstream, "allowed_hosts", []),
+            patch.object(main_module.config.cors, "enabled", True),
+            patch.object(main_module.config.cors, "allow_origins", ["https://app.example.com"]),
+        ):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            # Should have both TrustedHostMiddleware and CORSMiddleware
+            assert len(middleware_stack) >= 2
+
+            # Find CORS middleware
+            cors_middleware = None
+            for mw in middleware_stack:
+                if mw.cls.__name__ == "CORSMiddleware":
+                    cors_middleware = mw
+                    break
+
+            assert cors_middleware is not None
+            assert cors_middleware.kwargs["allow_origins"] == ["https://app.example.com"]
+
+    def test_https_redirect_middleware_with_tls(self) -> None:
+        """Test middleware stack includes HTTPSRedirect when TLS is enabled."""
+        with (
+            patch.object(main_module.config.httpstream, "allowed_hosts", []),
+            patch.object(main_module.config.server, "tls_enabled", True),
+        ):
+            middleware_stack = main_module._create_middleware_stack("127.0.0.1", main_module.config)
+
+            # Find HTTPS redirect middleware
+            https_redirect = None
+            for mw in middleware_stack:
+                if mw.cls.__name__ == "HTTPSRedirectMiddleware":
+                    https_redirect = mw
+                    break
+
+            assert https_redirect is not None
 
 
 class TestLogPathConfiguration:

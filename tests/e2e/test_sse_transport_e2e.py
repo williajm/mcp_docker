@@ -195,7 +195,7 @@ async def test_http_sse_server_starts() -> None:
     """Test HTTP SSE server starts and SSE endpoint is accessible."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-    env["SECURITY_AUTH_ENABLED"] = "false"  # Localhost without auth is ok for testing
+    env["SECURITY_OAUTH_ENABLED"] = "false"  # Localhost without auth is ok for testing
     env["MCP_TLS_ENABLED"] = "false"  # HTTP only
 
     # Start SSE server
@@ -248,7 +248,7 @@ async def test_https_sse_with_tls() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
@@ -294,7 +294,7 @@ async def test_sse_security_headers() -> None:
 
         env = os.environ.copy()
         env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
-        env["SECURITY_AUTH_ENABLED"] = "false"
+        env["SECURITY_OAUTH_ENABLED"] = "false"
         env["MCP_TLS_ENABLED"] = "true"
         env["MCP_TLS_CERT_FILE"] = str(cert_file)
         env["MCP_TLS_KEY_FILE"] = str(key_file)
@@ -342,32 +342,26 @@ async def test_sse_security_headers() -> None:
 @pytest.mark.e2e
 @pytest.mark.asyncio
 async def test_http_sse_refuses_non_localhost() -> None:
-    """Test that HTTP SSE server warns when binding to non-localhost without IP allowlist."""
+    """Test that HTTP SSE server requires explicit allowed hosts when binding to wildcard."""
     env = os.environ.copy()
     env["DOCKER_BASE_URL"] = "unix:///var/run/docker.sock"
     env["MCP_TLS_ENABLED"] = "false"
-    # Don't set SECURITY_ALLOWED_CLIENT_IPS - should trigger warning
+    # Don't set HTTPSTREAM_ALLOWED_HOSTS - should fail to start
 
-    # Try to bind to 0.0.0.0 (non-localhost) without IP allowlist
-    # Server should start but log a security warning
+    # Try to bind to 0.0.0.0 (wildcard) without HTTPSTREAM_ALLOWED_HOSTS
+    # Server should fail to start with fail-secure policy
     process = start_sse_server(env, host="0.0.0.0", port=SSE_TEST_PORT_HTTP)
 
     try:
-        # Wait for server to start
+        # Wait for server to exit
         await asyncio.sleep(SSE_ERROR_CHECK_DELAY)
         returncode = process.poll()
 
-        # Server should still be running (not exit)
-        assert returncode is None, "Server should start even without IP allowlist"
-
-        # Check that security warning was logged
-        base_url = f"http://0.0.0.0:{SSE_TEST_PORT_HTTP}"
-        try:
-            await wait_for_server(base_url, verify=False, timeout=5)
-            # Server is accessible - this is expected but insecure
-        except Exception:
-            # If we can't connect, that's also acceptable (firewall, etc.)
-            pass
+        # Server should exit with error (fail-secure)
+        assert returncode is not None, (
+            "Server should fail to start without HTTPSTREAM_ALLOWED_HOSTS for wildcard bind"
+        )
+        assert returncode != 0, "Server should exit with error code"
 
     finally:
         # Cleanup

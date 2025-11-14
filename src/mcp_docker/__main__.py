@@ -14,17 +14,17 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if "--help" in sys.argv or "-h" in sys.argv:
-        print("usage: mcp-docker [--transport {stdio,sse}] [--host HOST] [--port PORT]")
+        print("usage: mcp-docker [--transport {stdio,sse,httpstream}] [--host HOST] [--port PORT]")
         print()
         print("MCP Docker Server")
         print()
         print("options:")
         print("  -h, --help            show this help message and exit")
         print("  -v, --version         show version and exit")
-        print("  --transport {stdio,sse}")
+        print("  --transport {stdio,sse,httpstream}")
         print("                        Transport type (default: stdio)")
-        print("  --host HOST          Host to bind SSE server (default: 127.0.0.1)")
-        print("  --port PORT          Port to bind SSE server (default: 8000)")
+        print("  --host HOST          Host to bind server (default: 127.0.0.1)")
+        print("  --port PORT          Port to bind server (default: 8000)")
         sys.exit(0)
 
 import argparse
@@ -41,6 +41,10 @@ import uvicorn
 from mcp.server import Server
 from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http import (  # type: ignore[attr-defined]
+    TransportSecuritySettings,
+)
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Tool
 from secure import (
     CacheControl,
@@ -53,21 +57,25 @@ from secure import (
 )
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.routing import Mount
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from mcp_docker.config import Config
+from mcp_docker.event_store import InMemoryEventStore
 from mcp_docker.server import MCPDockerServer
 from mcp_docker.utils.logger import get_logger, setup_logger
 
 # HTTP Message Type Constants
 HTTP_RESPONSE_START = "http.response.start"
 HTTP_RESPONSE_BODY = "http.response.body"
+CONTENT_TYPE_JSON = b"application/json"
 
 # Logging Constants
 LOG_BODY_PREVIEW_LENGTH = 300  # Characters to show in debug logs for HTTP bodies
+SHUTDOWN_COMPLETE_MSG = "MCP server shutdown complete"
 
 # CSP (Content Security Policy) directive constants
 # Used to reduce duplication and improve maintainability
@@ -77,6 +85,11 @@ CSP_NONE = "'none'"
 # SSE Endpoint Path Constants
 SSE_PATH = "/sse"
 MESSAGES_PATH = "/messages"
+
+# Network binding constants
+# Used for host validation and security middleware configuration
+LOCALHOST_VARIANTS = frozenset(["127.0.0.1", "localhost", "::1"])
+WILDCARD_BINDS = frozenset(["0.0.0.0", "::"])
 
 # Context variables for SSE transport
 client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
@@ -310,7 +323,7 @@ async def run_stdio() -> None:
             )
     finally:
         await docker_server.stop()
-        logger.info("MCP server shutdown complete")
+        logger.info(SHUTDOWN_COMPLETE_MSG)
 
 
 def _validate_sse_security(host: str) -> None:
@@ -458,6 +471,53 @@ def _create_security_headers(config: Config) -> Secure:
     )
 
 
+def _build_allowed_hosts_list(host: str, config: Config) -> list[str]:
+    """Build allowed hosts list based on bind address.
+
+    This function constructs a list of hostnames/IPs that should be allowed
+    in the Host header for security middleware (TrustedHostMiddleware and
+    TransportSecuritySettings).
+
+    Security: Simple fail-secure policy - localhost binds only accept localhost,
+    all other binds require explicit HTTPSTREAM_ALLOWED_HOSTS configuration.
+    This prevents DNS rebinding attacks and Host header injection.
+
+    Args:
+        host: Server bind address (e.g., '127.0.0.1', '0.0.0.0', 'api.example.com')
+        config: MCP configuration with user-configured allowed hosts
+
+    Returns:
+        List of allowed hostnames/IPs:
+        - Localhost binds: All localhost variants (127.0.0.1, localhost, ::1)
+        - Non-localhost binds: Bind host + HTTPSTREAM_ALLOWED_HOSTS (if configured)
+
+    Raises:
+        ValueError: If binding to non-localhost without HTTPSTREAM_ALLOWED_HOSTS
+    """
+    allowed_hosts: list[str] = []
+
+    # Add localhost variants if binding to localhost
+    if host in LOCALHOST_VARIANTS:
+        allowed_hosts.extend(LOCALHOST_VARIANTS)
+    # Add the bind host itself (unless it's a wildcard bind)
+    elif host not in WILDCARD_BINDS:
+        allowed_hosts.append(host)
+
+    # Always add user-configured hosts (if provided)
+    if config.httpstream.allowed_hosts:
+        allowed_hosts.extend(config.httpstream.allowed_hosts)
+
+    # Fail-secure: Reject non-localhost binds without explicit configuration
+    if not allowed_hosts:
+        raise ValueError(
+            f"Binding to {host} requires explicit HTTPSTREAM_ALLOWED_HOSTS configuration. "
+            f'Set HTTPSTREAM_ALLOWED_HOSTS=\'["api.example.com", "192.0.2.1"]\' '
+            f"or bind to localhost."
+        )
+
+    return allowed_hosts
+
+
 def _create_uvicorn_config(app: Any, host: str, port: int, config: Config) -> uvicorn.Config:
     """Create Uvicorn server configuration with optional TLS.
 
@@ -499,16 +559,51 @@ def _create_middleware_stack(host: str, config: Config) -> list[Middleware]:
     Returns:
         List of configured middleware
     """
-    # SECURITY: Configure TrustedHostMiddleware based on environment
-    # For localhost: allow localhost variants
-    # For production: restrict to specific hostnames/domains
-    is_localhost = host in ["127.0.0.1", "localhost", "::1"]
-    allowed_hosts = ["127.0.0.1", "localhost", "::1"] if is_localhost else [host]
+    # SECURITY: Configure TrustedHostMiddleware based on DNS rebinding protection setting
+    # If DNS rebinding protection is disabled, allow all hosts (development mode)
+    # If enabled (default), restrict to specific allowed hosts (production mode)
+    if not config.httpstream.dns_rebinding_protection:
+        # DNS rebinding protection disabled - allow any Host header
+        # This is useful for development but UNSAFE for production
+        allowed_hosts = ["*"]
+        logger.warning(
+            "⚠️  DNS rebinding protection DISABLED - accepting connections from any host. "
+            "This is UNSAFE for production deployments."
+        )
+    else:
+        # DNS rebinding protection enabled (default) - restrict to specific hosts
+        allowed_hosts = _build_allowed_hosts_list(host, config)
+
+        # Log configuration for debugging
+        if config.httpstream.allowed_hosts:
+            logger.info(
+                f"TrustedHostMiddleware: Added {len(config.httpstream.allowed_hosts)} "
+                f"configured hosts to allow-list"
+            )
+        logger.info(f"TrustedHostMiddleware: allowed_hosts={allowed_hosts}")
 
     middleware_stack = [
         # Trusted host middleware (validate Host header to prevent Host header injection)
         Middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts),
     ]
+
+    # Add CORS middleware if enabled
+    if config.cors.enabled:
+        middleware_stack.append(
+            Middleware(
+                CORSMiddleware,
+                allow_origins=config.cors.allow_origins,
+                allow_methods=config.cors.allow_methods,
+                allow_headers=config.cors.allow_headers,
+                expose_headers=config.cors.expose_headers,
+                allow_credentials=config.cors.allow_credentials,
+                max_age=config.cors.max_age,
+            )
+        )
+        logger.info(
+            f"CORS middleware enabled: origins={config.cors.allow_origins}, "
+            f"credentials={config.cors.allow_credentials}"
+        )
 
     # Add HTTPS redirect if TLS is enabled
     if config.server.tls_enabled:
@@ -568,7 +663,7 @@ async def _send_unauthorized_response(
             "type": HTTP_RESPONSE_START,
             "status": 401,
             "headers": [
-                [b"content-type", b"application/json"],
+                [b"content-type", CONTENT_TYPE_JSON],
                 [b"www-authenticate", b"Bearer"],
             ],
         }
@@ -786,7 +881,7 @@ async def run_sse(host: str, port: int) -> None:
             wrapped_handler, secure_headers
         )
 
-        # Build middleware stack and create Starlette app
+        # Build middleware stack and create Starlette app (SSE transport)
         middleware_stack = _create_middleware_stack(host, config)
         app = Starlette(
             debug=config.server.debug_mode,
@@ -807,7 +902,248 @@ async def run_sse(host: str, port: int) -> None:
 
     finally:
         await docker_server.stop()
-        logger.info("MCP server shutdown complete")
+        logger.info(SHUTDOWN_COMPLETE_MSG)
+
+
+def _create_event_store() -> InMemoryEventStore | None:
+    """Create event store for resumability if enabled.
+
+    Returns:
+        InMemoryEventStore instance if resumability is enabled, None otherwise
+    """
+    if not config.httpstream.resumability_enabled:
+        logger.info("Resumability disabled - EventStore not created")
+        return None
+
+    event_store = InMemoryEventStore(
+        max_events=config.httpstream.event_store_max_events,
+        ttl_seconds=config.httpstream.event_store_ttl_seconds,
+    )
+    logger.info(
+        f"EventStore enabled: max_events={config.httpstream.event_store_max_events}, "
+        f"ttl={config.httpstream.event_store_ttl_seconds}s"
+    )
+    return event_store
+
+
+def _create_transport_security_settings(host: str) -> TransportSecuritySettings | None:
+    """Create TransportSecuritySettings for DNS rebinding protection.
+
+    Args:
+        host: The host the server is binding to
+
+    Returns:
+        TransportSecuritySettings instance if protection is enabled, None otherwise
+    """
+    if not config.httpstream.dns_rebinding_protection:
+        logger.warning("DNS rebinding protection DISABLED - not recommended for production")
+        return None
+
+    # Build allowed hosts list (consistent with TrustedHostMiddleware)
+    allowed_hosts = _build_allowed_hosts_list(host, config)
+
+    # Log configured hosts if any were added
+    if config.httpstream.allowed_hosts:
+        count = len(config.httpstream.allowed_hosts)
+        logger.info(f"Added {count} configured hosts to allow-list")
+
+    # Configure allowed origins for browser clients
+    allowed_origins = config.cors.allow_origins if config.cors.enabled else []
+
+    security_settings = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
+    )
+    logger.info(
+        f"DNS rebinding protection enabled: allowed_hosts={allowed_hosts}, "
+        f"allowed_origins={allowed_origins}"
+    )
+    return security_settings
+
+
+async def _handle_httpstream_request(
+    scope: MutableMapping[str, Any],
+    receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+    send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+    session_manager: StreamableHTTPSessionManager,
+) -> None:
+    """Handle HTTP Stream requests with security checks.
+
+    Args:
+        scope: ASGI scope dictionary
+        receive: ASGI receive callable
+        send: ASGI send callable
+        session_manager: StreamableHTTPSessionManager instance
+    """
+    path = scope.get("path", "")
+    method = scope.get("method", "")
+
+    # Extract and store client IP for authentication/logging
+    client_ip = _extract_client_ip(scope)
+    client_ip_context.set(client_ip)
+
+    # Extract and store bearer token for OAuth authentication
+    bearer_token = _extract_bearer_token(scope)
+    bearer_token_context.set(bearer_token)
+
+    logger.debug(
+        f"Request: {method} {path} from {client_ip or 'unknown'}"
+        f"{' with bearer token' if bearer_token else ''}"
+    )
+
+    # HEALTH CHECK BYPASS: Allow HEAD requests without authentication
+    if method == "HEAD":
+        logger.debug("HEAD request - bypassing authentication for health check")
+        await send(
+            {
+                "type": HTTP_RESPONSE_START,
+                "status": 200,
+                "headers": [
+                    [b"content-type", CONTENT_TYPE_JSON],
+                    [b"cache-control", b"no-cache"],
+                ],
+            }
+        )
+        await send({"type": HTTP_RESPONSE_BODY, "body": b""})
+        return
+
+    # CORS PREFLIGHT BYPASS: Allow OPTIONS requests without authentication
+    # Browsers never send Authorization headers on CORS preflight requests,
+    # so we must handle OPTIONS before authentication to enable CORS + OAuth
+    if method == "OPTIONS":
+        logger.debug("OPTIONS request - bypassing authentication for CORS preflight")
+        # Let session manager handle OPTIONS (CORS middleware will add appropriate headers)
+        await session_manager.handle_request(scope, receive, send)
+        return
+
+    # AUTHENTICATION: OAuth or IP allowlist
+    try:
+        await docker_server.auth_middleware.authenticate_request(
+            ip_address=client_ip,
+            bearer_token=bearer_token,
+        )
+    except Exception as auth_error:
+        # Authentication failed - return 401
+        client_desc = client_ip or "unknown"
+        error_msg = f"Auth failed for {method} {path} from {client_desc}"
+        logger.warning(f"{error_msg}: {auth_error}")
+        error_body = json.dumps({"error": "Unauthorized", "message": str(auth_error)}).encode()
+
+        await send(
+            {
+                "type": HTTP_RESPONSE_START,
+                "status": 401,
+                "headers": [
+                    [b"content-type", CONTENT_TYPE_JSON],
+                    [b"www-authenticate", b"Bearer"],
+                ],
+            }
+        )
+        await send({"type": HTTP_RESPONSE_BODY, "body": error_body})
+        return
+
+    # DELEGATE TO MCP SDK: Let session manager handle the request
+    await session_manager.handle_request(scope, receive, send)
+
+
+async def run_httpstream(host: str, port: int) -> None:
+    """Run the MCP server with HTTP Stream Transport over HTTP/HTTPS."""
+    protocol = "https" if config.server.tls_enabled else "http"
+    logger.info(f"Starting MCP server with HTTP Stream Transport on {protocol}://{host}:{port}")
+
+    # Validate security configuration (reuse SSE validation)
+    _validate_sse_security(host)
+
+    # Initialize Docker server
+    await docker_server.start()
+
+    # Shutdown event for graceful termination
+    shutdown_event = asyncio.Event()
+    _setup_signal_handlers(shutdown_event)
+
+    try:
+        # Create event store for resumability if enabled
+        event_store = _create_event_store()
+
+        # Create TransportSecuritySettings for DNS rebinding protection
+        security_settings = _create_transport_security_settings(host)
+
+        # Create session manager with MCP SDK
+        session_manager = StreamableHTTPSessionManager(
+            app=mcp_server,
+            event_store=event_store,
+            json_response=config.httpstream.json_response_default,
+            stateless=config.httpstream.stateless_mode,
+            security_settings=security_settings,
+        )
+
+        logger.info(
+            f"HTTP Stream Transport configured: "
+            f"json_response={config.httpstream.json_response_default}, "
+            f"stateless={config.httpstream.stateless_mode}, "
+            f"resumability={config.httpstream.resumability_enabled}"
+        )
+
+        # Start session manager (required before handling requests)
+        async with session_manager.run():
+            # Create HTTP Stream handler wrapper
+            async def httpstream_handler(
+                scope: MutableMapping[str, Any],
+                receive: Callable[[], Awaitable[MutableMapping[str, Any]]],
+                send: Callable[[MutableMapping[str, Any]], Awaitable[None]],
+            ) -> None:
+                await _handle_httpstream_request(scope, receive, send, session_manager)
+
+            # Log debug mode warning if enabled
+            if config.server.debug_mode:
+                logger.warning(
+                    "⚠️  Debug mode enabled - detailed errors will be exposed to clients. "
+                    "DO NOT use in production!"
+                )
+
+            # SECURITY: Initialize secure headers middleware with OWASP recommended defaults
+            secure_headers = _create_security_headers(config)
+
+            # Wrap handler with ProxyHeadersMiddleware for secure X-Forwarded-For handling
+            trusted_proxies = (
+                config.security.trusted_proxies
+                if config.security.trusted_proxies
+                else ["127.0.0.1"]
+            )
+            wrapped_handler = ProxyHeadersMiddleware(
+                httpstream_handler,  # type: ignore[arg-type]
+                trusted_hosts=trusted_proxies,
+            )
+
+            # Wrap with secure headers middleware
+            security_headers_middleware = _create_security_headers_middleware(
+                wrapped_handler, secure_headers
+            )
+
+            # Build middleware stack and create Starlette app (HTTP Stream transport)
+            middleware_stack = _create_middleware_stack(host, config)
+            app = Starlette(
+                debug=config.server.debug_mode,
+                routes=[Mount("/", app=security_headers_middleware)],
+                middleware=middleware_stack,
+            )
+
+            # Create and run server with TLS support
+            config_uvicorn = _create_uvicorn_config(app, host, port, config)
+            server = uvicorn.Server(config_uvicorn)
+
+            logger.info(f"MCP server listening on {protocol}://{host}:{port}")
+            logger.info("HTTP Stream Transport endpoint: POST /")
+
+            # Run server with shutdown monitoring
+            server_task = asyncio.create_task(server.serve())
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
+            await _monitor_shutdown(server_task, shutdown_task, server)
+
+    finally:
+        await docker_server.stop()
+        logger.info(SHUTDOWN_COMPLETE_MSG)
 
 
 def main() -> None:
@@ -815,20 +1151,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="MCP Docker Server")
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse"],
+        choices=["stdio", "sse", "httpstream"],
         default="stdio",
         help="Transport type (default: stdio)",
     )
     parser.add_argument(
         "--host",
         default="127.0.0.1",
-        help="Host to bind SSE server (default: 127.0.0.1)",
+        help="Host to bind server (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8000,
-        help="Port to bind SSE server (default: 8000)",
+        help="Port to bind server (default: 8000)",
     )
 
     args = parser.parse_args()
@@ -836,8 +1172,10 @@ def main() -> None:
     try:
         if args.transport == "stdio":
             asyncio.run(run_stdio())
-        else:  # sse
+        elif args.transport == "sse":
             asyncio.run(run_sse(args.host, args.port))
+        elif args.transport == "httpstream":
+            asyncio.run(run_httpstream(args.host, args.port))
     except KeyboardInterrupt:
         logger.info("Received interrupt signal")
     except Exception as e:

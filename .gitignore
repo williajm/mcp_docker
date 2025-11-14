@@ -221,6 +221,7 @@ compose_files/user-*.yaml
 # Security: API keys and audit logs (NEVER commit these!)
 .mcp_keys.json
 mcp_audit.log
+mcp_audit.*.log.zip
 
 # Temporary development documentation (fixed issues, plans, analysis)
 # These increase context for future sessions and should not be committed
