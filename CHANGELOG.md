@@ -7,6 +7,96 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-11-14
+
+### Added
+- **HTTP Stream Transport**: Modern MCP transport protocol for network deployments
+  - Single unified endpoint (POST /) for all MCP operations
+  - Session management with `mcp-session-id` header tracking
+  - Stream resumability with InMemoryEventStore for message replay
+  - Flexible response modes (streaming SSE or batch JSON)
+  - Configurable event store (max events, TTL, resumability toggle)
+  - Production startup script (`start-mcp-docker-httpstream.sh`)
+  - Environment variables: `HTTPSTREAM_RESUMABILITY_ENABLED`, `HTTPSTREAM_EVENT_STORE_MAX_EVENTS`, `HTTPSTREAM_EVENT_STORE_TTL_SECONDS`, `HTTPSTREAM_JSON_RESPONSE_MODE`
+- **Enhanced CORS Configuration**: Strict security validation for HTTP Stream Transport
+  - Prevents CORS wildcard (`*`) origin with credentials (security violation)
+  - Validates explicit origins when credentials are enabled
+  - Environment variables: `CORS_ENABLED`, `CORS_ALLOWED_ORIGINS`, `CORS_ALLOW_CREDENTIALS`, `CORS_ALLOWED_METHODS`, `CORS_ALLOWED_HEADERS`, `CORS_EXPOSE_HEADERS`, `CORS_MAX_AGE`
+- **DNS Rebinding Protection**: Configurable allowed hosts validation
+  - Prevents DNS rebinding attacks via Host header validation
+  - Automatic localhost variants for localhost binds
+  - Fail-secure policy requiring explicit configuration for non-localhost binds
+  - Environment variable: `HTTPSTREAM_ALLOWED_HOSTS`
+- **CONFIGURATION.md**: Comprehensive configuration reference guide
+  - All environment variables documented with types and examples
+  - Common configuration scenarios (development, production, Docker Compose)
+  - Security best practices and troubleshooting tips
+- **Test Coverage**: 28 new tests for HTTP Stream Transport
+  - 11 E2E tests (protocol validation, session management, resumability, OAuth, rate limiting)
+  - 17 unit tests (configuration validation, event store, DNS rebinding protection)
+  - All tests pass with 91% coverage for `__main__.py`
+
+### Security
+- **DNS Rebinding Attack Prevention**: Host header validation prevents DNS rebinding
+  - Blocks requests with mismatched Host headers
+  - Configurable allowed hosts list for production deployments
+  - Documented in SECURITY.md with attack vectors and mitigation strategies
+- **Host Header Injection Protection**: Prevents cache poisoning and SSRF attacks
+  - Uses Starlette's TrustedHostMiddleware
+  - Automatic localhost variants only for localhost binds
+  - Fail-secure: non-localhost binds require explicit `HTTPSTREAM_ALLOWED_HOSTS`
+- **Session Enumeration Protection**: Cryptographically secure session IDs
+  - 128-bit random session IDs prevent enumeration attacks
+  - Session isolation ensures no cross-session data leakage
+  - Documented in SECURITY.md
+- **CORS Security Validation**: Prevents common CORS misconfigurations
+  - Rejects wildcard origin with credentials (CORS spec violation)
+  - Validates explicit origins when credentials enabled
+  - Comprehensive CORS configuration with security warnings
+
+### Fixed
+- **Validation Regex Security**: Fixed regex patterns to prevent newline bypass
+  - Changed `$` to `\Z` in validation patterns (CONTAINER_NAME_PATTERN, IMAGE_NAME_PATTERN, LABEL_KEY_PATTERN, memory pattern)
+  - Previously, inputs like `"0\n"` would incorrectly pass validation due to `$` matching before trailing newline
+  - Now strictly matches end of string only, preventing control character injection
+- **SSE Wildcard Bind Behavior**: Fixed SSE transport wildcard bind host handling
+  - Previously added localhost variants to all non-wildcard binds, creating DNS rebinding vulnerability
+  - Now only includes localhost variants when binding to localhost addresses
+  - Wildcard binds (0.0.0.0, ::) require explicit `HTTPSTREAM_ALLOWED_HOSTS` configuration
+- **Stress Test Reliability**: Fixed flaky stress tests in CI environments
+  - Added response checking to `test_httpstream_resumability_1000_events` to catch errors early
+  - Periodically check server process health during stress tests
+  - Tests now pass consistently (3/3 runs) by properly awaiting responses
+
+### Changed
+- **Test Categorization**: Reclassified tests by type (stress vs slow), exclude stress from CI
+  - Added `@pytest.mark.stress` marker for stress/performance tests (high resource usage)
+  - Stress tests now skip in CI, run locally only (GitHub Actions runners not suitable for stress testing)
+  - `@pytest.mark.slow` remains for functional tests that take longer but still run in CI
+  - Updated CI to run: `-m "e2e and not stress"` (62 tests, ~66 seconds)
+  - Stress tests: 2 tests (`test_httpstream_resumability_1000_events`, `test_httpstream_concurrent_sessions_with_replay`)
+- **Code Quality**: Replaced magic numbers and duplicated strings with named constants
+  - Event store constants: `EVENT_STORE_MAX_EVENTS_DEFAULT`, `EVENT_STORE_MAX_EVENTS_LIMIT`, `EVENT_STORE_TTL_SECONDS_DEFAULT`, etc.
+  - Message constants: `SHUTDOWN_COMPLETE_MSG`, `CONTENT_TYPE_JSON`
+  - Improved maintainability and reduced code duplication
+- **Transport Neutrality**: Both SSE and HTTP Stream Transport presented as equal options
+  - Removed "Recommended" and "Legacy" labels from transport descriptions
+  - Both transports fully supported with complete feature parity (OAuth, TLS, rate limiting)
+  - Documentation updated to be neutral without preference
+
+### Documentation
+- **README.md**: Updated with HTTP Stream Transport usage and configuration
+- **SECURITY.md**: Added comprehensive Host Header Injection protection documentation
+  - Attack vectors (DNS rebinding, password reset poisoning, cache poisoning, SSRF)
+  - Protection mechanisms (TrustedHostMiddleware, fail-secure policy)
+  - Behavior by transport type and bind address
+  - Example attack scenarios and mitigation strategies
+- **CONFIGURATION.md**: Complete environment variable reference (NEW)
+  - All configuration options documented with types, defaults, and examples
+  - Common scenarios: development, production, Docker Compose
+  - Security best practices and troubleshooting
+- **CLAUDE.md**: Updated with HTTP Stream Transport architecture and testing patterns
+
 ## [1.0.4] - 2025-11-13
 
 ### Added
