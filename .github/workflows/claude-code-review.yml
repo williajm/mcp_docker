@@ -2,13 +2,9 @@ name: Claude Code Review
 
 on:
   pull_request_target:  # Use pull_request_target to access secrets on forked PRs
-    types: [opened, synchronize]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    types: [opened]  # Only on PR creation, not on every push
+  issue_comment:  # Also trigger on @claude review mentions
+    types: [created]
 
 # Top-level permissions: restrictive by default
 permissions:
@@ -16,11 +12,21 @@ permissions:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
+    # SECURITY: Only run for repo owner (williajm)
+    # - Only PRs created by williajm
+    # - Only comments by williajm with "@claude review"
+    if: |
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.user.login == 'williajm'
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        github.event.sender.login == 'williajm' &&
+        contains(github.event.comment.body, '@claude') &&
+        contains(github.event.comment.body, 'review')
+      )
 
     runs-on: ubuntu-latest
     permissions:
@@ -43,7 +49,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
 
             Please review this pull request and provide feedback on:
             - Code quality and best practices
