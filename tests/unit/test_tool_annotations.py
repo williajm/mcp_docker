@@ -200,6 +200,13 @@ class TestToolAnnotations:
         assert start_tool is not None
         assert start_tool["annotations"] == {"idempotent": True}
 
+        # docker_tag_image: MODERATE + idempotent (NOT readOnly - tagging mutates metadata)
+        tag_tool = next((t for t in tools if t["name"] == "docker_tag_image"), None)
+        assert tag_tool is not None
+        assert tag_tool["annotations"] == {"idempotent": True}
+        # Verify it's NOT marked as readOnly (would be wrong since it mutates state)
+        assert "readOnly" not in tag_tool["annotations"]
+
     def test_tools_without_annotations_have_no_annotations_field(
         self, mock_config: Any, mock_docker_client: Any
     ) -> None:

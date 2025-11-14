@@ -585,8 +585,8 @@ class TagImageTool(BaseTool):
 
     @property
     def safety_level(self) -> OperationSafety:
-        """Safety level."""
-        return OperationSafety.SAFE
+        """Safety level - MODERATE because tagging mutates image metadata."""
+        return OperationSafety.MODERATE
 
     @property
     def idempotent(self) -> bool:
