@@ -1,5 +1,5 @@
 #!/bin/bash
-# MCP Docker Server - SSE Transport with TLS
+# MCP Docker Server - HTTP Stream Transport with TLS
 # Startup script for running the server with HTTPS (authentication disabled by default)
 
 set -e  # Exit on error
@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== MCP Docker Server - SSE Transport ===${NC}"
+echo -e "${GREEN}=== MCP Docker Server - HTTP Stream Transport ===${NC}"
 
 # Configuration paths
 CERT_DIR="$HOME/.mcp-docker/certs"
@@ -24,6 +24,9 @@ PORT="${MCP_PORT:-8443}"
 # Validate certificates exist
 if [ ! -f "$CERT_FILE" ]; then
     echo -e "${RED}ERROR: Certificate not found at $CERT_FILE${NC}"
+    echo -e "${YELLOW}Generate self-signed certificates with:${NC}"
+    echo -e "  mkdir -p $CERT_DIR"
+    echo -e "  openssl req -x509 -newkey rsa:4096 -keyout $KEY_FILE -out $CERT_FILE -days 365 -nodes -subj '/CN=localhost'"
     exit 1
 fi
 
@@ -46,6 +49,20 @@ export MCP_TLS_KEY_FILE="$KEY_FILE"
 # Only enable for local development/testing by setting: export MCP_DEBUG_MODE=true
 # export MCP_DEBUG_MODE=true
 
+# HTTP Stream Transport configuration
+export HTTPSTREAM_JSON_RESPONSE_DEFAULT=false  # Streaming mode (SSE)
+export HTTPSTREAM_STATELESS_MODE=false
+export HTTPSTREAM_RESUMABILITY_ENABLED=true
+export HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000
+export HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300
+export HTTPSTREAM_DNS_REBINDING_PROTECTION=true
+
+# CORS (disabled by default, enable for browser clients)
+export CORS_ENABLED=false
+# export CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+# export CORS_ALLOW_CREDENTIALS=true
+
+# Security configuration
 # OAuth/OIDC Authentication (disabled by default)
 export SECURITY_OAUTH_ENABLED=false
 # export SECURITY_OAUTH_ISSUER="https://accounts.google.com"
@@ -58,9 +75,11 @@ export SECURITY_RATE_LIMIT_RPM=60
 export SECURITY_AUDIT_LOG_ENABLED=true
 export SECURITY_AUDIT_LOG_FILE="$HOME/.mcp-docker/mcp_audit.log"
 
+# Safety configuration
 export SAFETY_ALLOW_MODERATE_OPERATIONS=true
 export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 
+# Docker configuration
 export DOCKER_BASE_URL=unix:///var/run/docker.sock
 
 echo ""
@@ -71,10 +90,19 @@ echo -e "  Rate Limiting:          ${GREEN}ENABLED${NC} (60 req/min)"
 echo -e "  Audit Logging:          ${GREEN}ENABLED${NC}"
 echo -e "  Destructive Operations: ${RED}DISABLED${NC}"
 echo ""
+echo -e "${GREEN}=== HTTP Stream Transport Configuration ===${NC}"
+echo -e "  Response Mode:          ${GREEN}Streaming (SSE)${NC}"
+echo -e "  Resumability:           ${GREEN}ENABLED${NC}"
+echo -e "  Event Store Max Events: 1000"
+echo -e "  Event Store TTL:        300s (5 minutes)"
+echo -e "  DNS Rebinding Protect:  ${GREEN}ENABLED${NC}"
+echo -e "  CORS:                   ${RED}DISABLED${NC}"
+echo ""
 echo -e "${GREEN}=== Server Configuration ===${NC}"
 echo -e "  Host:                   $HOST"
 echo -e "  Port:                   $PORT"
-echo -e "  URL:                    https://$HOST:$PORT/sse"
+echo -e "  Endpoint:               https://$HOST:$PORT/"
+echo -e "  Protocol:               HTTP Stream Transport (POST /)"
 echo ""
 
 # Check if Docker is accessible
@@ -89,4 +117,4 @@ echo -e "${YELLOW}Press Ctrl+C to stop${NC}"
 echo ""
 
 # Run the server
-exec uv run mcp-docker --transport sse --host "$HOST" --port "$PORT"
+exec uv run mcp-docker --transport httpstream --host "$HOST" --port "$PORT"

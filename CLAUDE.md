@@ -39,11 +39,14 @@ uv run pytest tests/unit/ -v
 # Integration tests (requires Docker, ~10s)
 uv run pytest tests/integration/ -v -m integration
 
-# E2E tests (requires Docker, ~30-60s)
+# E2E tests (requires Docker, ~60s, excludes stress tests)
+uv run pytest tests/e2e/ -v -m "e2e and not stress"
+
+# E2E tests including stress tests (local only, ~90s)
 uv run pytest tests/e2e/ -v -m e2e
 
-# E2E tests excluding slow tests (for PRs)
-uv run pytest tests/e2e/ -v -m "e2e and not slow"
+# Stress/performance tests only (high resource usage, skip in CI)
+uv run pytest tests/e2e/ -v -m stress
 
 # Run a single test file
 uv run pytest tests/unit/test_safety.py -v
@@ -240,7 +243,8 @@ When adding tests:
 - Unit tests for business logic and validation
 - Integration tests for Docker operations
 - E2E tests for multi-step workflows (include all three transports)
-- Mark slow tests with `@pytest.mark.slow`
+- Mark slow tests with `@pytest.mark.slow` (still run in CI, just slower)
+- Mark stress/performance tests with `@pytest.mark.stress` (skipped in CI, run locally)
 
 ## Code Standards
 
@@ -290,7 +294,7 @@ CI runs on: Python 3.11, 3.12, 3.13, 3.14
 - mypy type checking (strict mode)
 - Unit test coverage >= 85%
 - Integration tests pass
-- E2E tests pass (quick on PR, full on main)
+- E2E tests pass (excludes stress tests)
 - CodeQL security analysis
 - SonarCloud quality analysis
 - ClusterFuzzLite fuzzing

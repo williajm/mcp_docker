@@ -46,7 +46,7 @@ async def send_raw_jsonrpc_request(request_data: str | dict[str, Any]) -> tuple[
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env={**os.environ, "SECURITY_AUTH_ENABLED": "false"},
+        env={**os.environ, "SECURITY_OAUTH_ENABLED": "false"},
     )
 
     try:

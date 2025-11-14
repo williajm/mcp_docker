@@ -12,14 +12,15 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 **Quick Start:**
 
-- **Claude Code**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
-- **Codex**: `codex mcp add docker -- uvx mcp-docker@latest`
+- **Claude Code (stdio)**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
+- **Codex (stdio)**: `codex mcp add docker -- uvx mcp-docker@latest`
 
 ## Features
 
-- **36 Docker Tools**: Complete container, image, network, volume, and system management
+- **36 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
+- **3 Transport Options**: stdio (local), SSE (Server-Sent Events), and HTTP Stream Transport (modern unified endpoint)
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
 - **Comprehensive Testing**: Extensive test coverage with unit, integration, E2E, and fuzz tests
@@ -72,6 +73,44 @@ uv cache prune
 
 ### Advanced Usage
 
+#### HTTP Stream Transport
+
+The HTTP Stream Transport is a modern MCP transport protocol using a single unified endpoint (`POST /`) for all operations.
+
+**Features:**
+
+- **Single Endpoint**: All MCP communication through `POST /` (no separate SSE/messages endpoints)
+- **Session Management**: Automatic session tracking via `mcp-session-id` header
+- **Stream Resumability**: Reconnect and replay missed messages using `last-event-id` header
+- **Flexible Response Modes**: Choose between streaming (SSE) or batch (JSON) responses
+- **Browser Support**: Enhanced CORS configuration for web clients
+- **DNS Rebinding Protection**: Configure allowed hosts to prevent attacks
+
+**Basic Usage:**
+
+```bash
+# Development (localhost only)
+mcp-docker --transport httpstream --host 127.0.0.1 --port 8000
+
+# Production with TLS
+./start-mcp-docker-httpstream.sh
+```
+
+**Configuration:** The complete list of HTTP Stream, CORS, and DNS-rebinding settings lives in
+[CONFIGURATION.md](CONFIGURATION.md#http-stream-transport-configuration) (including the security
+toggles that pair with OAuth, rate limiting, and audit logging). Use that reference to keep runtime
+behavior in sync with CI and production deployments.
+
+**Endpoint Documentation:**
+
+- **POST /**: Main endpoint for all MCP operations
+  - Send JSON-RPC messages in request body
+  - Session tracked via `mcp-session-id` response header
+  - Streaming responses use SSE format
+  - Batch responses return complete JSON arrays
+
+- **Resumability**: Include `last-event-id` header to replay missed events after reconnection
+
 #### SSE Transport with TLS
 
 For network-accessible deployments, use SSE transport with TLS/HTTPS:
@@ -84,68 +123,31 @@ For network-accessible deployments, use SSE transport with TLS/HTTPS:
 mcp-docker --transport sse --host 127.0.0.1 --port 8000
 ```
 
-Command-line options: `--transport` (stdio/sse), `--host`, `--port`
+Command-line options: `--transport` (stdio/sse/httpstream), `--host`, `--port`
 
 ## Security
 
-The MCP Docker server includes comprehensive security features for production deployments:
+The MCP Docker server provides enterprise-grade security for production deployments with OAuth authentication, TLS encryption, rate limiting, audit logging, and safety controls.
 
-### Key Security Features
+**⚠️ Important**: Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for threat model and mitigations.
 
-- **OAuth/OIDC Authentication**: Industry-standard bearer token authentication for network transports (JWTs with JWKS validation, optional introspection support)
-- **TLS/HTTPS**: Encrypted transport for SSE mode (required for production)
-- **IP Filtering**: Restrict access by client IP address
-- **Rate Limiting**: Prevent abuse (60 req/min default)
-- **Audit Logging**: Track all operations with client IPs
-- **Error Sanitization**: Prevent information disclosure
-- **Security Headers**: OWASP-recommended headers via `secure` library (HSTS, CSP, X-Frame-Options, etc.)
+**For production deployment**, see [SECURITY.md](SECURITY.md) for:
 
-### ⚠️ Important Security Considerations
+- Complete security feature guide (OAuth, TLS, IP filtering, rate limiting, audit logging)
+- Production deployment checklist
+- Threat model and mitigation strategies
+- Security best practices
 
-**Retrieval Agent Deception (RADE) Risk**: Container logs are returned unfiltered and may contain malicious prompts injected by untrusted containers. AI agents retrieving logs via `docker_container_logs` could be manipulated by these embedded instructions.
+### Configuration
 
-**Mitigation**:
+All environment variables (safety, server, transports, OAuth, rate limits, CORS) are documented in
+[CONFIGURATION.md](CONFIGURATION.md). Production hardening steps, threat models, and deployment
+checklists live in [SECURITY.md](SECURITY.md).
 
-- Treat container logs as untrusted user input
-- Implement content filtering before presenting logs to AI agents
-- Use read-only mode for untrusted containers
-- Review audit logs for suspicious patterns
+**Documentation:**
 
-See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation strategies.
-
-### Server-sent events startup
-
-```bash
-# Start with all security features enabled
-./start-mcp-docker-sse.sh
-```
-
-### Security Configuration
-
-```bash
-# TLS/HTTPS (required for production SSE deployments)
-MCP_TLS_ENABLED=true
-MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
-MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
-
-# OAuth/OIDC Authentication (for network transports only, stdio bypasses auth)
-SECURITY_OAUTH_ENABLED=true
-SECURITY_OAUTH_ISSUER=https://auth.example.com
-SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
-SECURITY_OAUTH_AUDIENCE=mcp-docker-api
-SECURITY_OAUTH_REQUIRED_SCOPES=docker.read,docker.write
-
-# IP Filtering (optional - empty list allows all IPs)
-SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
-
-# Rate Limiting
-SECURITY_RATE_LIMIT_ENABLED=true
-SECURITY_RATE_LIMIT_RPM=60
-```
-
-**Note**: OAuth authentication is only enforced for network transports (SSE/HTTP Stream Transport). The stdio transport always bypasses authentication as it operates in a local trusted process model (same security model as running `docker` CLI directly).
-
-For complete security documentation, production deployment checklist, and best practices, see [SECURITY.md](SECURITY.md).
+- [CONFIGURATION.md](CONFIGURATION.md) - Complete configuration reference (all options)
+- [SECURITY.md](SECURITY.md) - Security features and production guidelines
 
 ## Tools Overview
 
@@ -318,117 +320,31 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 
 > **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
 
-## MCP Server vs. Docker CLI: A Comparison
+## MCP Server vs. Docker CLI
 
-**Should you use this MCP server or just let Claude run `docker` commands directly?** Here's an assessment:
+| Feature | Docker CLI Directly | MCP Docker Server |
+|---------|-------------------|-------------------|
+| **Claude Desktop** | ❌ No CLI access | ✅ **Required** (only option) |
+| **Claude Code** | ✅ Works immediately | ✅ Optional (adds safety) |
+| **Setup** | None needed | Install & configure |
+| **Safety Controls** | ❌ None | ✅ Read-only mode, operation blocking |
+| **Data Format** | Text (requires parsing) | Structured JSON |
+| **Audit Logging** | Manual setup | ✅ Built-in |
+| **Rate Limiting** | ❌ None | ✅ Configurable |
+| **Input Validation** | ❌ None | ✅ Pydantic schemas |
+| **Docker Coverage** | 100% (all features) | 36 core operations |
+| **Complexity** | Low (standard commands) | Medium (MCP protocol) |
 
-### Using Docker CLI Directly
+**When to use MCP Server:**
 
-**Pros:**
+- **Required:** Claude Desktop (no other option)
+- **Recommended:** Production automation, compliance requirements, multi-user access, safety controls needed
 
-- ✅ **Simpler setup** - No MCP server needed, works immediately
-- ✅ **Full Docker access** - Every Docker feature available
-- ✅ **No maintenance** - No additional service to run or update
-- ✅ **Transparent** - See exactly what commands run
-- ✅ **Familiar** - Standard Docker commands everyone knows
+**When to use CLI directly:**
 
-**Cons:**
+- **Best for:** Claude Code with simple tasks, advanced Docker features, minimal setup
 
-- ❌ **No safety controls** - Can't restrict destructive operations programmatically
-- ❌ **Text parsing** - Claude must parse unstructured CLI output
-- ❌ **Less efficient** - Multiple commands needed for complex operations
-- ❌ **No audit trail** - Unless you implement your own logging
-- ❌ **No rate limiting** - Claude can run unlimited commands
-- ❌ **Error handling** - Parsing error messages from text output
-- ❌ **Command injection risk** - If Claude constructs commands incorrectly
-
-**Example:**
-
-```bash
-# Claude needs multiple commands for a complex operation
-docker ps --filter "status=running" --format json
-docker inspect container_id
-docker logs container_id --tail 100
-# Parse JSON, extract data, reason about it...
-```
-
-### Using MCP Docker Server
-
-**Pros:**
-
-- ✅ **Enables Docker in Claude Desktop** - Claude Desktop has no CLI access, so MCP is the only way to use Docker
-- ✅ **Safety controls** - Programmable restrictions (read-only mode, block destructive ops)
-- ✅ **Structured data** - JSON input/output, easier for AI to process
-- ✅ **Efficient** - One tool call can do what requires multiple CLI commands
-- ✅ **Input validation** - Pydantic models prevent malformed requests
-- ✅ **Audit logging** - Track all operations with timestamps and client info
-- ✅ **Rate limiting** - Prevent runaway operations
-- ✅ **Better errors** - Structured error responses with error types
-- ✅ **Contextual** - AI prompts guide Claude on what tools do
-
-**Cons:**
-
-- ❌ **Setup required** - Install, configure, and maintain the server
-- ❌ **Limited coverage** - Only 36 tools (doesn't expose every Docker feature)
-- ❌ **Abstraction layer** - Another component in the stack
-- ❌ **Learning curve** - Need to understand MCP protocol and tool schemas
-- ❌ **Debugging** - Harder to see what's happening under the hood
-
-**Example:**
-
-```json
-// One tool call with structured input/output
-{
-  "tool": "docker_list_containers",
-  "arguments": {
-    "all": true,
-    "filters": {"status": ["running"]}
-  }
-}
-// Returns clean JSON with exactly the data needed
-```
-
-### When to Use Each
-
-**Use Docker CLI directly if:**
-
-- You're using **Claude Code** (Claude Desktop has no CLI access)
-- You need a Docker feature not exposed by the MCP server
-- You want minimal setup and maximum simplicity
-- You're comfortable with Claude having full Docker access
-- You're doing one-off tasks where safety controls aren't important
-- You trust the AI agent completely
-
-**Use MCP Docker Server if:**
-
-- You're using **Claude Desktop** (only way to access Docker)
-- You want safety controls (read-only mode, block destructive operations)
-- You need audit logging for compliance or debugging
-- You want structured input/output for better AI reasoning
-- You're building production automation with AI agents
-- You need rate limiting to prevent runaway operations
-- You want to restrict access to specific operations
-- Multiple users/agents need different permission levels
-
-### Hybrid Approach
-
-You can use both:
-
-- **MCP server** for common, safe operations (list, inspect, logs, stats)
-- **Docker CLI** for advanced features not in the MCP server (BuildKit, plugins, swarm)
-- **Safety**: Keep destructive operations disabled in MCP, require explicit CLI commands for those
-
-### Bottom Line
-
-**For Claude Desktop users:** MCP server is required (no CLI access available).
-
-**For Claude Code users:**
-
-- **Learning/exploration:** Docker CLI is simpler
-- **Production automation:** MCP server provides safety, structure, and control
-- **Maximum flexibility:** Use both as needed
-
-The MCP server doesn't replace the Docker CLI - it provides a safer, more structured interface when you need it.
+**Hybrid approach:** Use MCP for common operations + CLI for advanced features.
 
 ## Documentation
 
@@ -540,46 +456,6 @@ mcp_docker/
 - Write docstrings (Google style)
 - Maintain high test coverage
 - Pass all linting and type checking
-
-## Roadmap
-
-### HTTP Stream Transport
-
-We're planning to add support for the [HTTP Stream Transport](https://mcp-framework.com/docs/Transports/http-stream-transport), which is the modern replacement for the SSE transport in MCP specification version 2025-03-26.
-
-**Why HTTP Stream Transport?**
-
-The HTTP Stream Transport offers several advantages over the current SSE implementation:
-
-- **Single unified endpoint** for all MCP communication (instead of separate `/sse` and `/messages` endpoints)
-- **Flexible response modes**: Choose between batch (JSON) or streaming (SSE) responses based on operation type
-- **Built-in session management** via `Mcp-Session-Id` header for stateful connections
-- **Stream resumability**: Clients can reconnect and replay missed messages if connections drop
-- **Enhanced web support**: Flexible CORS configuration and better authentication integration
-- **Improved reliability**: Better error handling and connection state management
-
-**Implementation Plan:**
-
-1. **Phase 1: Core Transport Layer**
-   - Implement HTTP Stream Transport protocol handler
-   - Add session management with `Mcp-Session-Id` header tracking
-   - Support both batch and streaming response modes
-   - Maintain backward compatibility with existing SSE transport
-
-2. **Phase 2: Advanced Features**
-   - Add stream resumability for reconnection support
-   - Implement enhanced CORS configuration options
-   - Add comprehensive E2E tests for HTTP Stream Transport
-   - Update documentation and examples
-
-3. **Phase 3: Migration & Deprecation**
-   - Provide migration guide from SSE to HTTP Stream Transport
-   - Mark SSE transport as deprecated (but maintain for backward compatibility)
-   - Update Claude Desktop and Claude Code configuration examples
-
-**Current Status:** Planning phase. Contributions and feedback welcome!
-
-**Reference:** [MCP HTTP Stream Transport Documentation](https://mcp-framework.com/docs/Transports/http-stream-transport)
 
 ## License
 

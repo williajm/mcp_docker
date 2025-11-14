@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.0.6.dev0"
+version = "1.1.0"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -238,7 +238,8 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests requiring Docker",
     "e2e: End-to-end tests with realistic scenarios",
-    "slow: Slow running tests",
+    "slow: Slow running tests (but still functional)",
+    "stress: Stress/performance tests (high resource usage, skip in CI)",
     "fuzz: Fuzz tests (run by ClusterFuzzLite)",
 ]
 
