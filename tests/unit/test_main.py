@@ -1559,6 +1559,26 @@ class TestCreateMiddlewareStack:
             # SSE should use wildcard for wildcard binds
             assert allowed_hosts == ["*"]
 
+    def test_sse_localhost_binding_includes_localhost_variants(self) -> None:
+        """Test SSE transport with localhost binding includes all localhost variants.
+
+        When SSE binds to localhost (127.0.0.1, localhost, ::1), it should
+        include all localhost variants for convenience.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
+            middleware_stack = main_module._create_middleware_stack(
+                "127.0.0.1", main_module.config, transport="sse"
+            )
+
+            first_middleware = middleware_stack[0]
+            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
+
+            # Should include all localhost variants
+            assert "127.0.0.1" in allowed_hosts
+            assert "localhost" in allowed_hosts
+            assert "::1" in allowed_hosts
+            assert set(allowed_hosts) == {"127.0.0.1", "localhost", "::1"}
+
     def test_httpstream_wildcard_binding_excludes_localhost(self) -> None:
         """Test HTTP Stream transport with wildcard binding excludes localhost (strict).
 
@@ -1586,11 +1606,12 @@ class TestCreateMiddlewareStack:
             # Should be empty (fail-secure)
             assert allowed_hosts == []
 
-    def test_sse_specific_host_includes_localhost(self) -> None:
-        """Test SSE transport with specific non-localhost host includes localhost.
+    def test_sse_specific_host_excludes_localhost(self) -> None:
+        """Test SSE transport with specific non-localhost host excludes localhost.
 
-        Regression test: SSE transport should maintain backwards compatibility
-        by always including localhost variants, even for specific non-localhost binds.
+        Security: SSE transport should NOT include localhost variants for
+        specific non-localhost binds to prevent DNS rebinding attacks.
+        Only the actual bind address should be allowed.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack(
@@ -1600,13 +1621,8 @@ class TestCreateMiddlewareStack:
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # SSE should include localhost variants (backwards compat)
-            assert "127.0.0.1" in allowed_hosts
-            assert "localhost" in allowed_hosts
-            assert "::1" in allowed_hosts
-
-            # Should also include the bind IP
-            assert "192.168.1.100" in allowed_hosts
+            # Should only include the bind IP (no localhost variants)
+            assert allowed_hosts == ["192.168.1.100"]
 
     def test_cors_middleware_enabled(self) -> None:
         """Test middleware stack includes CORS when enabled."""

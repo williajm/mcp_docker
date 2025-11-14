@@ -506,11 +506,13 @@ def _build_allowed_hosts_list(
         # to match the network-wide access implied by the bind address
         if host in WILDCARD_BINDS:
             allowed_hosts.append("*")
-        else:
-            # For specific binds, include localhost variants and the bind address
+        elif host in LOCALHOST_VARIANTS:
+            # Localhost bind - include all localhost variants
             allowed_hosts.extend(LOCALHOST_VARIANTS)
-            if host not in LOCALHOST_VARIANTS:
-                allowed_hosts.append(host)
+        else:
+            # Specific non-localhost bind - only add that host (no localhost variants)
+            # This prevents DNS rebinding attacks via Host: localhost on public endpoints
+            allowed_hosts.append(host)
     # HTTP Stream Transport: Strict DNS rebinding protection
     # Only include localhost variants when actually binding to localhost
     # This prevents bypassing DNS rebinding protection on public deployments
