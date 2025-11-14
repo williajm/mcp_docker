@@ -344,6 +344,24 @@ class PullImageTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: pulling the same image again is safe.
+
+        Pulling an image that's already present locally succeeds without changes.
+        Multiple pull operations with the same image:tag converge to the same state.
+        """
+        return True
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """Interacts with external Docker registries.
+
+        Communicates with registries (Docker Hub, ghcr.io, ECR, etc.) to download images.
+        Important for network isolation policies and compliance requirements.
+        """
+        return True
+
     async def execute(self, input_data: PullImageInput) -> PullImageOutput:
         """Execute the pull image operation.
 
@@ -402,6 +420,11 @@ class BuildImageTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """May pull base images from external registries."""
+        return True
 
     async def execute(self, input_data: BuildImageInput) -> BuildImageOutput:
         """Execute the build image operation.
@@ -474,6 +497,11 @@ class PushImageTool(BaseTool):
     def safety_level(self) -> OperationSafety:
         """Safety level."""
         return OperationSafety.MODERATE
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """Pushes images to external Docker registries."""
+        return True
 
     async def execute(self, input_data: PushImageInput) -> PushImageOutput:
         """Execute the push image operation.
@@ -557,8 +585,13 @@ class TagImageTool(BaseTool):
 
     @property
     def safety_level(self) -> OperationSafety:
-        """Safety level."""
-        return OperationSafety.SAFE
+        """Safety level - MODERATE because tagging mutates image metadata."""
+        return OperationSafety.MODERATE
+
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: tagging with the same tag overwrites."""
+        return True
 
     async def execute(self, input_data: TagImageInput) -> TagImageOutput:
         """Execute the tag image operation.
