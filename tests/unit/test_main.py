@@ -1386,51 +1386,22 @@ class TestCreateMiddlewareStack:
     def test_wildcard_binding_without_configured_hosts(self) -> None:
         """Test middleware stack for 0.0.0.0 binding without configured hosts.
 
-        Security: Wildcard binds (0.0.0.0) should NOT include localhost variants
-        unless explicitly configured. Empty allowed_hosts list is fail-secure behavior
-        that requires operators to explicitly configure HTTPSTREAM_ALLOWED_HOSTS
-        for production deployments.
+        Security: Wildcard binds (0.0.0.0) MUST fail with ValueError when
+        HTTPSTREAM_ALLOWED_HOSTS is empty. This prevents accidental exposure.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
-            middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
-
-            first_middleware = middleware_stack[0]
-            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
-
-            # Security: Should NOT include localhost variants for wildcard bind
-            # This prevents DNS rebinding bypass on public deployments
-            assert "127.0.0.1" not in allowed_hosts
-            assert "localhost" not in allowed_hosts
-            assert "::1" not in allowed_hosts
-
-            # Should NOT include wildcard
-            assert "0.0.0.0" not in allowed_hosts
-
-            # Should be empty (fail-secure)
-            assert allowed_hosts == []
+            with pytest.raises(ValueError, match="requires explicit HTTPSTREAM_ALLOWED_HOSTS"):
+                main_module._create_middleware_stack("0.0.0.0", main_module.config)
 
     def test_wildcard_ipv6_binding_without_configured_hosts(self) -> None:
         """Test middleware stack for :: binding without configured hosts.
 
-        Security: Wildcard binds (::) should NOT include localhost variants
-        unless explicitly configured. Empty allowed_hosts list is fail-secure behavior.
+        Security: Wildcard binds (::) MUST fail with ValueError when
+        HTTPSTREAM_ALLOWED_HOSTS is empty. This prevents accidental exposure.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
-            middleware_stack = main_module._create_middleware_stack("::", main_module.config)
-
-            first_middleware = middleware_stack[0]
-            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
-
-            # Security: Should NOT include localhost variants for wildcard bind
-            assert "127.0.0.1" not in allowed_hosts
-            assert "localhost" not in allowed_hosts
-            assert "::1" not in allowed_hosts
-
-            # Should NOT include wildcard
-            assert "::" not in allowed_hosts
-
-            # Should be empty (fail-secure)
-            assert allowed_hosts == []
+            with pytest.raises(ValueError, match="requires explicit HTTPSTREAM_ALLOWED_HOSTS"):
+                main_module._create_middleware_stack("::", main_module.config)
 
     def test_wildcard_binding_with_configured_hosts(self) -> None:
         """Test middleware stack for 0.0.0.0 binding with configured hosts.
@@ -1540,34 +1511,39 @@ class TestCreateMiddlewareStack:
             # Should contain bind IP + configured hosts only
             assert set(allowed_hosts) == {"192.168.1.100", "api.example.com", "web.example.com"}
 
-    def test_sse_wildcard_binding_accepts_any_host(self) -> None:
-        """Test SSE transport with wildcard binding accepts any Host header.
+    def test_wildcard_binding_requires_config(self) -> None:
+        """Test wildcard binding requires explicit configuration.
 
-        For wildcard binds (0.0.0.0, ::), SSE transport uses allowed_hosts=["*"]
-        to accept any Host header, matching the network-wide access implied by
-        the bind address.
+        Security: Wildcard binds (0.0.0.0, ::) MUST fail with ValueError when
+        HTTPSTREAM_ALLOWED_HOSTS is empty.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
-            # SSE transport should accept any Host header for wildcard bind
-            middleware_stack = main_module._create_middleware_stack(
-                "0.0.0.0", main_module.config, transport="sse"
-            )
+            with pytest.raises(ValueError, match="requires explicit HTTPSTREAM_ALLOWED_HOSTS"):
+                main_module._create_middleware_stack("0.0.0.0", main_module.config)
+
+    def test_wildcard_binding_with_config(self) -> None:
+        """Test wildcard binding with configured hosts.
+
+        Wildcard binds with HTTPSTREAM_ALLOWED_HOSTS should accept those hosts.
+        """
+        with patch.object(main_module.config.httpstream, "allowed_hosts", ["api.example.com", "web.example.com"]):
+            middleware_stack = main_module._create_middleware_stack("0.0.0.0", main_module.config)
 
             first_middleware = middleware_stack[0]
             allowed_hosts = first_middleware.kwargs["allowed_hosts"]
 
-            # SSE should use wildcard for wildcard binds
-            assert allowed_hosts == ["*"]
+            # Should contain configured hosts only (no wildcard IP)
+            assert set(allowed_hosts) == {"api.example.com", "web.example.com"}
 
-    def test_sse_localhost_binding_includes_localhost_variants(self) -> None:
-        """Test SSE transport with localhost binding includes all localhost variants.
+    def test_localhost_binding_includes_localhost_variants(self) -> None:
+        """Test localhost binding includes all localhost variants.
 
-        When SSE binds to localhost (127.0.0.1, localhost, ::1), it should
+        When binding to localhost (127.0.0.1, localhost, ::1), server should
         include all localhost variants for convenience.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack(
-                "127.0.0.1", main_module.config, transport="sse"
+                "127.0.0.1", main_module.config
             )
 
             first_middleware = middleware_stack[0]
@@ -1579,43 +1555,16 @@ class TestCreateMiddlewareStack:
             assert "::1" in allowed_hosts
             assert set(allowed_hosts) == {"127.0.0.1", "localhost", "::1"}
 
-    def test_httpstream_wildcard_binding_excludes_localhost(self) -> None:
-        """Test HTTP Stream transport with wildcard binding excludes localhost (strict).
+    def test_specific_host_excludes_localhost(self) -> None:
+        """Test specific non-localhost host excludes localhost.
 
-        Regression test for DNS rebinding protection: HTTP Stream Transport
-        should have strict security and NOT include localhost variants for
-        wildcard binds unless explicitly configured.
-        """
-        with patch.object(main_module.config.httpstream, "allowed_hosts", []):
-            # HTTP Stream transport should NOT get localhost variants for wildcard bind
-            middleware_stack = main_module._create_middleware_stack(
-                "0.0.0.0", main_module.config, transport="httpstream"
-            )
-
-            first_middleware = middleware_stack[0]
-            allowed_hosts = first_middleware.kwargs["allowed_hosts"]
-
-            # HTTP Stream should NOT include localhost variants (strict security)
-            assert "127.0.0.1" not in allowed_hosts
-            assert "localhost" not in allowed_hosts
-            assert "::1" not in allowed_hosts
-
-            # Should NOT include wildcard
-            assert "0.0.0.0" not in allowed_hosts
-
-            # Should be empty (fail-secure)
-            assert allowed_hosts == []
-
-    def test_sse_specific_host_excludes_localhost(self) -> None:
-        """Test SSE transport with specific non-localhost host excludes localhost.
-
-        Security: SSE transport should NOT include localhost variants for
-        specific non-localhost binds to prevent DNS rebinding attacks.
-        Only the actual bind address should be allowed.
+        Security: Specific non-localhost binds should NOT include localhost
+        variants to prevent DNS rebinding attacks. Only the actual bind
+        address should be allowed.
         """
         with patch.object(main_module.config.httpstream, "allowed_hosts", []):
             middleware_stack = main_module._create_middleware_stack(
-                "192.168.1.100", main_module.config, transport="sse"
+                "192.168.1.100", main_module.config
             )
 
             first_middleware = middleware_stack[0]

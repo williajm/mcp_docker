@@ -428,9 +428,9 @@ Host Header Injection occurs when attackers manipulate the HTTP `Host` header to
 1. **Host Header Validation**: Starlette's `TrustedHostMiddleware` validates the `Host` header on every request against an allowed list
 2. **No Dynamic Host Usage**: The server never uses the `Host` header value in application logic (no URL generation, no routing decisions)
 3. **No X-Forwarded-Host Support**: The server does not support or parse `X-Forwarded-Host` headers (common bypass technique)
-4. **Transport-Specific Policies**: Different security postures for different deployment scenarios
+4. **Fail-Secure Policy**: Non-localhost binds require explicit `HTTPSTREAM_ALLOWED_HOSTS` configuration
 
-**SSE Transport Behavior:**
+**Behavior (Same for Both Transports):**
 
 ```python
 # Localhost bind (127.0.0.1, ::1, localhost)
@@ -439,28 +439,19 @@ allowed_hosts = ['127.0.0.1', 'localhost', '::1']
 # Specific host bind (api.example.com)
 allowed_hosts = ['api.example.com']  # Only that host, no localhost variants!
 
-# Wildcard bind (0.0.0.0, ::)
-allowed_hosts = ['*']  # Accepts any Host header (ease of use for wildcard binds)
+# Wildcard bind (0.0.0.0, ::) WITHOUT config
+# Server FAILS TO START - requires explicit HTTPSTREAM_ALLOWED_HOSTS
+
+# Wildcard bind (0.0.0.0, ::) WITH config
+# HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
+allowed_hosts = ['api.example.com', '192.0.2.1']  # Only configured hosts
 ```
 
-**HTTP Stream Transport Behavior:**
+**Security Properties:**
 
-```python
-# Localhost bind (127.0.0.1, ::1, localhost)
-allowed_hosts = ['127.0.0.1', 'localhost', '::1']
-
-# Specific host bind (api.example.com)
-allowed_hosts = ['api.example.com']  # Only that host
-
-# Wildcard bind (0.0.0.0, ::)
-allowed_hosts = []  # REQUIRES explicit HTTPSTREAM_ALLOWED_HOSTS configuration (fail-secure)
-```
-
-**Security Differences:**
-
-- **SSE Transport**: Wildcard binds use `allowed_hosts=['*']` for ease of use (intended for dev/testing)
-- **HTTP Stream Transport**: Wildcard binds require explicit configuration (strict security by default)
-- **Both Transports**: Specific host binds ONLY allow that host (prevents DNS rebinding via `Host: localhost`)
+- **Localhost binds**: Accept all localhost variants for convenience
+- **Specific host binds**: Only accept that specific host (prevents DNS rebinding via `Host: localhost`)
+- **Wildcard binds**: REQUIRE explicit `HTTPSTREAM_ALLOWED_HOSTS` configuration (fail-secure)
 
 **Example Attack Scenarios (All Prevented):**
 
@@ -488,16 +479,21 @@ fetch('http://attacker.com:8000/', {headers: {'Host': 'attacker.com'}})
 **Production Recommendations:**
 
 ```bash
-# ✅ RECOMMENDED: Bind to specific hostname/IP
-./start-mcp-docker-httpstream.sh  # Uses configured hostname
-# Configure allowed hosts if needed:
-HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
+# ✅ RECOMMENDED: Bind to localhost and use reverse proxy
+# Server binds to 127.0.0.1, nginx/Caddy handles public access
+./start-mcp-docker-httpstream.sh  # Bind to localhost only
+# Then configure nginx/Caddy to proxy requests
 
-# ⚠️ DEVELOPMENT ONLY: Wildcard bind (0.0.0.0)
-# SSE: Accepts any Host header (use firewall to restrict access)
-# HTTP Stream: Requires explicit HTTPSTREAM_ALLOWED_HOSTS configuration
+# ✅ ALTERNATIVE: Bind to specific hostname/IP
+# Server binds to specific public interface
+./start-mcp-docker-httpstream.sh --host api.example.com
 
-# ❌ AVOID: Wildcard bind without additional security controls
+# ⚠️ WILDCARD BIND: Requires explicit configuration
+# Server refuses to start without HTTPSTREAM_ALLOWED_HOSTS
+./start-mcp-docker-httpstream.sh --host 0.0.0.0
+# Must set: HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
+
+# ❌ AVOID: Wildcard bind without reverse proxy/firewall
 ```
 
 ### DNS Rebinding Protection
@@ -791,7 +787,7 @@ Before deploying to production:
   - [ ] Test invalid Host header rejection: `curl -H "Host: evil.com" https://yourserver/`
   - [ ] Test X-Forwarded-Host is ignored: `curl -H "X-Forwarded-Host: evil.com" https://yourserver/`
   - [ ] Test localhost bypass on public endpoints: `curl -H "Host: localhost" https://api.example.com/`
-  - [ ] Verify wildcard binds behavior matches transport type (SSE vs HTTP Stream)
+  - [ ] Verify wildcard binds require HTTPSTREAM_ALLOWED_HOSTS (server fails to start without it)
   - [ ] Confirm only configured allowed hosts are accepted
 - [ ] Verify error messages are sanitized (no sensitive info leaked)
 - [ ] Verify security headers are present in responses
