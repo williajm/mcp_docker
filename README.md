@@ -182,32 +182,29 @@ See [SECURITY.md](SECURITY.md) for the complete MCP threat model and mitigation 
 ./start-mcp-docker-sse.sh
 ```
 
-### Security Configuration
+### Configuration
+
+All configuration is via environment variables. Key settings:
 
 ```bash
-# TLS/HTTPS (required for production SSE deployments)
-MCP_TLS_ENABLED=true
-MCP_TLS_CERT_FILE=~/.mcp-docker/certs/cert.pem
-MCP_TLS_KEY_FILE=~/.mcp-docker/certs/key.pem
+# Safety - Control which operations are allowed
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # Prevent accidental deletions
 
-# OAuth/OIDC Authentication (for network transports only, stdio bypasses auth)
-SECURITY_OAUTH_ENABLED=true
-SECURITY_OAUTH_ISSUER=https://auth.example.com
-SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
-SECURITY_OAUTH_AUDIENCE=mcp-docker-api
-SECURITY_OAUTH_REQUIRED_SCOPES=docker.read,docker.write
+# Security - TLS, auth, rate limiting
+MCP_TLS_ENABLED=true                       # Enable HTTPS
+SECURITY_OAUTH_ENABLED=true                # Require authentication
+SECURITY_RATE_LIMIT_RPM=60                 # Rate limit requests
 
-# IP Filtering (optional - empty list allows all IPs)
-SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
-
-# Rate Limiting
-SECURITY_RATE_LIMIT_ENABLED=true
-SECURITY_RATE_LIMIT_RPM=60
+# HTTP Stream Transport - Modern network transport
+HTTPSTREAM_DNS_REBINDING_PROTECTION=true   # Security protection
+CORS_ENABLED=true                          # Enable CORS for browsers
 ```
 
-**Note**: OAuth authentication is only enforced for network transports (SSE/HTTP Stream Transport). The stdio transport always bypasses authentication as it operates in a local trusted process model (same security model as running `docker` CLI directly).
+**Documentation:**
+- [CONFIGURATION.md](CONFIGURATION.md) - Complete configuration reference (all options)
+- [SECURITY.md](SECURITY.md) - Production security guidelines and best practices
 
-For complete security documentation, production deployment checklist, and best practices, see [SECURITY.md](SECURITY.md).
+**Note**: OAuth authentication is only enforced for network transports (SSE/HTTP Stream Transport). The stdio transport always bypasses authentication as it operates in a local trusted process model (same security model as running `docker` CLI directly).
 
 ## Tools Overview
 
