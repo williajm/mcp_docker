@@ -16,7 +16,6 @@ from mcp_docker.resources.providers import ResourceProvider
 from mcp_docker.security.audit import AuditLogger
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
 from mcp_docker.tools import base as tools_base
-from mcp_docker.tools.base import BaseTool
 from mcp_docker.tools import (
     container_inspection_tools,
     container_lifecycle_tools,
@@ -25,6 +24,7 @@ from mcp_docker.tools import (
     system_tools,
     volume_tools,
 )
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.error_sanitizer import sanitize_error_for_client
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
