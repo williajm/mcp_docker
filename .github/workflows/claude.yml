@@ -16,8 +16,8 @@ permissions:
 
 jobs:
   claude:
-    # SECURITY: Only run for trusted users (collaborators, members, owners)
-    # External contributors cannot trigger this workflow with secrets/write permissions
+    # SECURITY: Only run for repo owner (williajm)
+    # No other users can trigger this workflow with secrets/write permissions
     if: |
       (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
@@ -26,15 +26,9 @@ jobs:
         (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
       ) &&
       (
-        github.event.comment.author_association == 'OWNER' ||
-        github.event.comment.author_association == 'MEMBER' ||
-        github.event.comment.author_association == 'COLLABORATOR' ||
-        github.event.review.author_association == 'OWNER' ||
-        github.event.review.author_association == 'MEMBER' ||
-        github.event.review.author_association == 'COLLABORATOR' ||
-        github.event.issue.author_association == 'OWNER' ||
-        github.event.issue.author_association == 'MEMBER' ||
-        github.event.issue.author_association == 'COLLABORATOR'
+        github.event.comment.user.login == 'williajm' ||
+        github.event.review.user.login == 'williajm' ||
+        github.event.issue.user.login == 'williajm'
       )
     runs-on: ubuntu-latest
     permissions:
