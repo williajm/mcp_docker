@@ -57,171 +57,27 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.11 or higher
-- Docker installed and running
-- [uv](https://github.com/astral-sh/uv) package manager (recommended) or pip
-
-### Installation
-
-#### Using uvx (Recommended)
-
-```bash
-# Run directly without installation
-uvx mcp-docker
-```
-
-#### Using uv
-
-```bash
-# Install from source
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
-uv sync
-uv run mcp-docker
-```
-
-#### Using pip
-
-```bash
-# Install from PyPI (when published)
-pip install mcp-docker
-
-# Or install from source
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
-pip install -e .
-```
-
-### Configuration
-
-Add to your MCP client configuration (e.g., Claude Desktop).
-
-**IMPORTANT**: Use the correct `DOCKER_BASE_URL` for your platform:
-
-#### Linux / macOS
-
-Configuration file location: `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `~/.config/Claude/claude_desktop_config.json` (Linux)
-
-```json
-{
-  "mcpServers": {
-    "docker": {
-      "command": "uvx",
-      "args": ["mcp-docker"],
-      "env": {
-        "DOCKER_BASE_URL": "unix:///var/run/docker.sock"
-      }
-    }
-  }
-}
-```
-
-#### Windows
-
-Configuration file location: `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "docker": {
-      "command": "uvx",
-      "args": ["mcp-docker"],
-      "env": {
-        "DOCKER_BASE_URL": "npipe:////./pipe/docker_engine"
-      }
-    }
-  }
-}
-```
-
-**Note**: Ensure Docker Desktop is running before starting the MCP server.
+See [Installation Instructions](../README.md#install-instructions) in the main README for complete setup guide including:
+- Prerequisites (Python 3.11+, Docker, uv/pip)
+- Installation methods (uvx, uv, pip)
+- Configuration for Claude Desktop (Linux/macOS/Windows)
+- Platform-specific Docker socket URLs
 
 ## Safety System
 
-The MCP Docker server includes a three-tier safety classification system:
+Three-tier classification: **SAFE** (read-only) → **MODERATE** (create/modify) → **DESTRUCTIVE** (delete).
 
-### Safety Levels
+Control via environment variables: `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS`, `SAFETY_ALLOW_PRIVILEGED_CONTAINERS`, etc.
 
-1. **SAFE** - Read-only operations with no risk
-   - List containers, images, networks, volumes
-   - Inspect resources
-   - View logs and stats
-
-2. **MODERATE** - Operations that create or modify but don't destroy
-   - Create containers, networks, volumes
-   - Start/stop/restart containers
-   - Pull images
-   - Connect/disconnect networks
-
-3. **DESTRUCTIVE** - Operations that permanently delete data
-   - Remove containers, images, networks, volumes
-   - Prune operations
-   - System cleanup
-
-### Configuration
-
-Control safety levels via environment variables:
-
-```bash
-# Allow all destructive operations
-export SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-
-# Allow privileged containers
-export SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true
-
-# Require confirmation for destructive operations
-export SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE=true
-```
+See [README.md](../README.md#safety-system) for complete safety system documentation.
 
 ## What's Available
 
-### 36 Docker Tools
+- **36 Docker Tools** - Container, image, network, volume, and system management
+- **5 AI Prompts** - Troubleshooting, optimization, networking debug, security audit, compose generation
+- **2 Resources** - Container logs and stats streaming
 
-#### Container Management (10 tools)
-
-- List, inspect, create, start, stop, restart containers
-- View logs, execute commands, get stats
-- Remove containers
-
-#### Image Management (9 tools)
-
-- List, inspect, pull, build, push images
-- Tag, remove, prune images
-- View image history
-
-#### Network Management (6 tools)
-
-- List, inspect, create, remove networks
-- Connect/disconnect containers
-- Manage network configurations
-
-#### Volume Management (5 tools)
-
-- List, inspect, create, remove volumes
-- Prune unused volumes
-- Manage volume drivers
-
-#### System Operations (6 tools)
-
-- System info, disk usage, version
-- System-wide pruning
-- Event monitoring
-- Health checks
-
-### 5 AI Prompts
-
-1. **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
-2. **optimize_container** - Suggest performance improvements and security best practices
-3. **generate_compose** - Create docker-compose.yml files from containers or descriptions
-4. **debug_networking** - Deep-dive network troubleshooting with systematic L3-L7 analysis
-5. **security_audit** - Comprehensive security analysis following CIS Docker Benchmark
-
-### 2 Resources
-
-1. **Container Logs** - Stream real-time logs from containers
-2. **Container Stats** - Monitor resource usage metrics
+For complete list see [README.md](../README.md#tools-overview).
 
 ## Example Usage
 

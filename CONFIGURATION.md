@@ -83,19 +83,19 @@ Controls authentication, authorization, and audit logging.
 
 ### OAuth Authentication
 
-OAuth is only enforced for network transports (SSE/HTTP Stream). stdio transport always bypasses authentication.
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECURITY_OAUTH_ENABLED` | `false` | Enable OAuth2/OIDC authentication |
-| `SECURITY_OAUTH_ISSUER` | `null` | OAuth issuer URL (e.g., `https://auth.example.com/`) |
-| `SECURITY_OAUTH_AUDIENCE` | `[]` | JSON array of valid audiences (e.g., `["mcp-docker-api"]`) |
-| `SECURITY_OAUTH_JWKS_URL` | `null` | JWKS endpoint URL for token verification |
-| `SECURITY_OAUTH_REQUIRED_SCOPES` | `[]` | Required OAuth scopes (comma-separated) |
+| `SECURITY_OAUTH_ENABLED` | `false` | Enable OAuth2/OIDC authentication (network transports only) |
+| `SECURITY_OAUTH_ISSUER` | `null` | OAuth issuer URL |
+| `SECURITY_OAUTH_AUDIENCE` | `[]` | Valid token audiences (JSON array) |
+| `SECURITY_OAUTH_JWKS_URL` | `null` | JWKS endpoint for token verification |
+| `SECURITY_OAUTH_REQUIRED_SCOPES` | `[]` | Required scopes (comma-separated) |
 | `SECURITY_OAUTH_INTROSPECTION_URL` | `null` | Token introspection endpoint (optional) |
-| `SECURITY_OAUTH_CLIENT_ID` | `null` | OAuth client ID for introspection |
-| `SECURITY_OAUTH_CLIENT_SECRET` | `null` | OAuth client secret for introspection |
-| `SECURITY_OAUTH_CLOCK_SKEW_SECONDS` | `60` | Allowed clock skew for token validation |
+| `SECURITY_OAUTH_CLIENT_ID` | `null` | Client ID for introspection |
+| `SECURITY_OAUTH_CLIENT_SECRET` | `null` | Client secret for introspection |
+| `SECURITY_OAUTH_CLOCK_SKEW_SECONDS` | `60` | Clock skew tolerance for validation |
+
+For OAuth setup with popular identity providers (Auth0, Keycloak, Azure AD, AWS Cognito), see [SECURITY.md](SECURITY.md#oauth-authentication).
 
 ---
 
@@ -167,104 +167,42 @@ Cross-Origin Resource Sharing for browser clients.
 
 ## Transport Selection
 
-Choose transport via command-line flags:
-
-```bash
-# stdio - Local process communication (default, most secure)
-uv run mcp-docker --transport stdio
-
-# HTTP Stream Transport - Modern network transport (recommended)
-uv run mcp-docker --transport httpstream --host 127.0.0.1 --port 8000
-
-# SSE - Legacy network transport (deprecated, use HTTP Stream instead)
-uv run mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```
-
-**Transport Security:**
-- **stdio**: Always secure (local only), no auth required
-- **HTTP Stream/SSE**: Require TLS + authentication for production
-- See [SECURITY.md](SECURITY.md) for production deployment guidelines
+See [README.md](README.md#usage) for transport options and startup commands.
 
 ---
 
 ## Common Configuration Scenarios
 
-### Local Development (stdio)
+**Local Development (stdio):** No configuration needed - `uv run mcp-docker`
 
-Simplest setup for local testing:
+**Development Server (no TLS):** Set `SECURITY_AUTH_ENABLED=false`, `MCP_TLS_ENABLED=false`, `HTTPSTREAM_DNS_REBINDING_PROTECTION=false` ⚠️ Trusted networks only
 
-```bash
-# No configuration needed - defaults are safe
-uv run mcp-docker
-```
-
-### Development Server (HTTP Stream, no TLS)
-
-For local network testing (development only):
+**Production Server (HTTP Stream + TLS + OAuth):**
 
 ```bash
-# .env file
-SECURITY_AUTH_ENABLED=false
-MCP_TLS_ENABLED=false
-HTTPSTREAM_DNS_REBINDING_PROTECTION=false  # Allow access from any host
-
-# Start server
-uv run mcp-docker --transport httpstream --host 0.0.0.0 --port 8000
-```
-
-⚠️ **WARNING**: This is UNSAFE for production! Only use on trusted networks.
-
-### Production Server (HTTP Stream + TLS + OAuth)
-
-Secure production deployment:
-
-```bash
-# .env file
+# Security
 MCP_TLS_ENABLED=true
 MCP_TLS_CERT_FILE=/path/to/cert.pem
 MCP_TLS_KEY_FILE=/path/to/key.pem
-
 SECURITY_OAUTH_ENABLED=true
 SECURITY_OAUTH_ISSUER=https://auth.example.com/
 SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
 SECURITY_OAUTH_AUDIENCE=["mcp-docker-api"]
-SECURITY_OAUTH_REQUIRED_SCOPES=docker.read,docker.write
-
 SECURITY_RATE_LIMIT_ENABLED=true
-SECURITY_RATE_LIMIT_RPM=60
 
-SECURITY_AUDIT_LOG_ENABLED=true
-
+# HTTP Stream Transport
 HTTPSTREAM_DNS_REBINDING_PROTECTION=true
-HTTPSTREAM_ALLOWED_HOSTS=["api.example.com", "10.0.1.50"]
+HTTPSTREAM_ALLOWED_HOSTS=["api.example.com"]
 
+# CORS (if browser clients)
 CORS_ENABLED=true
 CORS_ALLOW_ORIGINS=["https://app.example.com"]
 CORS_ALLOW_CREDENTIALS=true
 
+# Safety
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 
-# Start server
-uv run mcp-docker --transport httpstream --host 0.0.0.0 --port 8443
-```
-
-### Browser Client (CORS)
-
-For web applications accessing the MCP server:
-
-```bash
-# .env file
-CORS_ENABLED=true
-CORS_ALLOW_ORIGINS=["https://app.example.com", "https://staging.example.com"]
-CORS_ALLOW_CREDENTIALS=true
-CORS_ALLOW_HEADERS=["Content-Type", "Authorization", "mcp-session-id"]
-
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true
-HTTPSTREAM_ALLOWED_HOSTS=["api.example.com"]
-
-# Also enable TLS and authentication for production
-MCP_TLS_ENABLED=true
-SECURITY_OAUTH_ENABLED=true
+# Start: uv run mcp-docker --transport httpstream --host 0.0.0.0 --port 8443
 ```
 
 ---
