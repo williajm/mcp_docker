@@ -374,7 +374,38 @@ class ConnectContainerTool(BaseTool):
 
             network = self.docker.client.networks.get(input_data.network_id)
 
-            # Prepare kwargs for connect
+            # Resolve container name/ID to full container ID for comparison
+            # (input can be name or ID, but network.attrs uses full IDs)
+            try:
+                container = self.docker.client.containers.get(input_data.container_id)
+                container_full_id = str(container.id)
+            except NotFound:
+                # Container doesn't exist - will error below, let it proceed
+                container_full_id = input_data.container_id
+
+            # Check if already connected (idempotent behavior for basic connect)
+            # Only return early if no aliases/IPs are specified - otherwise proceed
+            # and let Docker error if user is trying to change network settings
+            has_network_config = bool(
+                input_data.aliases
+                or input_data.ipv4_address
+                or input_data.ipv6_address
+                or input_data.links
+            )
+            containers_in_network = network.attrs.get("Containers", {})
+            if not has_network_config and container_full_id in containers_in_network:
+                # Basic connect without config changes - safe to return early (idempotent)
+                logger.info(
+                    f"Container {input_data.container_id} already connected to "
+                    f"network {input_data.network_id}"
+                )
+                return ConnectContainerOutput(
+                    network_id=str(network.id),
+                    container_id=input_data.container_id,
+                    status="connected",
+                )
+
+            # Not connected - perform the connection
             kwargs: dict[str, Any] = {"container": input_data.container_id}
             if input_data.aliases:
                 kwargs["aliases"] = input_data.aliases
@@ -435,6 +466,15 @@ class DisconnectContainerTool(BaseTool):
         """Safety level."""
         return OperationSafety.MODERATE
 
+    @property
+    def idempotent(self) -> bool:
+        """Idempotent: disconnecting an already disconnected container is harmless.
+
+        Implementation checks current state before attempting disconnection to avoid
+        relying on Docker error messages, making the idempotent behavior robust.
+        """
+        return True
+
     async def execute(self, input_data: DisconnectContainerInput) -> DisconnectContainerOutput:
         """Execute the disconnect container operation.
 
@@ -456,6 +496,30 @@ class DisconnectContainerTool(BaseTool):
             )
 
             network = self.docker.client.networks.get(input_data.network_id)
+
+            # Resolve container name/ID to full container ID for comparison
+            # (input can be name or ID, but network.attrs uses full IDs)
+            try:
+                container = self.docker.client.containers.get(input_data.container_id)
+                container_full_id = str(container.id)
+            except NotFound:
+                # Container doesn't exist - will error below, let it proceed
+                container_full_id = input_data.container_id
+
+            # Check if already disconnected (idempotent: avoid error-based detection)
+            containers_in_network = network.attrs.get("Containers", {})
+            if container_full_id not in containers_in_network:
+                logger.info(
+                    f"Container {input_data.container_id} not connected to "
+                    f"network {input_data.network_id} (already disconnected)"
+                )
+                return DisconnectContainerOutput(
+                    network_id=str(network.id),
+                    container_id=input_data.container_id,
+                    status="disconnected",
+                )
+
+            # Still connected - perform the disconnection
             network.disconnect(container=input_data.container_id, force=input_data.force)
 
             logger.info(

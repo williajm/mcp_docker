@@ -163,6 +163,11 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - Tools auto-register by being discovered in tool modules
    - Five categories: container_lifecycle, container_inspection, image, network, volume, system
    - Each tool has a safety level: SAFE (read-only), MODERATE (reversible), DESTRUCTIVE (permanent)
+   - **MCP Annotations**: Tools expose four standard MCP annotations to help clients make decisions:
+     - `readOnly`: Tool only reads data without modification (auto-set for SAFE tools)
+     - `destructive`: Tool permanently deletes data (auto-set for DESTRUCTIVE tools)
+     - `idempotent`: Tool can be safely retried with same parameters (e.g., start/stop/restart containers, pull images)
+     - `openWorldInteraction`: Tool communicates with external systems (e.g., pull/push images from registries)
 
 3. **Safety System** (`src/mcp_docker/utils/safety.py`, `config.py`)
    - **Three-tier classification**: SAFE/MODERATE/DESTRUCTIVE
@@ -209,8 +214,9 @@ Tools are auto-discovered via reflection. To add a new tool:
 
 1. Create tool class inheriting from `BaseTool` in appropriate module (`tools/container_*.py`, `tools/image_tools.py`, etc.)
 2. Implement required properties: `name`, `description`, `input_schema`, `output_schema`, `safety_level`
-3. Implement `execute(arguments: dict[str, Any]) -> ToolResult` method
-4. Tool will be automatically registered on server startup (no manual registration needed)
+3. Optionally override annotation properties: `idempotent`, `open_world_interaction` (readOnly/destructive auto-set from safety_level)
+4. Implement `execute(arguments: dict[str, Any]) -> ToolResult` method
+5. Tool will be automatically registered on server startup (no manual registration needed)
 
 Example:
 ```python
@@ -222,6 +228,16 @@ class MyNewTool(BaseTool):
     @property
     def safety_level(self) -> OperationSafety:
         return OperationSafety.MODERATE  # or SAFE or DESTRUCTIVE
+
+    @property
+    def idempotent(self) -> bool:
+        """Override if operation is safe to retry."""
+        return True  # e.g., start container is idempotent
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """Override if tool talks to external systems."""
+        return True  # e.g., pulls from Docker Hub
 
     # ... implement other required methods
 ```

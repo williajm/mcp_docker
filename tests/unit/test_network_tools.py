@@ -215,7 +215,14 @@ class TestConnectContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_network: Any
     ) -> None:
         """Test successful container connection."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is NOT connected (so connect will be called)
+        mock_network.attrs = {"Containers": {}}
 
         tool = ConnectContainerTool(mock_docker_client, safety_config)
         input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
@@ -231,7 +238,14 @@ class TestConnectContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_network: Any
     ) -> None:
         """Test connecting container with additional options."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is NOT connected (so connect will be called)
+        mock_network.attrs = {"Containers": {}}
 
         tool = ConnectContainerTool(mock_docker_client, safety_config)
         input_data = ConnectContainerInput(
@@ -274,6 +288,112 @@ class TestConnectContainerTool:
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
 
+    @pytest.mark.asyncio
+    async def test_connect_container_already_connected_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test idempotent behavior when container is already connected."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is already connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should succeed (idempotent) without calling connect
+        result = await tool.execute(input_data)
+
+        assert result.network_id == "net123"
+        assert result.container_id == "container123"
+        assert result.status == "connected"
+        # Verify connect was NOT called (container already connected)
+        mock_network.connect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_connect_container_with_name_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test idempotent behavior when using container name instead of ID."""
+        # Mock container lookup to resolve name to full ID
+        mock_container = Mock()
+        mock_container.id = "abc123def456"  # Full container ID
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs with full container ID
+        mock_network.attrs = {"Containers": {"abc123def456": {"IPv4Address": "172.18.0.10"}}}
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        # Use container name instead of ID
+        input_data = ConnectContainerInput(network_id="my-network", container_id="my-container")
+
+        # Should resolve name to ID and detect already connected (idempotent)
+        result = await tool.execute(input_data)
+
+        assert result.network_id == "net123"
+        assert result.container_id == "my-container"  # Returns input name, not resolved ID
+        assert result.status == "connected"
+        # Verify connect was NOT called (container already connected)
+        mock_network.connect.assert_not_called()
+        # Verify container name was resolved
+        mock_docker_client.client.containers.get.assert_called_once_with("my-container")
+
+    @pytest.mark.asyncio
+    async def test_connect_container_other_api_error(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test that non-idempotent API errors still raise exceptions."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is NOT connected (so connect will be called)
+        mock_network.attrs = {"Containers": {}}
+        # Simulate a different Docker error (not "already connected")
+        mock_network.connect.side_effect = APIError("network is full")
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        input_data = ConnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should raise error for non-idempotent failures
+        with pytest.raises(DockerOperationError, match="network is full"):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_connect_container_with_aliases_bypasses_idempotent_check(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test that providing aliases bypasses idempotent check to allow Docker error."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Container is already connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
+        # Docker will error when trying to connect with new aliases
+        mock_network.connect.side_effect = APIError("container already connected")
+
+        tool = ConnectContainerTool(mock_docker_client, safety_config)
+        # User is trying to add aliases to already-connected container
+        input_data = ConnectContainerInput(
+            network_id="my-network", container_id="container123", aliases=["newAlias"]
+        )
+
+        # Should NOT return early (idempotent check skipped), should proceed and error
+        with pytest.raises(DockerOperationError, match="already connected"):
+            await tool.execute(input_data)
+        # Verify connect was actually called (not skipped by idempotent check)
+        mock_network.connect.assert_called_once()
+
 
 class TestDisconnectContainerTool:
     """Tests for DisconnectContainerTool."""
@@ -283,7 +403,14 @@ class TestDisconnectContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_network: Any
     ) -> None:
         """Test successful container disconnection."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
         input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
@@ -299,7 +426,14 @@ class TestDisconnectContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_network: Any
     ) -> None:
         """Test disconnecting container with force."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
         input_data = DisconnectContainerInput(
@@ -328,13 +462,97 @@ class TestDisconnectContainerTool:
         self, mock_docker_client: Any, safety_config: Any, mock_network: Any
     ) -> None:
         """Test handling of container not found."""
+        # Mock container lookup to raise NotFound (container doesn't exist)
+        mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
+
         mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected (so disconnect will be called)
+        # Use the input ID since containers.get will fail
+        mock_network.attrs = {"Containers": {"nonexistent": {"IPv4Address": "172.18.0.10"}}}
         mock_network.disconnect.side_effect = NotFound("Container not found")
 
         tool = DisconnectContainerTool(mock_docker_client, safety_config)
         input_data = DisconnectContainerInput(network_id="my-network", container_id="nonexistent")
 
         with pytest.raises(ContainerNotFound):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_disconnect_container_not_connected_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test idempotent behavior when container is not connected."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is NOT connected (empty Containers dict)
+        mock_network.attrs = {"Containers": {}}
+
+        tool = DisconnectContainerTool(mock_docker_client, safety_config)
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should succeed (idempotent) without calling disconnect
+        result = await tool.execute(input_data)
+
+        assert result.network_id == "net123"
+        assert result.container_id == "container123"
+        assert result.status == "disconnected"
+        # Verify disconnect was NOT called (container not connected)
+        mock_network.disconnect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_disconnect_container_with_name_idempotent(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test idempotent behavior when using container name instead of ID."""
+        # Mock container lookup to resolve name to full ID
+        mock_container = Mock()
+        mock_container.id = "abc123def456"  # Full container ID
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs with no containers (already disconnected)
+        mock_network.attrs = {"Containers": {}}
+
+        tool = DisconnectContainerTool(mock_docker_client, safety_config)
+        # Use container name instead of ID
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="my-container")
+
+        # Should resolve name to ID and detect not connected (idempotent)
+        result = await tool.execute(input_data)
+
+        assert result.network_id == "net123"
+        assert result.container_id == "my-container"  # Returns input name, not resolved ID
+        assert result.status == "disconnected"
+        # Verify disconnect was NOT called (container not connected)
+        mock_network.disconnect.assert_not_called()
+        # Verify container name was resolved
+        mock_docker_client.client.containers.get.assert_called_once_with("my-container")
+
+    @pytest.mark.asyncio
+    async def test_disconnect_container_other_api_error(
+        self, mock_docker_client: Any, safety_config: Any, mock_network: Any
+    ) -> None:
+        """Test that non-idempotent API errors still raise exceptions."""
+        # Mock container lookup to return container with matching ID
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        mock_docker_client.client.networks.get.return_value = mock_network
+        # Mock network.attrs to show container is connected (so disconnect will be called)
+        mock_network.attrs = {"Containers": {"container123": {"IPv4Address": "172.18.0.10"}}}
+        # Simulate a different Docker error (not related to idempotency)
+        mock_network.disconnect.side_effect = APIError("network operation failed")
+
+        tool = DisconnectContainerTool(mock_docker_client, safety_config)
+        input_data = DisconnectContainerInput(network_id="my-network", container_id="container123")
+
+        # Should raise error for non-idempotent failures
+        with pytest.raises(DockerOperationError, match="network operation failed"):
             await tool.execute(input_data)
 
 

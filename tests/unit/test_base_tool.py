@@ -266,6 +266,99 @@ class TestBaseTool:
         assert "safe" in repr_str
 
 
+class TestToolAnnotations:
+    """Test MCP tool annotation properties."""
+
+    def test_read_only_default_for_safe_operations(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that SAFE operations default to read_only=True."""
+        tool = MockTool(mock_docker_client, safety_config, OperationSafety.SAFE)
+        assert tool.read_only is True
+
+    def test_read_only_default_for_moderate_operations(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that MODERATE operations default to read_only=False."""
+        tool = MockTool(mock_docker_client, safety_config, OperationSafety.MODERATE)
+        assert tool.read_only is False
+
+    def test_read_only_default_for_destructive_operations(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that DESTRUCTIVE operations default to read_only=False."""
+        tool = MockTool(mock_docker_client, safety_config, OperationSafety.DESTRUCTIVE)
+        assert tool.read_only is False
+
+    def test_destructive_default_for_safe_operations(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that SAFE operations default to destructive=False."""
+        tool = MockTool(mock_docker_client, safety_config, OperationSafety.SAFE)
+        assert tool.destructive is False
+
+    def test_destructive_default_for_moderate_operations(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that MODERATE operations default to destructive=False."""
+        tool = MockTool(mock_docker_client, safety_config, OperationSafety.MODERATE)
+        assert tool.destructive is False
+
+    def test_destructive_default_for_destructive_operations(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that DESTRUCTIVE operations default to destructive=True."""
+        tool = MockTool(mock_docker_client, safety_config, OperationSafety.DESTRUCTIVE)
+        assert tool.destructive is True
+
+    def test_idempotent_defaults_to_false(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that idempotent defaults to False (conservative)."""
+        tool = MockTool(mock_docker_client, safety_config)
+        assert tool.idempotent is False
+
+    def test_open_world_interaction_defaults_to_false(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that open_world_interaction defaults to False."""
+        tool = MockTool(mock_docker_client, safety_config)
+        assert tool.open_world_interaction is False
+
+    def test_annotation_property_overrides(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that tools can override annotation properties."""
+
+        class CustomTool(MockTool):
+            @property
+            def idempotent(self) -> bool:
+                return True
+
+            @property
+            def open_world_interaction(self) -> bool:
+                return True
+
+        tool = CustomTool(mock_docker_client, safety_config, OperationSafety.SAFE)
+        assert tool.idempotent is True
+        assert tool.open_world_interaction is True
+        assert tool.read_only is True  # Still inherits default from SAFE
+        assert tool.destructive is False
+
+    def test_read_only_override(
+        self, mock_docker_client: DockerClientWrapper, safety_config: SafetyConfig
+    ) -> None:
+        """Test that read_only can be overridden."""
+
+        class NonReadOnlyTool(MockTool):
+            @property
+            def read_only(self) -> bool:
+                return False
+
+        tool = NonReadOnlyTool(mock_docker_client, safety_config, OperationSafety.SAFE)
+        assert tool.read_only is False  # Overridden even though SAFE
+
+
 class TestOperationSafety:
     """Test OperationSafety enum."""
 

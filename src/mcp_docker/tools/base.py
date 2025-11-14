@@ -114,6 +114,58 @@ class BaseTool(ABC):
 
         """
 
+    @property
+    def read_only(self) -> bool:
+        """Whether this tool only reads data without modification.
+
+        Default implementation: True for SAFE operations, False otherwise.
+        Override in subclass if needed.
+
+        Returns:
+            True if tool is read-only
+
+        """
+        return self.safety_level == OperationSafety.SAFE
+
+    @property
+    def destructive(self) -> bool:
+        """Whether this tool permanently deletes data.
+
+        Default implementation: True for DESTRUCTIVE operations, False otherwise.
+        Override in subclass if needed.
+
+        Returns:
+            True if tool can cause permanent data loss
+
+        """
+        return self.safety_level == OperationSafety.DESTRUCTIVE
+
+    @property
+    def idempotent(self) -> bool:
+        """Whether this tool can be safely called multiple times with same parameters.
+
+        Default implementation: False (conservative).
+        Override in subclass for idempotent operations.
+
+        Returns:
+            True if tool is idempotent
+
+        """
+        return False
+
+    @property
+    def open_world_interaction(self) -> bool:
+        """Whether this tool communicates with external systems beyond local Docker.
+
+        Default implementation: False (local only).
+        Override in subclass for tools that access registries, networks, etc.
+
+        Returns:
+            True if tool interacts with external systems
+
+        """
+        return False
+
     def check_safety(self) -> None:
         """Check if this operation is allowed based on safety configuration.
 

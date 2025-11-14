@@ -24,6 +24,7 @@ from mcp_docker.tools import (
     system_tools,
     volume_tools,
 )
+from mcp_docker.tools.base import BaseTool
 from mcp_docker.utils.error_sanitizer import sanitize_error_for_client
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
@@ -186,6 +187,30 @@ class MCPDockerServer:
 
         return False, ""
 
+    @staticmethod
+    def _build_tool_annotations(tool: BaseTool) -> dict[str, bool]:
+        """Build MCP annotations dict for a tool.
+
+        Per MCP spec, only include annotations with True values.
+        Properties use Python snake_case but MCP spec requires camelCase in JSON.
+
+        Args:
+            tool: Tool instance to build annotations for
+
+        Returns:
+            Dict of annotation name to True (never includes False values)
+        """
+        annotations = {}
+        if tool.read_only:
+            annotations["readOnly"] = True
+        if tool.destructive:
+            annotations["destructive"] = True
+        if tool.idempotent:
+            annotations["idempotent"] = True
+        if tool.open_world_interaction:
+            annotations["openWorldInteraction"] = True
+        return annotations
+
     def list_tools(self) -> list[dict[str, Any]]:
         """List available tools filtered by safety configuration.
 
@@ -207,12 +232,19 @@ class MCPDockerServer:
                 logger.debug(f"Filtered tool {tool_name}: {reason}")
                 continue
 
-            # Tool is allowed - add to list
+            # Tool is allowed - add to list with annotations
+            annotations = self._build_tool_annotations(tool)
+
             tool_def = {
                 "name": tool_name,
                 "description": tool.description,
                 "inputSchema": tool.input_schema.model_json_schema(),
             }
+
+            # Add annotations if any exist
+            if annotations:
+                tool_def["annotations"] = annotations
+
             tool_list.append(tool_def)
 
         logger.debug(
