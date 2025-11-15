@@ -1238,6 +1238,285 @@ class TestMountPathValidation:
         validate_mount_path("/home/alice/mysshstuff")  # Not .ssh directory
 
 
+class TestDuplicateSlashNormalization:
+    """Test duplicate slash normalization (CRITICAL P1 SECURITY FIXES).
+
+    Tests for the vulnerability where Unix paths like //etc/passwd were
+    misclassified as Windows UNC paths, bypassing blocklist validation.
+    """
+
+    def test_unix_duplicate_slashes_normalized_and_blocked(self) -> None:
+        """Test that Unix paths with duplicate slashes are normalized and blocked.
+
+        CRITICAL SECURITY: //etc/passwd is the same as /etc/passwd on Unix
+        (POSIX allows redundant leading slashes). The old code treated these
+        as Windows UNC paths, completely defeating blocklist checks.
+        """
+        blocklist = ["/etc", "/var/run/docker.sock", "/root"]
+
+        # Duplicate slashes should normalize to single slash and be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//etc/passwd", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//etc/shadow", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//var/run/docker.sock", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//root/some_file", blocked_paths=blocklist)
+
+        # Triple and more slashes should also normalize
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("///etc/passwd", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("////var/run/docker.sock", blocked_paths=blocklist)
+
+    def test_unix_duplicate_slash_root_filesystem_blocked(self) -> None:
+        """Test that // normalizes to / and blocks root filesystem mount."""
+        blocklist = ["/"]
+
+        # // should normalize to / and be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//", blocked_paths=blocklist)
+
+        # Multiple slashes should also normalize to /
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("///", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("////", blocked_paths=blocklist)
+
+    def test_windows_device_namespace_paths_blocked(self) -> None:
+        r"""Test that Windows device namespace paths are properly blocked.
+
+        Windows device namespace uses \\.\device syntax. Forward-slash variant
+        //./device must be recognized and normalized to \\.\device.
+        """
+        blocklist = [r"\\.\pipe\docker_engine", r"\\.\mailslot\example"]
+
+        # Forward-slash Windows device paths should be normalized and blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//./pipe/docker_engine", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//./mailslot/example", blocked_paths=blocklist)
+
+        # Backslash variant should also be blocked (already normalized)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\.\pipe\docker_engine", blocked_paths=blocklist)
+
+    def test_windows_extended_length_paths_blocked(self) -> None:
+        r"""Test that Windows extended-length paths are properly blocked.
+
+        Windows extended-length prefix \\?\ bypasses path limitations.
+        Forward-slash variant //?/ must be recognized.
+        """
+        blocklist = [r"\\?\C:\Windows", r"\\?\UNC\server\share"]
+
+        # Forward-slash Windows extended-length paths
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//?/C:/Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//?/C:/Windows/System32", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//?/UNC/server/share", blocked_paths=blocklist)
+
+        # Backslash variant should also be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\?\C:\Windows", blocked_paths=blocklist)
+
+    def test_unix_duplicate_slashes_allowed_when_not_in_blocklist(self) -> None:
+        """Test that Unix paths with // are allowed when not in blocklist."""
+        blocklist = ["/etc", "/root"]
+
+        # These should NOT raise (not in blocklist after normalization)
+        validate_mount_path("//home/user/data", blocked_paths=blocklist)
+        validate_mount_path("//opt/app", blocked_paths=blocklist)
+        validate_mount_path("//tmp/workspace", blocked_paths=blocklist)
+
+    def test_windows_device_paths_allowed_when_not_in_blocklist(self) -> None:
+        """Test that Windows device paths are allowed when not in blocklist."""
+        blocklist = [r"C:\Windows"]
+
+        # Device paths not in blocklist should be allowed
+        validate_mount_path("//./pipe/custom_app", blocked_paths=blocklist)
+
+    def test_duplicate_slashes_with_allowlist(self) -> None:
+        """Test that duplicate slash paths work correctly with allowlist."""
+        allowlist = ["/home", "/opt"]
+
+        # Normalized path in allowlist should work
+        validate_mount_path("//home/user/data", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("//opt/app", allowed_paths=allowlist, blocked_paths=[])
+
+        # Normalized path not in allowlist should be blocked
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path("//etc/passwd", allowed_paths=allowlist, blocked_paths=[])
+
+    def test_duplicate_slashes_in_middle_of_path(self) -> None:
+        """Test that duplicate slashes in the middle of paths are handled.
+
+        Only leading slashes have special POSIX behavior. Middle slashes
+        are handled by os.path.normpath.
+        """
+        blocklist = ["/var/run/docker.sock"]
+
+        # Middle duplicate slashes should be normalized by os.path.normpath
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var//run//docker.sock", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var///run///docker.sock", blocked_paths=blocklist)
+
+
+class TestRootFilesystemExactMatchBehavior:
+    """Test exact-match-only behavior for root filesystems (P1 SECURITY FIX).
+
+    Tests the fix for Windows drive roots blocking all subdirectories,
+    and allowlist vs blocklist handling of root paths.
+    """
+
+    def test_windows_root_drive_blocks_exact_match_only(self) -> None:
+        """Test that C:\\ in blocklist blocks C:\\ but not C:\\Users.
+
+        CRITICAL: Drive root entries like C:\\ should only block the exact
+        root mount, not all subdirectories. This matches Unix behavior where
+        / blocks / but allows /home.
+        """
+        blocklist = ["C:\\", "D:\\"]
+
+        # Root drives blocked (exact match)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:\\", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("D:\\", blocked_paths=blocklist)
+
+        # Forward-slash variant also blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/", blocked_paths=blocklist)
+
+        # Without trailing slash also matches root
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:", blocked_paths=blocklist)
+
+        # Subdirectories NOT blocked (this is the fix!)
+        validate_mount_path(r"C:\Users", blocked_paths=blocklist)
+        validate_mount_path(r"C:\Windows", blocked_paths=blocklist)
+        validate_mount_path("C:/Program Files", blocked_paths=blocklist)
+        validate_mount_path(r"D:\data", blocked_paths=blocklist)
+
+    def test_unix_root_filesystem_blocks_exact_match_only(self) -> None:
+        """Test that / in blocklist blocks / but not /home."""
+        blocklist = ["/"]
+
+        # Root filesystem blocked (exact match)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/", blocked_paths=blocklist)
+
+        # Subdirectories NOT blocked
+        validate_mount_path("/home", blocked_paths=blocklist)
+        validate_mount_path("/opt", blocked_paths=blocklist)
+        validate_mount_path("/tmp", blocked_paths=blocklist)
+        validate_mount_path("/home/user/data", blocked_paths=blocklist)
+
+    def test_allowlist_root_permits_all_subdirectories(self) -> None:
+        """Test that / in allowlist permits all paths under /.
+
+        CRITICAL: Allowlist behavior is DIFFERENT from blocklist. When / is
+        in allowlist, it should permit /home, /opt, etc. This is the opposite
+        of blocklist where / only blocks / exactly.
+        """
+        allowlist = ["/", "/mnt"]
+
+        # Root in allowlist permits everything
+        validate_mount_path("/", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("/home", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("/etc", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("/opt/app", allowed_paths=allowlist, blocked_paths=[])
+
+        # Paths under /mnt also allowed
+        validate_mount_path("/mnt/data", allowed_paths=allowlist, blocked_paths=[])
+
+    def test_allowlist_windows_root_permits_all_subdirectories(self) -> None:
+        """Test that C:\\ in allowlist permits all paths under C:\\."""
+        allowlist = ["C:\\", "D:\\Projects"]
+
+        # C:\\ in allowlist permits all C:\\ paths
+        validate_mount_path("C:\\", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path(r"C:\Users", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path(r"C:\Windows", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("C:/Program Files", allowed_paths=allowlist, blocked_paths=[])
+
+        # D:\Projects permits subdirectories
+        validate_mount_path(r"D:\Projects\myapp", allowed_paths=allowlist, blocked_paths=[])
+
+        # E:\\ not in allowlist - blocked
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path(r"E:\data", allowed_paths=allowlist, blocked_paths=[])
+
+    def test_blocklist_subdirectories_block_their_children(self) -> None:
+        """Test that non-root blocklist entries block subdirectories normally."""
+        blocklist = ["/etc", "/var/run", r"C:\Windows"]
+
+        # Parent directories blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/etc", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/run", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows", blocked_paths=blocklist)
+
+        # Children also blocked (normal prefix matching)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/etc/passwd", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/run/docker.sock", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows\System32", blocked_paths=blocklist)
+
+    def test_mixed_root_and_subdirectory_blocklist(self) -> None:
+        """Test blocklist with both root and subdirectory entries."""
+        blocklist = ["/", "/etc", "C:\\", r"C:\Windows"]
+
+        # Root exact match blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:\\", blocked_paths=blocklist)
+
+        # /etc blocks /etc and children
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/etc", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/etc/passwd", blocked_paths=blocklist)
+
+        # C:\Windows blocks C:\Windows and children
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows\System32", blocked_paths=blocklist)
+
+        # /home allowed (root / blocks only /, not /home)
+        validate_mount_path("/home", blocked_paths=blocklist)
+        validate_mount_path("/opt", blocked_paths=blocklist)
+
+        # C:\Users allowed (root C:\ blocks only C:\, not C:\Users)
+        validate_mount_path(r"C:\Users", blocked_paths=blocklist)
+
+
 class TestPortBindingValidation:
     """Test port binding validation."""
 
