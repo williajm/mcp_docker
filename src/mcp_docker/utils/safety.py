@@ -440,12 +440,13 @@ def validate_mount_path(
             )
 
     # Check allowlist if specified
-    if allowed_paths is not None:
-        if not any(normalized.startswith(allowed) for allowed in allowed_paths):
-            raise UnsafeOperationError(
-                f"Mount path '{path}' is not in allowed paths. "
-                "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
-            )
+    if allowed_paths is not None and not any(
+        normalized.startswith(allowed) for allowed in allowed_paths
+    ):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not in allowed paths. "
+            "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
+        )
 
 
 def validate_port_binding(

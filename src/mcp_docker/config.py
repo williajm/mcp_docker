@@ -277,7 +277,13 @@ class SafetyConfig(BaseSettings):
         ),
     )
 
-    @field_validator("allowed_tools", "denied_tools", "volume_mount_blocklist", "volume_mount_allowlist", mode="before")
+    @field_validator(
+        "allowed_tools",
+        "denied_tools",
+        "volume_mount_blocklist",
+        "volume_mount_allowlist",
+        mode="before",
+    )
     @classmethod
     def parse_tool_list(cls, value: str | list[str] | None) -> list[str]:
         """Parse list from comma-separated string or list.

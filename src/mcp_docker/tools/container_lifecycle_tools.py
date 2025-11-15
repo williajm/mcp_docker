@@ -14,7 +14,7 @@ from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
-from mcp_docker.utils.safety import OperationSafety
+from mcp_docker.utils.safety import OperationSafety, validate_mount_path
 from mcp_docker.utils.validation import (
     validate_command,
     validate_container_name,
@@ -187,13 +187,13 @@ class CreateContainerTool(BaseTool):
         if input_data.volumes:
             # After field validation, volumes is always a dict or None (never str)
             assert isinstance(input_data.volumes, dict)
-            from mcp_docker.utils.safety import validate_mount_path
-            for mount_path in input_data.volumes.keys():
+            for mount_path in input_data.volumes:
+                allowlist = self.safety.volume_mount_allowlist or None
                 validate_mount_path(
                     mount_path,
-                    blocked_paths=self.config.safety.volume_mount_blocklist,
-                    allowed_paths=self.config.safety.volume_mount_allowlist if self.config.safety.volume_mount_allowlist else None,
-                    yolo_mode=self.config.safety.yolo_mode,
+                    blocked_paths=self.safety.volume_mount_blocklist,
+                    allowed_paths=allowlist,
+                    yolo_mode=self.safety.yolo_mode,
                 )
 
     def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
