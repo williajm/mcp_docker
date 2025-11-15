@@ -433,14 +433,38 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/home/user/../../etc/shadow")
 
+    def test_validate_mount_path_allows_named_volumes(self) -> None:
+        """Test that Docker named volumes are allowed.
+
+        Named volumes are standard Docker functionality. They're simple names
+        without path separators, and Docker manages them internally.
+        They don't expose the host filesystem, so they're safe.
+
+        Examples: "my-volume", "workspace-data", "db_data"
+        """
+        # Standard named volumes (should NOT raise)
+        validate_mount_path("my-volume")
+        validate_mount_path("workspace-data")
+        validate_mount_path("db_data")
+        validate_mount_path("redis-storage")
+        validate_mount_path("postgres_data")
+
+        # Named volumes with various allowed characters
+        validate_mount_path("app-data-123")
+        validate_mount_path("my_volume")
+        validate_mount_path("volume.backup")
+
     def test_validate_mount_path_blocks_relative_paths(self) -> None:
-        """Test that all relative paths are blocked (path traversal prevention).
+        """Test that relative path bind mounts are blocked (path traversal prevention).
 
         CRITICAL SECURITY: Relative paths like ../../etc/shadow can bypass
         dangerous path checks because they don't start with '/'. This test
         ensures they are rejected before any dangerous path checks run.
+
+        Note: Simple names like "my-volume" are treated as Docker named volumes
+        and allowed. Only paths with separators are blocked.
         """
-        # Simple relative paths
+        # Relative paths with separators (blocked - could be traversal attempts)
         with pytest.raises(UnsafeOperationError, match="absolute paths"):
             validate_mount_path("etc/shadow")
 

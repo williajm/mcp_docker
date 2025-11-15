@@ -535,6 +535,45 @@ def _check_windows_paths(path: str, normalized_path: str) -> None:
         )
 
 
+def _is_named_volume(path: str) -> bool:
+    """Check if path is a Docker named volume (not a bind mount).
+
+    Docker named volumes are simple names without path separators.
+    Examples: "my-volume", "workspace-data", "db_data"
+
+    Bind mounts are absolute paths that should be validated.
+    Examples: "/home/user/data", "C:\\data", "/var/lib/docker"
+
+    Args:
+        path: Path or volume name to check
+
+    Returns:
+        True if this appears to be a named volume, False if bind mount path
+
+    """
+    # Type check - if not a string, it will be caught by later validation
+    if not isinstance(path, str):
+        return False
+
+    # Absolute paths are bind mounts, not named volumes
+    if path.startswith("/") or path.startswith("\\"):
+        return False
+
+    # Windows drive letters (C:, D:, etc.) are bind mounts
+    if re.match(r"^[A-Za-z]:", path):
+        return False
+
+    # If it contains path separators, it's a relative path (bind mount attempt)
+    # Named volumes should be simple names without separators
+    if "/" in path or "\\" in path:
+        return False
+
+    # UNC paths are bind mounts
+    # Everything else is treated as a named volume
+    # Docker accepts alphanumeric + _ - . for volume names
+    return not (path.startswith("//") or path.startswith("\\\\"))
+
+
 def validate_mount_path(
     path: str,
     allowed_paths: list[str] | None = None,
@@ -542,8 +581,12 @@ def validate_mount_path(
 ) -> None:
     """Validate that a mount path is safe.
 
+    This function validates bind mount paths (absolute paths) for security.
+    Docker named volumes (simple names like "my-volume") are allowed to pass
+    through without validation as they don't expose the host filesystem.
+
     Args:
-        path: Path to validate (host-side path)
+        path: Path to validate (host-side path or named volume)
         allowed_paths: List of allowed path prefixes (None = block dangerous only)
         yolo_mode: If True, skip all validation (EXTREMELY DANGEROUS!)
 
@@ -556,6 +599,11 @@ def validate_mount_path(
     if yolo_mode:
         return
 
+    # Docker named volumes don't need validation (they're not host paths)
+    if _is_named_volume(path):
+        return
+
+    # From here on, we're validating bind mount paths
     # Normalize path (resolve .., remove trailing slashes, etc.)
     try:
         normalized_path = os.path.normpath(path)
@@ -572,10 +620,10 @@ def validate_mount_path(
     if not Path(normalized_path).is_absolute():
         raise UnsafeOperationError(
             f"Mount path '{path}' is not allowed. "
-            "Only absolute paths are permitted for volume mounts. "
+            "Only absolute paths are permitted for bind mounts. "
             f"Relative paths like '{normalized_path}' are blocked to prevent "
             "path traversal attacks (e.g., ../../etc/shadow). "
-            "Enable SAFETY_YOLO_MODE=true to bypass (EXTREMELY DANGEROUS)."
+            "Use a named volume instead, or enable SAFETY_YOLO_MODE=true (EXTREMELY DANGEROUS)."
         )
 
     # THEN: Run Unix/Linux security checks

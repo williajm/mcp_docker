@@ -324,6 +324,59 @@ class TestCreateContainerTool:
         mock_docker_client.client.containers.create.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_create_container_allows_named_volumes(
+        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+    ) -> None:
+        """Test that Docker named volumes are allowed (standard functionality).
+
+        Named volumes are managed by Docker and don't expose the host filesystem,
+        so they're safe and should work without YOLO mode.
+        """
+        mock_docker_client.client.containers.create.return_value = mock_container
+
+        tool = CreateContainerTool(mock_docker_client, safety_config)
+
+        # Standard named volume usage
+        input_data = CreateContainerInput(
+            image="postgres:latest",
+            volumes={"postgres-data": {"bind": "/var/lib/postgresql/data", "mode": "rw"}},
+        )
+        result = await tool.execute(input_data)
+
+        assert result.container_id == "abc123def456"
+        mock_docker_client.client.containers.create.assert_called_once()
+
+        # Verify named volume was passed to Docker API
+        call_kwargs = mock_docker_client.client.containers.create.call_args[1]
+        assert "postgres-data" in call_kwargs["volumes"]
+
+    @pytest.mark.asyncio
+    async def test_create_container_allows_multiple_named_volumes(
+        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+    ) -> None:
+        """Test that multiple named volumes can be used together."""
+        mock_docker_client.client.containers.create.return_value = mock_container
+
+        tool = CreateContainerTool(mock_docker_client, safety_config)
+
+        # Multiple named volumes
+        input_data = CreateContainerInput(
+            image="wordpress:latest",
+            volumes={
+                "wp-content": {"bind": "/var/www/html/wp-content", "mode": "rw"},
+                "wp-uploads": {"bind": "/var/www/html/wp-content/uploads", "mode": "rw"},
+                "mysql-data": {"bind": "/var/lib/mysql", "mode": "rw"},
+            },
+        )
+        result = await tool.execute(input_data)
+
+        assert result.container_id == "abc123def456"
+        call_kwargs = mock_docker_client.client.containers.create.call_args[1]
+        assert "wp-content" in call_kwargs["volumes"]
+        assert "wp-uploads" in call_kwargs["volumes"]
+        assert "mysql-data" in call_kwargs["volumes"]
+
+    @pytest.mark.asyncio
     async def test_create_container_yolo_mode_allows_dangerous_mounts(
         self, mock_docker_client: Any, mock_container: Any
     ) -> None:
