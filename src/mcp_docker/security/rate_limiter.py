@@ -45,6 +45,7 @@ class RateLimiter:
         enabled: bool = True,
         requests_per_minute: int = 60,
         max_concurrent_per_client: int = 3,
+        max_clients: int = 10,
     ) -> None:
         """Initialize rate limiter.
 
@@ -52,10 +53,12 @@ class RateLimiter:
             enabled: Whether rate limiting is enabled
             requests_per_minute: Maximum requests per minute per client
             max_concurrent_per_client: Maximum concurrent requests per client
+            max_clients: Maximum number of unique clients to track (prevents memory exhaustion)
         """
         self.enabled = enabled
         self.rpm = requests_per_minute
         self.max_concurrent = max_concurrent_per_client
+        self.max_clients = max_clients
 
         # Initialize limits library for RPM tracking
         # SECURITY: Uses battle-tested limits library, not custom dict tracking
@@ -71,7 +74,8 @@ class RateLimiter:
         if self.enabled:
             logger.info(
                 f"Rate limiting enabled: {self.rpm} RPM, "
-                f"{self.max_concurrent} concurrent per client"
+                f"{self.max_concurrent} concurrent per client, "
+                f"max {self.max_clients} clients"
             )
         else:
             logger.warning("Rate limiting DISABLED")
@@ -105,13 +109,23 @@ class RateLimiter:
             client_id: Unique identifier for the client
 
         Raises:
-            RateLimitExceeded: If concurrent request limit is exceeded
+            RateLimitExceeded: If concurrent request limit is exceeded or max clients reached
         """
         if not self.enabled:
             return
 
         # Get or create semaphore for this client (stdlib asyncio.Semaphore)
         if client_id not in self._semaphores:
+            # SECURITY: Prevent memory exhaustion via unbounded client tracking
+            if len(self._semaphores) >= self.max_clients:
+                logger.warning(
+                    f"Maximum clients limit reached: {self.max_clients}. "
+                    f"Rejecting new client: {client_id}"
+                )
+                raise RateLimitExceeded(
+                    f"Maximum concurrent clients ({self.max_clients}) reached. "
+                    "Try again later or contact administrator."
+                )
             self._semaphores[client_id] = asyncio.Semaphore(self.max_concurrent)
             self._concurrent_requests[client_id] = 0
 

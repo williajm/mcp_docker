@@ -333,6 +333,12 @@ class SecurityConfig(BaseSettings):
         gt=0,
         le=50,
     )
+    rate_limit_max_clients: int = Field(
+        default=10,
+        description="Maximum number of unique clients to track (prevents memory exhaustion DoS)",
+        gt=0,
+        le=100,
+    )
 
     # Audit Logging
     audit_log_enabled: bool = Field(

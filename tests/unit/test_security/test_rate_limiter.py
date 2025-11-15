@@ -228,3 +228,50 @@ class TestRateLimiter:
 
         # Should not raise error
         await limiter.cleanup_old_data()
+
+    @pytest.mark.asyncio
+    async def test_init_max_clients(self) -> None:
+        """Test initializing rate limiter with max_clients."""
+        limiter = RateLimiter(enabled=True, max_clients=50)
+
+        assert limiter.max_clients == 50
+
+    @pytest.mark.asyncio
+    async def test_max_clients_limit_enforced(self) -> None:
+        """Test that max clients limit prevents memory exhaustion."""
+        limiter = RateLimiter(enabled=True, max_clients=3)
+
+        # Create 3 clients
+        await limiter.acquire_concurrent_slot("client1")
+        await limiter.acquire_concurrent_slot("client2")
+        await limiter.acquire_concurrent_slot("client3")
+
+        # 4th client should be rejected with RateLimitExceededError
+        with pytest.raises(RateLimitExceededError, match="Maximum concurrent clients"):
+            await limiter.acquire_concurrent_slot("client4")
+
+        # Release slots
+        limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client2")
+        limiter.release_concurrent_slot("client3")
+
+    @pytest.mark.asyncio
+    async def test_existing_client_can_acquire_at_max_clients(self) -> None:
+        """Test that existing clients can still acquire slots when at max clients."""
+        limiter = RateLimiter(enabled=True, max_clients=2, max_concurrent_per_client=2)
+
+        # Create 2 clients (at max)
+        await limiter.acquire_concurrent_slot("client1")
+        await limiter.acquire_concurrent_slot("client2")
+
+        # New client should be rejected
+        with pytest.raises(RateLimitExceededError, match="Maximum concurrent clients"):
+            await limiter.acquire_concurrent_slot("client3")
+
+        # Existing client should be able to acquire another slot
+        await limiter.acquire_concurrent_slot("client1")  # client1 now has 2 slots
+
+        # Release all slots
+        limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client2")
