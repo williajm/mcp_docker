@@ -3,7 +3,6 @@
 import os
 import re
 from enum import Enum
-from pathlib import Path
 from typing import Any
 
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
@@ -371,170 +370,6 @@ def check_privileged_mode(
         )
 
 
-def _check_root_filesystem(path: str, normalized_path: str) -> None:
-    """Check if path is mounting the root filesystem.
-
-    Args:
-        path: Original path provided
-        normalized_path: Normalized version of the path
-
-    Raises:
-        UnsafeOperationError: If mounting root filesystem
-    """
-    if normalized_path in ["/", "C:\\", "C:/"]:
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not allowed. "
-            "Mounting the entire root filesystem is not allowed. "
-            "This would grant full host access from the container."
-        )
-
-
-def _check_docker_socket(path: str, normalized_path: str) -> None:
-    """Check if path is mounting Docker socket.
-
-    Args:
-        path: Original path provided
-        normalized_path: Normalized version of the path
-
-    Raises:
-        UnsafeOperationError: If mounting Docker socket
-    """
-    # Only Unix/Linux sockets (Windows paths blocked by _check_windows_paths)
-    docker_sockets = [
-        "/var/run/docker.sock",
-        "/run/docker.sock",
-    ]
-    for socket_path in docker_sockets:
-        if normalized_path == socket_path or normalized_path.startswith(socket_path + "/"):
-            raise UnsafeOperationError(
-                f"Mount path '{path}' is not allowed. "
-                f"Mounting Docker socket '{socket_path}' is not allowed. "
-                "This grants root-equivalent access to the host. "
-                "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
-            )
-
-
-def _check_dangerous_directories(path: str, normalized_path: str) -> None:
-    """Check if path is mounting dangerous system directories.
-
-    Args:
-        path: Original path provided
-        normalized_path: Normalized version of the path
-
-    Raises:
-        UnsafeOperationError: If mounting dangerous directory
-    """
-    # Only Unix/Linux/macOS paths (Windows paths blocked by _check_windows_paths)
-    dangerous_prefixes = [
-        # Linux/Unix system directories
-        "/etc",  # System configuration
-        "/sys",  # Kernel/system information
-        "/proc",  # Process information
-        "/boot",  # Boot files and kernel
-        "/dev",  # Device files
-        "/var/lib/docker",  # Docker's internal data
-        "/var/lib/containerd",  # Containerd data
-        "/root",  # Root user home
-        "/run",  # Runtime data (includes docker.sock)
-        # macOS system directories
-        "/System",  # macOS core system files (CRITICAL - read-only in modern macOS)
-        "/Library",  # System-wide library (NOT user ~/Library)
-        "/private/var/db",  # macOS system databases
-        "/usr/bin",  # System binaries (Unix/Linux/macOS)
-        "/usr/sbin",  # System admin binaries (Unix/Linux/macOS)
-    ]
-
-    for dangerous_prefix in dangerous_prefixes:
-        is_dangerous = (
-            normalized_path.startswith(dangerous_prefix + "/")
-            or normalized_path == dangerous_prefix
-        )
-        if is_dangerous:
-            raise UnsafeOperationError(
-                f"Mount path '{path}' is not allowed. "
-                f"Mounting system directory '{dangerous_prefix}' is blocked for security. "
-                "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
-            )
-
-
-def _check_dangerous_files(path: str, normalized_path: str) -> None:
-    """Check if path is mounting specific sensitive files.
-
-    Args:
-        path: Original path provided
-        normalized_path: Normalized version of the path
-
-    Raises:
-        UnsafeOperationError: If mounting sensitive file
-    """
-    dangerous_files = [
-        "/etc/passwd",
-        "/etc/shadow",
-        "/etc/sudoers",
-        "/etc/ssh/ssh_host_rsa_key",
-        "/etc/ssh/ssh_host_ed25519_key",
-        "/root/.ssh/id_rsa",
-        "/root/.ssh/authorized_keys",
-    ]
-
-    for dangerous_file in dangerous_files:
-        if normalized_path == dangerous_file:
-            raise UnsafeOperationError(
-                f"Mount path '{path}' is not allowed. "
-                f"Mounting sensitive file '{dangerous_file}' is blocked. "
-                "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
-            )
-
-
-def _check_ssh_paths(path: str, normalized_path: str) -> None:
-    """Check if path is mounting SSH directories.
-
-    Args:
-        path: Original path provided
-        normalized_path: Normalized version of the path
-
-    Raises:
-        UnsafeOperationError: If mounting SSH directory
-    """
-    # Only Unix/Linux paths (Windows paths blocked by _check_windows_paths)
-    if "/.ssh/" in normalized_path or normalized_path.endswith("/.ssh"):
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not allowed. "
-            "Mounting SSH directories is blocked to prevent key theft. "
-            "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
-        )
-
-
-def _check_windows_paths(path: str, normalized_path: str) -> None:
-    """Block all Windows-style paths (non-Unix/Linux).
-
-    Args:
-        path: Original path provided
-        normalized_path: Normalized version of the path
-
-    Raises:
-        UnsafeOperationError: If path is Windows-style
-    """
-    # Block Windows drive letters (C:\, D:\, E:\, etc.)
-    # Matches: C:/, C:\, c:/, c:\, and any other drive letter
-    if re.match(r"^[A-Za-z]:[/\\]", normalized_path):
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not allowed. "
-            "Windows paths are blocked by default for security. "
-            "Only Unix/Linux paths are permitted. "
-            "Enable SAFETY_YOLO_MODE=true to bypass (EXTREMELY DANGEROUS)."
-        )
-
-    # Block UNC paths (\\server\share or //server/share)
-    if normalized_path.startswith("\\\\") or normalized_path.startswith("//"):
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not allowed. "
-            "UNC/network paths are blocked by default for security. "
-            "Only Unix/Linux paths are permitted. "
-            "Enable SAFETY_YOLO_MODE=true to bypass (EXTREMELY DANGEROUS)."
-        )
-
-
 def _is_named_volume(path: str) -> bool:
     """Check if path is a Docker named volume (not a bind mount).
 
@@ -579,67 +414,74 @@ def validate_mount_path(
     allowed_paths: list[str] | None = None,
     yolo_mode: bool = False,
 ) -> None:
-    """Validate that a mount path is safe.
+    """Validate that a mount path is safe (SIMPLIFIED).
 
-    This function validates bind mount paths (absolute paths) for security.
-    Docker named volumes (simple names like "my-volume") are allowed to pass
-    through without validation as they don't expose the host filesystem.
+    Blocks only the most critical dangerous paths:
+    - / (root filesystem - full host access)
+    - /var/run/docker.sock (container escape)
+    - /etc (system configs, credentials)
+    - /root (root user home)
+
+    Docker named volumes (simple names like "my-volume") are allowed
+    as they don't expose the host filesystem.
+
+    Users are responsible for not mounting other sensitive paths.
+    Use YOLO mode to bypass if you know what you're doing.
 
     Args:
-        path: Path to validate (host-side path or named volume)
-        allowed_paths: List of allowed path prefixes (None = block dangerous only)
-        yolo_mode: If True, skip all validation (EXTREMELY DANGEROUS!)
+        path: Path to validate (host path or named volume)
+        allowed_paths: Optional allowlist of path prefixes
+        yolo_mode: If True, skip all validation (DANGEROUS!)
 
     Raises:
-        UnsafeOperationError: If path is not allowed
+        UnsafeOperationError: If path is dangerous
         ValidationError: If path format is invalid
-
     """
     # YOLO mode bypasses all validation
     if yolo_mode:
         return
 
-    # Docker named volumes don't need validation (they're not host paths)
+    # Validate path is a string
+    if not isinstance(path, str):
+        raise ValidationError(f"Invalid path format: {path}")
+
+    # Named volumes are safe (Docker manages them internally)
     if _is_named_volume(path):
         return
 
-    # From here on, we're validating bind mount paths
-    # Normalize path (resolve .., remove trailing slashes, etc.)
+    # Bind mounts must use absolute paths (prevents path traversal)
+    if not path.startswith("/"):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' must be an absolute path. "
+            "Relative paths are not allowed to prevent path traversal attacks. "
+            "Use absolute paths like '/home/user/data' or named volumes like 'my-volume'."
+        )
+
+    # Normalize path (resolves .., ., removes trailing slashes)
     try:
-        normalized_path = os.path.normpath(path)
+        normalized = os.path.normpath(path)
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 
-    # FIRST: Block all non-Unix/Linux paths (Windows, UNC, etc.)
-    # This must run BEFORE the absolute path check because on Unix systems,
-    # os.path.isabs() returns False for Windows paths like C:\ or \\server\share
-    _check_windows_paths(path, normalized_path)
+    # Critical paths that enable container escape or host compromise
+    dangerous = [
+        "/var/run/docker.sock",  # Container escape - root access to host
+        "/",  # Root filesystem - full host access
+        "/etc",  # System configs & credentials
+        "/root",  # Root user home directory
+    ]
 
-    # CRITICAL: Block all relative paths (traversal attack prevention)
-    # After Windows check, this catches Unix relative paths like ../../etc/shadow
-    if not Path(normalized_path).is_absolute():
+    # Check if path matches dangerous paths
+    if normalized == "/" or any(normalized.startswith(d) for d in dangerous if d != "/"):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not allowed. "
-            "Only absolute paths are permitted for bind mounts. "
-            f"Relative paths like '{normalized_path}' are blocked to prevent "
-            "path traversal attacks (e.g., ../../etc/shadow). "
-            "Use a named volume instead, or enable SAFETY_YOLO_MODE=true (EXTREMELY DANGEROUS)."
+            "This path could enable container escape or host compromise. "
+            "Enable SAFETY_YOLO_MODE=true to bypass."
         )
 
-    # THEN: Run Unix/Linux security checks
-    _check_root_filesystem(path, normalized_path)
-    _check_docker_socket(path, normalized_path)
-    _check_dangerous_directories(path, normalized_path)
-    _check_dangerous_files(path, normalized_path)
-    _check_ssh_paths(path, normalized_path)
-
-    # Check against allowed paths allowlist if specified
-    if allowed_paths is not None and not any(
-        normalized_path.startswith(allowed) for allowed in allowed_paths
-    ):
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not in the allowed paths list: {allowed_paths}"
-        )
+    # If allowlist specified, path must be in it
+    if allowed_paths and not any(normalized.startswith(p) for p in allowed_paths):
+        raise UnsafeOperationError(f"Mount path '{path}' is not in the allowed paths list")
 
 
 def validate_port_binding(

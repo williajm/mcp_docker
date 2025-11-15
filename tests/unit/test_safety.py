@@ -365,60 +365,28 @@ class TestMountPathValidation:
 
     def test_validate_mount_path_blocks_docker_socket(self) -> None:
         """Test that Docker socket mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="Docker socket"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/var/run/docker.sock")
-
-        with pytest.raises(UnsafeOperationError, match="Docker socket"):
-            validate_mount_path("/run/docker.sock")
 
     def test_validate_mount_path_blocks_root_filesystem(self) -> None:
         """Test that root filesystem mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="root filesystem"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/")
 
     def test_validate_mount_path_blocks_etc_directory(self) -> None:
         """Test that /etc directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/etc")
 
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/etc/nginx")
-
-    def test_validate_mount_path_blocks_sys_directory(self) -> None:
-        """Test that /sys directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/sys")
-
-    def test_validate_mount_path_blocks_proc_directory(self) -> None:
-        """Test that /proc directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/proc")
-
-    def test_validate_mount_path_blocks_boot_directory(self) -> None:
-        """Test that /boot directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/boot")
-
-    def test_validate_mount_path_blocks_dev_directory(self) -> None:
-        """Test that /dev directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/dev")
 
     def test_validate_mount_path_blocks_root_home(self) -> None:
         """Test that /root directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/root")
 
-    def test_validate_mount_path_blocks_docker_data(self) -> None:
-        """Test that Docker data directory mounting is blocked."""
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/var/lib/docker")
-
-    def test_validate_mount_path_blocks_ssh_directories(self) -> None:
-        """Test that SSH directories are blocked."""
-        with pytest.raises(UnsafeOperationError, match="SSH"):
-            validate_mount_path("/home/user/.ssh")
-
+        # Subdirectories of /root also blocked
         with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/root/.ssh")
 
@@ -465,35 +433,35 @@ class TestMountPathValidation:
         and allowed. Only paths with separators are blocked.
         """
         # Relative paths with separators (blocked - could be traversal attempts)
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("etc/shadow")
 
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("data/files")
 
         # Path traversal attempts (../../ etc)
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("../../etc/shadow")
 
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("../../../root/.ssh/id_rsa")
 
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("../../../../var/run/docker.sock")
 
         # Current directory paths
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("./data")
 
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("./etc/passwd")
 
         # Complex traversal (normalizes to relative path)
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("foo/../../etc/passwd")
 
         # Relative path to safe directory still blocked
-        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+        with pytest.raises(UnsafeOperationError, match="absolute path"):
             validate_mount_path("home/user/safe")
 
     def test_validate_mount_path_yolo_mode_bypasses_all(self) -> None:
@@ -522,141 +490,21 @@ class TestMountPathValidation:
             validate_mount_path(None)  # type: ignore
 
     def test_validate_mount_path_blocks_specific_dangerous_files(self) -> None:
-        """Test that files in dangerous_files list are blocked.
+        """Test that specific files under blocked directories are blocked.
 
-        Note: Currently all dangerous_files are caught by dangerous_prefixes checks
-        first (line 431-441), so the specific dangerous_files check (line 454-456)
-        is unreachable. However, it serves as defense-in-depth if prefixes are removed.
-        These tests verify the files are blocked (via prefix checks).
+        Files under /etc and /root are blocked because their parent directories
+        are in the critical paths list.
         """
-        # All these are caught by /etc prefix
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        # Caught by /etc prefix
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/etc/sudoers")
 
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/etc/ssh/ssh_host_rsa_key")
 
-        # This is caught by /root prefix
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        # Caught by /root prefix
+        with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/root/.ssh/id_rsa")
-
-    def test_validate_mount_path_blocks_all_windows_paths(self) -> None:
-        r"""Test that ALL Windows paths are blocked by default.
-
-        Security-critical: Instead of trying to enumerate dangerous Windows paths,
-        we simply block ALL Windows-style paths (C:\, D:\, etc.) by default.
-        Users who genuinely need Windows mounts can use YOLO mode.
-        """
-        # Test Windows paths with backslashes
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("C:\\Windows\\System32")
-
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("D:\\data")
-
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("E:\\backup\\files")
-
-        # Test Windows paths with forward slashes
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("C:/Users/Admin")
-
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("D:/Program Files")
-
-        # Test case variations (all should be blocked)
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("c:\\windows")
-
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("C:\\WINDOWS")
-
-        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
-            validate_mount_path("c:/WiNdOwS")
-
-    def test_validate_mount_path_blocks_unc_paths(self) -> None:
-        """Test that UNC/network paths are blocked."""
-        # Test UNC paths with backslashes
-        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
-            validate_mount_path("\\\\server\\share")
-
-        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
-            validate_mount_path("\\\\server\\share\\folder")
-
-        # Test UNC paths with forward slashes
-        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
-            validate_mount_path("//server/share")
-
-        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
-            validate_mount_path("//server/share/folder")
-
-    def test_validate_mount_path_allows_windows_paths_in_yolo_mode(self) -> None:
-        """Test that Windows paths ARE allowed when YOLO mode is enabled."""
-        # These should NOT raise when yolo_mode=True
-        validate_mount_path("C:\\Windows\\System32", yolo_mode=True)
-        validate_mount_path("D:\\data", yolo_mode=True)
-        validate_mount_path("\\\\server\\share", yolo_mode=True)
-        validate_mount_path("C:/Users/Admin", yolo_mode=True)
-
-    def test_validate_mount_path_blocks_macos_system_directories(self) -> None:
-        """Test that macOS system directories are blocked.
-
-        Security-critical: macOS has specific system directories that must not
-        be mounted to prevent container escape and host compromise.
-        """
-        # Test /System (macOS core system files - read-only in modern macOS)
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/System")
-
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/System/Library/CoreServices")
-
-        # Test /Library (system-wide library, NOT user ~/Library)
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/Library")
-
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/Library/Preferences")
-
-        # Test /private/var/db (system databases)
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/private/var/db")
-
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/private/var/db/receipts")
-
-    def test_validate_mount_path_blocks_system_binaries(self) -> None:
-        """Test that system binary directories are blocked (Unix/Linux/macOS).
-
-        These directories contain critical system executables that should not
-        be accessible from containers.
-        """
-        # Test /usr/bin
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/usr/bin")
-
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/usr/bin/sudo")
-
-        # Test /usr/sbin
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/usr/sbin")
-
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("/usr/sbin/cron")
-
-    def test_validate_mount_path_allows_macos_user_directories(self) -> None:
-        """Test that safe macOS user directories ARE allowed.
-
-        User home directories and safe locations should be mountable.
-        """
-        # These should NOT raise - they're safe user directories
-        validate_mount_path("/Users/johndoe/Documents")
-        validate_mount_path("/Users/johndoe/Projects")
-        # User library is OK (different from system /Library)
-        validate_mount_path("/Users/johndoe/Library")
-        validate_mount_path("/opt/myapp")
-        validate_mount_path("/usr/local/bin")
 
 
 class TestPortBindingValidation:
