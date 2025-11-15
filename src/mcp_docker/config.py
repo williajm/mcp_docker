@@ -231,28 +231,50 @@ class SafetyConfig(BaseSettings):
             "Can be set via SAFETY_VOLUME_MOUNT_BLOCKLIST as JSON array."
         ),
     )
-    volume_mount_allowlist: list[str] = Field(
-        default_factory=list,
+    volume_mount_allowlist: list[str] | None = Field(
+        default=None,
         description=(
             "If set, only paths starting with these prefixes can be mounted (allowlist). "
             "Empty list when explicitly set blocks all mounts. "
-            "Not set (default) allows all mounts not in blocklist. "
-            "Example: ['/home/user/safe', '/opt/data']. "
+            "Not set (default: None) allows all mounts not in blocklist. "
+            "Example: ['/home/user/safe', '/opt/data'] or [] to block all. "
             "Can be set via SAFETY_VOLUME_MOUNT_ALLOWLIST as JSON array."
         ),
     )
 
-    @field_validator("volume_mount_blocklist", "volume_mount_allowlist", mode="before")
+    @field_validator("volume_mount_blocklist", mode="before")
     @classmethod
-    def parse_mount_path_list(cls, value: str | list[str] | None) -> list[str]:
-        """Parse mount path list from JSON array or comma-separated string.
+    def parse_blocklist(cls, value: str | list[str] | None) -> list[str]:
+        """Parse blocklist from JSON array or comma-separated string.
 
         Args:
             value: Path list as JSON array string, comma-separated string, list, or None
 
         Returns:
-            Normalized list of paths (empty list if None/empty for allowlist)
+            Normalized list of paths (empty list if None)
         """
+        return _parse_comma_separated_list(value)
+
+    @field_validator("volume_mount_allowlist", mode="before")
+    @classmethod
+    def parse_allowlist(cls, value: str | list[str] | None) -> list[str] | None:
+        """Parse allowlist from JSON array or comma-separated string.
+
+        Preserves None to distinguish between "not set" and "explicitly set to empty".
+
+        Args:
+            value: Path list as JSON array string, comma-separated string, list, or None
+
+        Returns:
+            Normalized list of paths, or None if not set
+        """
+        # Preserve None to mean "no allowlist enforcement"
+        if value is None:
+            return None
+        # Empty string means "block all mounts"
+        if value == "":
+            return []
+        # Parse as normal for non-None values
         return _parse_comma_separated_list(value)
 
     # Output size limits (prevent resource exhaustion and token limit issues)
