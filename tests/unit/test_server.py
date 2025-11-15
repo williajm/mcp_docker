@@ -241,6 +241,66 @@ class TestMCPDockerServer:
         for destructive_tool in destructive_tools:
             assert destructive_tool not in tool_names
 
+    def test_list_tools_yolo_mode_exposes_destructive(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that YOLO mode exposes destructive tools even when not allowed."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_destructive_operations=False,  # Block destructive normally
+            yolo_mode=True,  # But YOLO mode should bypass
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # All destructive tools should be exposed in YOLO mode
+        tool_names = [t["name"] for t in tools]
+        destructive_tools = [
+            "docker_remove_container",
+            "docker_remove_image",
+            "docker_remove_network",
+            "docker_remove_volume",
+            "docker_prune_images",
+            "docker_prune_volumes",
+            "docker_system_prune",
+        ]
+
+        for destructive_tool in destructive_tools:
+            assert destructive_tool in tool_names, (
+                f"YOLO mode should expose {destructive_tool} even when "
+                "allow_destructive_operations=False"
+            )
+
+    def test_list_tools_yolo_mode_exposes_moderate(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test that YOLO mode exposes moderate tools even when not allowed."""
+        from mcp_docker.config import SafetyConfig
+
+        mock_config.safety = SafetyConfig(
+            allow_moderate_operations=False,  # Block moderate normally
+            yolo_mode=True,  # But YOLO mode should bypass
+        )
+
+        server = MCPDockerServer(mock_config)
+        tools = server.list_tools()
+
+        # Moderate tools should be exposed in YOLO mode
+        tool_names = [t["name"] for t in tools]
+        moderate_tools = [
+            "docker_create_container",
+            "docker_start_container",
+            "docker_stop_container",
+            "docker_restart_container",
+        ]
+
+        for moderate_tool in moderate_tools:
+            assert moderate_tool in tool_names, (
+                f"YOLO mode should expose {moderate_tool} even when allow_moderate_operations=False"
+            )
+
     @pytest.mark.asyncio
     async def test_call_tool_success(self, mock_config: Any, mock_docker_client: Any) -> None:
         """Test successful tool call."""

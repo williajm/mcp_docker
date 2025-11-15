@@ -184,6 +184,10 @@ class MCPDockerServer:
             - (True, reason) if tool should be filtered
             - (False, "") if tool should be included
         """
+        # YOLO mode bypasses ALL filtering - expose all tools
+        if self.config.safety.yolo_mode:
+            return False, ""
+
         # Check safety level - moderate operations
         if (
             tool.safety_level == OperationSafety.MODERATE
