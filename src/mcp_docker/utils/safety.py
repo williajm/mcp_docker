@@ -447,8 +447,8 @@ def validate_mount_path(
     if _is_named_volume(path):
         return
 
-    # Check if this is a Windows absolute path (C:\, D:\, etc.)
-    is_windows_absolute = bool(re.match(r"^[A-Za-z]:[/\\]", path))
+    # Check if this is a Windows absolute path (C:\, D:\, etc. or UNC paths like \\.\pipe\...)
+    is_windows_absolute = bool(re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\"))
 
     # Bind mounts must use absolute paths (Unix or Windows)
     if not path.startswith("/") and not is_windows_absolute:
@@ -465,11 +465,39 @@ def validate_mount_path(
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 
+    # Helper function to check if path starts with a prefix
+    def _path_starts_with(path: str, prefix: str) -> bool:
+        """Check if path starts with prefix, accounting for path separators.
+
+        Special case: Root paths (/, C:\\, D:\\) only match exactly, not subdirectories.
+        This allows blocking root filesystem mounts without blocking all subdirectories.
+        """
+        # Exact match always returns True
+        if path == prefix:
+            return True
+        if not path.startswith(prefix):
+            return False
+
+        # Special handling for Unix root "/" - only exact match, no subdirectories
+        # This allows "/" in blocklist to block mounting "/" without blocking "/home", etc.
+        # Windows root drives (C:\, D:\) match subdirectories (other drives still usable)
+        if prefix == "/":
+            return False
+
+        # If prefix ends with a separator (and isn't a root), any path starting with it matches
+        if prefix.endswith(("/", "\\")):
+            return True
+
+        # Otherwise, check if the next character after prefix is a path separator
+        if len(path) > len(prefix):
+            next_char = path[len(prefix)]
+            return next_char in ("/", "\\")
+        return False
+
     # Check blocklist (if provided)
     if blocked_paths is not None:
         for blocked in blocked_paths:
-            # Exact match or starts with blocked path
-            if normalized == blocked or normalized.startswith(blocked + os.sep):
+            if _path_starts_with(normalized, blocked):
                 # Special message for root filesystem paths
                 if blocked in ("/", "C:\\", "D:\\") and normalized == blocked:
                     raise UnsafeOperationError(
@@ -486,7 +514,7 @@ def validate_mount_path(
 
     # If allowlist specified, path must be in it
     if allowed_paths is not None and not any(
-        normalized == p or normalized.startswith(p + os.sep) for p in allowed_paths
+        _path_starts_with(normalized, p) for p in allowed_paths
     ):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not in the allowed paths list. "
