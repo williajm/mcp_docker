@@ -287,7 +287,7 @@ class TestCreateContainerTool:
             image="ubuntu:latest",
             volumes={"/var/run/docker.sock": {"bind": "/docker.sock", "mode": "rw"}},
         )
-        with pytest.raises(UnsafeOperationError, match="not allowed"):
+        with pytest.raises(UnsafeOperationError, match="blocked"):
             await tool.execute(input_data)
 
         # Test root filesystem mount is blocked
@@ -295,7 +295,7 @@ class TestCreateContainerTool:
             image="ubuntu:latest",
             volumes={"/": {"bind": "/host_root", "mode": "rw"}},
         )
-        with pytest.raises(UnsafeOperationError, match="not allowed"):
+        with pytest.raises(UnsafeOperationError, match="blocked"):
             await tool.execute(input_data)
 
         # Test /etc mount is blocked
@@ -303,7 +303,7 @@ class TestCreateContainerTool:
             image="ubuntu:latest",
             volumes={"/etc": {"bind": "/host_etc", "mode": "ro"}},
         )
-        with pytest.raises(UnsafeOperationError, match="not allowed"):
+        with pytest.raises(UnsafeOperationError, match="blocked"):
             await tool.execute(input_data)
 
     @pytest.mark.asyncio
