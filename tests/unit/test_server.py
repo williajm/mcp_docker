@@ -1038,3 +1038,59 @@ class TestMCPDockerServer:
         assert result["success"] is False
         assert "Tool denied by configuration" in result["error"]
         assert result["error_type"] == "UnsafeOperationError"
+
+    def test_server_initialization_with_yolo_mode(
+        self, tmp_path: Any, mock_docker_client: Any
+    ) -> None:
+        """Test server initialization logs warning when YOLO mode is enabled."""
+        from mcp_docker.config import Config, SafetyConfig, SecurityConfig
+
+        # Create config with YOLO mode enabled
+        config = Mock(spec=Config)
+        config.docker = Mock()
+        config.safety = SafetyConfig(yolo_mode=True)  # Enable YOLO mode
+        config.security = SecurityConfig(audit_log_file=tmp_path / "audit.log")
+
+        # Patch logger to capture warning calls
+        with patch("mcp_docker.server.logger") as mock_logger:
+            # Create server (should trigger YOLO mode warning)
+            server = MCPDockerServer(config)
+
+            # Verify server was created
+            assert server is not None
+
+            # Verify YOLO mode warning was logged
+            # The warning block contains 13 logger.warning() calls (lines 92-102)
+            assert mock_logger.warning.call_count >= 10
+
+            # Verify specific warning messages
+            warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+            warning_text = " ".join(warning_calls)
+
+            assert "YOLO MODE ENABLED" in warning_text
+            assert "ALL SAFETY CHECKS ARE DISABLED" in warning_text
+            assert "Volume mount validation: BYPASSED" in warning_text
+            assert "Privileged container checks: BYPASSED" in warning_text
+            assert "Command injection validation: BYPASSED" in warning_text
+            assert "Destructive operation checks: BYPASSED" in warning_text
+            assert "PROCEED AT YOUR OWN RISK" in warning_text
+
+    def test_server_initialization_without_yolo_mode(
+        self, mock_config: Any, mock_docker_client: Any
+    ) -> None:
+        """Test server initialization does not log YOLO warning when disabled."""
+        # mock_config has yolo_mode=False by default
+
+        # Patch logger to capture warning calls
+        with patch("mcp_docker.server.logger") as mock_logger:
+            # Create server (should NOT trigger YOLO mode warning)
+            server = MCPDockerServer(mock_config)
+
+            # Verify server was created
+            assert server is not None
+
+            # Check that YOLO mode warning was NOT logged
+            warning_calls = [call[0][0] for call in mock_logger.warning.call_args_list]
+            warning_text = " ".join(warning_calls)
+
+            assert "YOLO MODE ENABLED" not in warning_text

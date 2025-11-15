@@ -446,6 +446,33 @@ class TestMountPathValidation:
         validate_mount_path("/boot", yolo_mode=True)
         validate_mount_path("/dev", yolo_mode=True)
 
+    def test_validate_mount_path_invalid_path_format(self) -> None:
+        """Test validating mount path with invalid format raises ValidationError."""
+        from mcp_docker.utils.errors import ValidationError
+
+        # Test with None (TypeError from os.path.normpath)
+        with pytest.raises(ValidationError, match="Invalid path format"):
+            validate_mount_path(None)  # type: ignore
+
+    def test_validate_mount_path_blocks_specific_dangerous_files(self) -> None:
+        """Test that files in dangerous_files list are blocked.
+
+        Note: Currently all dangerous_files are caught by dangerous_prefixes checks
+        first (line 431-441), so the specific dangerous_files check (line 454-456)
+        is unreachable. However, it serves as defense-in-depth if prefixes are removed.
+        These tests verify the files are blocked (via prefix checks).
+        """
+        # All these are caught by /etc prefix
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/etc/sudoers")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/etc/ssh/ssh_host_rsa_key")
+
+        # This is caught by /root prefix
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/root/.ssh/id_rsa")
+
 
 class TestPortBindingValidation:
     """Test port binding validation."""

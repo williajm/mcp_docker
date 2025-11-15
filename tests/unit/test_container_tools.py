@@ -346,6 +346,67 @@ class TestCreateContainerTool:
         assert result.container_id == "abc123def456"
         mock_docker_client.client.containers.create.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_create_container_rejects_invalid_bind_config_non_dict(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test that non-dict bind config is rejected."""
+        from mcp_docker.utils.errors import ValidationError
+
+        tool = CreateContainerTool(mock_docker_client, safety_config)
+
+        # Use a string instead of dict for bind config (invalid)
+        # Note: We need to bypass Pydantic validation to test this, so we'll
+        # construct the volumes dict directly
+        input_data = CreateContainerInput(image="ubuntu:latest")
+        # Manually set invalid volumes after Pydantic validation
+        input_data.volumes = {"/home/user/data": "invalid_bind_config"}  # type: ignore
+
+        with pytest.raises(ValidationError, match="Volume bind config must be a dict"):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_create_container_rejects_bind_config_missing_bind_key(
+        self, mock_docker_client: Any, safety_config: Any
+    ) -> None:
+        """Test that bind config without 'bind' key is rejected."""
+        from mcp_docker.utils.errors import ValidationError
+
+        tool = CreateContainerTool(mock_docker_client, safety_config)
+
+        # Bind config missing required 'bind' key
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/home/user/data": {"mode": "rw"}},  # Missing 'bind' key
+        )
+
+        with pytest.raises(ValidationError, match="Volume bind config must contain 'bind' key"):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_create_container_yolo_mode_skips_bind_config_validation(
+        self, mock_docker_client: Any, mock_container: Any
+    ) -> None:
+        """Test that YOLO mode skips bind config validation."""
+        from mcp_docker.config import SafetyConfig
+
+        # Create safety config with YOLO mode enabled
+        yolo_config = SafetyConfig(yolo_mode=True)
+        mock_docker_client.client.containers.create.return_value = mock_container
+
+        tool = CreateContainerTool(mock_docker_client, yolo_config)
+
+        # Invalid bind config should be allowed in YOLO mode
+        input_data = CreateContainerInput(
+            image="ubuntu:latest",
+            volumes={"/home/user/data": {"mode": "rw"}},  # Missing 'bind' key
+        )
+        result = await tool.execute(input_data)
+
+        # Should succeed in YOLO mode (no validation)
+        assert result.container_id == "abc123def456"
+        mock_docker_client.client.containers.create.assert_called_once()
+
 
 class TestStartContainerTool:
     """Tests for StartContainerTool."""
