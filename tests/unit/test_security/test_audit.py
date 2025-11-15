@@ -1,6 +1,7 @@
 """Unit tests for audit logging."""
 
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -226,3 +227,49 @@ class TestAuditLogger:
 
         assert audit_entries[0]["record"]["extra"]["tool_name"] == "tool1"
         assert audit_entries[1]["record"]["extra"]["tool_name"] == "tool2"
+
+    def test_audit_log_directory_permissions(self, audit_log_file: Path) -> None:
+        """Test that audit log directory has restrictive permissions (0o700)."""
+        logger = AuditLogger(audit_log_file, enabled=True)
+
+        # Check directory permissions
+        dir_stat = audit_log_file.parent.stat()
+        dir_mode = stat.S_IMODE(dir_stat.st_mode)
+
+        # Directory should be 0o700 (owner-only access)
+        assert dir_mode == 0o700, f"Expected 0o700, got {oct(dir_mode)}"
+
+        logger.close()
+
+    def test_audit_log_file_permissions(self, audit_log_file: Path) -> None:
+        """Test that audit log file has restrictive permissions (0o600)."""
+        logger = AuditLogger(audit_log_file, enabled=True)
+
+        # Check file permissions
+        file_stat = audit_log_file.stat()
+        file_mode = stat.S_IMODE(file_stat.st_mode)
+
+        # File should be 0o600 (owner-only read/write)
+        assert file_mode == 0o600, f"Expected 0o600, got {oct(file_mode)}"
+
+        logger.close()
+
+    def test_audit_log_permissions_existing_directory(self, tmp_path: Path) -> None:
+        """Test that permissions are set even when directory already exists."""
+        # Create directory with world-readable permissions
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir(mode=0o755)
+
+        # Verify it starts with permissive permissions
+        initial_mode = stat.S_IMODE(log_dir.stat().st_mode)
+        assert initial_mode == 0o755
+
+        # Create audit logger (should fix permissions)
+        audit_log_file = log_dir / "audit.log"
+        logger = AuditLogger(audit_log_file, enabled=True)
+
+        # Check that permissions were fixed to 0o700
+        fixed_mode = stat.S_IMODE(log_dir.stat().st_mode)
+        assert fixed_mode == 0o700, f"Expected 0o700, got {oct(fixed_mode)}"
+
+        logger.close()

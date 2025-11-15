@@ -238,6 +238,8 @@ mcp_audit.*.log.zip
 development-plan-*.md
 plan*.md
 codex_*.md
+security_review_*.md
+*_validation_proposal.md
 
 # Manual testing guide (git-ignored for local notes)
 MANUAL_SSH_TESTING.md

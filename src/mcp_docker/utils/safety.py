@@ -361,37 +361,106 @@ def check_privileged_mode(
         )
 
 
-def validate_mount_path(path: str, allowed_paths: list[str] | None = None) -> None:
+def _is_named_volume(path: str) -> bool:
+    """Check if path is a Docker named volume (safe to mount).
+
+    Named volumes are simple alphanumeric names without path separators.
+    They are managed by Docker and don't grant filesystem access.
+
+    Args:
+        path: Path to check
+
+    Returns:
+        True if path is a named volume, False otherwise
+    """
+    # Named volumes don't have path separators
+    if "/" in path or "\\" in path:
+        return False
+
+    # Named volumes don't start with . (hidden files/relative paths)
+    if path.startswith("."):
+        return False
+
+    # Simple names without special characters are named volumes
+    # Docker accepts alphanumeric + _ - . for volume names
+    return bool(re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$", path))
+
+
+def validate_mount_path(
+    path: str,
+    blocked_paths: list[str] | None = None,
+    allowed_paths: list[str] | None = None,
+    yolo_mode: bool = False,
+) -> None:
     """Validate that a mount path is safe.
+
+    Simple validation focused on preventing common Linux mistakes.
+    For advanced use cases, enable YOLO mode to bypass validation.
 
     Args:
         path: Path to validate
-        allowed_paths: List of allowed path prefixes (None = allow all)
+        blocked_paths: List of blocked path prefixes (None = use defaults)
+        allowed_paths: List of allowed path prefixes (None = allow all except blocked)
+        yolo_mode: If True, bypass all validation (user takes responsibility)
 
     Raises:
-        UnsafeOperationError: If path is not allowed
-
+        UnsafeOperationError: If path is not safe to mount
     """
-    # Block sensitive system paths
-    dangerous_paths = [
-        "/etc/passwd",
-        "/etc/shadow",
-        "/root/.ssh",
-        "/home/.ssh",
-        "/.ssh",
-    ]
+    # YOLO mode: User takes full responsibility
+    if yolo_mode:
+        return
 
-    for dangerous_path in dangerous_paths:
-        if path.startswith(dangerous_path):
+    # Named volumes are always safe (managed by Docker, no filesystem access)
+    if _is_named_volume(path):
+        return
+
+    # Normalize path to prevent simple bypass attempts like /etc/../etc/passwd
+    normalized = path.replace("\\", "/")  # Handle Windows paths
+    normalized = "/" + normalized.lstrip("/")  # Collapse duplicate leading slashes
+
+    # SECURITY: Block path traversal attempts (e.g., ../../etc)
+    if ".." in normalized:
+        raise UnsafeOperationError(
+            f"Path traversal (..) not allowed in mount path: {path}. "
+            "Use absolute paths only. Enable SAFETY_YOLO_MODE=true to bypass."
+        )
+
+    # Default blocklist: system paths (prefix matching)
+    if blocked_paths is None:
+        blocked_paths = [
+            "/etc",  # System configuration
+            "/root",  # Root user home
+            "/var/run/docker.sock",  # Docker socket (container escape)
+        ]
+
+    # Default credential directories (substring matching to catch /home/user/.ssh etc.)
+    credential_dirs = ["/.ssh", "/.aws", "/.kube", "/.docker"]
+
+    # Check system paths (prefix matching)
+    for blocked in blocked_paths:
+        if normalized.startswith(blocked):
             raise UnsafeOperationError(
-                f"Mount path '{path}' is not allowed. "
-                f"Mounting sensitive system paths like '{dangerous_path}' is blocked."
+                f"Mount path '{path}' is blocked. "
+                f"Matches blocklist entry: {blocked}. "
+                "Enable SAFETY_YOLO_MODE=true to bypass."
             )
 
-    # Check against allowed paths if specified
-    if allowed_paths is not None and not any(path.startswith(allowed) for allowed in allowed_paths):
+    # Check credential directories (substring matching to catch any user)
+    for cred_dir in credential_dirs:
+        if cred_dir in normalized:
+            raise UnsafeOperationError(
+                f"Mount path '{path}' contains credential directory '{cred_dir}'. "
+                "Credential directories are blocked for safety. "
+                "Enable SAFETY_YOLO_MODE=true to bypass."
+            )
+
+    # Check allowlist if specified
+    if allowed_paths is not None and not any(
+        normalized.startswith(allowed) for allowed in allowed_paths
+    ):
         raise UnsafeOperationError(
-            f"Mount path '{path}' is not in the allowed paths list: {allowed_paths}"
+            f"Mount path '{path}' is not in allowed paths. "
+            "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
         )
 
 
@@ -427,7 +496,7 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
         Tuple of (validated_key, validated_value)
 
     Raises:
-        ValidationError: If variable is invalid
+        ValidationError: If variable is invalid or contains dangerous characters
 
     """
     if not key:
@@ -435,6 +504,25 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
 
     # Convert value to string
     value_str = str(value)
+
+    # Check for command injection characters in value
+    # NOTE: Only block characters that are ALWAYS dangerous (command substitution, separators)
+    # Docker passes env vars as structured data, not through shell, so & and | are safe
+    # Common in connection strings: postgres://...?ssl=true&pool=10
+    dangerous_chars = [
+        "$(",  # Command substitution
+        "`",  # Backtick command substitution
+        ";",  # Command separator
+        "\n",  # Newline injection
+        "\r",  # Carriage return injection
+    ]
+
+    for char in dangerous_chars:
+        if char in value_str:
+            raise ValidationError(
+                f"Environment variable '{key}' contains dangerous character '{char}'. "
+                "Command injection characters are not allowed in environment variables."
+            )
 
     # Warn about potentially sensitive variables
     sensitive_patterns = [

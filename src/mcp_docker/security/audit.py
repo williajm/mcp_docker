@@ -47,8 +47,12 @@ class AuditLogger:
         self.handler_id = None
 
         if self.enabled:
-            # Ensure parent directory exists
-            self.audit_log_file.parent.mkdir(parents=True, exist_ok=True)
+            # Ensure parent directory exists with restrictive permissions
+            # SECURITY: 0o700 = owner-only access (no group/world read)
+            self.audit_log_file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+            # Set permissions on existing directory (if it already existed)
+            self.audit_log_file.parent.chmod(0o700)
 
             # Add dedicated audit log handler with loguru
             # SECURITY: Uses loguru's battle-tested file rotation and serialization
@@ -62,6 +66,11 @@ class AuditLogger:
                 backtrace=False,  # Don't include tracebacks
                 diagnose=False,  # Don't expose internals
             )
+
+            # Set restrictive permissions on audit log file
+            # SECURITY: 0o600 = owner-only read/write (no group/world access)
+            if self.audit_log_file.exists():
+                self.audit_log_file.chmod(0o600)
 
             loguru_logger.info(f"Audit logging enabled: {self.audit_log_file}")
         else:
