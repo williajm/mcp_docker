@@ -50,10 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Prevents information disclosure on multi-user systems
 
 ### Fixed
-- **CRITICAL: Environment variable validation in container creation**: Fixed missing validation
-  - `CreateContainerTool` now validates environment variables for command injection
-  - Prevents H1 command injection vulnerability in `docker_create_container` tool
-  - Validation was only applied in `docker_exec_command`, now applied consistently
+- **Environment variable validation in container creation**: Added command injection protection
+  - Validates environment variables for dangerous characters when creating containers
+  - Prevents command injection via environment variable values
 - **Documentation accuracy**: Fixed misleading OAuth claims in startup scripts
   - `start-mcp-docker-httpstream.sh` and `start-mcp-docker-sse.sh` documentation
   - Clarified that OAuth is disabled by default (set `SECURITY_OAUTH_ENABLED=false`)
