@@ -1238,6 +1238,215 @@ class TestMountPathValidation:
         validate_mount_path("/home/alice/mysshstuff")  # Not .ssh directory
 
 
+class TestValidUseCases:
+    """Test that volume mount validation doesn't break valid, common Docker use cases.
+
+    These tests ensure our security fixes don't create false positives that would
+    prevent legitimate development workflows.
+    """
+
+    def test_common_development_directories(self) -> None:
+        """Test that common development directories are allowed."""
+        # Project directories
+        validate_mount_path("/home/user/projects/myapp")
+        validate_mount_path("/home/developer/workspace/api")
+        validate_mount_path("/Users/alice/dev/frontend")
+
+        # Source code directories
+        validate_mount_path("/home/user/src/application")
+        validate_mount_path("/opt/app/source")
+        validate_mount_path("/workspace/code")
+
+        # Build contexts
+        validate_mount_path("/home/user/projects/myapp/docker")
+        validate_mount_path("/app/build")
+
+    def test_common_data_directories(self) -> None:
+        """Test that common data directories are allowed."""
+        # Application data
+        validate_mount_path("/var/lib/myapp")
+        validate_mount_path("/var/data/postgres")
+        validate_mount_path("/data/mysql")
+
+        # User data
+        validate_mount_path("/home/user/documents")
+        validate_mount_path("/home/user/downloads")
+        validate_mount_path("/Users/alice/Documents/data")
+
+        # Shared data
+        validate_mount_path("/mnt/data")
+        validate_mount_path("/media/storage")
+
+    def test_common_temporary_directories(self) -> None:
+        """Test that temporary working directories are allowed."""
+        # Temp directories
+        validate_mount_path("/tmp/build")
+        validate_mount_path("/tmp/workspace/project")
+        validate_mount_path("/var/tmp/cache")
+
+        # User temp directories
+        validate_mount_path("/home/user/tmp/scratch")
+        validate_mount_path("/Users/alice/temp/work")
+
+    def test_common_log_directories(self) -> None:
+        """Test that application log directories are allowed."""
+        # Application logs
+        validate_mount_path("/var/log/myapp")
+        validate_mount_path("/var/log/nginx/access.log")
+        validate_mount_path("/opt/app/logs")
+
+        # User logs
+        validate_mount_path("/home/user/logs")
+        validate_mount_path("/home/user/app/logs")
+
+    def test_common_config_directories_safe(self) -> None:
+        """Test that safe application config directories are allowed."""
+        # Application-specific configs (not system-wide)
+        validate_mount_path("/home/user/.config/myapp")
+        validate_mount_path("/home/user/.local/share/app")
+        validate_mount_path("/opt/myapp/config")
+
+        # User configs (safe ones)
+        validate_mount_path("/home/user/.vscode")
+        validate_mount_path("/home/user/.vim")
+        validate_mount_path("/home/user/.bashrc")
+
+    def test_common_cache_directories(self) -> None:
+        """Test that cache directories are allowed."""
+        validate_mount_path("/home/user/.cache/app")
+        validate_mount_path("/var/cache/myapp")
+        validate_mount_path("/tmp/cache")
+
+    def test_windows_common_development_paths(self) -> None:
+        """Test that common Windows development paths are allowed."""
+        # User directories
+        validate_mount_path(r"C:\Users\alice\projects\myapp")
+        validate_mount_path(r"C:\Users\bob\Documents\code")
+        validate_mount_path("C:/Users/developer/workspace/api")
+
+        # Development directories
+        validate_mount_path(r"C:\dev\application")
+        validate_mount_path(r"C:\projects\frontend")
+        validate_mount_path(r"D:\code\backend")
+
+        # Application directories
+        validate_mount_path(r"C:\Program Files\MyApp\data")
+        validate_mount_path(r"C:\ProgramData\AppData")
+
+    def test_windows_common_data_paths(self) -> None:
+        """Test that common Windows data paths are allowed."""
+        validate_mount_path(r"D:\data\mysql")
+        validate_mount_path(r"E:\storage\files")
+        validate_mount_path("C:/Users/alice/AppData/Local/myapp")
+
+    def test_named_volumes_for_persistence(self) -> None:
+        """Test that Docker named volumes work for common use cases."""
+        # Database volumes
+        validate_mount_path("postgres-data")
+        validate_mount_path("mysql_data")
+        validate_mount_path("mongodb-storage")
+
+        # Application volumes
+        validate_mount_path("app-config")
+        validate_mount_path("redis-cache")
+        validate_mount_path("nginx-logs")
+
+        # Build volumes
+        validate_mount_path("node_modules")
+        validate_mount_path("build-cache")
+        validate_mount_path("maven-repo")
+
+    def test_subdirectories_of_root_allowed(self) -> None:
+        """Test that subdirectories of root are allowed (only root itself is blocked)."""
+        # Unix subdirectories
+        validate_mount_path("/home", blocked_paths=["/"])
+        validate_mount_path("/opt", blocked_paths=["/"])
+        validate_mount_path("/usr/local/bin", blocked_paths=["/"])
+        validate_mount_path("/mnt/data", blocked_paths=["/"])
+
+        # Windows subdirectories
+        validate_mount_path(r"C:\Users", blocked_paths=["C:\\"])
+        validate_mount_path(r"D:\Projects", blocked_paths=["D:\\"])
+        validate_mount_path("C:/Program Files", blocked_paths=["C:\\"])
+
+    def test_relative_paths_with_named_volumes(self) -> None:
+        """Test that simple names (no separators) are treated as named volumes."""
+        # Simple names without path separators are named volumes
+        validate_mount_path("data")
+        validate_mount_path("config")
+        validate_mount_path("logs")
+        validate_mount_path("cache")
+        validate_mount_path("app_data")
+        validate_mount_path("my-volume-name")
+
+    def test_multi_level_directories_allowed(self) -> None:
+        """Test that deeply nested directories are allowed."""
+        validate_mount_path("/home/user/projects/app/src/components")
+        validate_mount_path("/opt/company/team/project/data/files")
+        validate_mount_path(r"C:\Users\alice\dev\projects\frontend\src\assets")
+
+    def test_paths_with_special_characters(self) -> None:
+        """Test that paths with spaces and special chars (but safe) are allowed."""
+        # Spaces in paths
+        validate_mount_path("/home/user/My Documents/data")
+        validate_mount_path(r"C:\Program Files\My App\data")
+
+        # Hyphens and underscores
+        validate_mount_path("/home/user/my-project_v2/data")
+        validate_mount_path("/opt/app-name/data_files")
+
+    def test_allowlist_permits_common_patterns(self) -> None:
+        """Test that allowlist works for common development patterns."""
+        allowlist = ["/home", "/opt", "/tmp"]
+
+        # All these should be allowed
+        validate_mount_path("/home/user/projects", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("/opt/myapp", allowed_paths=allowlist, blocked_paths=[])
+        validate_mount_path("/tmp/workspace", allowed_paths=allowlist, blocked_paths=[])
+
+    def test_blocklist_only_blocks_sensitive_paths(self) -> None:
+        """Test that default blocklist doesn't interfere with normal usage."""
+        from mcp_docker.config import SafetyConfig
+
+        config = SafetyConfig()
+        blocklist = config.volume_mount_blocklist
+
+        # Common safe paths should work even with full default blocklist
+        validate_mount_path("/home/user/projects", blocked_paths=blocklist)
+        validate_mount_path("/opt/myapp", blocked_paths=blocklist)
+        validate_mount_path("/tmp/workspace", blocked_paths=blocklist)
+        validate_mount_path("/mnt/data", blocked_paths=blocklist)
+        validate_mount_path("/usr/local/app", blocked_paths=blocklist)
+
+    def test_docker_compose_volume_patterns(self) -> None:
+        """Test common Docker Compose volume patterns."""
+        # Named volumes (Docker Compose standard)
+        validate_mount_path("db_data")
+        validate_mount_path("redis_cache")
+        validate_mount_path("app_config")
+
+        # Bind mounts (Docker Compose standard - absolute paths)
+        validate_mount_path("/home/user/project/app")
+        validate_mount_path("/home/user/project/config")
+        validate_mount_path("/opt/app/data")
+
+    def test_ci_cd_common_paths(self) -> None:
+        """Test paths commonly used in CI/CD pipelines."""
+        # GitHub Actions
+        validate_mount_path("/home/runner/work/project")
+        validate_mount_path("/github/workspace")
+
+        # GitLab CI
+        validate_mount_path("/builds/project")
+
+        # Jenkins
+        validate_mount_path("/var/jenkins_home/workspace/job")
+
+        # Generic CI
+        validate_mount_path("/workspace")
+        validate_mount_path("/build")
+
+
 class TestDuplicateSlashNormalization:
     """Test duplicate slash normalization (CRITICAL P1 SECURITY FIXES).
 
