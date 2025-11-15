@@ -106,8 +106,8 @@ def fuzz_mount_path_validation(data: bytes) -> None:
 
     try:
         validate_mount_path(path)
-    except (ValueError, ValidationError):
-        # Expected for sensitive paths
+    except (ValueError, ValidationError, UnsafeOperationError):
+        # Expected for sensitive paths and relative paths
         pass
 
 
@@ -174,7 +174,7 @@ def fuzz_path_traversal(data: bytes) -> None:
         test_path = base_path + pattern + fdp.ConsumeUnicodeNoSurrogates(20)
         try:
             validate_mount_path(test_path)
-        except (ValueError, ValidationError):
+        except (ValueError, ValidationError, UnsafeOperationError):
             pass
 
 
