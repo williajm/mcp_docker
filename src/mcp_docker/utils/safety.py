@@ -409,6 +409,100 @@ def _is_named_volume(path: str) -> bool:
     return not (path.startswith("//") or path.startswith("\\\\"))
 
 
+def _is_windows_absolute_path(path: str) -> bool:
+    r"""Check if path is a Windows absolute path.
+
+    Args:
+        path: Path to check
+
+    Returns:
+        True if Windows absolute path (C:\, D:\, or UNC path), False otherwise
+    """
+    return bool(re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\"))
+
+
+def _path_starts_with(path: str, prefix: str) -> bool:
+    r"""Check if path starts with prefix, accounting for path separators.
+
+    Special case: Root paths (/, C:\\, D:\\) only match exactly, not subdirectories.
+    This allows blocking root filesystem mounts without blocking all subdirectories.
+
+    Args:
+        path: Path to check
+        prefix: Prefix to match against
+
+    Returns:
+        True if path starts with prefix
+    """
+    # Exact match always returns True
+    if path == prefix:
+        return True
+    if not path.startswith(prefix):
+        return False
+
+    # Special handling for Unix root "/" - only exact match, no subdirectories
+    # This allows "/" in blocklist to block mounting "/" without blocking "/home", etc.
+    # Windows root drives (C:\, D:\) match subdirectories (other drives still usable)
+    if prefix == "/":
+        return False
+
+    # If prefix ends with a separator (and isn't a root), any path starting with it matches
+    if prefix.endswith(("/", "\\")):
+        return True
+
+    # Otherwise, check if the next character after prefix is a path separator
+    if len(path) > len(prefix):
+        next_char = path[len(prefix)]
+        return next_char in ("/", "\\")
+    return False
+
+
+def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> None:
+    """Check if path is in blocklist and raise error if it is.
+
+    Args:
+        path: Original path (for error messages)
+        normalized: Normalized path to check
+        blocked_paths: List of blocked path prefixes
+
+    Raises:
+        UnsafeOperationError: If path is blocked
+    """
+    for blocked in blocked_paths:
+        if _path_starts_with(normalized, blocked):
+            # Special message for root filesystem paths
+            if blocked in ("/", "C:\\", "D\\") and normalized == blocked:
+                raise UnsafeOperationError(
+                    f"Mount path '{path}' is blocked. "
+                    f"Mounting the root filesystem ({blocked}) could enable container escape. "
+                    "Enable SAFETY_YOLO_MODE=true to bypass."
+                )
+            # Standard blocklist error message
+            raise UnsafeOperationError(
+                f"Mount path '{path}' is blocked. "
+                f"This path matches blocklist entry: {blocked}. "
+                "Enable SAFETY_YOLO_MODE=true to bypass."
+            )
+
+
+def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> None:
+    """Check if path is in allowlist and raise error if not.
+
+    Args:
+        path: Original path (for error messages)
+        normalized: Normalized path to check
+        allowed_paths: List of allowed path prefixes
+
+    Raises:
+        UnsafeOperationError: If path is not in allowlist
+    """
+    if not any(_path_starts_with(normalized, p) for p in allowed_paths):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not in the allowed paths list. "
+            "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
+        )
+
+
 def validate_mount_path(
     path: str,
     allowed_paths: list[str] | None = None,
@@ -447,11 +541,8 @@ def validate_mount_path(
     if _is_named_volume(path):
         return
 
-    # Check if this is a Windows absolute path (C:\, D:\, etc. or UNC paths like \\.\pipe\...)
-    is_windows_absolute = bool(re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\"))
-
     # Bind mounts must use absolute paths (Unix or Windows)
-    if not path.startswith("/") and not is_windows_absolute:
+    if not path.startswith("/") and not _is_windows_absolute_path(path):
         raise UnsafeOperationError(
             f"Mount path '{path}' must be an absolute path. "
             "Relative paths are not allowed to prevent path traversal attacks. "
@@ -465,61 +556,13 @@ def validate_mount_path(
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 
-    # Helper function to check if path starts with a prefix
-    def _path_starts_with(path: str, prefix: str) -> bool:
-        """Check if path starts with prefix, accounting for path separators.
-
-        Special case: Root paths (/, C:\\, D:\\) only match exactly, not subdirectories.
-        This allows blocking root filesystem mounts without blocking all subdirectories.
-        """
-        # Exact match always returns True
-        if path == prefix:
-            return True
-        if not path.startswith(prefix):
-            return False
-
-        # Special handling for Unix root "/" - only exact match, no subdirectories
-        # This allows "/" in blocklist to block mounting "/" without blocking "/home", etc.
-        # Windows root drives (C:\, D:\) match subdirectories (other drives still usable)
-        if prefix == "/":
-            return False
-
-        # If prefix ends with a separator (and isn't a root), any path starting with it matches
-        if prefix.endswith(("/", "\\")):
-            return True
-
-        # Otherwise, check if the next character after prefix is a path separator
-        if len(path) > len(prefix):
-            next_char = path[len(prefix)]
-            return next_char in ("/", "\\")
-        return False
-
     # Check blocklist (if provided)
     if blocked_paths is not None:
-        for blocked in blocked_paths:
-            if _path_starts_with(normalized, blocked):
-                # Special message for root filesystem paths
-                if blocked in ("/", "C:\\", "D:\\") and normalized == blocked:
-                    raise UnsafeOperationError(
-                        f"Mount path '{path}' is blocked. "
-                        f"Mounting the root filesystem ({blocked}) could enable container escape. "
-                        "Enable SAFETY_YOLO_MODE=true to bypass."
-                    )
-                # Standard blocklist error message
-                raise UnsafeOperationError(
-                    f"Mount path '{path}' is blocked. "
-                    f"This path matches blocklist entry: {blocked}. "
-                    "Enable SAFETY_YOLO_MODE=true to bypass."
-                )
+        _check_blocklist(path, normalized, blocked_paths)
 
-    # If allowlist specified, path must be in it
-    if allowed_paths is not None and not any(
-        _path_starts_with(normalized, p) for p in allowed_paths
-    ):
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not in the allowed paths list. "
-            "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
-        )
+    # Check allowlist (if provided)
+    if allowed_paths is not None:
+        _check_allowlist(path, normalized, allowed_paths)
 
 
 def validate_port_binding(
