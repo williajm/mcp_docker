@@ -104,8 +104,11 @@ def fuzz_mount_path_validation(data: bytes) -> None:
     fdp = atheris.FuzzedDataProvider(data)
     path = fdp.ConsumeUnicodeNoSurrogates(200)
 
+    # Test with default blocklist to catch dangerous paths
+    default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root", r"\\.\pipe\docker_engine"]
+
     try:
-        validate_mount_path(path)
+        validate_mount_path(path, blocked_paths=default_blocklist)
     except (ValueError, ValidationError, UnsafeOperationError):
         # Expected for sensitive paths and relative paths
         pass
@@ -170,10 +173,13 @@ def fuzz_path_traversal(data: bytes) -> None:
 
     base_path = fdp.ConsumeUnicodeNoSurrogates(30)
 
+    # Test with default blocklist to catch dangerous paths
+    default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root", r"\\.\pipe\docker_engine"]
+
     for pattern in traversal_patterns:
         test_path = base_path + pattern + fdp.ConsumeUnicodeNoSurrogates(20)
         try:
-            validate_mount_path(test_path)
+            validate_mount_path(test_path, blocked_paths=default_blocklist)
         except (ValueError, ValidationError, UnsafeOperationError):
             pass
 

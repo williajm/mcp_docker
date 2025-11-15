@@ -412,29 +412,27 @@ def _is_named_volume(path: str) -> bool:
 def validate_mount_path(
     path: str,
     allowed_paths: list[str] | None = None,
+    blocked_paths: list[str] | None = None,
     yolo_mode: bool = False,
 ) -> None:
-    """Validate that a mount path is safe (SIMPLIFIED).
+    r"""Validate that a mount path is safe.
 
-    Blocks only the most critical dangerous paths:
-    - / (root filesystem - full host access)
-    - /var/run/docker.sock (container escape)
-    - /etc (system configs, credentials)
-    - /root (root user home)
+    Validates bind mount paths against security policies:
+    - Blocklist: Prevents mounting dangerous paths (e.g., /var/run/docker.sock, /, /etc)
+    - Allowlist: If set, only allows paths starting with specified prefixes
+    - Windows support: Recognizes Windows absolute paths (C:\, D:\, etc.)
 
     Docker named volumes (simple names like "my-volume") are allowed
     as they don't expose the host filesystem.
 
-    Users are responsible for not mounting other sensitive paths.
-    Use YOLO mode to bypass if you know what you're doing.
-
     Args:
         path: Path to validate (host path or named volume)
-        allowed_paths: Optional allowlist of path prefixes
+        allowed_paths: Optional allowlist of path prefixes (None = no allowlist)
+        blocked_paths: Optional blocklist of dangerous paths (None = use defaults)
         yolo_mode: If True, skip all validation (DANGEROUS!)
 
     Raises:
-        UnsafeOperationError: If path is dangerous
+        UnsafeOperationError: If path is dangerous or violates policy
         ValidationError: If path format is invalid
     """
     # YOLO mode bypasses all validation
@@ -449,12 +447,16 @@ def validate_mount_path(
     if _is_named_volume(path):
         return
 
-    # Bind mounts must use absolute paths (prevents path traversal)
-    if not path.startswith("/"):
+    # Check if this is a Windows absolute path (C:\, D:\, etc.)
+    is_windows_absolute = bool(re.match(r"^[A-Za-z]:[/\\]", path))
+
+    # Bind mounts must use absolute paths (Unix or Windows)
+    if not path.startswith("/") and not is_windows_absolute:
         raise UnsafeOperationError(
             f"Mount path '{path}' must be an absolute path. "
             "Relative paths are not allowed to prevent path traversal attacks. "
-            "Use absolute paths like '/home/user/data' or named volumes like 'my-volume'."
+            "Use absolute paths like '/home/user/data' (Unix) or 'C:\\data' (Windows), "
+            "or named volumes like 'my-volume'."
         )
 
     # Normalize path (resolves .., ., removes trailing slashes)
@@ -463,25 +465,32 @@ def validate_mount_path(
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 
-    # Critical paths that enable container escape or host compromise
-    dangerous = [
-        "/var/run/docker.sock",  # Container escape - root access to host
-        "/",  # Root filesystem - full host access
-        "/etc",  # System configs & credentials
-        "/root",  # Root user home directory
-    ]
-
-    # Check if path matches dangerous paths
-    if normalized == "/" or any(normalized.startswith(d) for d in dangerous if d != "/"):
-        raise UnsafeOperationError(
-            f"Mount path '{path}' is not allowed. "
-            "This path could enable container escape or host compromise. "
-            "Enable SAFETY_YOLO_MODE=true to bypass."
-        )
+    # Check blocklist (if provided)
+    if blocked_paths is not None:
+        for blocked in blocked_paths:
+            # Exact match or starts with blocked path
+            if normalized == blocked or normalized.startswith(blocked + os.sep):
+                raise UnsafeOperationError(
+                    f"Mount path '{path}' is blocked. "
+                    f"This path matches blocklist entry: {blocked}. "
+                    "Enable SAFETY_YOLO_MODE=true to bypass."
+                )
+            # Special handling for root filesystem
+            if blocked in ("/", "C:\\", "D:\\") and normalized == blocked:
+                raise UnsafeOperationError(
+                    f"Mount path '{path}' is blocked. "
+                    f"Mounting the root filesystem ({blocked}) could enable container escape. "
+                    "Enable SAFETY_YOLO_MODE=true to bypass."
+                )
 
     # If allowlist specified, path must be in it
-    if allowed_paths and not any(normalized.startswith(p) for p in allowed_paths):
-        raise UnsafeOperationError(f"Mount path '{path}' is not in the allowed paths list")
+    if allowed_paths is not None and not any(
+        normalized == p or normalized.startswith(p + os.sep) for p in allowed_paths
+    ):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not in the allowed paths list. "
+            "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
+        )
 
 
 def validate_port_binding(

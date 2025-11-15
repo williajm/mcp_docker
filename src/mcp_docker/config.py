@@ -208,6 +208,45 @@ class SafetyConfig(BaseSettings):
         le=100,
     )
 
+    # Volume mount security
+    volume_mount_blocklist: list[str] = Field(
+        default=[
+            "/var/run/docker.sock",  # Container escape - root access to host
+            "/",  # Root filesystem - full host access
+            "/etc",  # System configs & credentials
+            "/root",  # Root user home directory
+            r"\\.\pipe\docker_engine",  # Windows Docker named pipe
+        ],
+        description=(
+            "Paths that cannot be mounted (blocklist). "
+            "Prevents mounting dangerous paths that could enable container escape. "
+            "Can be set via SAFETY_VOLUME_MOUNT_BLOCKLIST as JSON array."
+        ),
+    )
+    volume_mount_allowlist: list[str] = Field(
+        default_factory=list,
+        description=(
+            "If set, only paths starting with these prefixes can be mounted (allowlist). "
+            "Empty list when explicitly set blocks all mounts. "
+            "Not set (default) allows all mounts not in blocklist. "
+            "Example: ['/home/user/safe', '/opt/data']. "
+            "Can be set via SAFETY_VOLUME_MOUNT_ALLOWLIST as JSON array."
+        ),
+    )
+
+    @field_validator("volume_mount_blocklist", "volume_mount_allowlist", mode="before")
+    @classmethod
+    def parse_mount_path_list(cls, value: str | list[str] | None) -> list[str]:
+        """Parse mount path list from JSON array or comma-separated string.
+
+        Args:
+            value: Path list as JSON array string, comma-separated string, list, or None
+
+        Returns:
+            Normalized list of paths (empty list if None/empty for allowlist)
+        """
+        return _parse_comma_separated_list(value)
+
     # Output size limits (prevent resource exhaustion and token limit issues)
     max_log_lines: int = Field(
         default=10000,

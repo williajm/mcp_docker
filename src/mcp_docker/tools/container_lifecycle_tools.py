@@ -211,9 +211,15 @@ class CreateContainerTool(BaseTool):
             UnsafeOperationError: If dangerous mount path detected
         """
         for host_path, bind_config in volumes.items():
-            # Validate the host-side path
-            # Pass yolo_mode to bypass validation if enabled
-            validate_mount_path(host_path, yolo_mode=self.safety.yolo_mode)
+            # Validate the host-side path with blocklist and allowlist from config
+            validate_mount_path(
+                host_path,
+                allowed_paths=self.safety.volume_mount_allowlist
+                if self.safety.volume_mount_allowlist
+                else None,
+                blocked_paths=self.safety.volume_mount_blocklist,
+                yolo_mode=self.safety.yolo_mode,
+            )
 
             # Also validate the bind config structure (skip if YOLO mode)
             self._validate_bind_config(bind_config)
