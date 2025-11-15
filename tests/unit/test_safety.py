@@ -802,6 +802,81 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
             validate_mount_path(r"e:\other", allowed_paths=allowlist)
 
+    def test_validate_mount_path_windows_forward_slash_blocked(self) -> None:
+        """Test that Windows paths with forward slashes are blocked.
+
+        CRITICAL SECURITY: Windows Docker accepts both C:\\Windows and C:/Windows
+        as the same path. The blocklist must catch both separator styles to
+        prevent security bypasses where users mount C:/Windows to evade a
+        C:\\Windows blocklist entry.
+        """
+        # Blocklist uses backslashes (standard Windows style)
+        blocklist = [r"C:\Windows", r"C:\Program Files", r"\\.\pipe\docker_engine"]
+
+        # Test that forward-slash variants are also blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("c:/windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/WINDOWS", blocked_paths=blocklist)
+
+        # Test subdirectories with forward slashes
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Windows/System32", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("c:/windows/system32", blocked_paths=blocklist)
+
+        # Test C:/Program Files with forward slashes
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Program Files", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("c:/program files", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Program Files/Docker", blocked_paths=blocklist)
+
+        # Test mixed separators (Windows accepts this too)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:/Windows\System32", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows/System32", blocked_paths=blocklist)
+
+    def test_validate_mount_path_windows_blocklist_with_forward_slashes(self) -> None:
+        """Test that blocklist entries with forward slashes also work.
+
+        Some users might configure blocklist with forward slashes.
+        Should still catch both / and \\ in actual paths.
+        """
+        # Blocklist uses forward slashes
+        blocklist = ["C:/Windows", "C:/Program Files"]
+
+        # Backslash paths should still be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"c:\windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Windows\System32", blocked_paths=blocklist)
+
+        # Forward slash paths should be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Program Files/Docker", blocked_paths=blocklist)
+
+        # Mixed separators
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:/Windows\System32", blocked_paths=blocklist)
+
     def test_validate_mount_path_unix_paths_remain_case_sensitive(self) -> None:
         """Test that Unix paths remain case-sensitive.
 

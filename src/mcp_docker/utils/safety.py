@@ -418,7 +418,10 @@ def _is_windows_absolute_path(path: str) -> bool:
     Returns:
         True if Windows absolute path (C:\, D:\, or UNC path), False otherwise
     """
-    return bool(re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\"))
+    # Check for drive letter (C:\ or C:/) or UNC paths (\\server\share or //server/share)
+    return bool(
+        re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\") or path.startswith("//")
+    )
 
 
 def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) -> bool:
@@ -435,15 +438,16 @@ def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) ->
     Returns:
         True if path starts with prefix
     """
-    # Normalize casing for case-insensitive comparison
+    # For Windows paths (case_insensitive=True), normalize separators to forward slash
+    # This ensures C:\Windows and C:/Windows both match
     if case_insensitive:
-        path_cmp = path.casefold()
-        prefix_cmp = prefix.casefold()
+        path_cmp = path.replace("\\", "/").casefold()
+        prefix_cmp = prefix.replace("\\", "/").casefold()
     else:
         path_cmp = path
         prefix_cmp = prefix
 
-    # Exact match always returns True
+    # Exact match always returns True, no match returns False
     if path_cmp == prefix_cmp:
         return True
     if not path_cmp.startswith(prefix_cmp):
@@ -455,15 +459,19 @@ def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) ->
     if prefix_cmp == "/":
         return False
 
-    # If prefix ends with a separator (and isn't a root), any path starting with it matches
-    if prefix_cmp.endswith(("/", "\\")):
+    # If prefix ends with a separator, any path starting with it matches
+    ends_with_sep = (
+        prefix_cmp.endswith("/") if case_insensitive else prefix_cmp.endswith(("/", "\\"))
+    )
+    if ends_with_sep:
         return True
 
     # Otherwise, check if the next character after prefix is a path separator
-    # Use original path for character checking (separators are ASCII, casing doesn't matter)
-    if len(path) > len(prefix):
-        next_char = path[len(prefix)]
-        return next_char in ("/", "\\")
+    # For Windows (normalized), check "/". For Unix, check both "/" and "\"
+    if len(path_cmp) > len(prefix_cmp):
+        next_char = path_cmp[len(prefix_cmp)]
+        return next_char == "/" if case_insensitive else next_char in ("/", "\\")
+
     return False
 
 
