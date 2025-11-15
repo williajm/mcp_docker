@@ -9,6 +9,7 @@ from mcp_docker.utils.safety import (
     MODERATE_OPERATIONS,
     PRIVILEGED_OPERATIONS,
     OperationSafety,
+    _is_named_volume,
     check_privileged_mode,
     classify_operation,
     is_destructive_operation,
@@ -323,44 +324,171 @@ class TestPrivilegedMode:
             check_privileged_mode(True, allow_privileged=False)
 
 
+class TestNamedVolumeDetection:
+    """Test named volume detection."""
+
+    def test_is_named_volume_simple_name(self) -> None:
+        """Test simple alphanumeric volume names are detected as named volumes."""
+        assert _is_named_volume("mydata") is True
+        assert _is_named_volume("app-data") is True
+        assert _is_named_volume("db_volume") is True
+        assert _is_named_volume("data.backup") is True
+        assert _is_named_volume("MyApp123") is True
+
+    def test_is_named_volume_with_path_separator(self) -> None:
+        """Test paths with separators are not named volumes."""
+        assert _is_named_volume("/mydata") is False
+        assert _is_named_volume("./data") is False
+        assert _is_named_volume("data/sub") is False
+        assert _is_named_volume("C:\\data") is False
+        assert _is_named_volume("data\\sub") is False
+
+    def test_is_named_volume_starting_with_dot(self) -> None:
+        """Test volumes starting with dot are not named volumes."""
+        assert _is_named_volume(".hidden") is False
+        assert _is_named_volume("..parent") is False
+
+    def test_is_named_volume_special_characters(self) -> None:
+        """Test volumes with special characters are not named volumes."""
+        # Only alphanumeric, _, -, . are allowed
+        assert _is_named_volume("data@home") is False
+        assert _is_named_volume("data#1") is False
+        assert _is_named_volume("data space") is False
+
+
 class TestMountPathValidation:
     """Test mount path validation."""
 
-    def test_validate_mount_path_safe(self) -> None:
-        """Test validating safe mount path."""
-        # Should not raise
+    def test_validate_mount_path_yolo_mode_bypasses_all(self) -> None:
+        """Test YOLO mode bypasses all validation."""
+        # Even dangerous paths should pass with YOLO mode
+        validate_mount_path("/etc", yolo_mode=True)
+        validate_mount_path("/root", yolo_mode=True)
+        validate_mount_path("/var/run/docker.sock", yolo_mode=True)
+        validate_mount_path("/.ssh", yolo_mode=True)
+
+    def test_validate_mount_path_named_volumes_always_allowed(self) -> None:
+        """Test named volumes are always allowed (they're safe)."""
+        # Named volumes don't grant filesystem access
+        validate_mount_path("mydata")
+        validate_mount_path("app-data")
+        validate_mount_path("db_volume")
+        validate_mount_path("data.backup")
+
+    def test_validate_mount_path_safe_paths(self) -> None:
+        """Test safe mount paths are allowed."""
         validate_mount_path("/home/user/data")
+        validate_mount_path("/opt/myapp")
         validate_mount_path("/var/lib/docker/volumes")
+        validate_mount_path("/tmp/data")
 
-    def test_validate_mount_path_dangerous_passwd(self) -> None:
-        """Test validating dangerous mount path (passwd)."""
-        with pytest.raises(UnsafeOperationError, match="not allowed"):
+    def test_validate_mount_path_default_blocklist_etc(self) -> None:
+        """Test default blocklist blocks /etc."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/etc")
+        with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/passwd")
-
-    def test_validate_mount_path_dangerous_shadow(self) -> None:
-        """Test validating dangerous mount path (shadow)."""
-        with pytest.raises(UnsafeOperationError, match="not allowed"):
+        with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/shadow")
 
-    def test_validate_mount_path_dangerous_ssh(self) -> None:
-        """Test validating dangerous mount path (ssh)."""
-        with pytest.raises(UnsafeOperationError, match="not allowed"):
-            validate_mount_path("/root/.ssh")
+    def test_validate_mount_path_default_blocklist_root(self) -> None:
+        """Test default blocklist blocks /root."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/root")
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/root/.bashrc")
 
-    def test_validate_mount_path_with_allowed_paths(self) -> None:
-        """Test validating mount path with allowed paths list."""
-        allowed = ["/home", "/var/lib/docker"]
+    def test_validate_mount_path_default_blocklist_docker_socket(self) -> None:
+        """Test default blocklist blocks docker socket (container escape)."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/run/docker.sock")
 
-        # Should not raise
+    def test_validate_mount_path_default_blocklist_ssh(self) -> None:
+        """Test default blocklist blocks .ssh directories."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/.ssh")
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/.ssh/id_rsa")
+
+    def test_validate_mount_path_default_blocklist_credentials(self) -> None:
+        """Test default blocklist blocks credential directories."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/.aws")
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/.kube")
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/.docker")
+
+    def test_validate_mount_path_custom_blocklist(self) -> None:
+        """Test custom blocklist."""
+        custom_blocked = ["/data", "/app"]
+
+        # Custom blocked paths should be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/data/file", blocked_paths=custom_blocked)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/app/config", blocked_paths=custom_blocked)
+
+        # Other paths should be allowed
+        validate_mount_path("/home/user", blocked_paths=custom_blocked)
+
+    def test_validate_mount_path_empty_blocklist(self) -> None:
+        """Test empty blocklist allows everything."""
+        # Empty list means no blocked paths
+        validate_mount_path("/etc", blocked_paths=[])
+        validate_mount_path("/root", blocked_paths=[])
+
+    def test_validate_mount_path_path_normalization_duplicate_slashes(self) -> None:
+        """Test path normalization collapses duplicate slashes."""
+        # Duplicate slashes should be normalized before checking
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//etc")
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("///etc/passwd")
+
+    def test_validate_mount_path_path_normalization_windows_separators(self) -> None:
+        """Test path normalization handles Windows separators."""
+        # Windows backslashes should be converted to forward slashes
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("\\etc")
+        # Note: This tests the normalization logic, though Windows paths
+        # would typically start with drive letter (C:\etc)
+
+    def test_validate_mount_path_allowlist_restricts_to_specific_paths(self) -> None:
+        """Test allowlist restricts to specific paths."""
+        allowed = ["/home", "/opt"]
+
+        # Allowed paths should pass
         validate_mount_path("/home/user/data", allowed_paths=allowed)
-        validate_mount_path("/var/lib/docker/volumes", allowed_paths=allowed)
+        validate_mount_path("/opt/myapp", allowed_paths=allowed)
 
-    def test_validate_mount_path_not_in_allowed(self) -> None:
-        """Test validating mount path not in allowed paths."""
-        allowed = ["/home", "/var/lib/docker"]
+        # Other paths should be blocked
+        with pytest.raises(UnsafeOperationError, match="not in allowed paths"):
+            validate_mount_path("/var/data", allowed_paths=allowed)
+        with pytest.raises(UnsafeOperationError, match="not in allowed paths"):
+            validate_mount_path("/tmp/data", allowed_paths=allowed)
 
-        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
-            validate_mount_path("/opt/data", allowed_paths=allowed)
+    def test_validate_mount_path_allowlist_with_blocklist(self) -> None:
+        """Test allowlist and blocklist work together."""
+        allowed = ["/home", "/etc"]
+        blocked = ["/etc"]
+
+        # /home should work (in allowlist, not in blocklist)
+        validate_mount_path("/home/user", blocked_paths=blocked, allowed_paths=allowed)
+
+        # /etc should be blocked (in blocklist, even though in allowlist)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/etc", blocked_paths=blocked, allowed_paths=allowed)
+
+    def test_validate_mount_path_error_message_includes_path(self) -> None:
+        """Test error messages include the problematic path."""
+        with pytest.raises(UnsafeOperationError, match="/etc"):
+            validate_mount_path("/etc")
+
+    def test_validate_mount_path_error_message_suggests_yolo_mode(self) -> None:
+        """Test error messages suggest YOLO mode for blocked paths."""
+        with pytest.raises(UnsafeOperationError, match="SAFETY_YOLO_MODE"):
+            validate_mount_path("/etc")
 
 
 class TestPortBindingValidation:
