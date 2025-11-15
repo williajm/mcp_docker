@@ -45,6 +45,7 @@ class RateLimiter:
         enabled: bool = True,
         requests_per_minute: int = 60,
         max_concurrent_per_client: int = 3,
+        max_clients: int = 10,
     ) -> None:
         """Initialize rate limiter.
 
@@ -52,10 +53,12 @@ class RateLimiter:
             enabled: Whether rate limiting is enabled
             requests_per_minute: Maximum requests per minute per client
             max_concurrent_per_client: Maximum concurrent requests per client
+            max_clients: Maximum number of unique clients to track (prevents memory exhaustion)
         """
         self.enabled = enabled
         self.rpm = requests_per_minute
         self.max_concurrent = max_concurrent_per_client
+        self.max_clients = max_clients
 
         # Initialize limits library for RPM tracking
         # SECURITY: Uses battle-tested limits library, not custom dict tracking
@@ -71,7 +74,8 @@ class RateLimiter:
         if self.enabled:
             logger.info(
                 f"Rate limiting enabled: {self.rpm} RPM, "
-                f"{self.max_concurrent} concurrent per client"
+                f"{self.max_concurrent} concurrent per client, "
+                f"max {self.max_clients} clients"
             )
         else:
             logger.warning("Rate limiting DISABLED")
@@ -105,13 +109,35 @@ class RateLimiter:
             client_id: Unique identifier for the client
 
         Raises:
-            RateLimitExceeded: If concurrent request limit is exceeded
+            RateLimitExceeded: If concurrent request limit is exceeded or max clients reached
         """
         if not self.enabled:
             return
 
         # Get or create semaphore for this client (stdlib asyncio.Semaphore)
         if client_id not in self._semaphores:
+            # SECURITY: Prevent memory exhaustion by limiting total tracked clients
+            if len(self._semaphores) >= self.max_clients:
+                # Try to evict an idle client to make room
+                idle_clients = [
+                    cid for cid, count in self._concurrent_requests.items() if count == 0
+                ]
+                if idle_clients:
+                    # Evict first idle client (simple LRU)
+                    evict_id = idle_clients[0]
+                    del self._semaphores[evict_id]
+                    del self._concurrent_requests[evict_id]
+                    logger.info(f"Evicted idle client {evict_id} to make room for {client_id}")
+                else:
+                    # All clients are active - reject new client
+                    logger.warning(
+                        f"Maximum active clients limit reached: {self.max_clients}. "
+                        f"Rejecting new client: {client_id}"
+                    )
+                    raise RateLimitExceeded(
+                        f"Maximum concurrent clients ({self.max_clients}) reached. "
+                        "Try again later or contact administrator."
+                    )
             self._semaphores[client_id] = asyncio.Semaphore(self.max_concurrent)
             self._concurrent_requests[client_id] = 0
 
@@ -127,6 +153,7 @@ class RateLimiter:
                 f"Concurrent request limit exceeded: {self.max_concurrent}"
             ) from None
 
+        # Increment counter
         self._concurrent_requests[client_id] += 1
         logger.debug(
             f"Client {client_id} concurrent requests: "
@@ -142,15 +169,20 @@ class RateLimiter:
         if not self.enabled:
             return
 
+        # Release semaphore slot
         if client_id in self._semaphores:
             semaphore = self._semaphores[client_id]
             semaphore.release()
-            self._concurrent_requests[client_id] -= 1
 
-            logger.debug(
-                f"Client {client_id} concurrent requests: "
-                f"{self._concurrent_requests[client_id]}/{self.max_concurrent}"
-            )
+            # Decrement counter
+            if client_id in self._concurrent_requests and self._concurrent_requests[client_id] > 0:
+                self._concurrent_requests[client_id] -= 1
+                logger.debug(
+                    f"Client {client_id} concurrent requests: "
+                    f"{self._concurrent_requests[client_id]}/{self.max_concurrent}"
+                )
+            else:
+                logger.debug(f"Client {client_id} counter already at 0")
 
     def get_client_stats(self, client_id: str) -> dict[str, Any]:
         """Get rate limit statistics for a client.

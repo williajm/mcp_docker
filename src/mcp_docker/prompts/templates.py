@@ -382,7 +382,10 @@ class GenerateComposePrompt(BasePromptHelper):
     """Prompt for generating docker-compose.yml files."""
 
     NAME = "generate_compose"
-    DESCRIPTION = "Generate a docker-compose.yml file from container configuration"
+    DESCRIPTION = (
+        "Generate a docker-compose.yml file from container configuration. "
+        "⚠️ Environment variable values are redacted to prevent secret leakage to LLM APIs."
+    )
 
     def get_metadata(self) -> PromptMetadata:
         """Get prompt metadata.
@@ -429,6 +432,49 @@ class GenerateComposePrompt(BasePromptHelper):
             "attrs": container_attrs,
         }
 
+    def _build_container_context(self, data: dict[str, Any]) -> str:
+        """Build context string from container data.
+
+        Args:
+            data: Container data with name and attrs
+
+        Returns:
+            Formatted context string with container configuration
+
+        """
+        container_attrs = data["attrs"]
+        config = container_attrs.get("Config", {})
+        host_config = container_attrs.get("HostConfig", {})
+
+        # Extract key configuration elements
+        image = config.get("Image", "")
+        env_vars = config.get("Env") or []
+        ports = host_config.get("PortBindings") or {}
+        volumes = host_config.get("Binds") or []
+        restart_policy = host_config.get("RestartPolicy", {}).get("Name", "no")
+        network_mode = host_config.get("NetworkMode", "bridge")
+
+        # SECURITY: Redact environment variable values to prevent secret leakage
+        # Only show keys, not values (e.g., DATABASE_URL=<REDACTED>)
+        env_vars_redacted = [
+            var.split("=", 1)[0] + "=<REDACTED>" if "=" in var else var for var in env_vars
+        ]
+
+        return f"""Existing Container Configuration for {data["name"]}:
+- Image: {image}
+- Environment Variables: {len(env_vars)} variables (values redacted for security)
+  {chr(10).join(f"  - {var}" for var in env_vars_redacted[: DISPLAY_LIMITS.env_vars])}
+  {"  - ..." if len(env_vars) > DISPLAY_LIMITS.env_vars else ""}
+- Port Mappings: {len(ports)} ports
+  {chr(10).join(f"  - {k}: {v}" for k, v in list(ports.items())[: DISPLAY_LIMITS.ports])}
+  {"  - ..." if len(ports) > DISPLAY_LIMITS.ports else ""}
+- Volumes: {len(volumes)} mounts
+  {chr(10).join(f"  - {vol}" for vol in volumes[: DISPLAY_LIMITS.volumes])}
+  {"  - ..." if len(volumes) > DISPLAY_LIMITS.volumes else ""}
+- Restart Policy: {restart_policy}
+- Network Mode: {network_mode}
+"""
+
     async def generate(self, options: GenerateComposeOptions) -> PromptResult:
         """Generate docker-compose.yml from container or description.
 
@@ -448,34 +494,7 @@ class GenerateComposePrompt(BasePromptHelper):
                 data = await asyncio.to_thread(
                     self._get_container_compose_data_blocking, options.container_id
                 )
-
-                # Extract configuration
-                container_attrs = data["attrs"]
-                config = container_attrs.get("Config", {})
-                host_config = container_attrs.get("HostConfig", {})
-
-                # Extract key configuration elements
-                image = config.get("Image", "")
-                env_vars = config.get("Env") or []
-                ports = host_config.get("PortBindings") or {}
-                volumes = host_config.get("Binds") or []
-                restart_policy = host_config.get("RestartPolicy", {}).get("Name", "no")
-                network_mode = host_config.get("NetworkMode", "bridge")
-
-                context = f"""Existing Container Configuration for {data["name"]}:
-- Image: {image}
-- Environment Variables: {len(env_vars)} variables
-  {chr(10).join(f"  - {var}" for var in env_vars[: DISPLAY_LIMITS.env_vars])}
-  {"  - ..." if len(env_vars) > DISPLAY_LIMITS.env_vars else ""}
-- Port Mappings: {len(ports)} ports
-  {chr(10).join(f"  - {k}: {v}" for k, v in list(ports.items())[: DISPLAY_LIMITS.ports])}
-  {"  - ..." if len(ports) > DISPLAY_LIMITS.ports else ""}
-- Volumes: {len(volumes)} mounts
-  {chr(10).join(f"  - {vol}" for vol in volumes[: DISPLAY_LIMITS.volumes])}
-  {"  - ..." if len(volumes) > DISPLAY_LIMITS.volumes else ""}
-- Restart Policy: {restart_policy}
-- Network Mode: {network_mode}
-"""
+                context = self._build_container_context(data)
             except Exception as e:
                 logger.error(f"Failed to get container info: {e}")
                 context = f"Note: Could not retrieve container {options.container_id}: {e}\n"

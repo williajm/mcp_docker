@@ -21,7 +21,11 @@ from mcp_docker.utils.output_limits import (
     truncate_list,
     truncate_text,
 )
-from mcp_docker.utils.safety import OperationSafety, validate_command_safety
+from mcp_docker.utils.safety import (
+    OperationSafety,
+    validate_command_safety,
+    validate_environment_variable,
+)
 from mcp_docker.utils.validation import validate_command
 
 logger = get_logger(__name__)
@@ -515,6 +519,12 @@ class ExecCommandTool(BaseTool):
 
             # Validate command structure and enforce length limits for ALL types
             validate_command(input_data.command)
+
+            # Validate environment variables - SECURITY: Prevent command injection
+            if input_data.environment:
+                assert isinstance(input_data.environment, dict)
+                for key, value in input_data.environment.items():
+                    validate_environment_variable(key, value)
 
             logger.info(
                 f"Executing command in container: {input_data.container_id}, "

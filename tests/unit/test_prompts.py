@@ -317,6 +317,61 @@ class TestGenerateComposePrompt:
         assert len(result.messages) == 2
 
     @pytest.mark.asyncio
+    async def test_environment_variables_are_redacted(
+        self,
+        generate_compose_prompt: GenerateComposePrompt,
+        mock_docker_client: DockerClientWrapper,
+    ) -> None:
+        """Test that environment variable values are redacted to prevent secret leakage."""
+        # Mock container with secrets in environment variables
+        mock_container = MagicMock()
+        mock_container.name = "secure-app"
+        mock_container.attrs = {
+            "Config": {
+                "Image": "myapp:latest",
+                "Env": [
+                    "DATABASE_URL=postgresql://user:SuperSecret123@db:5432/app",
+                    "API_KEY=example_api_key_value_here",
+                    "JWT_SECRET=my-secret-signing-key",
+                    "STRIPE_KEY=example_stripe_key_value",
+                    "AWS_SECRET=example_aws_secret_value",
+                ],
+            },
+            "HostConfig": {
+                "PortBindings": {},
+                "Binds": [],
+                "RestartPolicy": {"Name": "no"},
+                "NetworkMode": "bridge",
+            },
+        }
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        # Generate prompt
+        result = await generate_compose_prompt.generate(
+            GenerateComposeOptions(container_id="abc123")
+        )
+
+        # Get the user message content (contains container config)
+        user_message = result.messages[1].content
+
+        # SECURITY: Verify secret VALUES are NOT in the output
+        assert "SuperSecret123" not in user_message, "Database password leaked!"
+        assert "example_api_key_value_here" not in user_message, "API key leaked!"
+        assert "my-secret-signing-key" not in user_message, "JWT secret leaked!"
+        assert "example_stripe_key_value" not in user_message, "Stripe key leaked!"
+        assert "example_aws_secret_value" not in user_message, "AWS secret leaked!"
+
+        # Verify environment variable KEYS are shown with <REDACTED>
+        assert "DATABASE_URL=<REDACTED>" in user_message
+        assert "API_KEY=<REDACTED>" in user_message
+        assert "JWT_SECRET=<REDACTED>" in user_message
+        assert "STRIPE_KEY=<REDACTED>" in user_message
+        assert "AWS_SECRET=<REDACTED>" in user_message
+
+        # Verify warning about redaction is included
+        assert "redacted" in user_message.lower() or "REDACTED" in user_message
+
+    @pytest.mark.asyncio
     async def test_generate_container_error(
         self,
         generate_compose_prompt: GenerateComposePrompt,
