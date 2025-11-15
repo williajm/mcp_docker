@@ -506,13 +506,13 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
     value_str = str(value)
 
     # Check for command injection characters in value
-    # These can be exploited when env vars are expanded in shell commands
+    # NOTE: Only block characters that are ALWAYS dangerous (command substitution, separators)
+    # Docker passes env vars as structured data, not through shell, so & and | are safe
+    # Common in connection strings: postgres://...?ssl=true&pool=10
     dangerous_chars = [
         "$(",  # Command substitution
         "`",  # Backtick command substitution
         ";",  # Command separator
-        "&",  # Background execution / command chaining
-        "|",  # Pipe to another command
         "\n",  # Newline injection
         "\r",  # Carriage return injection
     ]
