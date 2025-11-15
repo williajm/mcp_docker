@@ -418,6 +418,13 @@ def validate_mount_path(
     normalized = path.replace("\\", "/")  # Handle Windows paths
     normalized = "/" + normalized.lstrip("/")  # Collapse duplicate leading slashes
 
+    # SECURITY: Block path traversal attempts (e.g., ../../etc)
+    if ".." in normalized:
+        raise UnsafeOperationError(
+            f"Path traversal (..) not allowed in mount path: {path}. "
+            "Use absolute paths only. Enable SAFETY_YOLO_MODE=true to bypass."
+        )
+
     # Default blocklist: system paths (prefix matching)
     if blocked_paths is None:
         blocked_paths = [

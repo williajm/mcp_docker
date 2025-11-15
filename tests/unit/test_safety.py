@@ -547,6 +547,32 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="SAFETY_YOLO_MODE"):
             validate_mount_path("/etc")
 
+    def test_validate_mount_path_blocks_path_traversal_leading(self) -> None:
+        """Test that paths with leading .. are blocked (e.g., ../../etc)."""
+        with pytest.raises(UnsafeOperationError, match="Path traversal.*not allowed"):
+            validate_mount_path("../../etc")
+
+    def test_validate_mount_path_blocks_path_traversal_middle(self) -> None:
+        """Test that paths with .. in the middle are blocked (e.g., /home/user/../../etc)."""
+        with pytest.raises(UnsafeOperationError, match="Path traversal.*not allowed"):
+            validate_mount_path("/home/user/../../etc")
+
+    def test_validate_mount_path_blocks_path_traversal_multiple(self) -> None:
+        """Test that paths with multiple .. segments are blocked."""
+        with pytest.raises(UnsafeOperationError, match="Path traversal.*not allowed"):
+            validate_mount_path("../../../../var/run/docker.sock")
+
+    def test_validate_mount_path_blocks_path_traversal_docker_socket(self) -> None:
+        """Test that path traversal to Docker socket is blocked."""
+        with pytest.raises(UnsafeOperationError, match="Path traversal.*not allowed"):
+            validate_mount_path("../../var/run/docker.sock")
+
+    def test_validate_mount_path_yolo_mode_allows_path_traversal(self) -> None:
+        """Test that YOLO mode bypasses path traversal checks."""
+        # Should not raise even with .. in path
+        validate_mount_path("../../etc", yolo_mode=True)
+        validate_mount_path("/home/user/../../etc", yolo_mode=True)
+
 
 class TestPortBindingValidation:
     """Test port binding validation."""
