@@ -299,33 +299,33 @@ class TestRateLimiter:
         assert limiter._concurrent_requests["client1"] == 0
 
     @pytest.mark.asyncio
-    async def test_new_clients_allowed_after_cleanup(self) -> None:
-        """Test that new clients can connect after old clients become idle.
+    async def test_new_clients_blocked_at_max_tracked_clients(self) -> None:
+        """Test that max_clients limit prevents memory exhaustion from unique client IDs.
 
-        NOTE: We count only ACTIVE clients (count > 0) toward max_clients.
-        Idle clients (count == 0) don't prevent new clients from connecting.
+        Once max_clients tracked clients exist (active OR idle), new clients are rejected.
+        This prevents attackers from cycling through unbounded unique client IDs.
         """
         limiter = RateLimiter(enabled=True, max_clients=2)
 
-        # Fill to max ACTIVE clients
+        # Fill to max tracked clients
         await limiter.acquire_concurrent_slot("client1")
         await limiter.acquire_concurrent_slot("client2")
 
-        # New client should be rejected (at max ACTIVE clients)
+        # New client should be rejected (at max tracked clients)
         with pytest.raises(RateLimitExceededError, match="Maximum.*clients"):
             await limiter.acquire_concurrent_slot("client3")
 
-        # Release all slots - clients become idle (count == 0)
+        # Release all slots - clients become idle (count == 0) but entries remain
         limiter.release_concurrent_slot("client1")
         limiter.release_concurrent_slot("client2")
 
-        # Now new clients should be able to connect (idle clients don't count)
-        await limiter.acquire_concurrent_slot("client3")
-        await limiter.acquire_concurrent_slot("client4")
+        # New clients still rejected (max tracked clients, even if idle)
+        with pytest.raises(RateLimitExceededError, match="Maximum.*clients"):
+            await limiter.acquire_concurrent_slot("client3")
 
-        # Cleanup
-        limiter.release_concurrent_slot("client3")
-        limiter.release_concurrent_slot("client4")
+        # But existing clients can still acquire slots (reconnect)
+        await limiter.acquire_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client1")
 
     @pytest.mark.asyncio
     async def test_partial_cleanup_with_multiple_slots(self) -> None:

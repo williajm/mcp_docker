@@ -56,9 +56,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Accurately describe enabled features: TLS, rate limiting, audit logging
 - **Rate limiter race condition**: Fixed KeyError in concurrent operations
   - Race condition in cleanup logic where concurrent releases deleted semaphore entries
-  - Solution: Count only active clients (count > 0) toward max_clients limit
-  - Idle clients keep entries but don't count toward limit (prevents permanent DoS)
   - Fixes CI integration test failures in concurrent operation tests
+- **Rate limiter memory exhaustion**: Fixed memory leak from unique client IDs
+  - Previous fix allowed unbounded memory growth by not counting idle clients
+  - Attacker could cycle through unique client IDs, each leaving idle entry
+  - Solution: Check total tracked clients (len(dict)) not just active count
+  - Tradeoff: After max_clients connect, no new clients until server restart
+  - But this is acceptable for DoS protection - prioritizes server stability
 
 ### Tests
 - **20 new unit tests** for volume mount validation (all passing in 0.12s)
