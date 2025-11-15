@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- **CRITICAL P1: Fixed Windows UNC administrative share bypass**: Windows UNC admin shares (e.g., `\\localhost\C$\Windows`, `\\127.0.0.1\D$`) completely bypassed blocklist validation by not matching drive letter format entries (e.g., `C:\Windows`). Attack vector exploited the fact that `//localhost/C$/Windows` (normalized form) never matched `C:\Windows` in blocklist. Now converts localhost UNC admin shares to drive letter format before validation. Remote UNC shares remain unchanged (different security domain).
 - **CRITICAL P1: Fixed Unix path misclassification bypass**: Unix paths with duplicate slashes (e.g., `//etc/passwd`, `//var/run/docker.sock`) were incorrectly treated as Windows UNC paths, completely bypassing blocklist validation for sensitive directories. Now correctly normalized as `/etc/passwd` and `/var/run/docker.sock`.
 - **CRITICAL P1: Fixed Windows root drive overly broad blocking**: Windows root drives (`C:\`, `D:\`) in blocklist incorrectly blocked ALL subdirectories instead of just the root mount. Now `C:\` blocks `C:\` but permits `C:\Users`, matching Unix behavior where `/` blocks `/` but permits `/home`.
 - **CRITICAL P1: Fixed allowlist root path handling**: Root paths (`/`, `C:\`) in allowlist were unable to permit subdirectories due to incorrect exact-match-only logic. Now allowlist entries like `/` correctly permit `/home`, `/etc`, etc.
@@ -21,15 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Module-level constants: `UNC_REQUIRED_COMPONENTS`, `SENSITIVE_CREDENTIAL_DIRECTORIES`
 
 ### Testing
-- **Added 31 comprehensive unit tests** for volume mount validation (0.18s runtime, no Docker required):
-  - **Security fixes (14 tests)**: Duplicate slash normalization, root filesystem exact-match behavior
+- **Added 42 comprehensive unit tests** for volume mount validation (0.20s runtime, no Docker required):
+  - **Security fixes (25 tests)**: Duplicate slash normalization, root filesystem exact-match behavior, UNC admin share bypass prevention
   - **Valid use cases (17 tests)**: Ensures security fixes don't break legitimate workflows
     - Development directories (projects, src, workspace, build contexts)
     - Data directories (app data, databases, user data, shared storage)
     - Platform-specific paths (Windows Users/Program Files/drives, macOS /Users)
     - Docker patterns (named volumes, Docker Compose, CI/CD paths)
     - Special characters (spaces, hyphens, deeply nested paths)
-- All 141 safety tests pass with comprehensive coverage of both security and usability
+- All 152 safety tests pass with comprehensive coverage of both security and usability
 
 ## [1.1.0] - 2025-11-14
 

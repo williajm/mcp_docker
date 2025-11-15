@@ -1447,6 +1447,162 @@ class TestValidUseCases:
         validate_mount_path("/build")
 
 
+class TestUNCAdminShareBypass:
+    r"""Test UNC administrative share bypass prevention (CRITICAL P1 SECURITY FIX).
+
+    Windows UNC admin shares (\\localhost\C$, \\127.0.0.1\D$) provide direct
+    access to drive roots. Without proper normalization, these bypass blocklist
+    validation entirely, allowing attackers to mount sensitive directories.
+    """
+
+    def test_unc_localhost_admin_share_blocked(self) -> None:
+        r"""Test that \\localhost\\C$ admin shares are blocked.
+
+        CRITICAL: Without conversion, //localhost/C$/Windows doesn't match
+        blocklist entry C:\\Windows, completely defeating the security control.
+        """
+        blocklist = [r"C:\Windows", r"C:\Program Files"]
+
+        # UNC admin share to C:\Windows via localhost
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\localhost\C$\Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\localhost\C$\Program Files", blocked_paths=blocklist)
+
+        # UNC admin share to entire C: drive
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\localhost\C$", blocked_paths=["C:\\"])
+
+    def test_unc_loopback_admin_share_blocked(self) -> None:
+        r"""Test that \\127.0.0.1\\C$ admin shares are blocked."""
+        blocklist = [r"C:\Windows", r"D:\\"]
+
+        # UNC admin share via loopback IP
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\127.0.0.1\C$\Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\127.0.0.1\C$\Windows\System32", blocked_paths=blocklist)
+
+        # D: drive via loopback
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\127.0.0.1\D$", blocked_paths=blocklist)
+
+    def test_unc_admin_share_forward_slashes_blocked(self) -> None:
+        """Test UNC admin shares with forward slashes are blocked."""
+        blocklist = [r"C:\Windows"]
+
+        # Forward-slash UNC notation
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//localhost/C$/Windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("//127.0.0.1/C$/Windows/System32", blocked_paths=blocklist)
+
+    def test_unc_admin_share_all_drive_letters_blocked(self) -> None:
+        """Test that all drive letter admin shares are properly converted."""
+        blocklist = [r"C:\\", r"D:\\", r"E:\\"]
+
+        # Test various drive letters
+        for drive in ["C", "D", "E"]:
+            with pytest.raises(UnsafeOperationError, match="blocked"):
+                validate_mount_path(rf"\\localhost\{drive}$", blocked_paths=blocklist)
+
+            with pytest.raises(UnsafeOperationError, match="blocked"):
+                validate_mount_path(f"//127.0.0.1/{drive}$", blocked_paths=blocklist)
+
+    def test_unc_admin_share_case_insensitive(self) -> None:
+        """Test that UNC admin share matching is case-insensitive."""
+        blocklist = [r"c:\windows"]  # Lowercase
+
+        # Uppercase UNC admin share should still match
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\localhost\C$\WINDOWS", blocked_paths=blocklist)
+
+    def test_unc_admin_share_with_allowlist(self) -> None:
+        """Test UNC admin shares work correctly with allowlist."""
+        allowlist = [r"C:\Users"]
+
+        # UNC admin share to allowed directory should work
+        validate_mount_path(
+            r"\\localhost\C$\Users\alice",
+            allowed_paths=allowlist,
+            blocked_paths=[],
+        )
+
+        # UNC admin share to non-allowed directory should fail
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path(
+                r"\\localhost\C$\Windows",
+                allowed_paths=allowlist,
+                blocked_paths=[],
+            )
+
+    def test_unc_remote_host_not_converted(self) -> None:
+        r"""Test that UNC paths to remote hosts are NOT converted.
+
+        SECURITY: Only localhost UNC admin shares should be converted.
+        Remote host admin shares (\\server\\C$) are in a different security
+        domain and shouldn't match local drive blocklist entries.
+        """
+        blocklist = [r"C:\Windows"]
+
+        # Remote host UNC admin share - should NOT match C:\Windows blocklist
+        # This is correct behavior - we only convert localhost references
+        validate_mount_path(r"\\remoteserver\C$\Windows", blocked_paths=blocklist)
+        validate_mount_path("//otherhost/C$/Windows", blocked_paths=blocklist)
+
+    def test_unc_admin_share_with_sensitive_directories(self) -> None:
+        """Test UNC admin shares to sensitive directories are blocked."""
+        # .ssh directory is always blocked
+        with pytest.raises(UnsafeOperationError, match="sensitive directory"):
+            validate_mount_path(r"\\localhost\C$\Users\alice\.ssh")
+
+        with pytest.raises(UnsafeOperationError, match="sensitive directory"):
+            validate_mount_path("//127.0.0.1/C$/Users/alice/.aws")
+
+    def test_unc_admin_share_with_default_blocklist(self) -> None:
+        """Test UNC admin shares respect default blocklist."""
+        from mcp_docker.config import SafetyConfig
+
+        config = SafetyConfig()
+        blocklist = config.volume_mount_blocklist
+
+        # UNC admin share to C:\Windows should be blocked by default
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                r"\\localhost\C$\Windows",
+                blocked_paths=blocklist,
+            )
+
+        # UNC admin share to C: root should be blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                r"\\127.0.0.1\C$",
+                blocked_paths=blocklist,
+            )
+
+    def test_unc_admin_share_nested_paths(self) -> None:
+        """Test UNC admin shares with deeply nested paths."""
+        blocklist = [r"C:\Program Files"]
+
+        # Deeply nested path via UNC admin share
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                r"\\localhost\C$\Program Files\MyApp\data\files",
+                blocked_paths=blocklist,
+            )
+
+    def test_regular_unc_shares_not_affected(self) -> None:
+        """Test that regular UNC shares (non-admin) still work normally."""
+        blocklist = [r"C:\Windows"]
+
+        # Regular UNC share (not admin share with $)
+        validate_mount_path(r"\\server\share\data", blocked_paths=blocklist)
+        validate_mount_path("//fileserver/documents/files", blocked_paths=blocklist)
+
+
 class TestDuplicateSlashNormalization:
     """Test duplicate slash normalization (CRITICAL P1 SECURITY FIXES).
 

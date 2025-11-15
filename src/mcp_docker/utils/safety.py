@@ -2,6 +2,7 @@
 
 import os
 import re
+import socket
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -661,6 +662,53 @@ def _normalize_blocklist_entry(blocked: str) -> str:
     return os.path.normpath(blocked)
 
 
+def _convert_unc_admin_share_to_drive_letter(path: str) -> str:
+    r"""Convert Windows UNC administrative shares to drive letter format.
+
+    Windows UNC administrative shares provide direct access to drive roots:
+    - \\localhost\C$ → C:\
+    - \\127.0.0.1\D$ → D:\
+    - \\hostname\C$ → C:\ (localhost only for security)
+
+    This conversion is CRITICAL for security - without it, attackers can bypass
+    the blocklist by using UNC admin share syntax instead of drive letters.
+
+    Args:
+        path: Path that may be a UNC admin share (with forward slashes after normalization)
+
+    Returns:
+        Drive letter path if UNC admin share to localhost, original path otherwise
+
+    Examples:
+        >>> _convert_unc_admin_share_to_drive_letter("//localhost/C$/Windows")
+        'C:\\Windows'
+        >>> _convert_unc_admin_share_to_drive_letter("//127.0.0.1/D$/data")
+        'D:\\data'
+        >>> _convert_unc_admin_share_to_drive_letter("//remotehost/C$/Windows")
+        '//remotehost/C$/Windows'  # Not converted - remote host
+    """
+    # Match UNC admin share pattern: //localhost/C$ or //127.0.0.1/C$
+    # After path normalization, UNC paths use forward slashes: //server/share/path
+    # Only convert localhost/127.0.0.1 for security (prevent remote host access)
+    match = re.match(r"^//([^/]+)/([A-Za-z])\$(/.*)?$", path, re.IGNORECASE)
+    if not match:
+        return path
+
+    hostname = match.group(1).lower()
+    drive_letter = match.group(2).upper()
+    remaining_path = match.group(3) or ""
+
+    # Only convert localhost references for security
+    # Don't convert remote UNC paths like //server/C$ (different security domain)
+    localhost_names = {"localhost", "127.0.0.1", "::1", socket.gethostname().lower()}
+    if hostname not in localhost_names:
+        return path
+
+    # Convert to drive letter format: C:\Windows
+    drive_path = f"{drive_letter}:{remaining_path}"
+    return drive_path.replace("/", "\\")
+
+
 def _raise_root_filesystem_error(path: str, blocked: str) -> None:
     """Raise error for blocked root filesystem mount.
 
@@ -706,6 +754,10 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
     Raises:
         UnsafeOperationError: If path is blocked
     """
+    # SECURITY: Convert UNC admin shares to drive letters BEFORE blocklist check
+    # This prevents bypass via \\localhost\C$\Windows when C:\Windows is blocked
+    normalized = _convert_unc_admin_share_to_drive_letter(normalized)
+
     # Windows paths need case-insensitive comparison
     is_windows = _is_windows_absolute_path(normalized)
 
@@ -742,6 +794,10 @@ def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> No
     Raises:
         UnsafeOperationError: If path is not in allowlist
     """
+    # SECURITY: Convert UNC admin shares to drive letters for consistent checking
+    # This ensures \\localhost\C$\Users matches allowlist entry C:\Users
+    normalized = _convert_unc_admin_share_to_drive_letter(normalized)
+
     # Windows paths need case-insensitive comparison
     is_windows = _is_windows_absolute_path(normalized)
 
@@ -834,6 +890,12 @@ def _normalize_mount_path(path: str) -> str:
             # Windows device namespace: //./ or //./pipe/name → \\.\pipe\name
             if path.startswith("//./") or path.startswith("//?/"):
                 path = _convert_forward_slash_windows_prefix(path)
+            # Windows UNC admin share: //localhost/C$ or //127.0.0.1/C$
+            # Preserve these for later conversion to drive letters
+            elif re.match(r"^//[^/]+/[A-Za-z]\$", path):
+                # Keep UNC admin shares as-is with forward slashes
+                # Converted to drive letters by _convert_unc_admin_share_to_drive_letter()
+                pass
             else:
                 # All other //path forms are Unix duplicate slashes (POSIX-compliant)
                 # Examples: //etc/passwd, //var/run, //server/share
