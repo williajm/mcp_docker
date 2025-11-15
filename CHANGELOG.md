@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **CRITICAL P1: Fixed Unix path misclassification bypass**: Unix paths with duplicate slashes (e.g., `//etc/passwd`, `//var/run/docker.sock`) were incorrectly treated as Windows UNC paths, completely bypassing blocklist validation for sensitive directories. Now correctly normalized as `/etc/passwd` and `/var/run/docker.sock`.
+- **CRITICAL P1: Fixed Windows root drive overly broad blocking**: Windows root drives (`C:\`, `D:\`) in blocklist incorrectly blocked ALL subdirectories instead of just the root mount. Now `C:\` blocks `C:\` but permits `C:\Users`, matching Unix behavior where `/` blocks `/` but permits `/home`.
+- **CRITICAL P1: Fixed allowlist root path handling**: Root paths (`/`, `C:\`) in allowlist were unable to permit subdirectories due to incorrect exact-match-only logic. Now allowlist entries like `/` correctly permit `/home`, `/etc`, etc.
+- **CRITICAL P1: Fixed symlink resolution bypass**: Added symlink resolution to prevent attackers from bypassing blocklist checks using symbolic links (e.g., `/tmp/link → /etc`). Symlinks are now resolved for both mount paths and blocklist/allowlist entries.
+- **Fixed port validation whitespace bypass**: Added input stripping to port validation to prevent whitespace-based validation bypass attacks.
+
+### Changed
+- **Improved path validation maintainability**: Extracted helper functions to reduce cognitive complexity and improve code clarity:
+  - `_is_root_match_for_blocklist()`: Identifies root filesystems requiring exact-match-only behavior
+  - `_convert_forward_slash_windows_prefix()`: Normalizes Windows device/extended-length paths
+  - Module-level constants: `UNC_REQUIRED_COMPONENTS`, `SENSITIVE_CREDENTIAL_DIRECTORIES`
+
+### Testing
+- **Added 14 comprehensive unit tests** for P1 security fixes (0.14s runtime, no Docker required):
+  - 8 tests for duplicate slash normalization (Unix `//, Windows //./`, Windows `//?/`)
+  - 6 tests for root filesystem exact-match behavior (blocklist vs allowlist handling)
+- All 879 unit tests pass with improved security coverage
+
 ## [1.1.0] - 2025-11-14
 
 ### Added

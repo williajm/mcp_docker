@@ -244,3 +244,6 @@ volume_mount_validation_proposal.md
 # Manual testing guide (git-ignored for local notes)
 MANUAL_SSH_TESTING.md
 PYPI_SETUP.md
+
+.gemini/
+gha-creds-*.json

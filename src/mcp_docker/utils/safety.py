@@ -23,6 +23,16 @@ class OperationSafety(str, Enum):
 # Port security constants
 PRIVILEGED_PORT_BOUNDARY = 1024  # Ports below this require root privileges on Unix systems
 
+# Path validation constants
+UNC_REQUIRED_COMPONENTS = 2  # UNC paths require server + share components (e.g., \\server\share)
+SENSITIVE_CREDENTIAL_DIRECTORIES = [
+    ".ssh",  # SSH keys for passwordless authentication
+    ".gnupg",  # GPG keys for encryption and signing
+    ".aws",  # AWS credentials and configuration
+    ".kube",  # Kubernetes cluster credentials
+    ".docker",  # Docker registry credentials
+]
+
 # Set of operations that are considered destructive
 DESTRUCTIVE_OPERATIONS = {
     "docker_remove_container",
@@ -450,11 +460,12 @@ def _extract_windows_prefix(normalized: str, original_path: str) -> tuple[str, s
 
     if normalized.startswith("//"):
         # UNC path: //server/share (without trailing slash)
-        # UNC requires exactly 2 components (server + share), so magic number is acceptable
-        parts = normalized[2:].split("/", 2)
-        if len(parts) >= 2:  # noqa: PLR2004
+        parts = normalized[2:].split("/", UNC_REQUIRED_COMPONENTS)
+        if len(parts) >= UNC_REQUIRED_COMPONENTS:
             prefix = f"//{parts[0]}/{parts[1]}"
-            remaining = parts[2] if len(parts) > 2 else ""  # noqa: PLR2004
+            remaining = (
+                parts[UNC_REQUIRED_COMPONENTS] if len(parts) > UNC_REQUIRED_COMPONENTS else ""
+            )
             return prefix, remaining
         # Malformed UNC, return as-is
         return "", original_path.replace("\\", "/")
@@ -535,6 +546,27 @@ def _normalize_windows_path(path: str) -> str:
     return prefix.rstrip("/")
 
 
+def _is_root_match_for_blocklist(prefix_cmp: str, case_insensitive: bool) -> bool:
+    """Check if normalized prefix represents a root filesystem for exact-match-only behavior.
+
+    Root filesystems (/, C:, D:) require special handling in blocklists:
+    - "/" in blocklist blocks "/" but not "/home"
+    - "C:\\" in blocklist blocks "C:\\" but not "C:\\Users"
+
+    This prevents overly broad blocking while still protecting against root mounts.
+
+    Args:
+        prefix_cmp: Normalized prefix (forward slashes, casefolded if Windows)
+        case_insensitive: True if comparing Windows paths
+
+    Returns:
+        True if prefix is a root filesystem
+    """
+    is_unix_root = prefix_cmp == "/"
+    is_windows_root = case_insensitive and bool(re.match(r"^[a-z]:/?$", prefix_cmp))
+    return is_unix_root or is_windows_root
+
+
 def _path_starts_with(
     path: str,
     prefix: str,
@@ -581,11 +613,8 @@ def _path_starts_with(
     # This allows "/" in blocklist to block mounting "/" without blocking "/home", etc.
     # Same for Windows drive roots (C:\, D:\, etc.) - block only the root, not subdirs
     # For allowlists (exact_root_match_only=False), treat roots as normal prefixes
-    if exact_root_match_only:
-        is_unix_root = prefix_cmp == "/"
-        is_windows_root = case_insensitive and bool(re.match(r"^[a-z]:/?$", prefix_cmp))
-        if is_unix_root or is_windows_root:
-            return False
+    if exact_root_match_only and _is_root_match_for_blocklist(prefix_cmp, case_insensitive):
+        return False
 
     # If prefix ends with a separator, any path starting with it matches
     ends_with_sep = (
@@ -748,10 +777,9 @@ def _check_sensitive_directories(path: str, normalized: str) -> None:
     Raises:
         UnsafeOperationError: If path contains sensitive directories
     """
-    sensitive_dirs = [".ssh", ".gnupg", ".aws", ".kube", ".docker"]
     normalized_lower = normalized.lower().replace("\\", "/")
 
-    for sensitive in sensitive_dirs:
+    for sensitive in SENSITIVE_CREDENTIAL_DIRECTORIES:
         # Check for sensitive dir as path component (e.g., /home/user/.ssh or C:\Users\alice\.ssh)
         if f"/{sensitive}/" in normalized_lower or normalized_lower.endswith(f"/{sensitive}"):
             raise UnsafeOperationError(
