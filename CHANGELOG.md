@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2025-11-15
+
 ### Added
 - **Simple volume mount validation**: Prevent accidental mounting of sensitive Linux paths
   - **Named volume detection**: Docker-managed volumes always allowed (they're safe)
@@ -18,6 +20,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **YOLO mode**: `SAFETY_YOLO_MODE=true` bypasses all checks (for advanced users)
   - **Linux-focused**: Simple protection for common mistakes, not a security fortress
   - Configuration: `SAFETY_VOLUME_MOUNT_BLOCKLIST`, `SAFETY_VOLUME_MOUNT_ALLOWLIST`, `SAFETY_YOLO_MODE`
+- **Rate limiter max clients limit**: Prevent memory exhaustion DoS attacks
+  - New config: `SECURITY_RATE_LIMIT_MAX_CLIENTS` (default: 10, max: 100)
+  - Rejects new clients when limit reached with clear error message
+  - Existing clients unaffected at limit
+- **Audit log file permissions**: Restrictive permissions on audit logs
+  - Directory permissions: 0o700 (owner-only access)
+  - File permissions: 0o600 (owner-only read/write)
+  - Automatic permission fixing for existing directories
+
+### Security
+- **CRITICAL: Command injection via environment variables (H1)**: Prevent command injection in `docker_exec_command`
+  - Validates environment variables before passing to Docker
+  - Blocks dangerous characters: `$(`, `` ` ``, `;`, `&`, `|`, `\n`, `\r`
+  - Prevents exploits like `{"MALICIOUS": "$(cat /etc/passwd)"}`
+- **HIGH: Secret leakage in prompts (H2)**: Redact environment variable values in MCP prompts
+  - `generate_compose` prompt now redacts all env var values
+  - Shows keys but not values: `DATABASE_URL=<REDACTED>`
+  - Prevents credential leakage to remote LLM APIs (Claude, OpenAI, etc.)
+  - Protection is always enabled, cannot be disabled
+  - Documented in SECURITY.md
+- **HIGH: Rate limiter memory exhaustion DoS (H5)**: Prevent unbounded client tracking
+  - Added `max_clients` limit to rate limiter (default: 10, max: 100)
+  - Prevents attackers from exhausting memory with many fake client IDs
+  - Clear error message when limit reached
+- **LOW: Audit log file permissions (L2)**: Set restrictive permissions on audit logs
+  - Directory: 0o700 (was 0o755 - world-readable)
+  - File: 0o600 (was 0o644 - world-readable)
+  - Prevents information disclosure on multi-user systems
+
+### Fixed
+- **Documentation accuracy**: Fixed misleading OAuth claims in startup scripts
+  - `start-mcp-docker-httpstream.sh` and `start-mcp-docker-sse.sh` documentation
+  - Clarified that OAuth is disabled by default (set `SECURITY_OAUTH_ENABLED=false`)
+  - Accurately describe enabled features: TLS, rate limiting, audit logging
+
+### Tests
+- **20 new unit tests** for volume mount validation (all passing in 0.12s)
+- **3 new unit tests** for rate limiter max clients (all passing)
+- **8 new unit tests** for environment variable command injection protection
+- **6 new unit tests** for list-based command validation coverage
+- **3 new unit tests** for audit log file permissions
+- **1 new unit test** for prompt secret redaction
+- Total: **41 new tests**, all fast unit tests
 
 ## [1.1.0] - 2025-11-14
 
