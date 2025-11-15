@@ -412,9 +412,9 @@ def _is_named_volume(path: str) -> bool:
 def _is_windows_absolute_path(path: str) -> bool:
     r"""Check if path is a Windows absolute path.
 
-    SECURITY: Windows UNC paths MUST use backslashes (\\server\share).
-    Paths with forward slashes like //server/share are treated as Unix paths
-    and normalized to /server/share to prevent blocklist bypass via //etc/passwd.
+    Note: This function checks the path format after normalization by
+    _normalize_mount_path(), which converts forward-slash Windows paths
+    (like C:/Windows or //./pipe/docker_engine) to backslash equivalents.
 
     Args:
         path: Path to check
@@ -425,8 +425,7 @@ def _is_windows_absolute_path(path: str) -> bool:
     # Check for:
     # - Drive letter with separator: C:\, C:/
     # - Normalized drive root (no separator): C:, D:
-    # - UNC paths with backslashes: \\server\share (backslashes required for security)
-    # - Forward-slash UNC checked for compatibility but normalized away in _normalize_mount_path
+    # - UNC paths: \\server\share or //server/share
     return bool(
         re.match(r"^[A-Za-z]:([/\\]|$)", path) or path.startswith("\\\\") or path.startswith("//")
     )
@@ -761,9 +760,8 @@ def _check_sensitive_directories(path: str, normalized: str) -> None:
 def _normalize_mount_path(path: str) -> str:
     """Normalize a mount path using appropriate normalization for the path type.
 
-    SECURITY: Normalizes Unix-style leading slashes BEFORE Windows detection to
-    prevent blocklist bypass. On Linux, //etc/passwd resolves to /etc/passwd, so
-    duplicate leading slashes must be collapsed before checking blocklists.
+    SECURITY: Handles both Unix path collapse and Windows forward-slash normalization
+    to prevent blocklist bypass via alternative path separators.
 
     Args:
         path: Path to normalize
@@ -775,14 +773,32 @@ def _normalize_mount_path(path: str) -> str:
         ValidationError: If path format is invalid
     """
     try:
-        # SECURITY: Collapse duplicate leading forward slashes on Unix-style paths
-        # before Windows UNC detection. On Unix, //path is the same as /path.
-        # This prevents bypass via //etc/passwd or //var/run/docker.sock.
-        # Windows UNC paths MUST use backslashes (\\server\share), not forward slashes.
-        if path.startswith("//") and not path.startswith("\\"):
-            # Multiple leading forward slashes -> single slash
-            # Preserve the rest of the path exactly
-            path = "/" + path.lstrip("/")
+        # SECURITY: Windows accepts forward slashes as path separators, so we must
+        # normalize Windows-style paths with forward slashes BEFORE the Unix collapse.
+        # Otherwise paths like //./pipe/docker_engine bypass the blocklist.
+
+        # Check for Windows device/UNC paths with forward slashes and convert to backslashes:
+        # - //./device → \\.\device (Windows device namespace)
+        # - //?/path → \\?\path (Windows extended-length path prefix)
+        # - //server/share → \\server\share (Windows UNC path)
+        if path.startswith("//"):
+            # Check for Windows device namespace: //./
+            if path.startswith("//.") or path.startswith("//?"):
+                path = path.replace("/", "\\", 1)  # Replace first / with \
+                path = path.replace("/", "\\", 1)  # Replace second / with \
+                # Now it's \\?\ - continue with normal Windows processing
+            # Check for potential UNC path: //server/share (at least 2 components)
+            elif "/" in path[2:]:  # Has at least one more slash after //
+                # This looks like a UNC path - convert all forward slashes to backslashes
+                path = path.replace("/", "\\")
+            else:
+                # Unix-style duplicate slashes: //path → /path
+                # On Linux/Unix, //path is the same as /path
+                path = "/" + path.lstrip("/")
+        # Check for Windows drive paths with forward slashes: C:/Windows → C:\Windows
+        elif re.match(r"^[A-Za-z]:/", path):
+            # Windows drive letter with forward slashes - convert to backslashes
+            path = path.replace("/", "\\")
 
         if _is_windows_absolute_path(path):
             return _normalize_windows_path(path)
