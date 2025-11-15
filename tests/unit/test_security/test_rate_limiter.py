@@ -278,38 +278,48 @@ class TestRateLimiter:
 
     @pytest.mark.asyncio
     async def test_client_cleanup_when_idle(self) -> None:
-        """Test that client is cleaned up when concurrent requests reach zero."""
+        """Test that idle clients don't count toward max_clients limit.
+
+        NOTE: We no longer cleanup semaphores when count reaches 0.
+        Instead, we only count ACTIVE clients (count > 0) toward max_clients limit.
+        """
         limiter = RateLimiter(enabled=True, max_clients=10)
 
         # Acquire and release a slot
         await limiter.acquire_concurrent_slot("client1")
         assert "client1" in limiter._semaphores
         assert "client1" in limiter._concurrent_requests
+        assert limiter._concurrent_requests["client1"] == 1
 
         limiter.release_concurrent_slot("client1")
 
-        # Client should be cleaned up (removed from tracking)
-        assert "client1" not in limiter._semaphores
-        assert "client1" not in limiter._concurrent_requests
+        # Semaphore and counter still exist but count is 0 (idle)
+        assert "client1" in limiter._semaphores
+        assert "client1" in limiter._concurrent_requests
+        assert limiter._concurrent_requests["client1"] == 0
 
     @pytest.mark.asyncio
     async def test_new_clients_allowed_after_cleanup(self) -> None:
-        """Test that new clients can connect after old clients are cleaned up."""
+        """Test that new clients can connect after old clients become idle.
+
+        NOTE: We count only ACTIVE clients (count > 0) toward max_clients.
+        Idle clients (count == 0) don't prevent new clients from connecting.
+        """
         limiter = RateLimiter(enabled=True, max_clients=2)
 
-        # Fill to max clients
+        # Fill to max ACTIVE clients
         await limiter.acquire_concurrent_slot("client1")
         await limiter.acquire_concurrent_slot("client2")
 
-        # New client should be rejected (at max)
-        with pytest.raises(RateLimitExceededError, match="Maximum concurrent clients"):
+        # New client should be rejected (at max ACTIVE clients)
+        with pytest.raises(RateLimitExceededError, match="Maximum.*clients"):
             await limiter.acquire_concurrent_slot("client3")
 
-        # Release all slots (cleanup should happen)
+        # Release all slots - clients become idle (count == 0)
         limiter.release_concurrent_slot("client1")
         limiter.release_concurrent_slot("client2")
 
-        # Now new clients should be able to connect (no permanent DoS)
+        # Now new clients should be able to connect (idle clients don't count)
         await limiter.acquire_concurrent_slot("client3")
         await limiter.acquire_concurrent_slot("client4")
 
@@ -319,7 +329,10 @@ class TestRateLimiter:
 
     @pytest.mark.asyncio
     async def test_partial_cleanup_with_multiple_slots(self) -> None:
-        """Test that cleanup only happens when ALL concurrent requests are released."""
+        """Test that counter decrements properly with multiple concurrent requests.
+
+        NOTE: We no longer cleanup semaphores. Counter stays at 0 after all releases.
+        """
         limiter = RateLimiter(enabled=True, max_clients=10, max_concurrent_per_client=3)
 
         # Acquire 3 slots for same client
@@ -329,17 +342,18 @@ class TestRateLimiter:
 
         assert limiter._concurrent_requests["client1"] == 3
 
-        # Release 1 slot - should NOT cleanup yet
+        # Release 1 slot - counter should decrement
         limiter.release_concurrent_slot("client1")
         assert "client1" in limiter._semaphores
         assert limiter._concurrent_requests["client1"] == 2
 
-        # Release 2nd slot - should NOT cleanup yet
+        # Release 2nd slot - counter should decrement
         limiter.release_concurrent_slot("client1")
         assert "client1" in limiter._semaphores
         assert limiter._concurrent_requests["client1"] == 1
 
-        # Release final slot - should cleanup now
+        # Release final slot - counter reaches 0 but semaphore remains (idle)
         limiter.release_concurrent_slot("client1")
-        assert "client1" not in limiter._semaphores
-        assert "client1" not in limiter._concurrent_requests
+        assert "client1" in limiter._semaphores
+        assert "client1" in limiter._concurrent_requests
+        assert limiter._concurrent_requests["client1"] == 0

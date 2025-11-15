@@ -116,10 +116,13 @@ class RateLimiter:
 
         # Get or create semaphore for this client (stdlib asyncio.Semaphore)
         if client_id not in self._semaphores:
-            # SECURITY: Prevent memory exhaustion via unbounded client tracking
-            if len(self._semaphores) >= self.max_clients:
+            # SECURITY: Prevent memory exhaustion by limiting ACTIVE clients
+            # Count only clients with active concurrent requests (count > 0)
+            # Idle clients (count == 0) don't count toward the limit, preventing permanent DoS
+            active_clients = sum(1 for count in self._concurrent_requests.values() if count > 0)
+            if active_clients >= self.max_clients:
                 logger.warning(
-                    f"Maximum clients limit reached: {self.max_clients}. "
+                    f"Maximum active clients limit reached: {self.max_clients}. "
                     f"Rejecting new client: {client_id}"
                 )
                 raise RateLimitExceeded(
@@ -141,6 +144,7 @@ class RateLimiter:
                 f"Concurrent request limit exceeded: {self.max_concurrent}"
             ) from None
 
+        # Increment counter
         self._concurrent_requests[client_id] += 1
         logger.debug(
             f"Client {client_id} concurrent requests: "
@@ -156,22 +160,20 @@ class RateLimiter:
         if not self.enabled:
             return
 
+        # Release semaphore slot
         if client_id in self._semaphores:
             semaphore = self._semaphores[client_id]
             semaphore.release()
-            self._concurrent_requests[client_id] -= 1
 
-            logger.debug(
-                f"Client {client_id} concurrent requests: "
-                f"{self._concurrent_requests[client_id]}/{self.max_concurrent}"
-            )
-
-            # CLEANUP: Remove semaphore when no concurrent requests remain
-            # This prevents permanent DoS after max_clients unique clients have connected
-            if self._concurrent_requests[client_id] == 0:
-                del self._semaphores[client_id]
-                del self._concurrent_requests[client_id]
-                logger.debug(f"Cleaned up idle client: {client_id}")
+            # Decrement counter
+            if client_id in self._concurrent_requests and self._concurrent_requests[client_id] > 0:
+                self._concurrent_requests[client_id] -= 1
+                logger.debug(
+                    f"Client {client_id} concurrent requests: "
+                    f"{self._concurrent_requests[client_id]}/{self.max_concurrent}"
+                )
+            else:
+                logger.debug(f"Client {client_id} counter already at 0")
 
     def get_client_stats(self, client_id: str) -> dict[str, Any]:
         """Get rate limit statistics for a client.
