@@ -1,0 +1,25 @@
+# Bandit security linter configuration
+# https://bandit.readthedocs.io/
+
+# Paths to exclude from scanning
+exclude_dirs:
+  - '/tests/'
+  - '/.venv/'
+  - '/build/'
+  - '/dist/'
+
+# Tests to skip (use test IDs from bandit -l)
+# B101: assert_used - we use asserts in tests, which is fine
+# B601: paramiko_calls - not applicable, we don't use paramiko
+# B602: subprocess_popen_with_shell_equals_true - subprocess calls validated separately
+skips:
+  - B101
+
+# Severity level to report (LOW, MEDIUM, HIGH)
+# Only report MEDIUM and HIGH severity issues
+# Target specific tests for security-critical code:
+# - B201: flask_debug_true
+# - B301-B324: Pickle, marshal, shelve, etc. (deserialization vulnerabilities)
+# - B401-B411: Import checks for insecure modules
+# - B501-B509: Weak cryptography
+# - B601-B612: Shell injection, SQL injection, etc.

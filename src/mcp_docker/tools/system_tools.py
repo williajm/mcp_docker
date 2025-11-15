@@ -528,7 +528,7 @@ class EventsTool(BaseTool):
                     if i >= MAX_DOCKER_EVENTS:
                         break
                     events.append(event)
-            except Exception:
+            except Exception:  # nosec B110 - Intentionally stop collection on any error
                 # Stop collecting if any error occurs
                 pass
 

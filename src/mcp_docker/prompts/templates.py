@@ -611,7 +611,7 @@ class DebugNetworkingPrompt(BasePromptHelper):
             for container_port, host_bindings in ports.items():
                 if host_bindings:
                     for binding in host_bindings:
-                        host_ip = binding.get("HostIp", "0.0.0.0")
+                        host_ip = binding.get("HostIp", "0.0.0.0")  # nosec B104 - Docker API default
                         host_port = binding.get("HostPort", "N/A")
                         port_info.append(f"  - {host_ip}:{host_port} -> {container_port}")
                 else:
@@ -838,7 +838,7 @@ class SecurityAuditPrompt(BasePromptHelper):
         for port, bindings in ports.items():
             if bindings:
                 for binding in bindings:
-                    host_ip = binding.get("HostIp", "0.0.0.0")
+                    host_ip = binding.get("HostIp", "0.0.0.0")  # nosec B104 - Docker API default
                     host_port = binding.get("HostPort")
                     exposed_ports.append(f"{host_ip}:{host_port} -> {port}")
         return exposed_ports

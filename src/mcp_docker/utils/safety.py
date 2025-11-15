@@ -854,11 +854,26 @@ def validate_mount_path(
 ) -> None:
     r"""Validate that a mount path is safe.
 
+    Implements volume mount security controls aligned with:
+    - CIS Docker Benchmark v1.7.0 Section 5.5: Ensure sensitive host system
+      directories are not mounted on containers
+      https://www.cisecurity.org/benchmark/docker
+    - OWASP Docker Security Cheat Sheet: Volume mount best practices
+      https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html
+
     Validates bind mount paths against security policies:
     - Blocklist: Prevents mounting dangerous paths (e.g., /var/run/docker.sock, /, /etc)
     - Allowlist: If set, only allows paths starting with specified prefixes
     - Windows support: Recognizes Windows absolute paths (C:\, D:\, etc.)
     - Symlink resolution: Follows symlinks to prevent bypass attacks
+    - Path normalization: Prevents traversal attacks (../../etc/passwd)
+
+    Security controls:
+    1. Blocks sensitive system directories (/, /etc, /proc, /sys, /dev, /boot)
+    2. Blocks Docker/containerd runtime directories (container escape prevention)
+    3. Blocks credential directories (.ssh, .aws, .kube, .gnupg, .docker)
+    4. Resolves symlinks to prevent bypassing blocklist via symbolic links
+    5. Normalizes paths to prevent traversal attacks on both Unix and Windows
 
     Docker named volumes (simple names like "my-volume") are allowed
     as they don't expose the host filesystem.

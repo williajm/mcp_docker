@@ -283,10 +283,16 @@ jobs:
       continue-on-error: true
 
     - name: Run bandit security linter
-      run: |
-        uv pip install bandit
-        uv run bandit -r src/ -f json || true
-      continue-on-error: true
+      run: uv run bandit -c .bandit -r src/ -f json -o bandit-report.json
+      continue-on-error: false
+
+    - name: Upload Bandit results
+      uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+      if: always()
+      with:
+        name: bandit-security-report
+        path: bandit-report.json
+        retention-days: 30
 
   build:
     name: Build Package

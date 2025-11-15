@@ -89,7 +89,7 @@ MESSAGES_PATH = "/messages"
 # Network binding constants
 # Used for host validation and security middleware configuration
 LOCALHOST_VARIANTS = frozenset(["127.0.0.1", "localhost", "::1"])
-WILDCARD_BINDS = frozenset(["0.0.0.0", "::"])
+WILDCARD_BINDS = frozenset(["0.0.0.0", "::"])  # nosec B104 - Used for validation, not binding
 
 # Context variables for SSE transport
 client_ip_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(

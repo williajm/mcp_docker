@@ -58,6 +58,12 @@ repos:
         language: system
         pass_filenames: false
         stages: [push]
+      - id: bandit-security-check
+        name: Run Bandit security linter
+        entry: bash -c 'echo "Running Bandit security checks..." && uv run bandit -c .bandit -r src/'
+        language: system
+        pass_filenames: false
+        stages: [push]
       - id: pytest-unit
         name: Run unit tests before push
         entry: bash -c 'echo "Running unit tests..." && uv run pytest tests/unit/ -q'

@@ -209,23 +209,26 @@ class SafetyConfig(BaseSettings):
     )
 
     # Volume mount security
+    # Based on CIS Docker Benchmark v1.7.0 Section 5: Container Runtime
+    # https://www.cisecurity.org/benchmark/docker
     volume_mount_blocklist: list[str] = Field(
         default=[
-            "/var/run/docker.sock",  # Container escape - root access to host
-            "/",  # Root filesystem - full host access
-            "/etc",  # System configs & credentials
-            "/root",  # Root user home directory (includes /root/.ssh)
-            "/proc",  # Process information - kernel parameters, capabilities
-            "/sys",  # System devices - kernel settings, hardware access
-            "/dev",  # Device files - raw disk access
-            "/boot",  # Boot files - kernel, initrd
-            "/run",  # Runtime data - Docker socket, systemd
-            "/var/lib/docker",  # Docker internal data - images, containers
-            "/var/lib/containerd",  # Containerd runtime data - images, containers
-            "/run/containerd",  # Containerd runtime socket and state
-            "/var/lib/kubelet",  # Kubernetes kubelet data
-            r"\\.\pipe\docker_engine",  # Windows Docker named pipe
-            # Windows drive root filesystems - equivalent to / on Linux
+            # CIS 5.5: Ensure sensitive host system directories are not mounted
+            "/var/run/docker.sock",  # Container escape - root access to host (CIS 5.5)
+            "/",  # Root filesystem - full host access (CIS 5.5)
+            "/etc",  # System configs & credentials (CIS 5.5)
+            "/root",  # Root user home directory (includes /root/.ssh) (CIS 5.5)
+            "/proc",  # Process information - kernel parameters, capabilities (CIS 5.5)
+            "/sys",  # System devices - kernel settings, hardware access (CIS 5.5)
+            "/dev",  # Device files - raw disk access (CIS 5.5)
+            "/boot",  # Boot files - kernel, initrd (CIS 5.5)
+            "/run",  # Runtime data - Docker socket, systemd (CIS 5.5)
+            "/var/lib/docker",  # Docker internal data - images, containers (CIS 5.5)
+            "/var/lib/containerd",  # Containerd runtime data - images, containers (CIS 5.5)
+            "/run/containerd",  # Containerd runtime socket and state (CIS 5.5)
+            "/var/lib/kubelet",  # Kubernetes kubelet data (CIS 5.5)
+            r"\\.\pipe\docker_engine",  # Windows Docker named pipe (CIS 5.5 equivalent)
+            # Windows drive root filesystems - equivalent to / on Linux (CIS 5.5)
             "C:\\",
             "D:\\",
             "E:\\",
