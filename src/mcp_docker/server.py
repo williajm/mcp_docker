@@ -156,6 +156,10 @@ class MCPDockerServer:
             - (True, None) if tool is allowed
             - (False, "reason") if tool is denied
         """
+        # YOLO mode bypasses ALL tool filtering
+        if self.config.safety.yolo_mode:
+            return True, None
+
         # Deny list takes precedence
         if self.config.safety.denied_tools and tool_name in self.config.safety.denied_tools:
             return False, f"Tool denied by configuration: {tool_name}"

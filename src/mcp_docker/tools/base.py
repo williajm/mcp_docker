@@ -173,6 +173,10 @@ class BaseTool(ABC):
             PermissionError: If operation is not allowed
 
         """
+        # YOLO mode bypasses ALL safety checks
+        if self.safety.yolo_mode:
+            return
+
         if (
             self.safety_level == OperationSafety.MODERATE
             and not self.safety.allow_moderate_operations

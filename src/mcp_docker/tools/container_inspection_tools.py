@@ -511,10 +511,10 @@ class ExecCommandTool(BaseTool):
         """
         try:
             # Validate command - SECURITY: Check for dangerous patterns in ALL formats
-            validate_command_safety(input_data.command)
+            validate_command_safety(input_data.command, yolo_mode=self.safety.yolo_mode)
 
             # Validate command structure and enforce length limits for ALL types
-            validate_command(input_data.command)
+            validate_command(input_data.command, yolo_mode=self.safety.yolo_mode)
 
             logger.info(
                 f"Executing command in container: {input_data.container_id}, "

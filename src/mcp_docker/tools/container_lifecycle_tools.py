@@ -175,7 +175,7 @@ class CreateContainerTool(BaseTool):
         if input_data.name:
             validate_container_name(input_data.name)
         if input_data.command:
-            validate_command(input_data.command)
+            validate_command(input_data.command, yolo_mode=self.safety.yolo_mode)
         if input_data.mem_limit:
             validate_memory(input_data.mem_limit)
         if input_data.ports:

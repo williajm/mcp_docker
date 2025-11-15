@@ -322,16 +322,24 @@ def sanitize_command(command: str | list[str]) -> list[str]:
     return cmd_list
 
 
-def validate_command_safety(command: str | list[str]) -> None:
+def validate_command_safety(
+    command: str | list[str],
+    yolo_mode: bool = False,
+) -> None:
     """Validate command for dangerous patterns without sanitizing.
 
     Args:
         command: Command string or list to validate
+        yolo_mode: If True, skip all safety checks (EXTREMELY DANGEROUS!)
 
     Raises:
         UnsafeOperationError: If command contains dangerous patterns
 
     """
+    # YOLO mode bypasses all safety checks
+    if yolo_mode:
+        return
+
     command_str = " ".join(command) if isinstance(command, list) else command
 
     for pattern in DANGEROUS_COMMAND_PATTERNS:

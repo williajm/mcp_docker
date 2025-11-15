@@ -225,11 +225,12 @@ def sanitize_command(command: str | list[str]) -> list[str]:
     return [validated] if isinstance(validated, str) else validated
 
 
-def validate_command(command: str | list[str]) -> str | list[str]:
+def validate_command(command: str | list[str], yolo_mode: bool = False) -> str | list[str]:
     """Validate command for Docker execution with security checks.
 
     Args:
         command: Command string or list
+        yolo_mode: If True, skip security checks (EXTREMELY DANGEROUS!)
 
     Returns:
         Validated command (same type as input)
@@ -252,6 +253,10 @@ def validate_command(command: str | list[str]) -> str | list[str]:
             )
 
     validated = _validate_command_structure(command)
+
+    # YOLO mode bypasses security checks
+    if yolo_mode:
+        return validated
 
     # Additional security checks for string commands
     if isinstance(validated, str):
