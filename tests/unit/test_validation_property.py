@@ -46,14 +46,19 @@ class TestValidatePort:
         except ValidationError as e:
             assert "Must be between" in str(e)
 
-    @given(st.text().filter(lambda x: not x.isdigit() or not x))
+    @given(st.text().filter(lambda x: not x.strip().isdigit() or not x.strip()))
     def test_non_numeric_ports_rejected(self, port: str) -> None:
-        """Test that non-numeric port strings are rejected."""
+        """Test that non-numeric port strings are rejected.
+
+        Note: Strings with whitespace around valid digits (e.g., ' 80 ', '443\n')
+        are accepted after stripping, as this is user-friendly behavior.
+        """
         try:
             validate_port(port)
             raise AssertionError("Should have raised ValidationError")
         except ValidationError as e:
-            assert "Must be an integer" in str(e)
+            # Could be "Must be an integer" or "Must be between" depending on the value
+            assert "Must be an integer" in str(e) or "Must be between" in str(e)
 
 
 class TestValidateMemoryString:

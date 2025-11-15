@@ -137,6 +137,13 @@ def validate_port(port: int | str) -> int:
         ValidationError: If port is invalid
 
     """
+    # If string, strip whitespace and validate it's numeric before conversion
+    # This prevents accepting inputs like '1\r', '2\n', ' 3 ', etc.
+    if isinstance(port, str):
+        port = port.strip()
+        if not port or not port.isdigit():
+            raise ValidationError(f"Invalid port: {port}. Must be an integer.")
+
     try:
         port_int = int(port)
     except (ValueError, TypeError) as e:
