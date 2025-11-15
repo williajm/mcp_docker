@@ -14,7 +14,11 @@ from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
-from mcp_docker.utils.safety import OperationSafety, validate_mount_path
+from mcp_docker.utils.safety import (
+    OperationSafety,
+    validate_environment_variable,
+    validate_mount_path,
+)
 from mcp_docker.utils.validation import (
     validate_command,
     validate_container_name,
@@ -195,6 +199,11 @@ class CreateContainerTool(BaseTool):
                     allowed_paths=allowlist,
                     yolo_mode=self.safety.yolo_mode,
                 )
+        if input_data.environment:
+            # After field validation, environment is always a dict or None (never str)
+            assert isinstance(input_data.environment, dict)
+            for key, value in input_data.environment.items():
+                validate_environment_variable(key, value)
 
     def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
         """Prepare kwargs dictionary for container creation.
