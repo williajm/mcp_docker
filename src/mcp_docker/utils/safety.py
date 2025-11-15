@@ -3,6 +3,7 @@
 import os
 import re
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
@@ -670,7 +671,7 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
 
     Args:
         path: Original path (for error messages)
-        normalized: Normalized path to check
+        normalized: Normalized and symlink-resolved path to check
         blocked_paths: List of blocked path prefixes
 
     Raises:
@@ -680,19 +681,20 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
     is_windows = _is_windows_absolute_path(normalized)
 
     for blocked in blocked_paths:
-        # SECURITY: Normalize blocklist entries to prevent bypass via path traversal
-        # Windows paths must use Windows-aware normalization even on Linux hosts
+        # SECURITY: Normalize and resolve symlinks in blocklist entries
+        # This prevents bypass when /var/run -> /run and blocklist has /var/run/docker.sock
         normalized_blocked = _normalize_blocklist_entry(blocked)
+        resolved_blocked = _resolve_symlinks(normalized_blocked)
 
         if _path_starts_with(
-            normalized, normalized_blocked, case_insensitive=is_windows, exact_root_match_only=True
+            normalized, resolved_blocked, case_insensitive=is_windows, exact_root_match_only=True
         ):
             # Use casefold for comparison if Windows
             normalized_cmp = normalized.casefold() if is_windows else normalized
-            blocked_cmp = normalized_blocked.casefold() if is_windows else normalized_blocked
+            blocked_cmp = resolved_blocked.casefold() if is_windows else resolved_blocked
 
             # Check if this is a root filesystem and exact match
-            is_root = _is_root_filesystem(normalized_blocked, is_windows)
+            is_root = _is_root_filesystem(resolved_blocked, is_windows)
             if is_root and normalized_cmp == blocked_cmp:
                 _raise_root_filesystem_error(path, blocked)
 
@@ -705,7 +707,7 @@ def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> No
 
     Args:
         path: Original path (for error messages)
-        normalized: Normalized path to check
+        normalized: Normalized and symlink-resolved path to check
         allowed_paths: List of allowed path prefixes
 
     Raises:
@@ -714,14 +716,16 @@ def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> No
     # Windows paths need case-insensitive comparison
     is_windows = _is_windows_absolute_path(normalized)
 
-    # SECURITY: Normalize allowlist entries to prevent bypass via path traversal
-    # Windows paths must use Windows-aware normalization even on Linux hosts
+    # SECURITY: Normalize and resolve symlinks in allowlist entries
+    # This ensures consistent symlink handling between mount path and allowlist
     normalized_allowed = []
     for allowed in allowed_paths:
         if _is_windows_absolute_path(allowed):
-            normalized_allowed.append(_normalize_windows_path(allowed))
+            norm = _normalize_windows_path(allowed)
         else:
-            normalized_allowed.append(os.path.normpath(allowed))
+            norm = os.path.normpath(allowed)
+        resolved = _resolve_symlinks(norm)
+        normalized_allowed.append(resolved)
 
     # Note: exact_root_match_only=False (default) for allowlists
     # This allows "/" or "C:\" in allowlist to permit entire filesystems
@@ -807,6 +811,41 @@ def _normalize_mount_path(path: str) -> str:
         raise ValidationError(f"Invalid path format: {path}") from e
 
 
+def _resolve_symlinks(path: str) -> str:
+    """Resolve symlinks in a path to get the real target path.
+
+    SECURITY: Prevents symlink bypass attacks where an attacker creates a symlink
+    pointing to a blocked path (e.g., /safe/link -> /etc/passwd) and mounts it.
+    Without resolution, the symlink path passes validation but Docker mounts the
+    real target, bypassing blocklist checks.
+
+    Args:
+        path: Normalized path to resolve
+
+    Returns:
+        Resolved path with symlinks followed, or original path if resolution fails
+
+    Note:
+        - Only resolves if path exists (Docker creates non-existent mount paths)
+        - Returns original path on errors (permission denied, broken symlinks, etc.)
+        - Preserves path format (Windows paths stay Windows, Unix stay Unix)
+    """
+    try:
+        path_obj = Path(path)
+        # Only resolve if path exists - Docker can mount non-existent paths
+        # and will create them, so we shouldn't block them
+        if path_obj.exists():
+            # resolve() follows all symlinks and returns absolute path
+            resolved = path_obj.resolve(strict=True)
+            return str(resolved)
+        # Path doesn't exist - return normalized path unchanged
+        return path
+    except (OSError, RuntimeError, ValueError):
+        # Permission denied, broken symlink, infinite loop, etc.
+        # Return original path - better to validate the literal path than fail
+        return path
+
+
 def validate_mount_path(
     path: str,
     allowed_paths: list[str] | None = None,
@@ -819,6 +858,7 @@ def validate_mount_path(
     - Blocklist: Prevents mounting dangerous paths (e.g., /var/run/docker.sock, /, /etc)
     - Allowlist: If set, only allows paths starting with specified prefixes
     - Windows support: Recognizes Windows absolute paths (C:\, D:\, etc.)
+    - Symlink resolution: Follows symlinks to prevent bypass attacks
 
     Docker named volumes (simple names like "my-volume") are allowed
     as they don't expose the host filesystem.
@@ -870,17 +910,22 @@ def validate_mount_path(
     # stays as C:\safe\..\Windows, bypassing blocklist checks).
     normalized = _normalize_mount_path(path)
 
+    # SECURITY: Resolve symlinks to prevent bypass attacks
+    # An attacker could create /safe/link -> /etc/passwd and mount it,
+    # bypassing blocklist checks. Resolution ensures we validate the real target.
+    resolved = _resolve_symlinks(normalized)
+
     # Check for sensitive directories anywhere in path (substring check)
     # These contain credentials/keys and should never be mounted
-    _check_sensitive_directories(path, normalized)
+    _check_sensitive_directories(path, resolved)
 
     # Check blocklist (if provided)
     if blocked_paths is not None:
-        _check_blocklist(path, normalized, blocked_paths)
+        _check_blocklist(path, resolved, blocked_paths)
 
     # Check allowlist (if provided)
     if allowed_paths is not None:
-        _check_allowlist(path, normalized, allowed_paths)
+        _check_allowlist(path, resolved, allowed_paths)
 
 
 def validate_port_binding(
