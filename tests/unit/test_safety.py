@@ -473,6 +473,34 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="system directory"):
             validate_mount_path("/root/.ssh/id_rsa")
 
+    def test_validate_mount_path_blocks_windows_system_subdirectories(self) -> None:
+        """Test that Windows system subdirectories are blocked (not just root directories).
+
+        This is a security-critical test that verifies the os.sep fix for Windows paths.
+        Previously, only exact matches were blocked due to hardcoded '/' separator.
+        """
+        # Test Windows system subdirectories are blocked
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("C:\\Windows\\System32")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("C:\\Windows\\System32\\drivers")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("C:\\Program Files\\Docker")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("C:\\Program Files\\Common Files")
+
+    def test_validate_mount_path_blocks_windows_root_directories(self) -> None:
+        """Test that Windows root system directories are blocked."""
+        # Test exact Windows root directories are blocked
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("C:\\Windows")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("C:\\Program Files")
+
 
 class TestPortBindingValidation:
     """Test port binding validation."""

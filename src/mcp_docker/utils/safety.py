@@ -397,7 +397,12 @@ def _check_docker_socket(path: str, normalized_path: str) -> None:
         "\\\\.\\pipe\\docker_engine",  # Windows (escaped)
     ]
     for socket_path in docker_sockets:
-        if normalized_path == socket_path or normalized_path.startswith(socket_path + "/"):
+        # Check for both forward slash and backslash to handle cross-platform paths
+        if (
+            normalized_path == socket_path
+            or normalized_path.startswith(socket_path + "/")
+            or normalized_path.startswith(socket_path + "\\")
+        ):
             raise UnsafeOperationError(
                 f"Mount path '{path}' is not allowed. "
                 f"Mounting Docker socket '{socket_path}' is not allowed. "
@@ -433,8 +438,11 @@ def _check_dangerous_directories(path: str, normalized_path: str) -> None:
     ]
 
     for dangerous_prefix in dangerous_prefixes:
+        # Check for both forward slash and backslash to handle cross-platform paths
+        # (e.g., validating Windows paths on Linux or vice versa)
         is_dangerous = (
             normalized_path.startswith(dangerous_prefix + "/")
+            or normalized_path.startswith(dangerous_prefix + "\\")
             or normalized_path == dangerous_prefix
         )
         if is_dangerous:
