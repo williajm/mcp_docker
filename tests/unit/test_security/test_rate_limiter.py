@@ -275,3 +275,71 @@ class TestRateLimiter:
         limiter.release_concurrent_slot("client1")
         limiter.release_concurrent_slot("client1")
         limiter.release_concurrent_slot("client2")
+
+    @pytest.mark.asyncio
+    async def test_client_cleanup_when_idle(self) -> None:
+        """Test that client is cleaned up when concurrent requests reach zero."""
+        limiter = RateLimiter(enabled=True, max_clients=10)
+
+        # Acquire and release a slot
+        await limiter.acquire_concurrent_slot("client1")
+        assert "client1" in limiter._semaphores
+        assert "client1" in limiter._concurrent_requests
+
+        limiter.release_concurrent_slot("client1")
+
+        # Client should be cleaned up (removed from tracking)
+        assert "client1" not in limiter._semaphores
+        assert "client1" not in limiter._concurrent_requests
+
+    @pytest.mark.asyncio
+    async def test_new_clients_allowed_after_cleanup(self) -> None:
+        """Test that new clients can connect after old clients are cleaned up."""
+        limiter = RateLimiter(enabled=True, max_clients=2)
+
+        # Fill to max clients
+        await limiter.acquire_concurrent_slot("client1")
+        await limiter.acquire_concurrent_slot("client2")
+
+        # New client should be rejected (at max)
+        with pytest.raises(RateLimitExceededError, match="Maximum concurrent clients"):
+            await limiter.acquire_concurrent_slot("client3")
+
+        # Release all slots (cleanup should happen)
+        limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client2")
+
+        # Now new clients should be able to connect (no permanent DoS)
+        await limiter.acquire_concurrent_slot("client3")
+        await limiter.acquire_concurrent_slot("client4")
+
+        # Cleanup
+        limiter.release_concurrent_slot("client3")
+        limiter.release_concurrent_slot("client4")
+
+    @pytest.mark.asyncio
+    async def test_partial_cleanup_with_multiple_slots(self) -> None:
+        """Test that cleanup only happens when ALL concurrent requests are released."""
+        limiter = RateLimiter(enabled=True, max_clients=10, max_concurrent_per_client=3)
+
+        # Acquire 3 slots for same client
+        await limiter.acquire_concurrent_slot("client1")
+        await limiter.acquire_concurrent_slot("client1")
+        await limiter.acquire_concurrent_slot("client1")
+
+        assert limiter._concurrent_requests["client1"] == 3
+
+        # Release 1 slot - should NOT cleanup yet
+        limiter.release_concurrent_slot("client1")
+        assert "client1" in limiter._semaphores
+        assert limiter._concurrent_requests["client1"] == 2
+
+        # Release 2nd slot - should NOT cleanup yet
+        limiter.release_concurrent_slot("client1")
+        assert "client1" in limiter._semaphores
+        assert limiter._concurrent_requests["client1"] == 1
+
+        # Release final slot - should cleanup now
+        limiter.release_concurrent_slot("client1")
+        assert "client1" not in limiter._semaphores
+        assert "client1" not in limiter._concurrent_requests

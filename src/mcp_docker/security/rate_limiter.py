@@ -166,6 +166,13 @@ class RateLimiter:
                 f"{self._concurrent_requests[client_id]}/{self.max_concurrent}"
             )
 
+            # CLEANUP: Remove semaphore when no concurrent requests remain
+            # This prevents permanent DoS after max_clients unique clients have connected
+            if self._concurrent_requests[client_id] == 0:
+                del self._semaphores[client_id]
+                del self._concurrent_requests[client_id]
+                logger.debug(f"Cleaned up idle client: {client_id}")
+
     def get_client_stats(self, client_id: str) -> dict[str, Any]:
         """Get rate limit statistics for a client.
 
