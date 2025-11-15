@@ -215,7 +215,15 @@ class SafetyConfig(BaseSettings):
             "/",  # Root filesystem - full host access
             "/etc",  # System configs & credentials
             "/root",  # Root user home directory
+            "/proc",  # Process information - kernel parameters, capabilities
+            "/sys",  # System devices - kernel settings, hardware access
+            "/dev",  # Device files - raw disk access
+            "/boot",  # Boot files - kernel, initrd
+            "/run",  # Runtime data - Docker socket, systemd
+            "/var/lib/docker",  # Docker internal data - images, containers
             r"\\.\pipe\docker_engine",  # Windows Docker named pipe
+            "C:\\Windows",  # Windows system directory
+            "C:\\Program Files",  # Windows program files
         ],
         description=(
             "Paths that cannot be mounted (blocklist). "

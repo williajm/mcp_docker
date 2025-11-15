@@ -687,6 +687,40 @@ class TestMountPathValidation:
         # Paths not in allowlist allowed in YOLO mode
         validate_mount_path(r"D:\restricted", allowed_paths=allowlist, yolo_mode=True)
 
+    def test_validate_mount_path_blocks_critical_system_paths(self) -> None:
+        """Test that critical system paths are blocked by default config."""
+        from mcp_docker.config import SafetyConfig
+
+        # Get default blocklist from config
+        config = SafetyConfig()
+        default_blocklist = config.volume_mount_blocklist
+
+        # Test that kernel/system paths are blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/proc", blocked_paths=default_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/sys", blocked_paths=default_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/dev", blocked_paths=default_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/boot", blocked_paths=default_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/run", blocked_paths=default_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/lib/docker", blocked_paths=default_blocklist)
+
+        # Test subdirectories are also blocked
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/proc/sys/kernel", blocked_paths=default_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/sys/class/net", blocked_paths=default_blocklist)
+
 
 class TestPortBindingValidation:
     """Test port binding validation."""

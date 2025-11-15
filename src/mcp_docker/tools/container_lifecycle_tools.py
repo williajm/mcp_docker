@@ -212,11 +212,10 @@ class CreateContainerTool(BaseTool):
         """
         for host_path, bind_config in volumes.items():
             # Validate the host-side path with blocklist and allowlist from config
+            # Note: Pass allowlist directly - empty list [] means block all mounts
             validate_mount_path(
                 host_path,
-                allowed_paths=self.safety.volume_mount_allowlist
-                if self.safety.volume_mount_allowlist
-                else None,
+                allowed_paths=self.safety.volume_mount_allowlist or None,
                 blocked_paths=self.safety.volume_mount_blocklist,
                 yolo_mode=self.safety.yolo_mode,
             )
