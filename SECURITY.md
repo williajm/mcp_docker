@@ -40,9 +40,16 @@ Claude Desktop uses stdio transport (local process). The server relies on OS-lev
 For production deployment using HTTP Stream Transport with security features:
 
 ```bash
-# Start server with TLS, OAuth, and security features
+# Start server with TLS, rate limiting, and audit logging
+# OAuth is DISABLED by default - edit script to enable
 ./start-mcp-docker-httpstream.sh
 ```
+
+**What's enabled:**
+- ✅ TLS/HTTPS (requires certificates in `~/.mcp-docker/certs/`)
+- ✅ Rate limiting (60 requests/minute)
+- ✅ Audit logging
+- ❌ OAuth/OIDC (disabled by default - see script comments to enable)
 
 See the HTTP Stream Transport Security, OAuth/OIDC Authentication, and TLS/HTTPS sections below for configuration details.
 
@@ -51,9 +58,16 @@ See the HTTP Stream Transport Security, OAuth/OIDC Authentication, and TLS/HTTPS
 For production deployment using SSE transport with security features:
 
 ```bash
-# Start server with TLS, OAuth, and security features
+# Start server with TLS, rate limiting, and audit logging
+# OAuth is DISABLED by default - edit script to enable
 ./start-mcp-docker-sse.sh
 ```
+
+**What's enabled:**
+- ✅ TLS/HTTPS (requires certificates in `~/.mcp-docker/certs/`)
+- ✅ Rate limiting (60 requests/minute)
+- ✅ Audit logging
+- ❌ OAuth/OIDC (disabled by default - see script comments to enable)
 
 See the OAuth/OIDC Authentication and TLS/HTTPS sections below for configuration details.
 
