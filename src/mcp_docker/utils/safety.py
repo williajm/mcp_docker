@@ -690,7 +690,7 @@ def _convert_unc_admin_share_to_drive_letter(path: str) -> str:
     # Match UNC admin share pattern: //localhost/C$ or //127.0.0.1/C$
     # After path normalization, UNC paths use forward slashes: //server/share/path
     # Only convert localhost/127.0.0.1 for security (prevent remote host access)
-    match = re.match(r"^//([^/]+)/([A-Za-z])\$(/.*)?$", path, re.IGNORECASE)
+    match = re.match(r"^//([^/]+)/([A-Z])\$(/.*)?$", path, re.IGNORECASE)
     if not match:
         return path
 
@@ -892,7 +892,7 @@ def _normalize_mount_path(path: str) -> str:
                 path = _convert_forward_slash_windows_prefix(path)
             # Windows UNC admin share: //localhost/C$ or //127.0.0.1/C$
             # Preserve these for later conversion to drive letters
-            elif re.match(r"^//[^/]+/[A-Za-z]\$", path):
+            elif re.match(r"^//[^/]+/[A-Z]\$", path, re.IGNORECASE):
                 # Keep UNC admin shares as-is with forward slashes
                 # Converted to drive letters by _convert_unc_admin_share_to_drive_letter()
                 pass
