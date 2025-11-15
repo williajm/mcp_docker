@@ -416,11 +416,14 @@ def _is_windows_absolute_path(path: str) -> bool:
         path: Path to check
 
     Returns:
-        True if Windows absolute path (C:\, D:\, or UNC path), False otherwise
+        True if Windows absolute path (C:\, D:\, C:, or UNC path), False otherwise
     """
-    # Check for drive letter (C:\ or C:/) or UNC paths (\\server\share or //server/share)
+    # Check for:
+    # - Drive letter with separator: C:\, C:/
+    # - Normalized drive root (no separator): C:, D:
+    # - UNC paths: \\server\share or //server/share
     return bool(
-        re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\") or path.startswith("//")
+        re.match(r"^[A-Za-z]:([/\\]|$)", path) or path.startswith("\\\\") or path.startswith("//")
     )
 
 
