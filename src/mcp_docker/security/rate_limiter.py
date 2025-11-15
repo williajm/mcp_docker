@@ -117,16 +117,27 @@ class RateLimiter:
         # Get or create semaphore for this client (stdlib asyncio.Semaphore)
         if client_id not in self._semaphores:
             # SECURITY: Prevent memory exhaustion by limiting total tracked clients
-            # Check dictionary size to prevent unbounded growth from unique client IDs
             if len(self._semaphores) >= self.max_clients:
-                logger.warning(
-                    f"Maximum clients limit reached: {self.max_clients}. "
-                    f"Rejecting new client: {client_id}"
-                )
-                raise RateLimitExceeded(
-                    f"Maximum concurrent clients ({self.max_clients}) reached. "
-                    "Try again later or contact administrator."
-                )
+                # Try to evict an idle client to make room
+                idle_clients = [
+                    cid for cid, count in self._concurrent_requests.items() if count == 0
+                ]
+                if idle_clients:
+                    # Evict first idle client (simple LRU)
+                    evict_id = idle_clients[0]
+                    del self._semaphores[evict_id]
+                    del self._concurrent_requests[evict_id]
+                    logger.info(f"Evicted idle client {evict_id} to make room for {client_id}")
+                else:
+                    # All clients are active - reject new client
+                    logger.warning(
+                        f"Maximum active clients limit reached: {self.max_clients}. "
+                        f"Rejecting new client: {client_id}"
+                    )
+                    raise RateLimitExceeded(
+                        f"Maximum concurrent clients ({self.max_clients}) reached. "
+                        "Try again later or contact administrator."
+                    )
             self._semaphores[client_id] = asyncio.Semaphore(self.max_concurrent)
             self._concurrent_requests[client_id] = 0
 

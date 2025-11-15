@@ -60,18 +60,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Rate limiter memory exhaustion**: Fixed memory leak from unique client IDs
   - Previous fix allowed unbounded memory growth by not counting idle clients
   - Attacker could cycle through unique client IDs, each leaving idle entry
-  - Solution: Check total tracked clients (len(dict)) not just active count
-  - Tradeoff: After max_clients connect, no new clients until server restart
-  - But this is acceptable for DoS protection - prioritizes server stability
+  - Solution: LRU eviction of idle clients when at max_clients capacity
+  - When limit reached, evict first idle client (count==0) to make room for new client
+  - Only reject new clients when all tracked clients are actively using slots
+  - Balances memory protection with normal multi-user operation
 
 ### Tests
 - **20 new unit tests** for volume mount validation (all passing in 0.12s)
-- **3 new unit tests** for rate limiter max clients (all passing)
+- **7 new unit tests** for rate limiter max clients and idle client eviction (all passing)
 - **8 new unit tests** for environment variable command injection protection
 - **6 new unit tests** for list-based command validation coverage
 - **3 new unit tests** for audit log file permissions
 - **1 new unit test** for prompt secret redaction
-- Total: **41 new tests**, all fast unit tests
+- Total: **45 new tests**, all fast unit tests
 
 ## [1.1.0] - 2025-11-14
 

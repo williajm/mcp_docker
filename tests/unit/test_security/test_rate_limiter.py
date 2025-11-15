@@ -299,11 +299,11 @@ class TestRateLimiter:
         assert limiter._concurrent_requests["client1"] == 0
 
     @pytest.mark.asyncio
-    async def test_new_clients_blocked_at_max_tracked_clients(self) -> None:
-        """Test that max_clients limit prevents memory exhaustion from unique client IDs.
+    async def test_idle_client_eviction_allows_new_clients(self) -> None:
+        """Test that idle clients are evicted to allow new clients (prevents permanent DoS).
 
-        Once max_clients tracked clients exist (active OR idle), new clients are rejected.
-        This prevents attackers from cycling through unbounded unique client IDs.
+        When at max_clients, idle clients (count==0) are evicted to make room for new clients.
+        This allows normal multi-user operation while still preventing memory exhaustion.
         """
         limiter = RateLimiter(enabled=True, max_clients=2)
 
@@ -311,21 +311,53 @@ class TestRateLimiter:
         await limiter.acquire_concurrent_slot("client1")
         await limiter.acquire_concurrent_slot("client2")
 
-        # New client should be rejected (at max tracked clients)
+        # New client rejected when all slots active
         with pytest.raises(RateLimitExceededError, match="Maximum.*clients"):
             await limiter.acquire_concurrent_slot("client3")
 
-        # Release all slots - clients become idle (count == 0) but entries remain
+        # Release all slots - clients become idle (count == 0)
         limiter.release_concurrent_slot("client1")
         limiter.release_concurrent_slot("client2")
 
-        # New clients still rejected (max tracked clients, even if idle)
+        # New client can connect now - idle client1 gets evicted
+        await limiter.acquire_concurrent_slot("client3")
+        assert "client1" not in limiter._semaphores  # client1 was evicted
+        assert "client2" in limiter._semaphores  # client2 still idle
+        assert "client3" in limiter._semaphores  # client3 is new
+
+        # Another new client evicts client2
+        limiter.release_concurrent_slot("client3")  # client3 becomes idle
+        await limiter.acquire_concurrent_slot("client4")
+        assert "client2" not in limiter._semaphores  # client2 was evicted
+        assert "client3" in limiter._semaphores  # client3 still idle
+        assert "client4" in limiter._semaphores  # client4 is new
+
+        # Cleanup
+        limiter.release_concurrent_slot("client4")
+
+    @pytest.mark.asyncio
+    async def test_active_clients_block_new_clients(self) -> None:
+        """Test that new clients are rejected when all tracked clients are active.
+
+        When max_clients is reached and all have active requests, new clients cannot connect.
+        """
+        limiter = RateLimiter(enabled=True, max_clients=2)
+
+        # Fill to max with active clients
+        await limiter.acquire_concurrent_slot("client1")
+        await limiter.acquire_concurrent_slot("client2")
+
+        # Both clients are active (count > 0), so new client is rejected
         with pytest.raises(RateLimitExceededError, match="Maximum.*clients"):
             await limiter.acquire_concurrent_slot("client3")
 
-        # But existing clients can still acquire slots (reconnect)
-        await limiter.acquire_concurrent_slot("client1")
+        # Release one slot
         limiter.release_concurrent_slot("client1")
+        limiter.release_concurrent_slot("client2")
+
+        # Now client3 can connect (evicts an idle client)
+        await limiter.acquire_concurrent_slot("client3")
+        limiter.release_concurrent_slot("client3")
 
     @pytest.mark.asyncio
     async def test_partial_cleanup_with_multiple_slots(self) -> None:
