@@ -382,7 +382,10 @@ class GenerateComposePrompt(BasePromptHelper):
     """Prompt for generating docker-compose.yml files."""
 
     NAME = "generate_compose"
-    DESCRIPTION = "Generate a docker-compose.yml file from container configuration"
+    DESCRIPTION = (
+        "Generate a docker-compose.yml file from container configuration. "
+        "⚠️ Environment variable values are redacted to prevent secret leakage to LLM APIs."
+    )
 
     def get_metadata(self) -> PromptMetadata:
         """Get prompt metadata.
@@ -462,10 +465,16 @@ class GenerateComposePrompt(BasePromptHelper):
                 restart_policy = host_config.get("RestartPolicy", {}).get("Name", "no")
                 network_mode = host_config.get("NetworkMode", "bridge")
 
+                # SECURITY: Redact environment variable values to prevent secret leakage
+                # Only show keys, not values (e.g., DATABASE_URL=<REDACTED>)
+                env_vars_redacted = [
+                    var.split("=", 1)[0] + "=<REDACTED>" if "=" in var else var for var in env_vars
+                ]
+
                 context = f"""Existing Container Configuration for {data["name"]}:
 - Image: {image}
-- Environment Variables: {len(env_vars)} variables
-  {chr(10).join(f"  - {var}" for var in env_vars[: DISPLAY_LIMITS.env_vars])}
+- Environment Variables: {len(env_vars)} variables (values redacted for security)
+  {chr(10).join(f"  - {var}" for var in env_vars_redacted[: DISPLAY_LIMITS.env_vars])}
   {"  - ..." if len(env_vars) > DISPLAY_LIMITS.env_vars else ""}
 - Port Mappings: {len(ports)} ports
   {chr(10).join(f"  - {k}: {v}" for k, v in list(ports.items())[: DISPLAY_LIMITS.ports])}

@@ -15,6 +15,7 @@ The MCP Docker server implements multiple layers of security:
 7. **Error Sanitization** - Prevent information disclosure
 8. **Safety Controls** - Three-tier operation classification
 9. **HTTP Stream Transport Security** - Session management, DNS rebinding protection, CORS security
+10. **Secret Redaction** - Environment variable values redacted in prompts to prevent credential leakage to LLM APIs
 
 ## Quick Start
 
@@ -411,6 +412,55 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 # In .env
 SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true
 ```
+
+## Secret Redaction in Prompts
+
+**SECURITY**: Environment variable values are automatically redacted in MCP prompts to prevent credential leakage to remote LLM APIs.
+
+### The Risk
+
+When using the `generate_compose` prompt on containers with secrets in environment variables:
+
+```yaml
+# Container with secrets
+environment:
+  DATABASE_URL: postgresql://admin:SuperSecret123@db:5432/app
+  API_KEY: example_api_key_value_here
+  JWT_SECRET: my-secret-signing-key
+```
+
+**Without redaction**: These values would be sent to remote LLM APIs (Claude, OpenAI, etc.) and potentially:
+- Logged in provider systems
+- Used for model training (depending on provider policies)
+- Exposed in API request logs
+- Leaked to unauthorized parties
+
+### The Protection
+
+The `generate_compose` prompt automatically **redacts environment variable values**:
+
+```
+- Environment Variables: 3 variables (values redacted for security)
+  - DATABASE_URL=<REDACTED>
+  - API_KEY=<REDACTED>
+  - JWT_SECRET=<REDACTED>
+```
+
+**What this protects:**
+- Database passwords and connection strings
+- API keys and tokens
+- OAuth secrets
+- Encryption keys
+- AWS/cloud credentials
+- Any sensitive data in environment variables
+
+**How it works:**
+- Only environment variable **keys** are shown to the LLM
+- All **values** are replaced with `<REDACTED>`
+- The LLM can still generate accurate compose files knowing which env vars exist
+- No secrets are sent to remote APIs
+
+This protection is **always enabled** and cannot be disabled. If you need to inspect actual environment variable values, use `docker inspect` directly.
 
 ## HTTP Stream Transport Security
 
