@@ -54,6 +54,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `start-mcp-docker-httpstream.sh` and `start-mcp-docker-sse.sh` documentation
   - Clarified that OAuth is disabled by default (set `SECURITY_OAUTH_ENABLED=false`)
   - Accurately describe enabled features: TLS, rate limiting, audit logging
+- **Rate limiter race condition**: Fixed KeyError in concurrent operations
+  - Race condition in cleanup logic where concurrent releases deleted semaphore entries
+  - Solution: Count only active clients (count > 0) toward max_clients limit
+  - Idle clients keep entries but don't count toward limit (prevents permanent DoS)
+  - Fixes CI integration test failures in concurrent operation tests
 
 ### Tests
 - **20 new unit tests** for volume mount validation (all passing in 0.12s)
