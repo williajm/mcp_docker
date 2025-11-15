@@ -10,7 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Simple volume mount validation**: Prevent accidental mounting of sensitive Linux paths
   - **Named volume detection**: Docker-managed volumes always allowed (they're safe)
-  - **Configurable blocklist**: Block sensitive paths (`/etc`, `/root`, `/var/run/docker.sock`, credential dirs)
+  - **System path blocklist**: Block sensitive system paths (`/etc`, `/root`, `/var/run/docker.sock`)
+  - **Credential directory protection**: Substring matching blocks credential dirs anywhere in path
+    - Always blocks: `.ssh`, `.aws`, `.kube`, `.docker` (even under `/home/user/`)
+    - Prevents accidental exposure of SSH keys, cloud credentials, Kubernetes configs
   - **Optional allowlist**: Restrict to specific paths if needed
   - **YOLO mode**: `SAFETY_YOLO_MODE=true` bypasses all checks (for advanced users)
   - **Linux-focused**: Simple protection for common mistakes, not a security fortress

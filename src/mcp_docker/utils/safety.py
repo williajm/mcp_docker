@@ -418,24 +418,32 @@ def validate_mount_path(
     normalized = path.replace("\\", "/")  # Handle Windows paths
     normalized = "/" + normalized.lstrip("/")  # Collapse duplicate leading slashes
 
-    # Use default Linux blocklist if not specified
+    # Default blocklist: system paths (prefix matching)
     if blocked_paths is None:
         blocked_paths = [
             "/etc",  # System configuration
             "/root",  # Root user home
             "/var/run/docker.sock",  # Docker socket (container escape)
-            "/.ssh",  # SSH keys (any user)
-            "/.aws",  # AWS credentials
-            "/.kube",  # Kubernetes credentials
-            "/.docker",  # Docker credentials
         ]
 
-    # Check blocklist
+    # Default credential directories (substring matching to catch /home/user/.ssh etc.)
+    credential_dirs = ["/.ssh", "/.aws", "/.kube", "/.docker"]
+
+    # Check system paths (prefix matching)
     for blocked in blocked_paths:
         if normalized.startswith(blocked):
             raise UnsafeOperationError(
                 f"Mount path '{path}' is blocked. "
                 f"Matches blocklist entry: {blocked}. "
+                "Enable SAFETY_YOLO_MODE=true to bypass."
+            )
+
+    # Check credential directories (substring matching to catch any user)
+    for cred_dir in credential_dirs:
+        if cred_dir in normalized:
+            raise UnsafeOperationError(
+                f"Mount path '{path}' contains credential directory '{cred_dir}'. "
+                "Credential directories are blocked for safety. "
                 "Enable SAFETY_YOLO_MODE=true to bypass."
             )
 

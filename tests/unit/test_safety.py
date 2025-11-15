@@ -403,21 +403,33 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/var/run/docker.sock")
 
-    def test_validate_mount_path_default_blocklist_ssh(self) -> None:
-        """Test default blocklist blocks .ssh directories."""
-        with pytest.raises(UnsafeOperationError, match="blocked"):
+    def test_validate_mount_path_credential_dirs_root_level(self) -> None:
+        """Test credential directories are blocked at root level."""
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
             validate_mount_path("/.ssh")
-        with pytest.raises(UnsafeOperationError, match="blocked"):
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
             validate_mount_path("/.ssh/id_rsa")
 
-    def test_validate_mount_path_default_blocklist_credentials(self) -> None:
-        """Test default blocklist blocks credential directories."""
-        with pytest.raises(UnsafeOperationError, match="blocked"):
-            validate_mount_path("/.aws")
-        with pytest.raises(UnsafeOperationError, match="blocked"):
-            validate_mount_path("/.kube")
-        with pytest.raises(UnsafeOperationError, match="blocked"):
-            validate_mount_path("/.docker")
+    def test_validate_mount_path_credential_dirs_under_home(self) -> None:
+        """Test credential directories are blocked under /home (substring matching)."""
+        # This is the key test - credential dirs anywhere in path are blocked
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/home/user/.ssh")
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/home/user/.ssh/id_rsa")
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/home/jmw/.aws")
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/home/jmw/.aws/credentials")
+
+    def test_validate_mount_path_credential_dirs_anywhere(self) -> None:
+        """Test credential directories are blocked anywhere in path."""
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/opt/app/.kube")
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/data/backup/.docker")
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/var/lib/user/.ssh")
 
     def test_validate_mount_path_custom_blocklist(self) -> None:
         """Test custom blocklist."""
@@ -433,10 +445,16 @@ class TestMountPathValidation:
         validate_mount_path("/home/user", blocked_paths=custom_blocked)
 
     def test_validate_mount_path_empty_blocklist(self) -> None:
-        """Test empty blocklist allows everything."""
-        # Empty list means no blocked paths
+        """Test empty blocklist allows system paths but still blocks credentials."""
+        # Empty list means no blocked system paths
         validate_mount_path("/etc", blocked_paths=[])
         validate_mount_path("/root", blocked_paths=[])
+
+        # But credential dirs are ALWAYS blocked (hardcoded protection)
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/home/user/.ssh", blocked_paths=[])
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path("/.aws", blocked_paths=[])
 
     def test_validate_mount_path_path_normalization_duplicate_slashes(self) -> None:
         """Test path normalization collapses duplicate slashes."""

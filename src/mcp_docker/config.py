@@ -259,13 +259,11 @@ class SafetyConfig(BaseSettings):
             "/etc",  # System configuration
             "/root",  # Root user home
             "/var/run/docker.sock",  # Docker socket (container escape)
-            "/.ssh",  # SSH keys
-            "/.aws",  # AWS credentials
-            "/.kube",  # Kubernetes credentials
-            "/.docker",  # Docker credentials
         ],
         description=(
-            "Blocked volume mount paths (Linux-focused). "
+            "Blocked volume mount paths (prefix matching, Linux-focused). "
+            "Note: Credential directories (.ssh, .aws, .kube, .docker) are "
+            "always blocked via substring matching regardless of this list. "
             "Can be set via SAFETY_VOLUME_MOUNT_BLOCKLIST as comma-separated string."
         ),
     )
