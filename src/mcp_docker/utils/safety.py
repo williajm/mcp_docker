@@ -390,19 +390,13 @@ def _check_docker_socket(path: str, normalized_path: str) -> None:
     Raises:
         UnsafeOperationError: If mounting Docker socket
     """
+    # Only Unix/Linux sockets (Windows paths blocked by _check_windows_paths)
     docker_sockets = [
         "/var/run/docker.sock",
         "/run/docker.sock",
-        "//./pipe/docker_engine",  # Windows
-        "\\\\.\\pipe\\docker_engine",  # Windows (escaped)
     ]
     for socket_path in docker_sockets:
-        # Check for both forward slash and backslash to handle cross-platform paths
-        if (
-            normalized_path == socket_path
-            or normalized_path.startswith(socket_path + "/")
-            or normalized_path.startswith(socket_path + "\\")
-        ):
+        if normalized_path == socket_path or normalized_path.startswith(socket_path + "/"):
             raise UnsafeOperationError(
                 f"Mount path '{path}' is not allowed. "
                 f"Mounting Docker socket '{socket_path}' is not allowed. "
@@ -421,6 +415,7 @@ def _check_dangerous_directories(path: str, normalized_path: str) -> None:
     Raises:
         UnsafeOperationError: If mounting dangerous directory
     """
+    # Only Unix/Linux paths (Windows paths blocked by _check_windows_paths)
     dangerous_prefixes = [
         "/etc",  # System configuration
         "/sys",  # Kernel/system information
@@ -431,18 +426,11 @@ def _check_dangerous_directories(path: str, normalized_path: str) -> None:
         "/var/lib/containerd",  # Containerd data
         "/root",  # Root user home
         "/run",  # Runtime data (includes docker.sock)
-        "C:/Windows",  # Windows system
-        "C:\\Windows",  # Windows system (escaped)
-        "C:/Program Files",  # Windows programs
-        "C:\\Program Files",  # Windows programs (escaped)
     ]
 
     for dangerous_prefix in dangerous_prefixes:
-        # Check for both forward slash and backslash to handle cross-platform paths
-        # (e.g., validating Windows paths on Linux or vice versa)
         is_dangerous = (
             normalized_path.startswith(dangerous_prefix + "/")
-            or normalized_path.startswith(dangerous_prefix + "\\")
             or normalized_path == dangerous_prefix
         )
         if is_dangerous:
@@ -492,11 +480,42 @@ def _check_ssh_paths(path: str, normalized_path: str) -> None:
     Raises:
         UnsafeOperationError: If mounting SSH directory
     """
+    # Only Unix/Linux paths (Windows paths blocked by _check_windows_paths)
     if "/.ssh/" in normalized_path or normalized_path.endswith("/.ssh"):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not allowed. "
             "Mounting SSH directories is blocked to prevent key theft. "
             "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
+        )
+
+
+def _check_windows_paths(path: str, normalized_path: str) -> None:
+    """Block all Windows-style paths (non-Unix/Linux).
+
+    Args:
+        path: Original path provided
+        normalized_path: Normalized version of the path
+
+    Raises:
+        UnsafeOperationError: If path is Windows-style
+    """
+    # Block Windows drive letters (C:\, D:\, E:\, etc.)
+    # Matches: C:/, C:\, c:/, c:\, and any other drive letter
+    if re.match(r"^[A-Za-z]:[/\\]", normalized_path):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not allowed. "
+            "Windows paths are blocked by default for security. "
+            "Only Unix/Linux paths are permitted. "
+            "Enable SAFETY_YOLO_MODE=true to bypass (EXTREMELY DANGEROUS)."
+        )
+
+    # Block UNC paths (\\server\share or //server/share)
+    if normalized_path.startswith("\\\\") or normalized_path.startswith("//"):
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not allowed. "
+            "UNC/network paths are blocked by default for security. "
+            "Only Unix/Linux paths are permitted. "
+            "Enable SAFETY_YOLO_MODE=true to bypass (EXTREMELY DANGEROUS)."
         )
 
 
@@ -527,7 +546,10 @@ def validate_mount_path(
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 
-    # Run all security checks
+    # FIRST: Block all non-Unix/Linux paths (Windows, UNC, etc.)
+    _check_windows_paths(path, normalized_path)
+
+    # THEN: Run Unix/Linux security checks
     _check_root_filesystem(path, normalized_path)
     _check_docker_socket(path, normalized_path)
     _check_dangerous_directories(path, normalized_path)

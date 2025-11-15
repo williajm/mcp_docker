@@ -473,33 +473,63 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="system directory"):
             validate_mount_path("/root/.ssh/id_rsa")
 
-    def test_validate_mount_path_blocks_windows_system_subdirectories(self) -> None:
-        """Test that Windows system subdirectories are blocked (not just root directories).
+    def test_validate_mount_path_blocks_all_windows_paths(self) -> None:
+        r"""Test that ALL Windows paths are blocked by default.
 
-        This is a security-critical test that verifies the os.sep fix for Windows paths.
-        Previously, only exact matches were blocked due to hardcoded '/' separator.
+        Security-critical: Instead of trying to enumerate dangerous Windows paths,
+        we simply block ALL Windows-style paths (C:\, D:\, etc.) by default.
+        Users who genuinely need Windows mounts can use YOLO mode.
         """
-        # Test Windows system subdirectories are blocked
-        with pytest.raises(UnsafeOperationError, match="system directory"):
+        # Test Windows paths with backslashes
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
             validate_mount_path("C:\\Windows\\System32")
 
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("C:\\Windows\\System32\\drivers")
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("D:\\data")
 
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("C:\\Program Files\\Docker")
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("E:\\backup\\files")
 
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("C:\\Program Files\\Common Files")
+        # Test Windows paths with forward slashes
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("C:/Users/Admin")
 
-    def test_validate_mount_path_blocks_windows_root_directories(self) -> None:
-        """Test that Windows root system directories are blocked."""
-        # Test exact Windows root directories are blocked
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("C:\\Windows")
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("D:/Program Files")
 
-        with pytest.raises(UnsafeOperationError, match="system directory"):
-            validate_mount_path("C:\\Program Files")
+        # Test case variations (all should be blocked)
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("c:\\windows")
+
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("C:\\WINDOWS")
+
+        with pytest.raises(UnsafeOperationError, match="Windows paths are blocked"):
+            validate_mount_path("c:/WiNdOwS")
+
+    def test_validate_mount_path_blocks_unc_paths(self) -> None:
+        """Test that UNC/network paths are blocked."""
+        # Test UNC paths with backslashes
+        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
+            validate_mount_path("\\\\server\\share")
+
+        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
+            validate_mount_path("\\\\server\\share\\folder")
+
+        # Test UNC paths with forward slashes
+        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
+            validate_mount_path("//server/share")
+
+        with pytest.raises(UnsafeOperationError, match="UNC/network paths are blocked"):
+            validate_mount_path("//server/share/folder")
+
+    def test_validate_mount_path_allows_windows_paths_in_yolo_mode(self) -> None:
+        """Test that Windows paths ARE allowed when YOLO mode is enabled."""
+        # These should NOT raise when yolo_mode=True
+        validate_mount_path("C:\\Windows\\System32", yolo_mode=True)
+        validate_mount_path("D:\\data", yolo_mode=True)
+        validate_mount_path("\\\\server\\share", yolo_mode=True)
+        validate_mount_path("C:/Users/Admin", yolo_mode=True)
 
 
 class TestPortBindingValidation:
