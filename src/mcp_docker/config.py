@@ -225,6 +225,31 @@ class SafetyConfig(BaseSettings):
             "/run/containerd",  # Containerd runtime socket and state
             "/var/lib/kubelet",  # Kubernetes kubelet data
             r"\\.\pipe\docker_engine",  # Windows Docker named pipe
+            # Windows drive root filesystems - equivalent to / on Linux
+            "C:\\",
+            "D:\\",
+            "E:\\",
+            "F:\\",
+            "G:\\",
+            "H:\\",
+            "I:\\",
+            "J:\\",
+            "K:\\",
+            "L:\\",
+            "M:\\",
+            "N:\\",
+            "O:\\",
+            "P:\\",
+            "Q:\\",
+            "R:\\",
+            "S:\\",
+            "T:\\",
+            "U:\\",
+            "V:\\",
+            "W:\\",
+            "X:\\",
+            "Y:\\",
+            "Z:\\",
             "C:\\Windows",  # Windows system directory
             "C:\\Program Files",  # Windows program files
         ],
