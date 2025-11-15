@@ -34,3 +34,33 @@ repos:
           - starlette>=0.27.0
         args: [--strict, --config-file=pyproject.toml]
         files: ^src/
+
+  # Pre-push hooks: Run tests and quality checks before pushing to remote
+  # Usage: These hooks run automatically on 'git push'
+  # To skip: git push --no-verify
+  - repo: local
+    hooks:
+      - id: ruff-check-all
+        name: Run ruff linting on entire codebase
+        entry: bash -c 'echo "Running ruff linting..." && uv run ruff check src/ tests/'
+        language: system
+        pass_filenames: false
+        stages: [push]
+      - id: ruff-format-check-all
+        name: Check ruff formatting on entire codebase
+        entry: bash -c 'echo "Checking ruff formatting..." && uv run ruff format --check src/ tests/'
+        language: system
+        pass_filenames: false
+        stages: [push]
+      - id: mypy-check-all
+        name: Run mypy type checking
+        entry: bash -c 'echo "Running mypy..." && uv run mypy src/mcp_docker/'
+        language: system
+        pass_filenames: false
+        stages: [push]
+      - id: pytest-unit
+        name: Run unit tests before push
+        entry: bash -c 'echo "Running unit tests..." && uv run pytest tests/unit/ -q'
+        language: system
+        pass_filenames: false
+        stages: [push]
