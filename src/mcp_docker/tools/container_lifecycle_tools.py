@@ -181,32 +181,66 @@ class CreateContainerTool(BaseTool):
         if input_data.ports:
             # After field validation, ports is always a dict or None (never str)
             assert isinstance(input_data.ports, dict)
-            for container_port, host_port in input_data.ports.items():
-                if isinstance(host_port, int):
-                    validate_port_mapping(container_port, host_port)
-
-        # Validate volume mounts for security
+            self._validate_port_mappings(input_data.ports)
         if input_data.volumes:
             # After field validation, volumes is always a dict or None (never str)
             assert isinstance(input_data.volumes, dict)
+            self._validate_volume_mounts(input_data.volumes)
 
-            # Validate each host path for dangerous mounts
-            for host_path, bind_config in input_data.volumes.items():
-                # Validate the host-side path
-                # Pass yolo_mode to bypass validation if enabled
-                validate_mount_path(host_path, yolo_mode=self.safety.yolo_mode)
+    def _validate_port_mappings(
+        self, ports: dict[str, int | tuple[str, int] | None]
+    ) -> None:
+        """Validate port mappings.
 
-                # Also validate the bind config structure (skip if YOLO mode)
-                if not self.safety.yolo_mode:
-                    if not isinstance(bind_config, dict):
-                        raise ValidationError(
-                            f"Volume bind config must be a dict, got {type(bind_config).__name__}"
-                        )
+        Args:
+            ports: Port mappings to validate
 
-                    if "bind" not in bind_config:
-                        raise ValidationError(
-                            f"Volume bind config must contain 'bind' key: {bind_config}"
-                        )
+        Raises:
+            ValidationError: If port validation fails
+        """
+        for container_port, host_port in ports.items():
+            if isinstance(host_port, int):
+                validate_port_mapping(container_port, host_port)
+
+    def _validate_volume_mounts(self, volumes: dict[str, dict[str, str]]) -> None:
+        """Validate volume mounts for security.
+
+        Args:
+            volumes: Volume mount configurations to validate
+
+        Raises:
+            ValidationError: If volume validation fails
+            UnsafeOperationError: If dangerous mount path detected
+        """
+        for host_path, bind_config in volumes.items():
+            # Validate the host-side path
+            # Pass yolo_mode to bypass validation if enabled
+            validate_mount_path(host_path, yolo_mode=self.safety.yolo_mode)
+
+            # Also validate the bind config structure (skip if YOLO mode)
+            self._validate_bind_config(bind_config)
+
+    def _validate_bind_config(self, bind_config: dict[str, str]) -> None:
+        """Validate bind configuration structure.
+
+        Args:
+            bind_config: Bind configuration to validate
+
+        Raises:
+            ValidationError: If bind config is invalid
+        """
+        if self.safety.yolo_mode:
+            return
+
+        if not isinstance(bind_config, dict):
+            raise ValidationError(
+                f"Volume bind config must be a dict, got {type(bind_config).__name__}"
+            )
+
+        if "bind" not in bind_config:
+            raise ValidationError(
+                f"Volume bind config must contain 'bind' key: {bind_config}"
+            )
 
     def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
         """Prepare kwargs dictionary for container creation.
