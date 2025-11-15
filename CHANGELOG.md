@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Simple volume mount validation**: Prevent accidental mounting of sensitive Linux paths
+  - **Named volume detection**: Docker-managed volumes always allowed (they're safe)
+  - **Configurable blocklist**: Block sensitive paths (`/etc`, `/root`, `/var/run/docker.sock`, credential dirs)
+  - **Optional allowlist**: Restrict to specific paths if needed
+  - **YOLO mode**: `SAFETY_YOLO_MODE=true` bypasses all checks (for advanced users)
+  - **Linux-focused**: Simple protection for common mistakes, not a security fortress
+  - Configuration: `SAFETY_VOLUME_MOUNT_BLOCKLIST`, `SAFETY_VOLUME_MOUNT_ALLOWLIST`, `SAFETY_YOLO_MODE`
+
 ## [1.1.0] - 2025-11-14
 
 ### Added

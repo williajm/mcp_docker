@@ -184,6 +184,17 @@ class CreateContainerTool(BaseTool):
             for container_port, host_port in input_data.ports.items():
                 if isinstance(host_port, int):
                     validate_port_mapping(container_port, host_port)
+        if input_data.volumes:
+            # After field validation, volumes is always a dict or None (never str)
+            assert isinstance(input_data.volumes, dict)
+            from mcp_docker.utils.safety import validate_mount_path
+            for mount_path in input_data.volumes.keys():
+                validate_mount_path(
+                    mount_path,
+                    blocked_paths=self.config.safety.volume_mount_blocklist,
+                    allowed_paths=self.config.safety.volume_mount_allowlist if self.config.safety.volume_mount_allowlist else None,
+                    yolo_mode=self.config.safety.yolo_mode,
+                )
 
     def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
         """Prepare kwargs dictionary for container creation.

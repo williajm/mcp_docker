@@ -246,19 +246,50 @@ class SafetyConfig(BaseSettings):
         ),
     )
 
-    @field_validator("allowed_tools", "denied_tools", mode="before")
+    # Volume mount validation (simple Linux-focused protection)
+    yolo_mode: bool = Field(
+        default=False,
+        description=(
+            "Bypass ALL safety checks (user takes full responsibility). "
+            "Enable for advanced use cases where you need full control."
+        ),
+    )
+    volume_mount_blocklist: list[str] = Field(
+        default_factory=lambda: [
+            "/etc",  # System configuration
+            "/root",  # Root user home
+            "/var/run/docker.sock",  # Docker socket (container escape)
+            "/.ssh",  # SSH keys
+            "/.aws",  # AWS credentials
+            "/.kube",  # Kubernetes credentials
+            "/.docker",  # Docker credentials
+        ],
+        description=(
+            "Blocked volume mount paths (Linux-focused). "
+            "Can be set via SAFETY_VOLUME_MOUNT_BLOCKLIST as comma-separated string."
+        ),
+    )
+    volume_mount_allowlist: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Allowed volume mount paths (empty = allow all except blocked). "
+            "Can be set via SAFETY_VOLUME_MOUNT_ALLOWLIST as comma-separated string."
+        ),
+    )
+
+    @field_validator("allowed_tools", "denied_tools", "volume_mount_blocklist", "volume_mount_allowlist", mode="before")
     @classmethod
     def parse_tool_list(cls, value: str | list[str] | None) -> list[str]:
-        """Parse tool list from comma-separated string or list.
+        """Parse list from comma-separated string or list.
 
         Handles environment variable input as comma-separated strings
         and normalizes them to lists.
 
         Args:
-            value: Tool list as string (comma-separated), list, or None
+            value: List as string (comma-separated), list, or None
 
         Returns:
-            Normalized list of tool names (empty list if None/empty)
+            Normalized list of strings (empty list if None/empty)
         """
         if value is None or value == "":
             return []
