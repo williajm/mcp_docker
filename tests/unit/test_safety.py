@@ -432,6 +432,50 @@ class TestMountPathValidation:
         validate_mount_path("my_volume")
         validate_mount_path("volume.backup")
 
+    def test_validate_mount_path_named_volumes_blocked_by_empty_allowlist(self) -> None:
+        """Test that empty allowlist blocks named volumes (lockdown mode).
+
+        When allowlist is explicitly set to [] (empty), ALL mounts should be blocked
+        including named volumes. This prevents bypass of the lockdown policy.
+        """
+        empty_allowlist: list[str] = []
+
+        # Named volumes should be blocked when allowlist is empty
+        with pytest.raises(UnsafeOperationError, match="Empty allowlist blocks ALL mounts"):
+            validate_mount_path("my-volume", allowed_paths=empty_allowlist)
+
+        with pytest.raises(UnsafeOperationError, match="Empty allowlist blocks ALL mounts"):
+            validate_mount_path("workspace-data", allowed_paths=empty_allowlist)
+
+        with pytest.raises(UnsafeOperationError, match="Empty allowlist blocks ALL mounts"):
+            validate_mount_path("db_data", allowed_paths=empty_allowlist)
+
+    def test_validate_mount_path_named_volumes_allowed_with_nonempty_allowlist(
+        self,
+    ) -> None:
+        """Test that named volumes are allowed when allowlist has entries.
+
+        Named volumes don't expose the host filesystem, so they're safe even
+        when an allowlist is configured. The allowlist restricts bind mounts only.
+        """
+        allowlist = ["/home/user/safe"]
+
+        # Named volumes should still be allowed (they're safe)
+        validate_mount_path("my-volume", allowed_paths=allowlist)
+        validate_mount_path("workspace-data", allowed_paths=allowlist)
+        validate_mount_path("db_data", allowed_paths=allowlist)
+
+        # But bind mounts outside allowlist should be blocked
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path("/etc", allowed_paths=allowlist)
+
+    def test_validate_mount_path_named_volumes_allowed_with_no_allowlist(self) -> None:
+        """Test that named volumes are allowed when allowlist is None (default)."""
+        # No allowlist (None) means no restriction on named volumes
+        validate_mount_path("my-volume", allowed_paths=None)
+        validate_mount_path("workspace-data", allowed_paths=None)
+        validate_mount_path("db_data", allowed_paths=None)
+
     def test_validate_mount_path_blocks_relative_paths(self) -> None:
         """Test that relative path bind mounts are blocked (path traversal prevention).
 

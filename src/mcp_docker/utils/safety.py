@@ -559,7 +559,16 @@ def validate_mount_path(
         raise ValidationError(f"Invalid path format: {path}")
 
     # Named volumes are safe (Docker manages them internally)
+    # BUT if allowlist is explicitly empty [], block ALL mounts (including named volumes)
     if _is_named_volume(path):
+        # Empty allowlist means block ALL mounts (lockdown mode)
+        if allowed_paths is not None and len(allowed_paths) == 0:
+            raise UnsafeOperationError(
+                f"Mount path '{path}' is not allowed. "
+                "Empty allowlist blocks ALL mounts including named volumes. "
+                "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit mounts."
+            )
+        # Named volumes allowed when no allowlist or allowlist has entries
         return
 
     # Bind mounts must use absolute paths (Unix or Windows)

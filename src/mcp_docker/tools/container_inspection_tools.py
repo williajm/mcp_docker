@@ -488,6 +488,10 @@ class ExecCommandTool(BaseTool):
         Raises:
             PermissionError: If privileged exec is not allowed
         """
+        # YOLO mode bypasses all safety checks
+        if self.safety.yolo_mode:
+            return
+
         privileged = arguments.get("privileged", False)
         if privileged and not self.safety.allow_privileged_containers:
             logger.warning("Privileged exec command blocked by safety config")
@@ -510,6 +514,9 @@ class ExecCommandTool(BaseTool):
             DockerOperationError: If command execution fails
         """
         try:
+            # Check privileged mode restrictions
+            self.check_privileged_arguments(input_data.model_dump())
+
             # Validate command - SECURITY: Check for dangerous patterns in ALL formats
             validate_command_safety(input_data.command, yolo_mode=self.safety.yolo_mode)
 

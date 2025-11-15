@@ -825,9 +825,14 @@ class TestExecCommandTool:
 
     @pytest.mark.asyncio
     async def test_exec_command_with_options(
-        self, mock_docker_client: Any, safety_config: Any, mock_container: Any
+        self, mock_docker_client: Any, mock_container: Any
     ) -> None:
         """Test command execution with additional options."""
+        from mcp_docker.config import SafetyConfig
+
+        # Create config that allows privileged containers for this test
+        safety_config = SafetyConfig(allow_privileged_containers=True)
+
         mock_container.exec_run.return_value = (0, b"output")
         mock_docker_client.client.containers.get.return_value = mock_container
 
@@ -875,6 +880,47 @@ class TestExecCommandTool:
 
         with pytest.raises(ContainerNotFound):
             await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_exec_command_privileged_blocked_when_not_allowed(
+        self, mock_docker_client: Any, mock_container: Any
+    ) -> None:
+        """Test that privileged exec is blocked when not allowed by config."""
+        from mcp_docker.config import SafetyConfig
+        from mcp_docker.utils.errors import UnsafeOperationError
+
+        # Create config that disallows privileged containers
+        safety_config = SafetyConfig(allow_privileged_containers=False)
+
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = ExecCommandTool(mock_docker_client, safety_config)
+        input_data = ExecCommandInput(container_id="abc123", command="ls", privileged=True)
+
+        # Should raise UnsafeOperationError
+        with pytest.raises(UnsafeOperationError, match="Privileged containers are not allowed"):
+            await tool.execute(input_data)
+
+    @pytest.mark.asyncio
+    async def test_exec_command_privileged_allowed_in_yolo_mode(
+        self, mock_docker_client: Any, mock_container: Any
+    ) -> None:
+        """Test that YOLO mode bypasses privileged exec restrictions."""
+        from mcp_docker.config import SafetyConfig
+
+        # Create config with YOLO mode enabled but privileged containers disabled
+        safety_config = SafetyConfig(yolo_mode=True, allow_privileged_containers=False)
+
+        mock_container.exec_run.return_value = (0, b"privileged output")
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        tool = ExecCommandTool(mock_docker_client, safety_config)
+        input_data = ExecCommandInput(container_id="abc123", command="ls", privileged=True)
+
+        # Should succeed in YOLO mode despite allow_privileged_containers=False
+        result = await tool.execute(input_data)
+        assert result.exit_code == 0
+        assert result.output == "privileged output"
 
 
 class TestContainerStatsTool:
