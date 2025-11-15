@@ -58,12 +58,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Race condition in cleanup logic where concurrent releases deleted semaphore entries
   - Fixes CI integration test failures in concurrent operation tests
 - **Rate limiter memory exhaustion**: Fixed memory leak from unique client IDs
-  - Previous fix allowed unbounded memory growth by not counting idle clients
-  - Attacker could cycle through unique client IDs, each leaving idle entry
-  - Solution: LRU eviction of idle clients when at max_clients capacity
-  - When limit reached, evict first idle client (count==0) to make room for new client
-  - Only reject new clients when all tracked clients are actively using slots
-  - Balances memory protection with normal multi-user operation
+  - Implements LRU eviction of idle clients when at max_clients capacity
+  - Prevents unbounded memory growth while allowing normal multi-user operation
+  - Only rejects new clients when all tracked clients have active requests
 
 ### Tests
 - **20 new unit tests** for volume mount validation (all passing in 0.12s)
