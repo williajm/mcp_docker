@@ -187,9 +187,7 @@ class CreateContainerTool(BaseTool):
             assert isinstance(input_data.volumes, dict)
             self._validate_volume_mounts(input_data.volumes)
 
-    def _validate_port_mappings(
-        self, ports: dict[str, int | tuple[str, int] | None]
-    ) -> None:
+    def _validate_port_mappings(self, ports: dict[str, int | tuple[str, int] | None]) -> None:
         """Validate port mappings.
 
         Args:
@@ -238,9 +236,7 @@ class CreateContainerTool(BaseTool):
             )
 
         if "bind" not in bind_config:
-            raise ValidationError(
-                f"Volume bind config must contain 'bind' key: {bind_config}"
-            )
+            raise ValidationError(f"Volume bind config must contain 'bind' key: {bind_config}")
 
     def _prepare_kwargs(self, input_data: CreateContainerInput) -> dict[str, Any]:
         """Prepare kwargs dictionary for container creation.
