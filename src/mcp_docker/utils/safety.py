@@ -470,16 +470,17 @@ def validate_mount_path(
         for blocked in blocked_paths:
             # Exact match or starts with blocked path
             if normalized == blocked or normalized.startswith(blocked + os.sep):
+                # Special message for root filesystem paths
+                if blocked in ("/", "C:\\", "D:\\") and normalized == blocked:
+                    raise UnsafeOperationError(
+                        f"Mount path '{path}' is blocked. "
+                        f"Mounting the root filesystem ({blocked}) could enable container escape. "
+                        "Enable SAFETY_YOLO_MODE=true to bypass."
+                    )
+                # Standard blocklist error message
                 raise UnsafeOperationError(
                     f"Mount path '{path}' is blocked. "
                     f"This path matches blocklist entry: {blocked}. "
-                    "Enable SAFETY_YOLO_MODE=true to bypass."
-                )
-            # Special handling for root filesystem
-            if blocked in ("/", "C:\\", "D:\\") and normalized == blocked:
-                raise UnsafeOperationError(
-                    f"Mount path '{path}' is blocked. "
-                    f"Mounting the root filesystem ({blocked}) could enable container escape. "
                     "Enable SAFETY_YOLO_MODE=true to bypass."
                 )
 
