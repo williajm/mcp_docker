@@ -21,10 +21,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Module-level constants: `UNC_REQUIRED_COMPONENTS`, `SENSITIVE_CREDENTIAL_DIRECTORIES`
 
 ### Testing
-- **Added 14 comprehensive unit tests** for P1 security fixes (0.14s runtime, no Docker required):
-  - 8 tests for duplicate slash normalization (Unix `//, Windows //./`, Windows `//?/`)
-  - 6 tests for root filesystem exact-match behavior (blocklist vs allowlist handling)
-- All 879 unit tests pass with improved security coverage
+- **Added 31 comprehensive unit tests** for volume mount validation (0.18s runtime, no Docker required):
+  - **Security fixes (14 tests)**: Duplicate slash normalization, root filesystem exact-match behavior
+  - **Valid use cases (17 tests)**: Ensures security fixes don't break legitimate workflows
+    - Development directories (projects, src, workspace, build contexts)
+    - Data directories (app data, databases, user data, shared storage)
+    - Platform-specific paths (Windows Users/Program Files/drives, macOS /Users)
+    - Docker patterns (named volumes, Docker Compose, CI/CD paths)
+    - Special characters (spaces, hyphens, deeply nested paths)
+- All 141 safety tests pass with comprehensive coverage of both security and usability
 
 ## [1.1.0] - 2025-11-14
 
