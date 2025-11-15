@@ -535,6 +535,8 @@ def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) ->
 
     Special case: Root paths (/, C:\\, D:\\) only match exactly, not subdirectories.
     This allows blocking root filesystem mounts without blocking all subdirectories.
+    For example, "/" in blocklist blocks "/" but allows "/home", and "C:\\" blocks
+    "C:\\" but allows "C:\\Users".
 
     Args:
         path: Path to check
@@ -559,10 +561,12 @@ def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) ->
     if not path_cmp.startswith(prefix_cmp):
         return False
 
-    # Special handling for Unix root "/" - only exact match, no subdirectories
+    # Special handling for root filesystems - only exact match, no subdirectories
     # This allows "/" in blocklist to block mounting "/" without blocking "/home", etc.
-    # Windows root drives (C:\, D:\) match subdirectories (other drives still usable)
-    if prefix_cmp == "/":
+    # Same for Windows drive roots (C:\, D:\, etc.) - block only the root, not subdirs
+    is_unix_root = prefix_cmp == "/"
+    is_windows_root = case_insensitive and bool(re.match(r"^[a-z]:/?$", prefix_cmp))
+    if is_unix_root or is_windows_root:
         return False
 
     # If prefix ends with a separator, any path starting with it matches

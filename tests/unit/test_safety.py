@@ -897,19 +897,21 @@ class TestMountPathValidation:
             validate_mount_path("/tmp/data", allowed_paths=allowlist, blocked_paths=blocklist)
 
     def test_validate_mount_path_windows_root_drives_in_blocklist(self) -> None:
-        """Test that Windows root drives can be blocked."""
+        """Test that Windows root drives can be blocked without blocking subdirs."""
         blocklist = ["C:\\", "D:\\"]
 
-        # Root drives blocked
+        # Root drives blocked (exact match)
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("C:\\", blocked_paths=blocklist)
 
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("D:\\", blocked_paths=blocklist)
 
-        # But subdirectories of blocked root drives are also blocked
-        with pytest.raises(UnsafeOperationError, match="blocked"):
-            validate_mount_path(r"C:\Windows", blocked_paths=blocklist)
+        # Subdirectories are allowed (not blocked by root drive entry)
+        # This matches Unix behavior: "/" blocks "/" but allows "/home"
+        validate_mount_path(r"C:\Windows", blocked_paths=blocklist)
+        validate_mount_path(r"C:\Users\alice\data", blocked_paths=blocklist)
+        validate_mount_path(r"D:\data", blocked_paths=blocklist)
 
     def test_validate_mount_path_yolo_mode_bypasses_windows_validation(self) -> None:
         """Test that YOLO mode bypasses Windows path validation."""
