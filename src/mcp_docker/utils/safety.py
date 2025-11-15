@@ -415,8 +415,9 @@ def _check_dangerous_directories(path: str, normalized_path: str) -> None:
     Raises:
         UnsafeOperationError: If mounting dangerous directory
     """
-    # Only Unix/Linux paths (Windows paths blocked by _check_windows_paths)
+    # Only Unix/Linux/macOS paths (Windows paths blocked by _check_windows_paths)
     dangerous_prefixes = [
+        # Linux/Unix system directories
         "/etc",  # System configuration
         "/sys",  # Kernel/system information
         "/proc",  # Process information
@@ -426,6 +427,12 @@ def _check_dangerous_directories(path: str, normalized_path: str) -> None:
         "/var/lib/containerd",  # Containerd data
         "/root",  # Root user home
         "/run",  # Runtime data (includes docker.sock)
+        # macOS system directories
+        "/System",  # macOS core system files (CRITICAL - read-only in modern macOS)
+        "/Library",  # System-wide library (NOT user ~/Library)
+        "/private/var/db",  # macOS system databases
+        "/usr/bin",  # System binaries (Unix/Linux/macOS)
+        "/usr/sbin",  # System admin binaries (Unix/Linux/macOS)
     ]
 
     for dangerous_prefix in dangerous_prefixes:

@@ -531,6 +531,66 @@ class TestMountPathValidation:
         validate_mount_path("\\\\server\\share", yolo_mode=True)
         validate_mount_path("C:/Users/Admin", yolo_mode=True)
 
+    def test_validate_mount_path_blocks_macos_system_directories(self) -> None:
+        """Test that macOS system directories are blocked.
+
+        Security-critical: macOS has specific system directories that must not
+        be mounted to prevent container escape and host compromise.
+        """
+        # Test /System (macOS core system files - read-only in modern macOS)
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/System")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/System/Library/CoreServices")
+
+        # Test /Library (system-wide library, NOT user ~/Library)
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/Library")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/Library/Preferences")
+
+        # Test /private/var/db (system databases)
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/private/var/db")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/private/var/db/receipts")
+
+    def test_validate_mount_path_blocks_system_binaries(self) -> None:
+        """Test that system binary directories are blocked (Unix/Linux/macOS).
+
+        These directories contain critical system executables that should not
+        be accessible from containers.
+        """
+        # Test /usr/bin
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/usr/bin")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/usr/bin/sudo")
+
+        # Test /usr/sbin
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/usr/sbin")
+
+        with pytest.raises(UnsafeOperationError, match="system directory"):
+            validate_mount_path("/usr/sbin/cron")
+
+    def test_validate_mount_path_allows_macos_user_directories(self) -> None:
+        """Test that safe macOS user directories ARE allowed.
+
+        User home directories and safe locations should be mountable.
+        """
+        # These should NOT raise - they're safe user directories
+        validate_mount_path("/Users/johndoe/Documents")
+        validate_mount_path("/Users/johndoe/Projects")
+        # User library is OK (different from system /Library)
+        validate_mount_path("/Users/johndoe/Library")
+        validate_mount_path("/opt/myapp")
+        validate_mount_path("/usr/local/bin")
+
 
 class TestPortBindingValidation:
     """Test port binding validation."""
