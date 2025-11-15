@@ -761,6 +761,23 @@ def _check_sensitive_directories(path: str, normalized: str) -> None:
             )
 
 
+def _convert_forward_slash_windows_prefix(path: str) -> str:
+    r"""Convert Windows path with forward-slash prefix to backslash prefix.
+
+    Handles Windows device namespace and extended-length prefixes that use
+    forward slashes instead of backslashes.
+
+    Args:
+        path: Windows path with forward slash prefix (e.g., //./pipe or //?/C:/)
+
+    Returns:
+        Path with backslash prefix (e.g., \\.\pipe or \\?\C:\)
+    """
+    # Replace // prefix with \\, then convert all remaining / to \
+    path = "\\\\" + path[2:]  # //./pipe → \\./pipe
+    return path.replace("/", "\\")  # \\./pipe → \\.\pipe
+
+
 def _normalize_mount_path(path: str) -> str:
     """Normalize a mount path using appropriate normalization for the path type.
 
@@ -787,15 +804,8 @@ def _normalize_mount_path(path: str) -> str:
         # Forward-slash variants like //server/share are treated as Unix (POSIX allows //)
         if path.startswith("//"):
             # Windows device namespace: //./ or //./pipe/name → \\.\pipe\name
-            if path.startswith("//./"):
-                # Remove // prefix, add \\, then convert remaining / to \
-                path = "\\\\" + path[2:]  # //./pipe → \\./pipe
-                path = path.replace("/", "\\")  # \\./pipe → \\.\pipe
-            # Windows extended-length prefix: //?/ or //?/C:/path → \\?\C:\path
-            elif path.startswith("//?/"):
-                # Remove // prefix, add \\, then convert remaining / to \
-                path = "\\\\" + path[2:]  # //?/C:/path → \\?/C:/path
-                path = path.replace("/", "\\")  # \\?/C:/path → \\?\C:\path
+            if path.startswith("//./") or path.startswith("//?/"):
+                path = _convert_forward_slash_windows_prefix(path)
             else:
                 # All other //path forms are Unix duplicate slashes (POSIX-compliant)
                 # Examples: //etc/passwd, //var/run, //server/share
