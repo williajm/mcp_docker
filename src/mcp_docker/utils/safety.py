@@ -3,6 +3,7 @@
 import os
 import re
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
@@ -554,7 +555,20 @@ def validate_mount_path(
         raise ValidationError(f"Invalid path format: {path}") from e
 
     # FIRST: Block all non-Unix/Linux paths (Windows, UNC, etc.)
+    # This must run BEFORE the absolute path check because on Unix systems,
+    # os.path.isabs() returns False for Windows paths like C:\ or \\server\share
     _check_windows_paths(path, normalized_path)
+
+    # CRITICAL: Block all relative paths (traversal attack prevention)
+    # After Windows check, this catches Unix relative paths like ../../etc/shadow
+    if not Path(normalized_path).is_absolute():
+        raise UnsafeOperationError(
+            f"Mount path '{path}' is not allowed. "
+            "Only absolute paths are permitted for volume mounts. "
+            f"Relative paths like '{normalized_path}' are blocked to prevent "
+            "path traversal attacks (e.g., ../../etc/shadow). "
+            "Enable SAFETY_YOLO_MODE=true to bypass (EXTREMELY DANGEROUS)."
+        )
 
     # THEN: Run Unix/Linux security checks
     _check_root_filesystem(path, normalized_path)

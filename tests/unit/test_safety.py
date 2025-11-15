@@ -433,6 +433,45 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="not allowed"):
             validate_mount_path("/home/user/../../etc/shadow")
 
+    def test_validate_mount_path_blocks_relative_paths(self) -> None:
+        """Test that all relative paths are blocked (path traversal prevention).
+
+        CRITICAL SECURITY: Relative paths like ../../etc/shadow can bypass
+        dangerous path checks because they don't start with '/'. This test
+        ensures they are rejected before any dangerous path checks run.
+        """
+        # Simple relative paths
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("etc/shadow")
+
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("data/files")
+
+        # Path traversal attempts (../../ etc)
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("../../etc/shadow")
+
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("../../../root/.ssh/id_rsa")
+
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("../../../../var/run/docker.sock")
+
+        # Current directory paths
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("./data")
+
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("./etc/passwd")
+
+        # Complex traversal (normalizes to relative path)
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("foo/../../etc/passwd")
+
+        # Relative path to safe directory still blocked
+        with pytest.raises(UnsafeOperationError, match="absolute paths"):
+            validate_mount_path("home/user/safe")
+
     def test_validate_mount_path_yolo_mode_bypasses_all(self) -> None:
         """Test that YOLO mode bypasses all validation."""
         # All of these should NOT raise when yolo_mode=True
@@ -445,6 +484,10 @@ class TestMountPathValidation:
         validate_mount_path("/proc", yolo_mode=True)
         validate_mount_path("/boot", yolo_mode=True)
         validate_mount_path("/dev", yolo_mode=True)
+        # YOLO mode also allows relative paths
+        validate_mount_path("../../etc/shadow", yolo_mode=True)
+        validate_mount_path("./data", yolo_mode=True)
+        validate_mount_path("relative/path", yolo_mode=True)
 
     def test_validate_mount_path_invalid_path_format(self) -> None:
         """Test validating mount path with invalid format raises ValidationError."""
