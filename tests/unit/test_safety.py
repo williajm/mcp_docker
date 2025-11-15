@@ -688,6 +688,103 @@ class TestMountPathValidation:
         # Paths not in allowlist allowed in YOLO mode
         validate_mount_path(r"D:\restricted", allowed_paths=allowlist, yolo_mode=True)
 
+    def test_validate_mount_path_windows_blocklist_case_insensitive(self) -> None:
+        """Test that Windows blocklist matching is case-insensitive.
+
+        Windows filesystem is case-insensitive, so C:\\Windows and c:\\windows
+        are the same path. The blocklist must catch all casing variations to
+        prevent security bypasses.
+        """
+        blocklist = [r"C:\Windows", r"C:\Program Files", r"\\.\pipe\docker_engine"]
+
+        # Test different casings of C:\Windows
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"c:\windows", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\WINDOWS", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"c:\WiNdOwS", blocked_paths=blocklist)
+
+        # Test subdirectories with different casings
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"c:\windows\system32", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\WINDOWS\SYSTEM32", blocked_paths=blocklist)
+
+        # Test C:\Program Files with different casings
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"c:\program files", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\PROGRAM FILES", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"c:\program files\app", blocked_paths=blocklist)
+
+        # Test UNC path with different casings
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\.\PIPE\docker_engine", blocked_paths=blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"\\.\pipe\DOCKER_ENGINE", blocked_paths=blocklist)
+
+    def test_validate_mount_path_windows_allowlist_case_insensitive(self) -> None:
+        """Test that Windows allowlist matching is case-insensitive.
+
+        Allowlist with C:\\Users should match c:\\users\\data to avoid
+        false negatives where legitimate paths are rejected due to casing.
+        """
+        allowlist = [r"C:\Users", r"D:\Data"]
+
+        # Allowed paths with different casings should work
+        validate_mount_path(r"c:\users\john\documents", allowed_paths=allowlist)
+        validate_mount_path(r"C:\USERS\JOHN\DOCUMENTS", allowed_paths=allowlist)
+        validate_mount_path(r"c:\UsErS\john\documents", allowed_paths=allowlist)
+
+        validate_mount_path(r"d:\data\files", allowed_paths=allowlist)
+        validate_mount_path(r"D:\DATA\FILES", allowed_paths=allowlist)
+        validate_mount_path(r"d:\DaTa\files", allowed_paths=allowlist)
+
+        # Not in allowlist should still be blocked (case-insensitive)
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path(r"c:\windows", allowed_paths=allowlist)
+
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path(r"C:\WINDOWS", allowed_paths=allowlist)
+
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path(r"e:\other", allowed_paths=allowlist)
+
+    def test_validate_mount_path_unix_paths_remain_case_sensitive(self) -> None:
+        """Test that Unix paths remain case-sensitive.
+
+        Unix filesystems are case-sensitive, so /Home and /home are different.
+        Our validation should respect this.
+        """
+        blocklist = ["/home/user"]
+        allowlist = ["/opt/data"]
+
+        # Unix paths should be case-sensitive for blocklist
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/home/user/file", blocked_paths=blocklist)
+
+        # Different casing should NOT match (case-sensitive)
+        validate_mount_path("/Home/user/file", blocked_paths=blocklist)
+        validate_mount_path("/HOME/user/file", blocked_paths=blocklist)
+
+        # Unix paths should be case-sensitive for allowlist
+        validate_mount_path("/opt/data/files", allowed_paths=allowlist)
+
+        # Different casing should NOT match (case-sensitive)
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path("/Opt/data/files", allowed_paths=allowlist)
+
+        with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
+            validate_mount_path("/OPT/DATA/files", allowed_paths=allowlist)
+
     def test_validate_mount_path_blocks_critical_system_paths(self) -> None:
         """Test that critical system paths are blocked by default config."""
         from mcp_docker.config import SafetyConfig

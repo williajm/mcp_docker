@@ -421,7 +421,7 @@ def _is_windows_absolute_path(path: str) -> bool:
     return bool(re.match(r"^[A-Za-z]:[/\\]", path) or path.startswith("\\\\"))
 
 
-def _path_starts_with(path: str, prefix: str) -> bool:
+def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) -> bool:
     r"""Check if path starts with prefix, accounting for path separators.
 
     Special case: Root paths (/, C:\\, D:\\) only match exactly, not subdirectories.
@@ -430,27 +430,37 @@ def _path_starts_with(path: str, prefix: str) -> bool:
     Args:
         path: Path to check
         prefix: Prefix to match against
+        case_insensitive: If True, perform case-insensitive comparison (for Windows)
 
     Returns:
         True if path starts with prefix
     """
+    # Normalize casing for case-insensitive comparison
+    if case_insensitive:
+        path_cmp = path.casefold()
+        prefix_cmp = prefix.casefold()
+    else:
+        path_cmp = path
+        prefix_cmp = prefix
+
     # Exact match always returns True
-    if path == prefix:
+    if path_cmp == prefix_cmp:
         return True
-    if not path.startswith(prefix):
+    if not path_cmp.startswith(prefix_cmp):
         return False
 
     # Special handling for Unix root "/" - only exact match, no subdirectories
     # This allows "/" in blocklist to block mounting "/" without blocking "/home", etc.
     # Windows root drives (C:\, D:\) match subdirectories (other drives still usable)
-    if prefix == "/":
+    if prefix_cmp == "/":
         return False
 
     # If prefix ends with a separator (and isn't a root), any path starting with it matches
-    if prefix.endswith(("/", "\\")):
+    if prefix_cmp.endswith(("/", "\\")):
         return True
 
     # Otherwise, check if the next character after prefix is a path separator
+    # Use original path for character checking (separators are ASCII, casing doesn't matter)
     if len(path) > len(prefix):
         next_char = path[len(prefix)]
         return next_char in ("/", "\\")
@@ -468,10 +478,16 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
     Raises:
         UnsafeOperationError: If path is blocked
     """
+    # Windows paths need case-insensitive comparison
+    is_windows = _is_windows_absolute_path(normalized)
+
     for blocked in blocked_paths:
-        if _path_starts_with(normalized, blocked):
+        if _path_starts_with(normalized, blocked, case_insensitive=is_windows):
             # Special message for root filesystem paths
-            if blocked in ("/", "C:\\", "D\\") and normalized == blocked:
+            # Use casefold for comparison if Windows
+            normalized_cmp = normalized.casefold() if is_windows else normalized
+            blocked_cmp = blocked.casefold() if is_windows else blocked
+            if blocked in ("/", "C:\\", "D:\\") and normalized_cmp == blocked_cmp:
                 raise UnsafeOperationError(
                     f"Mount path '{path}' is blocked. "
                     f"Mounting the root filesystem ({blocked}) could enable container escape. "
@@ -496,7 +512,12 @@ def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> No
     Raises:
         UnsafeOperationError: If path is not in allowlist
     """
-    if not any(_path_starts_with(normalized, p) for p in allowed_paths):
+    # Windows paths need case-insensitive comparison
+    is_windows = _is_windows_absolute_path(normalized)
+
+    if not any(
+        _path_starts_with(normalized, p, case_insensitive=is_windows) for p in allowed_paths
+    ):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not in the allowed paths list. "
             "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
