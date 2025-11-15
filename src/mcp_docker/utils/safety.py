@@ -489,7 +489,7 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
         Tuple of (validated_key, validated_value)
 
     Raises:
-        ValidationError: If variable is invalid
+        ValidationError: If variable is invalid or contains dangerous characters
 
     """
     if not key:
@@ -497,6 +497,25 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
 
     # Convert value to string
     value_str = str(value)
+
+    # Check for command injection characters in value
+    # These can be exploited when env vars are expanded in shell commands
+    dangerous_chars = [
+        "$(",  # Command substitution
+        "`",  # Backtick command substitution
+        ";",  # Command separator
+        "&",  # Background execution / command chaining
+        "|",  # Pipe to another command
+        "\n",  # Newline injection
+        "\r",  # Carriage return injection
+    ]
+
+    for char in dangerous_chars:
+        if char in value_str:
+            raise ValidationError(
+                f"Environment variable '{key}' contains dangerous character '{char}'. "
+                "Command injection characters are not allowed in environment variables."
+            )
 
     # Warn about potentially sensitive variables
     sensitive_patterns = [

