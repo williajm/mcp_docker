@@ -424,6 +424,80 @@ def _is_windows_absolute_path(path: str) -> bool:
     )
 
 
+def _normalize_windows_path(path: str) -> str:
+    r"""Normalize a Windows path using Windows semantics, regardless of host OS.
+
+    This function ensures Windows paths are properly normalized even when the MCP
+    server runs on Linux/macOS. It resolves .. and . components, normalizes separators,
+    and preserves drive letters - preventing path traversal attacks that bypass
+    blocklist/allowlist checks.
+
+    SECURITY: Without this, os.path.normpath on Linux fails to normalize Windows paths:
+        - C:\safe\..\Windows becomes C:\safe\..\Windows (.. not resolved!)
+        - C:/safe/../Windows becomes Windows (drive letter lost!)
+
+    Args:
+        path: Windows path to normalize (with drive letter or UNC prefix)
+
+    Returns:
+        Normalized Windows path with forward slashes (e.g., C:/Windows/System32)
+
+    Examples:
+        >>> _normalize_windows_path(r'C:\safe\..\Windows')
+        'C:/Windows'
+        >>> _normalize_windows_path('C:/safe/../../Windows')
+        'C:/Windows'
+        >>> _normalize_windows_path(r'D:\Users\.\alice\..\bob\data')
+        'D:/Users/bob/data'
+    """
+    # Replace all backslashes with forward slashes for consistent processing
+    normalized = path.replace("\\", "/")
+
+    # Extract prefix (drive letter or UNC) - prefix should NOT include trailing slash
+    prefix = ""
+    if re.match(r"^[A-Za-z]:/", normalized):
+        # Drive letter: C:, D:, etc. (without trailing slash)
+        prefix = normalized[:2]  # e.g., "C:"
+        normalized = normalized[3:]  # Rest of path after "C:/"
+    elif normalized.startswith("//"):
+        # UNC path: //server/share (without trailing slash)
+        # UNC requires exactly 2 components (server + share), so magic number is acceptable
+        parts = normalized[2:].split("/", 2)
+        if len(parts) >= 2:  # noqa: PLR2004
+            prefix = f"//{parts[0]}/{parts[1]}"
+            normalized = parts[2] if len(parts) > 2 else ""  # noqa: PLR2004
+        else:
+            # Malformed UNC, just return as-is
+            return path.replace("\\", "/")
+    else:
+        # Should never happen if _is_windows_absolute_path was checked first
+        return path.replace("\\", "/")
+
+    # Split path into components and resolve . and ..
+    components = normalized.split("/") if normalized else []
+    resolved: list[str] = []
+
+    for component in components:
+        if component in {".", ""}:
+            # Skip current directory and empty components
+            continue
+        if component == "..":
+            # Go up one directory (if possible)
+            if resolved:
+                resolved.pop()
+            # If resolved is empty, we can't go up further (already at drive root)
+        else:
+            # Normal directory/file name
+            resolved.append(component)
+
+    # Reconstruct path with prefix
+    if resolved:
+        # Add separator between prefix and resolved path components
+        return prefix + "/" + "/".join(resolved)
+    # Path resolved to root (e.g., C:/..)
+    return prefix.rstrip("/")
+
+
 def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) -> bool:
     r"""Check if path starts with prefix, accounting for path separators.
 
@@ -490,12 +564,23 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
     is_windows = _is_windows_absolute_path(normalized)
 
     for blocked in blocked_paths:
-        if _path_starts_with(normalized, blocked, case_insensitive=is_windows):
+        # SECURITY: Normalize blocklist entries to prevent bypass via path traversal
+        # Windows paths must use Windows-aware normalization even on Linux hosts
+        if _is_windows_absolute_path(blocked):
+            normalized_blocked = _normalize_windows_path(blocked)
+        else:
+            normalized_blocked = os.path.normpath(blocked)
+
+        if _path_starts_with(normalized, normalized_blocked, case_insensitive=is_windows):
             # Special message for root filesystem paths
             # Use casefold for comparison if Windows
             normalized_cmp = normalized.casefold() if is_windows else normalized
-            blocked_cmp = blocked.casefold() if is_windows else blocked
-            if blocked in ("/", "C:\\", "D:\\") and normalized_cmp == blocked_cmp:
+            blocked_cmp = normalized_blocked.casefold() if is_windows else normalized_blocked
+            # Check if this is a root filesystem (/, C:, D:, etc.)
+            is_root = normalized_blocked in ("/",) or (
+                is_windows and re.match(r"^[A-Za-z]:$", normalized_blocked)
+            )
+            if is_root and normalized_cmp == blocked_cmp:
                 raise UnsafeOperationError(
                     f"Mount path '{path}' is blocked. "
                     f"Mounting the root filesystem ({blocked}) could enable container escape. "
@@ -523,8 +608,17 @@ def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> No
     # Windows paths need case-insensitive comparison
     is_windows = _is_windows_absolute_path(normalized)
 
+    # SECURITY: Normalize allowlist entries to prevent bypass via path traversal
+    # Windows paths must use Windows-aware normalization even on Linux hosts
+    normalized_allowed = []
+    for allowed in allowed_paths:
+        if _is_windows_absolute_path(allowed):
+            normalized_allowed.append(_normalize_windows_path(allowed))
+        else:
+            normalized_allowed.append(os.path.normpath(allowed))
+
     if not any(
-        _path_starts_with(normalized, p, case_insensitive=is_windows) for p in allowed_paths
+        _path_starts_with(normalized, p, case_insensitive=is_windows) for p in normalized_allowed
     ):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not in the allowed paths list. "
@@ -589,8 +683,15 @@ def validate_mount_path(
         )
 
     # Normalize path (resolves .., ., removes trailing slashes)
+    # SECURITY: Use Windows-aware normalization for Windows paths to prevent
+    # path traversal attacks. os.path.normpath uses host OS semantics, which
+    # fails to normalize Windows paths on Linux (e.g., C:\safe\..\Windows
+    # stays as C:\safe\..\Windows, bypassing blocklist checks).
     try:
-        normalized = os.path.normpath(path)
+        if _is_windows_absolute_path(path):
+            normalized = _normalize_windows_path(path)
+        else:
+            normalized = os.path.normpath(path)
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 

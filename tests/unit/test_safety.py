@@ -333,6 +333,120 @@ class TestPrivilegedMode:
             check_privileged_mode(True, allow_privileged=False)
 
 
+class TestWindowsPathNormalization:
+    """Test Windows path normalization helper function (P1 SECURITY FIX)."""
+
+    def test_normalize_windows_path_resolves_dotdot_backslash(self) -> None:
+        """Test that .. components are resolved in paths with backslashes."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # Single .. component
+        assert _normalize_windows_path(r"C:\Users\..\Windows") == "C:/Windows"
+        assert _normalize_windows_path(r"D:\safe\..\data") == "D:/data"
+
+        # Multiple .. components
+        assert _normalize_windows_path(r"C:\safe\..\..\Windows") == "C:/Windows"
+        assert _normalize_windows_path(r"C:\a\b\c\..\..\d") == "C:/a/d"
+
+        # Deep traversal
+        assert _normalize_windows_path(r"C:\temp\data\..\..\..\Windows") == "C:/Windows"
+
+    def test_normalize_windows_path_resolves_dotdot_forward_slash(self) -> None:
+        """Test that .. components are resolved in paths with forward slashes."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # Single .. component
+        assert _normalize_windows_path("C:/Users/../Windows") == "C:/Windows"
+        assert _normalize_windows_path("D:/safe/../data") == "D:/data"
+
+        # Multiple .. components
+        assert _normalize_windows_path("C:/safe/../../Windows") == "C:/Windows"
+        assert _normalize_windows_path("C:/a/b/c/../../d") == "C:/a/d"
+
+        # Deep traversal
+        assert _normalize_windows_path("C:/temp/data/../../../Windows") == "C:/Windows"
+
+    def test_normalize_windows_path_mixed_separators(self) -> None:
+        """Test that mixed backslash and forward slash separators are normalized."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        assert _normalize_windows_path(r"C:\Users/..\Windows") == "C:/Windows"
+        assert _normalize_windows_path(r"C:/safe\..\data") == "C:/data"
+        assert _normalize_windows_path(r"D:\a/b\c/../d") == "D:/a/b/d"
+
+    def test_normalize_windows_path_resolves_dot(self) -> None:
+        """Test that . (current directory) components are removed."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        assert _normalize_windows_path(r"C:\Users\.\data") == "C:/Users/data"
+        assert _normalize_windows_path("C:/./Windows/./System32") == "C:/Windows/System32"
+        assert _normalize_windows_path(r"D:\.\.\safe\data") == "D:/safe/data"
+
+    def test_normalize_windows_path_preserves_drive_letter(self) -> None:
+        """Test that drive letter is always preserved (CRITICAL for blocklist checks)."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # Drive letter must be preserved even with deep traversal
+        assert _normalize_windows_path("C:/safe/../../Windows").startswith("C:")
+        # When path resolves to drive root, result is "D:" (no trailing slash)
+        assert _normalize_windows_path(r"D:\a\b\c\..\..\..") == "D:"
+
+        # Multiple drives
+        assert _normalize_windows_path("E:/data/../files") == "E:/files"
+        assert _normalize_windows_path("Z:/temp/../../root") == "Z:/root"
+
+    def test_normalize_windows_path_handles_root_traversal(self) -> None:
+        """Test that .. at root doesn't escape the drive."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # Can't go above drive root
+        assert _normalize_windows_path("C:/..") == "C:"
+        assert _normalize_windows_path("C:/../..") == "C:"
+        assert _normalize_windows_path(r"D:\..\Windows") == "D:/Windows"
+
+    def test_normalize_windows_path_trailing_slash(self) -> None:
+        """Test that trailing slashes are handled correctly."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        assert _normalize_windows_path("C:\\Windows\\") == "C:/Windows"
+        assert _normalize_windows_path("C:/Users/") == "C:/Users"
+        assert _normalize_windows_path("D:\\safe\\data\\..\\..\\") == "D:"
+
+    def test_normalize_windows_path_unc_paths(self) -> None:
+        """Test that UNC paths are normalized correctly."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # UNC with ..
+        assert _normalize_windows_path(r"\\server\share\data\..\files") == "//server/share/files"
+        assert _normalize_windows_path("//server/share/a/../b") == "//server/share/b"
+
+        # UNC at root
+        assert _normalize_windows_path(r"\\server\share") == "//server/share"
+        assert _normalize_windows_path(r"\\server\share\..\data") == "//server/share/data"
+
+    def test_normalize_windows_path_converts_backslashes(self) -> None:
+        """Test that all backslashes are converted to forward slashes."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # Output should always use forward slashes
+        result = _normalize_windows_path(r"C:\Windows\System32")
+        assert "\\" not in result
+        assert result == "C:/Windows/System32"
+
+        result = _normalize_windows_path(r"D:\Program Files\App")
+        assert "\\" not in result
+        assert result == "D:/Program Files/App"
+
+    def test_normalize_windows_path_case_preserving(self) -> None:
+        """Test that case is preserved in normalized paths."""
+        from mcp_docker.utils.safety import _normalize_windows_path
+
+        # Case should be preserved (Windows is case-insensitive but case-preserving)
+        assert _normalize_windows_path(r"C:\Windows\System32") == "C:/Windows/System32"
+        assert _normalize_windows_path(r"C:\WINDOWS\SYSTEM32") == "C:/WINDOWS/SYSTEM32"
+        assert _normalize_windows_path(r"C:\WiNdOwS\SyStEm32") == "C:/WiNdOwS/SyStEm32"
+
+
 class TestMountPathValidation:
     """Test mount path validation."""
 
@@ -595,6 +709,81 @@ class TestMountPathValidation:
         # Windows Docker named pipe blocked
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path(r"\\.\pipe\docker_engine", blocked_paths=windows_blocklist)
+
+    def test_validate_mount_path_windows_path_traversal_blocked(self) -> None:
+        """Test that Windows path traversal attacks are blocked (P1 SECURITY FIX).
+
+        CRITICAL: Path traversal using .. components must be blocked to prevent
+        attackers from bypassing blocklist checks. This test ensures Windows paths
+        are properly normalized on Linux hosts.
+
+        Before fix:
+        - C:\\safe\\..\\Windows normalized to C:\\safe\\..\\Windows (unchanged!)
+        - C:/safe/../Windows normalized to Windows (drive letter lost!)
+        - Both bypass C:\\Windows blocklist check
+
+        After fix:
+        - Both normalize to C:/Windows and are correctly blocked
+        """
+        windows_blocklist = [r"C:\Windows", r"C:\Program Files", "C:/ProgramData"]
+
+        # Path traversal with backslashes (common on Windows)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\safe\..\Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Users\..\Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\safe\..\..\Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                r"C:\temp\data\..\..\..\Windows\System32", blocked_paths=windows_blocklist
+            )
+
+        # Path traversal with forward slashes (also valid on Windows)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/safe/../Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/Users/../Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/safe/../../Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                "C:/temp/data/../../../Windows/System32", blocked_paths=windows_blocklist
+            )
+
+        # Mixed separators (Windows accepts both)
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\safe/..\Windows", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:/safe\..\Windows", blocked_paths=windows_blocklist)
+
+        # Path traversal to Program Files
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Users\..\Program Files", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                "C:/Users/../Program Files/Common Files", blocked_paths=windows_blocklist
+            )
+
+        # Path traversal to ProgramData
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(r"C:\Users\..\ProgramData", blocked_paths=windows_blocklist)
+
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("C:/temp/../ProgramData/Docker", blocked_paths=windows_blocklist)
+
+        # Verify safe paths still work (not affected by fix)
+        validate_mount_path(r"C:\Users\data", blocked_paths=windows_blocklist)
+        validate_mount_path("C:/Projects/myapp", blocked_paths=windows_blocklist)
+        validate_mount_path(r"D:\safe\data", blocked_paths=windows_blocklist)
 
     def test_validate_mount_path_custom_blocklist(self) -> None:
         """Test that custom blocklist is enforced."""
