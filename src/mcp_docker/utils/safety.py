@@ -424,6 +424,62 @@ def _is_windows_absolute_path(path: str) -> bool:
     )
 
 
+def _extract_windows_prefix(normalized: str, original_path: str) -> tuple[str, str]:
+    """Extract Windows path prefix (drive letter or UNC) from normalized path.
+
+    Args:
+        normalized: Path with forward slashes
+        original_path: Original path for fallback
+
+    Returns:
+        Tuple of (prefix, remaining_path)
+    """
+    if re.match(r"^[A-Za-z]:/", normalized):
+        # Drive letter: C:, D:, etc. (without trailing slash)
+        prefix = normalized[:2]  # e.g., "C:"
+        remaining = normalized[3:]  # Rest of path after "C:/"
+        return prefix, remaining
+
+    if normalized.startswith("//"):
+        # UNC path: //server/share (without trailing slash)
+        # UNC requires exactly 2 components (server + share), so magic number is acceptable
+        parts = normalized[2:].split("/", 2)
+        if len(parts) >= 2:  # noqa: PLR2004
+            prefix = f"//{parts[0]}/{parts[1]}"
+            remaining = parts[2] if len(parts) > 2 else ""  # noqa: PLR2004
+            return prefix, remaining
+        # Malformed UNC, return as-is
+        return "", original_path.replace("\\", "/")
+
+    # Should never happen if _is_windows_absolute_path was checked first
+    return "", original_path.replace("\\", "/")
+
+
+def _resolve_path_components(components: list[str]) -> list[str]:
+    """Resolve . and .. components in a path.
+
+    Args:
+        components: List of path components
+
+    Returns:
+        List of resolved path components
+    """
+    resolved: list[str] = []
+    for component in components:
+        if component in {".", ""}:
+            # Skip current directory and empty components
+            continue
+        if component == "..":
+            # Go up one directory (if possible)
+            if resolved:
+                resolved.pop()
+            # If resolved is empty, we can't go up further (already at drive root)
+        else:
+            # Normal directory/file name
+            resolved.append(component)
+    return resolved
+
+
 def _normalize_windows_path(path: str) -> str:
     r"""Normalize a Windows path using Windows semantics, regardless of host OS.
 
@@ -454,41 +510,14 @@ def _normalize_windows_path(path: str) -> str:
     normalized = path.replace("\\", "/")
 
     # Extract prefix (drive letter or UNC) - prefix should NOT include trailing slash
-    prefix = ""
-    if re.match(r"^[A-Za-z]:/", normalized):
-        # Drive letter: C:, D:, etc. (without trailing slash)
-        prefix = normalized[:2]  # e.g., "C:"
-        normalized = normalized[3:]  # Rest of path after "C:/"
-    elif normalized.startswith("//"):
-        # UNC path: //server/share (without trailing slash)
-        # UNC requires exactly 2 components (server + share), so magic number is acceptable
-        parts = normalized[2:].split("/", 2)
-        if len(parts) >= 2:  # noqa: PLR2004
-            prefix = f"//{parts[0]}/{parts[1]}"
-            normalized = parts[2] if len(parts) > 2 else ""  # noqa: PLR2004
-        else:
-            # Malformed UNC, just return as-is
-            return path.replace("\\", "/")
-    else:
-        # Should never happen if _is_windows_absolute_path was checked first
-        return path.replace("\\", "/")
+    prefix, remaining = _extract_windows_prefix(normalized, path)
+    if not prefix:
+        # No valid prefix found, return early
+        return remaining
 
     # Split path into components and resolve . and ..
-    components = normalized.split("/") if normalized else []
-    resolved: list[str] = []
-
-    for component in components:
-        if component in {".", ""}:
-            # Skip current directory and empty components
-            continue
-        if component == "..":
-            # Go up one directory (if possible)
-            if resolved:
-                resolved.pop()
-            # If resolved is empty, we can't go up further (already at drive root)
-        else:
-            # Normal directory/file name
-            resolved.append(component)
+    components = remaining.split("/") if remaining else []
+    resolved = _resolve_path_components(components)
 
     # Reconstruct path with prefix
     if resolved:
@@ -549,6 +578,55 @@ def _path_starts_with(path: str, prefix: str, case_insensitive: bool = False) ->
     return False
 
 
+def _is_root_filesystem(normalized_blocked: str, is_windows: bool) -> bool:
+    """Check if a normalized path represents a root filesystem.
+
+    Args:
+        normalized_blocked: Normalized blocklist path to check
+        is_windows: Whether this is a Windows path
+
+    Returns:
+        True if path is a root filesystem (/, C:, D:, etc.)
+    """
+    if normalized_blocked == "/":
+        return True
+    return is_windows and bool(re.match(r"^[A-Za-z]:$", normalized_blocked))
+
+
+def _raise_root_filesystem_error(path: str, blocked: str) -> None:
+    """Raise error for blocked root filesystem mount.
+
+    Args:
+        path: Original path (for error message)
+        blocked: Blocked path that matched
+
+    Raises:
+        UnsafeOperationError: Always raised with root filesystem message
+    """
+    raise UnsafeOperationError(
+        f"Mount path '{path}' is blocked. "
+        f"Mounting the root filesystem ({blocked}) could enable container escape. "
+        "Enable SAFETY_YOLO_MODE=true to bypass."
+    )
+
+
+def _raise_blocklist_error(path: str, blocked: str) -> None:
+    """Raise error for blocked path.
+
+    Args:
+        path: Original path (for error message)
+        blocked: Blocked path that matched
+
+    Raises:
+        UnsafeOperationError: Always raised with standard blocklist message
+    """
+    raise UnsafeOperationError(
+        f"Mount path '{path}' is blocked. "
+        f"This path matches blocklist entry: {blocked}. "
+        "Enable SAFETY_YOLO_MODE=true to bypass."
+    )
+
+
 def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> None:
     """Check if path is in blocklist and raise error if it is.
 
@@ -572,26 +650,17 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
             normalized_blocked = os.path.normpath(blocked)
 
         if _path_starts_with(normalized, normalized_blocked, case_insensitive=is_windows):
-            # Special message for root filesystem paths
             # Use casefold for comparison if Windows
             normalized_cmp = normalized.casefold() if is_windows else normalized
             blocked_cmp = normalized_blocked.casefold() if is_windows else normalized_blocked
-            # Check if this is a root filesystem (/, C:, D:, etc.)
-            is_root = normalized_blocked in ("/",) or (
-                is_windows and re.match(r"^[A-Za-z]:$", normalized_blocked)
-            )
+
+            # Check if this is a root filesystem and exact match
+            is_root = _is_root_filesystem(normalized_blocked, is_windows)
             if is_root and normalized_cmp == blocked_cmp:
-                raise UnsafeOperationError(
-                    f"Mount path '{path}' is blocked. "
-                    f"Mounting the root filesystem ({blocked}) could enable container escape. "
-                    "Enable SAFETY_YOLO_MODE=true to bypass."
-                )
+                _raise_root_filesystem_error(path, blocked)
+
             # Standard blocklist error message
-            raise UnsafeOperationError(
-                f"Mount path '{path}' is blocked. "
-                f"This path matches blocklist entry: {blocked}. "
-                "Enable SAFETY_YOLO_MODE=true to bypass."
-            )
+            _raise_blocklist_error(path, blocked)
 
 
 def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> None:
@@ -624,6 +693,49 @@ def _check_allowlist(path: str, normalized: str, allowed_paths: list[str]) -> No
             f"Mount path '{path}' is not in the allowed paths list. "
             "Configure SAFETY_VOLUME_MOUNT_ALLOWLIST to permit this path."
         )
+
+
+def _check_sensitive_directories(path: str, normalized: str) -> None:
+    """Check if path contains sensitive credential directories.
+
+    Args:
+        path: Original path (for error messages)
+        normalized: Normalized path to check
+
+    Raises:
+        UnsafeOperationError: If path contains sensitive directories
+    """
+    sensitive_dirs = [".ssh", ".gnupg", ".aws", ".kube", ".docker"]
+    normalized_lower = normalized.lower().replace("\\", "/")
+
+    for sensitive in sensitive_dirs:
+        # Check for sensitive dir as path component (e.g., /home/user/.ssh or C:\Users\alice\.ssh)
+        if f"/{sensitive}/" in normalized_lower or normalized_lower.endswith(f"/{sensitive}"):
+            raise UnsafeOperationError(
+                f"Mount path '{path}' contains sensitive directory '{sensitive}'. "
+                f"Mounting credential directories could expose SSH keys, GPG keys, "
+                f"cloud credentials, or Docker configs. Enable SAFETY_YOLO_MODE=true to bypass."
+            )
+
+
+def _normalize_mount_path(path: str) -> str:
+    """Normalize a mount path using appropriate normalization for the path type.
+
+    Args:
+        path: Path to normalize
+
+    Returns:
+        Normalized path
+
+    Raises:
+        ValidationError: If path format is invalid
+    """
+    try:
+        if _is_windows_absolute_path(path):
+            return _normalize_windows_path(path)
+        return os.path.normpath(path)
+    except (ValueError, TypeError) as e:
+        raise ValidationError(f"Invalid path format: {path}") from e
 
 
 def validate_mount_path(
@@ -687,26 +799,11 @@ def validate_mount_path(
     # path traversal attacks. os.path.normpath uses host OS semantics, which
     # fails to normalize Windows paths on Linux (e.g., C:\safe\..\Windows
     # stays as C:\safe\..\Windows, bypassing blocklist checks).
-    try:
-        if _is_windows_absolute_path(path):
-            normalized = _normalize_windows_path(path)
-        else:
-            normalized = os.path.normpath(path)
-    except (ValueError, TypeError) as e:
-        raise ValidationError(f"Invalid path format: {path}") from e
+    normalized = _normalize_mount_path(path)
 
     # Check for sensitive directories anywhere in path (substring check)
     # These contain credentials/keys and should never be mounted
-    sensitive_dirs = [".ssh", ".gnupg", ".aws", ".kube", ".docker"]
-    normalized_lower = normalized.lower().replace("\\", "/")
-    for sensitive in sensitive_dirs:
-        # Check for sensitive dir as path component (e.g., /home/user/.ssh or C:\Users\alice\.ssh)
-        if f"/{sensitive}/" in normalized_lower or normalized_lower.endswith(f"/{sensitive}"):
-            raise UnsafeOperationError(
-                f"Mount path '{path}' contains sensitive directory '{sensitive}'. "
-                f"Mounting credential directories could expose SSH keys, GPG keys, "
-                f"cloud credentials, or Docker configs. Enable SAFETY_YOLO_MODE=true to bypass."
-            )
+    _check_sensitive_directories(path, normalized)
 
     # Check blocklist (if provided)
     if blocked_paths is not None:
