@@ -22,6 +22,16 @@ from mcp_docker.utils.safety import (
 )
 
 
+@pytest.fixture
+def default_blocklist() -> list[str]:
+    """Fixture providing the default blocklist for testing.
+
+    This represents a minimal blocklist used in many tests to avoid duplication.
+    Note: This is a subset for testing - the actual default config has more paths.
+    """
+    return ["/var/run/docker.sock", "/", "/etc", "/root"]
+
+
 class TestOperationClassification:
     """Test operation classification functions."""
 
@@ -326,29 +336,25 @@ class TestPrivilegedMode:
 class TestMountPathValidation:
     """Test mount path validation."""
 
-    def test_validate_mount_path_safe(self) -> None:
+    def test_validate_mount_path_safe(self, default_blocklist: list[str]) -> None:
         """Test validating safe mount path."""
         # Should not raise (with default blocklist)
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         validate_mount_path("/home/user/data", blocked_paths=default_blocklist)
         validate_mount_path("/tmp/mydata", blocked_paths=default_blocklist)
         validate_mount_path("/opt/myapp", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_dangerous_passwd(self) -> None:
+    def test_validate_mount_path_dangerous_passwd(self, default_blocklist: list[str]) -> None:
         """Test validating dangerous mount path (passwd)."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/passwd", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_dangerous_shadow(self) -> None:
+    def test_validate_mount_path_dangerous_shadow(self, default_blocklist: list[str]) -> None:
         """Test validating dangerous mount path (shadow)."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/shadow", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_dangerous_ssh(self) -> None:
+    def test_validate_mount_path_dangerous_ssh(self, default_blocklist: list[str]) -> None:
         """Test validating dangerous mount path (ssh)."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/root/.ssh", blocked_paths=default_blocklist)
 
@@ -367,30 +373,26 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="not in the allowed paths"):
             validate_mount_path("/tmp/data", allowed_paths=allowed, blocked_paths=[])
 
-    def test_validate_mount_path_blocks_docker_socket(self) -> None:
+    def test_validate_mount_path_blocks_docker_socket(self, default_blocklist: list[str]) -> None:
         """Test that Docker socket mounting is blocked."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/var/run/docker.sock", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_blocks_root_filesystem(self) -> None:
+    def test_validate_mount_path_blocks_root_filesystem(self, default_blocklist: list[str]) -> None:
         """Test that root filesystem mounting is blocked."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_blocks_etc_directory(self) -> None:
+    def test_validate_mount_path_blocks_etc_directory(self, default_blocklist: list[str]) -> None:
         """Test that /etc directory mounting is blocked."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc", blocked_paths=default_blocklist)
 
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/nginx", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_blocks_root_home(self) -> None:
+    def test_validate_mount_path_blocks_root_home(self, default_blocklist: list[str]) -> None:
         """Test that /root directory mounting is blocked."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/root", blocked_paths=default_blocklist)
 
@@ -398,16 +400,14 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/root/.ssh", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_blocks_sudoers(self) -> None:
+    def test_validate_mount_path_blocks_sudoers(self, default_blocklist: list[str]) -> None:
         """Test that /etc/sudoers file is blocked."""
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/sudoers", blocked_paths=default_blocklist)
 
-    def test_validate_mount_path_path_traversal(self) -> None:
+    def test_validate_mount_path_path_traversal(self, default_blocklist: list[str]) -> None:
         """Test that path traversal is normalized and blocked."""
         # Path traversal should be normalized to /etc/shadow
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/home/user/../../etc/shadow", blocked_paths=default_blocklist)
 
@@ -499,13 +499,14 @@ class TestMountPathValidation:
         with pytest.raises(ValidationError, match="Invalid path format"):
             validate_mount_path(None)  # type: ignore
 
-    def test_validate_mount_path_blocks_specific_dangerous_files(self) -> None:
+    def test_validate_mount_path_blocks_specific_dangerous_files(
+        self, default_blocklist: list[str]
+    ) -> None:
         """Test that specific files under blocked directories are blocked.
 
         Files under /etc and /root are blocked because their parent directories
         are in the blocklist.
         """
-        default_blocklist = ["/var/run/docker.sock", "/", "/etc", "/root"]
 
         # Caught by /etc prefix
         with pytest.raises(UnsafeOperationError, match="blocked"):
