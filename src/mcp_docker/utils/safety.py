@@ -781,23 +781,25 @@ def _normalize_mount_path(path: str) -> str:
         # normalize Windows-style paths with forward slashes BEFORE the Unix collapse.
         # Otherwise paths like //./pipe/docker_engine bypass the blocklist.
 
-        # Check for Windows device/UNC paths with forward slashes and convert to backslashes:
-        # - //./device → \\.\device (Windows device namespace)
-        # - //?/path → \\?\path (Windows extended-length path prefix)
-        # - //server/share → \\server\share (Windows UNC path)
+        # SECURITY: Windows UNC/device paths with forward slashes must be normalized
+        # CRITICAL: Only recognize Windows-specific patterns to avoid misclassifying Unix paths
+        # Real Windows UNC paths use backslashes: \\server\share
+        # Forward-slash variants like //server/share are treated as Unix (POSIX allows //)
         if path.startswith("//"):
-            # Check for Windows device namespace: //./
-            if path.startswith("//.") or path.startswith("//?"):
-                path = path.replace("/", "\\", 1)  # Replace first / with \
-                path = path.replace("/", "\\", 1)  # Replace second / with \
-                # Now it's \\?\ - continue with normal Windows processing
-            # Check for potential UNC path: //server/share (at least 2 components)
-            elif "/" in path[2:]:  # Has at least one more slash after //
-                # This looks like a UNC path - convert all forward slashes to backslashes
-                path = path.replace("/", "\\")
+            # Windows device namespace: //./ or //./pipe/name → \\.\pipe\name
+            if path.startswith("//./"):
+                # Remove // prefix, add \\, then convert remaining / to \
+                path = "\\\\" + path[2:]  # //./pipe → \\./pipe
+                path = path.replace("/", "\\")  # \\./pipe → \\.\pipe
+            # Windows extended-length prefix: //?/ or //?/C:/path → \\?\C:\path
+            elif path.startswith("//?/"):
+                # Remove // prefix, add \\, then convert remaining / to \
+                path = "\\\\" + path[2:]  # //?/C:/path → \\?/C:/path
+                path = path.replace("/", "\\")  # \\?/C:/path → \\?\C:\path
             else:
-                # Unix-style duplicate slashes: //path → /path
-                # On Linux/Unix, //path is the same as /path
+                # All other //path forms are Unix duplicate slashes (POSIX-compliant)
+                # Examples: //etc/passwd, //var/run, //server/share
+                # On Unix, these resolve to /etc/passwd, /var/run, /server/share
                 path = "/" + path.lstrip("/")
         # Check for Windows drive paths with forward slashes: C:/Windows → C:\Windows
         elif re.match(r"^[A-Za-z]:/", path):
