@@ -362,41 +362,34 @@ def check_privileged_mode(
         )
 
 
-def validate_mount_path(
-    path: str,
-    allowed_paths: list[str] | None = None,
-    yolo_mode: bool = False,
-) -> None:
-    """Validate that a mount path is safe.
+def _check_root_filesystem(path: str, normalized_path: str) -> None:
+    """Check if path is mounting the root filesystem.
 
     Args:
-        path: Path to validate (host-side path)
-        allowed_paths: List of allowed path prefixes (None = block dangerous only)
-        yolo_mode: If True, skip all validation (EXTREMELY DANGEROUS!)
+        path: Original path provided
+        normalized_path: Normalized version of the path
 
     Raises:
-        UnsafeOperationError: If path is not allowed
-        ValidationError: If path format is invalid
-
+        UnsafeOperationError: If mounting root filesystem
     """
-    # YOLO mode bypasses all validation
-    if yolo_mode:
-        return
-
-    # Normalize path (resolve .., remove trailing slashes, etc.)
-    try:
-        normalized_path = os.path.normpath(path)
-    except (ValueError, TypeError) as e:
-        raise ValidationError(f"Invalid path format: {path}") from e
-
-    # Block root filesystem mount (most dangerous)
     if normalized_path in ["/", "C:\\", "C:/"]:
         raise UnsafeOperationError(
+            f"Mount path '{path}' is not allowed. "
             "Mounting the entire root filesystem is not allowed. "
             "This would grant full host access from the container."
         )
 
-    # Block Docker socket (equivalent to root access)
+
+def _check_docker_socket(path: str, normalized_path: str) -> None:
+    """Check if path is mounting Docker socket.
+
+    Args:
+        path: Original path provided
+        normalized_path: Normalized version of the path
+
+    Raises:
+        UnsafeOperationError: If mounting Docker socket
+    """
     docker_sockets = [
         "/var/run/docker.sock",
         "/run/docker.sock",
@@ -406,12 +399,23 @@ def validate_mount_path(
     for socket_path in docker_sockets:
         if normalized_path == socket_path or normalized_path.startswith(socket_path + "/"):
             raise UnsafeOperationError(
+                f"Mount path '{path}' is not allowed. "
                 f"Mounting Docker socket '{socket_path}' is not allowed. "
                 "This grants root-equivalent access to the host. "
                 "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
             )
 
-    # Block entire system directories
+
+def _check_dangerous_directories(path: str, normalized_path: str) -> None:
+    """Check if path is mounting dangerous system directories.
+
+    Args:
+        path: Original path provided
+        normalized_path: Normalized version of the path
+
+    Raises:
+        UnsafeOperationError: If mounting dangerous directory
+    """
     dangerous_prefixes = [
         "/etc",  # System configuration
         "/sys",  # Kernel/system information
@@ -440,7 +444,17 @@ def validate_mount_path(
                 "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
             )
 
-    # Block specific sensitive files
+
+def _check_dangerous_files(path: str, normalized_path: str) -> None:
+    """Check if path is mounting specific sensitive files.
+
+    Args:
+        path: Original path provided
+        normalized_path: Normalized version of the path
+
+    Raises:
+        UnsafeOperationError: If mounting sensitive file
+    """
     dangerous_files = [
         "/etc/passwd",
         "/etc/shadow",
@@ -459,13 +473,58 @@ def validate_mount_path(
                 "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
             )
 
-    # Block SSH directories (prevent key theft)
+
+def _check_ssh_paths(path: str, normalized_path: str) -> None:
+    """Check if path is mounting SSH directories.
+
+    Args:
+        path: Original path provided
+        normalized_path: Normalized version of the path
+
+    Raises:
+        UnsafeOperationError: If mounting SSH directory
+    """
     if "/.ssh/" in normalized_path or normalized_path.endswith("/.ssh"):
         raise UnsafeOperationError(
             f"Mount path '{path}' is not allowed. "
             "Mounting SSH directories is blocked to prevent key theft. "
             "Enable SAFETY_YOLO_MODE=true to bypass (at your own risk)."
         )
+
+
+def validate_mount_path(
+    path: str,
+    allowed_paths: list[str] | None = None,
+    yolo_mode: bool = False,
+) -> None:
+    """Validate that a mount path is safe.
+
+    Args:
+        path: Path to validate (host-side path)
+        allowed_paths: List of allowed path prefixes (None = block dangerous only)
+        yolo_mode: If True, skip all validation (EXTREMELY DANGEROUS!)
+
+    Raises:
+        UnsafeOperationError: If path is not allowed
+        ValidationError: If path format is invalid
+
+    """
+    # YOLO mode bypasses all validation
+    if yolo_mode:
+        return
+
+    # Normalize path (resolve .., remove trailing slashes, etc.)
+    try:
+        normalized_path = os.path.normpath(path)
+    except (ValueError, TypeError) as e:
+        raise ValidationError(f"Invalid path format: {path}") from e
+
+    # Run all security checks
+    _check_root_filesystem(path, normalized_path)
+    _check_docker_socket(path, normalized_path)
+    _check_dangerous_directories(path, normalized_path)
+    _check_dangerous_files(path, normalized_path)
+    _check_ssh_paths(path, normalized_path)
 
     # Check against allowed paths allowlist if specified
     if allowed_paths is not None and not any(
