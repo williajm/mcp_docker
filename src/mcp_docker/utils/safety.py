@@ -593,6 +593,20 @@ def _is_root_filesystem(normalized_blocked: str, is_windows: bool) -> bool:
     return is_windows and bool(re.match(r"^[A-Za-z]:$", normalized_blocked))
 
 
+def _normalize_blocklist_entry(blocked: str) -> str:
+    """Normalize a blocklist entry path.
+
+    Args:
+        blocked: Blocklist path to normalize
+
+    Returns:
+        Normalized blocklist path
+    """
+    if _is_windows_absolute_path(blocked):
+        return _normalize_windows_path(blocked)
+    return os.path.normpath(blocked)
+
+
 def _raise_root_filesystem_error(path: str, blocked: str) -> None:
     """Raise error for blocked root filesystem mount.
 
@@ -644,10 +658,7 @@ def _check_blocklist(path: str, normalized: str, blocked_paths: list[str]) -> No
     for blocked in blocked_paths:
         # SECURITY: Normalize blocklist entries to prevent bypass via path traversal
         # Windows paths must use Windows-aware normalization even on Linux hosts
-        if _is_windows_absolute_path(blocked):
-            normalized_blocked = _normalize_windows_path(blocked)
-        else:
-            normalized_blocked = os.path.normpath(blocked)
+        normalized_blocked = _normalize_blocklist_entry(blocked)
 
         if _path_starts_with(normalized, normalized_blocked, case_insensitive=is_windows):
             # Use casefold for comparison if Windows
