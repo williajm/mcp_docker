@@ -594,6 +594,19 @@ def validate_mount_path(
     except (ValueError, TypeError) as e:
         raise ValidationError(f"Invalid path format: {path}") from e
 
+    # Check for sensitive directories anywhere in path (substring check)
+    # These contain credentials/keys and should never be mounted
+    sensitive_dirs = [".ssh", ".gnupg", ".aws", ".kube", ".docker"]
+    normalized_lower = normalized.lower().replace("\\", "/")
+    for sensitive in sensitive_dirs:
+        # Check for sensitive dir as path component (e.g., /home/user/.ssh or C:\Users\alice\.ssh)
+        if f"/{sensitive}/" in normalized_lower or normalized_lower.endswith(f"/{sensitive}"):
+            raise UnsafeOperationError(
+                f"Mount path '{path}' contains sensitive directory '{sensitive}'. "
+                f"Mounting credential directories could expose SSH keys, GPG keys, "
+                f"cloud credentials, or Docker configs. Enable SAFETY_YOLO_MODE=true to bypass."
+            )
+
     # Check blocklist (if provided)
     if blocked_paths is not None:
         _check_blocklist(path, normalized, blocked_paths)

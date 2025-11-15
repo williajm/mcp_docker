@@ -355,7 +355,8 @@ class TestMountPathValidation:
 
     def test_validate_mount_path_dangerous_ssh(self, default_blocklist: list[str]) -> None:
         """Test validating dangerous mount path (ssh)."""
-        with pytest.raises(UnsafeOperationError, match="blocked"):
+        # Now caught by sensitive directory check before blocklist
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
             validate_mount_path("/root/.ssh", blocked_paths=default_blocklist)
 
     def test_validate_mount_path_with_allowed_paths(self) -> None:
@@ -396,8 +397,8 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/root", blocked_paths=default_blocklist)
 
-        # Subdirectories of /root also blocked
-        with pytest.raises(UnsafeOperationError, match="blocked"):
+        # Subdirectories of /root also blocked (but .ssh caught by sensitive dir check)
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
             validate_mount_path("/root/.ssh", blocked_paths=default_blocklist)
 
     def test_validate_mount_path_blocks_sudoers(self, default_blocklist: list[str]) -> None:
@@ -556,11 +557,12 @@ class TestMountPathValidation:
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/sudoers", blocked_paths=default_blocklist)
 
+        # Caught by /etc prefix (ssh != .ssh, so sensitive check doesn't apply)
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/etc/ssh/ssh_host_rsa_key", blocked_paths=default_blocklist)
 
-        # Caught by /root prefix
-        with pytest.raises(UnsafeOperationError, match="blocked"):
+        # Caught by sensitive directory check (.ssh)
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
             validate_mount_path("/root/.ssh/id_rsa", blocked_paths=default_blocklist)
 
     def test_validate_mount_path_windows_absolute_paths_allowed(self) -> None:
@@ -937,6 +939,112 @@ class TestMountPathValidation:
 
         with pytest.raises(UnsafeOperationError, match="blocked"):
             validate_mount_path("/sys/class/net", blocked_paths=default_blocklist)
+
+    def test_validate_mount_path_blocks_containerd_paths(self) -> None:
+        """Test that containerd runtime paths are blocked by default config.
+
+        Containerd is an alternative container runtime. Its data directories
+        contain the same sensitive information as Docker's and must be blocked
+        to prevent container escape.
+        """
+        from mcp_docker.config import SafetyConfig
+
+        config = SafetyConfig()
+        default_blocklist = config.volume_mount_blocklist
+
+        # Containerd data directory
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/lib/containerd", blocked_paths=default_blocklist)
+
+        # Containerd runtime socket
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/run/containerd", blocked_paths=default_blocklist)
+
+        # Subdirectories
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(
+                "/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs",
+                blocked_paths=default_blocklist,
+            )
+
+    def test_validate_mount_path_blocks_ssh_directories(self) -> None:
+        """Test that .ssh directories are blocked to prevent SSH key theft.
+
+        CRITICAL SECURITY: .ssh directories contain private SSH keys that
+        allow passwordless access to other systems. Mounting these directories
+        allows container to steal host credentials.
+        """
+        # Root's SSH directory
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path("/root/.ssh")
+
+        # User SSH directories
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path("/home/alice/.ssh")
+
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path("/home/bob/.ssh")
+
+        # Subdirectories within .ssh
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path("/home/alice/.ssh/id_rsa")
+
+        # Windows paths
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path(r"C:\Users\alice\.ssh")
+
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path("C:/Users/alice/.ssh")
+
+        # Case variations (normalized to lowercase)
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path("/home/alice/.SSH")
+
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.ssh'"):
+            validate_mount_path(r"C:\Users\alice\.SSH")
+
+    def test_validate_mount_path_blocks_credential_directories(self) -> None:
+        """Test that credential directories (.gnupg, .aws, .kube, .docker) are blocked.
+
+        These directories contain sensitive credentials that should never be
+        exposed to containers.
+        """
+        # GPG keys
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.gnupg'"):
+            validate_mount_path("/home/alice/.gnupg")
+
+        # AWS credentials
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.aws'"):
+            validate_mount_path("/home/alice/.aws")
+
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.aws'"):
+            validate_mount_path("/home/alice/.aws/credentials")
+
+        # Kubernetes config
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.kube'"):
+            validate_mount_path("/home/alice/.kube")
+
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.kube'"):
+            validate_mount_path("/home/alice/.kube/config")
+
+        # Docker config (contains registry credentials)
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.docker'"):
+            validate_mount_path("/home/alice/.docker")
+
+        with pytest.raises(UnsafeOperationError, match="contains sensitive directory '.docker'"):
+            validate_mount_path("/home/alice/.docker/config.json")
+
+    def test_validate_mount_path_allows_non_sensitive_paths(self) -> None:
+        """Test that paths without sensitive directories are allowed."""
+        # These should NOT raise (not sensitive)
+        validate_mount_path("/home/alice/documents")
+        validate_mount_path("/home/alice/projects")
+        validate_mount_path("/opt/data")
+        validate_mount_path("/tmp/workspace")
+
+        # Paths that contain "ssh" but not ".ssh" component
+        validate_mount_path("/home/alice/ssh-tools")  # Not .ssh directory
+        validate_mount_path("/home/alice/mysshstuff")  # Not .ssh directory
 
 
 class TestPortBindingValidation:

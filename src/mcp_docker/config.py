@@ -214,13 +214,16 @@ class SafetyConfig(BaseSettings):
             "/var/run/docker.sock",  # Container escape - root access to host
             "/",  # Root filesystem - full host access
             "/etc",  # System configs & credentials
-            "/root",  # Root user home directory
+            "/root",  # Root user home directory (includes /root/.ssh)
             "/proc",  # Process information - kernel parameters, capabilities
             "/sys",  # System devices - kernel settings, hardware access
             "/dev",  # Device files - raw disk access
             "/boot",  # Boot files - kernel, initrd
             "/run",  # Runtime data - Docker socket, systemd
             "/var/lib/docker",  # Docker internal data - images, containers
+            "/var/lib/containerd",  # Containerd runtime data - images, containers
+            "/run/containerd",  # Containerd runtime socket and state
+            "/var/lib/kubelet",  # Kubernetes kubelet data
             r"\\.\pipe\docker_engine",  # Windows Docker named pipe
             "C:\\Windows",  # Windows system directory
             "C:\\Program Files",  # Windows program files
