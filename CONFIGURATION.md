@@ -142,6 +142,7 @@ SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1"]
 **Production Server (HTTP behind reverse proxy):**
 
 For production, deploy behind NGINX/Caddy reverse proxy that provides:
+
 - HTTPS/TLS termination
 - OAuth/authentication
 - Rate limiting

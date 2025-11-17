@@ -85,6 +85,7 @@ mcp-docker --transport http --host 127.0.0.1 --port 8000
 **Production Deployment:**
 
 For production use, deploy behind a reverse proxy (NGINX, Caddy) that provides:
+
 - HTTPS/TLS termination
 - OAuth/authentication
 - Rate limiting
