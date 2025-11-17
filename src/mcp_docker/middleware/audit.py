@@ -3,12 +3,12 @@
 This middleware logs all Docker operations for audit and compliance purposes.
 """
 
-from collections.abc import Awaitable, Callable
 from typing import Any
+
+from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.security.audit import AuditLogger
-from mcp_docker.utils.context_helpers import extract_client_id
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -49,31 +49,46 @@ class AuditMiddleware:
 
     async def __call__(
         self,
-        call_next: Callable[[], Awaitable[Any]],
-        context: dict[str, Any],
+        context: MiddlewareContext[Any],
+        call_next: CallNext[Any, Any],
     ) -> Any:
         """Log tool execution to audit log.
 
         Args:
+            context: FastMCP middleware context with tool and client information
             call_next: Next middleware/handler in the chain
-            context: Request context with tool and client information
 
         Returns:
             Result from next handler
         """
-        # Extract information from context
-        tool_name = context.get("tool_name", "unknown_tool")
-        arguments = context.get("arguments", {})
+        # Extract tool information from context
+        # For tool calls, context.message is a CallToolRequestParams
+        tool_name = getattr(context.message, "name", "unknown_tool")
+        arguments = getattr(context.message, "arguments", {}) or {}
 
-        # Build ClientInfo from context
-        client_id = extract_client_id(context)
-        client_ip = context.get("client_ip", "unknown")
+        # Extract client information
+        # Try to get from fastmcp_context if available
+        client_id = "unknown"
+        client_ip = "unknown"
+        api_key_hash = "none"
+        description = None
 
-        # Get API key hash if available (for authenticated requests)
-        api_key_hash = context.get("api_key_hash") or "none"
+        # Check if MCP session is established before accessing session_id
+        if context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
+            req_ctx = context.fastmcp_context.request_context
+            # Only access session_id if request_context is available (session established)
+            if req_ctx:
+                session_id = getattr(context.fastmcp_context, "session_id", None)
+                if session_id:
+                    client_id = session_id
 
-        # Get user agent or other description
-        description = context.get("user_agent") or None
+                # Try to get client IP from request
+                if hasattr(req_ctx, "request"):
+                    request = req_ctx.request
+                    if request and hasattr(request, "client"):
+                        client = request.client
+                        if client and hasattr(client, "host"):
+                            client_ip = client.host
 
         # Create ClientInfo for structured audit logging
         client_info = ClientInfo(
@@ -85,7 +100,7 @@ class AuditMiddleware:
 
         # Execute the tool and log the result
         try:
-            result = await call_next()
+            result = await call_next(context)
 
             # Log successful execution to structured audit log
             self.audit_logger.log_tool_call(

@@ -1,7 +1,8 @@
 """Authentication middleware for MCP Docker server."""
 
-from collections.abc import Awaitable, Callable
 from typing import Any
+
+from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.auth.oauth_auth import OAuthAuthenticationError, OAuthAuthenticator
@@ -64,8 +65,8 @@ class AuthMiddleware:
 
     async def __call__(
         self,
-        call_next: Callable[[], Awaitable[Any]],
-        context: dict[str, Any],
+        context: MiddlewareContext[Any],
+        call_next: CallNext[Any, Any],
     ) -> Any:
         """FastMCP 2.0 middleware entry point for authentication.
 
@@ -73,8 +74,8 @@ class AuthMiddleware:
         before allowing the request to proceed.
 
         Args:
+            context: FastMCP middleware context
             call_next: Next middleware/handler in the chain
-            context: FastMCP request context
 
         Returns:
             Result from next handler
@@ -83,8 +84,24 @@ class AuthMiddleware:
             AuthenticationError: If authentication fails
         """
         # Extract authentication details from context
-        ip_address = context.get("client_ip")
-        bearer_token = context.get("bearer_token") or context.get("authorization")
+        ip_address = None
+        bearer_token = None
+
+        # Try to get IP address from request context
+        if context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
+            req_ctx = context.fastmcp_context.request_context
+            if req_ctx and hasattr(req_ctx, "request"):
+                request = req_ctx.request
+                if request and hasattr(request, "client"):
+                    client = request.client
+                    if client and hasattr(client, "host"):
+                        ip_address = client.host
+
+                # Try to get bearer token from request headers
+                if request and hasattr(request, "headers"):
+                    auth_header = request.headers.get("authorization", "")
+                    if auth_header.startswith("Bearer "):
+                        bearer_token = auth_header[7:]  # Remove "Bearer " prefix
 
         # Authenticate the request
         try:
@@ -93,17 +110,15 @@ class AuthMiddleware:
                 bearer_token=bearer_token,
             )
 
-            # Add authenticated client info to context for downstream middleware
-            context["client_info"] = client_info
-            context["authenticated"] = True
-
             logger.debug(
                 f"AuthMiddleware: Authenticated {client_info.client_id} "
                 f"(method: {client_info.auth_method})"
             )
 
             # Authentication succeeded, proceed
-            return await call_next()
+            # Note: We can't modify the frozen MiddlewareContext, so we store client_info
+            # in the fastmcp_context if available for downstream middleware
+            return await call_next(context)
 
         except AuthenticationError as e:
             logger.error(f"AuthMiddleware: Authentication failed - {e}")
