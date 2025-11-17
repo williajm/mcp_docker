@@ -144,7 +144,112 @@ class RemoveContainerOutput(BaseModel):
 # FastMCP Tool Functions
 
 
-def create_create_container_tool(  # noqa: PLR0915 - Complex validation logic
+def _validate_create_container_inputs(
+    input_data: CreateContainerInput,
+    safety_config: SafetyConfig,
+) -> None:
+    """Validate all input parameters for container creation.
+
+    Args:
+        input_data: Container creation parameters
+        safety_config: Safety configuration for validation
+
+    Raises:
+        ValidationError: If any parameter is invalid
+    """
+    if input_data.name:
+        validate_container_name(input_data.name)
+    if input_data.command:
+        validate_command(input_data.command)
+    if input_data.mem_limit:
+        validate_memory(input_data.mem_limit)
+    if input_data.ports and isinstance(input_data.ports, dict):
+        _validate_port_mappings(input_data.ports)
+    if input_data.volumes and isinstance(input_data.volumes, dict):
+        _validate_volume_mounts(input_data.volumes, safety_config)
+    if input_data.environment and isinstance(input_data.environment, dict):
+        _validate_environment_vars(input_data.environment)
+
+
+def _validate_port_mappings(ports: dict[str, int | tuple[str, int] | None]) -> None:
+    """Validate port mappings.
+
+    Args:
+        ports: Port mappings to validate
+    """
+    assert isinstance(ports, dict)
+    for container_port, host_port in ports.items():
+        if isinstance(host_port, int):
+            validate_port_mapping(container_port, host_port)
+
+
+def _validate_volume_mounts(
+    volumes: dict[str, dict[str, str]],
+    safety_config: SafetyConfig,
+) -> None:
+    """Validate volume mounts.
+
+    Args:
+        volumes: Volume mappings to validate
+        safety_config: Safety configuration for mount validation
+    """
+    assert isinstance(volumes, dict)
+    for mount_path in volumes:
+        allowlist = safety_config.volume_mount_allowlist or None
+        validate_mount_path(
+            mount_path,
+            blocked_paths=safety_config.volume_mount_blocklist,
+            allowed_paths=allowlist,
+            yolo_mode=safety_config.yolo_mode,
+        )
+
+
+def _validate_environment_vars(environment: dict[str, str]) -> None:
+    """Validate environment variables.
+
+    Args:
+        environment: Environment variables to validate
+    """
+    assert isinstance(environment, dict)
+    for key, value in environment.items():
+        validate_environment_variable(key, value)
+
+
+def _prepare_create_container_kwargs(input_data: CreateContainerInput) -> dict[str, Any]:
+    """Prepare kwargs dictionary for container creation.
+
+    Args:
+        input_data: Container creation parameters
+
+    Returns:
+        Kwargs dictionary for Docker API
+    """
+    kwargs: dict[str, Any] = {"image": input_data.image}
+
+    if input_data.name:
+        kwargs["name"] = input_data.name
+    if input_data.command:
+        kwargs["command"] = input_data.command
+    if input_data.environment:
+        assert isinstance(input_data.environment, dict)
+        kwargs["environment"] = input_data.environment
+    if input_data.ports:
+        assert isinstance(input_data.ports, dict)
+        kwargs["ports"] = input_data.ports
+    if input_data.volumes:
+        assert isinstance(input_data.volumes, dict)
+        kwargs["volumes"] = input_data.volumes
+    if input_data.mem_limit:
+        kwargs["mem_limit"] = input_data.mem_limit
+    if input_data.cpu_shares:
+        kwargs["cpu_shares"] = input_data.cpu_shares
+    if input_data.remove:
+        kwargs["auto_remove"] = input_data.remove
+
+    return kwargs
+
+
+def create_create_container_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
@@ -157,60 +262,6 @@ def create_create_container_tool(  # noqa: PLR0915 - Complex validation logic
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
-
-    def _validate_inputs(input_data: CreateContainerInput) -> None:
-        """Validate all input parameters."""
-        if input_data.name:
-            validate_container_name(input_data.name)
-        if input_data.command:
-            validate_command(input_data.command)
-        if input_data.mem_limit:
-            validate_memory(input_data.mem_limit)
-        if input_data.ports:
-            assert isinstance(input_data.ports, dict)
-            for container_port, host_port in input_data.ports.items():
-                if isinstance(host_port, int):
-                    validate_port_mapping(container_port, host_port)
-        if input_data.volumes:
-            assert isinstance(input_data.volumes, dict)
-            for mount_path in input_data.volumes:
-                allowlist = safety_config.volume_mount_allowlist or None
-                validate_mount_path(
-                    mount_path,
-                    blocked_paths=safety_config.volume_mount_blocklist,
-                    allowed_paths=allowlist,
-                    yolo_mode=safety_config.yolo_mode,
-                )
-        if input_data.environment:
-            assert isinstance(input_data.environment, dict)
-            for key, value in input_data.environment.items():
-                validate_environment_variable(key, value)
-
-    def _prepare_kwargs(input_data: CreateContainerInput) -> dict[str, Any]:
-        """Prepare kwargs dictionary for container creation."""
-        kwargs: dict[str, Any] = {"image": input_data.image}
-
-        if input_data.name:
-            kwargs["name"] = input_data.name
-        if input_data.command:
-            kwargs["command"] = input_data.command
-        if input_data.environment:
-            assert isinstance(input_data.environment, dict)
-            kwargs["environment"] = input_data.environment
-        if input_data.ports:
-            assert isinstance(input_data.ports, dict)
-            kwargs["ports"] = input_data.ports
-        if input_data.volumes:
-            assert isinstance(input_data.volumes, dict)
-            kwargs["volumes"] = input_data.volumes
-        if input_data.mem_limit:
-            kwargs["mem_limit"] = input_data.mem_limit
-        if input_data.cpu_shares:
-            kwargs["cpu_shares"] = input_data.cpu_shares
-        if input_data.remove:
-            kwargs["auto_remove"] = input_data.remove
-
-        return kwargs
 
     def create_container(  # noqa: PLR0913 - Docker API requires these parameters
         image: str,
@@ -260,12 +311,12 @@ def create_create_container_tool(  # noqa: PLR0915 - Complex validation logic
             )
 
             # Validate inputs
-            _validate_inputs(input_data)
+            _validate_create_container_inputs(input_data, safety_config)
 
             logger.info(f"Creating container from image: {image}")
 
             # Prepare kwargs for container creation
-            kwargs = _prepare_kwargs(input_data)
+            kwargs = _prepare_create_container_kwargs(input_data)
 
             # Create the container
             container = docker_client.client.containers.create(**kwargs)
