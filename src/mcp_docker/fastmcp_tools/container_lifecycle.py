@@ -353,7 +353,6 @@ def create_start_container_tool(
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world, function)
@@ -425,7 +424,6 @@ def create_stop_container_tool(
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world, function)
@@ -499,7 +497,6 @@ def create_restart_container_tool(
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world, function)
@@ -562,7 +559,6 @@ def create_remove_container_tool(
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world, function)

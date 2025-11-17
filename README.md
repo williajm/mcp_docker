@@ -20,7 +20,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 - **36 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
-- **3 Transport Options**: stdio (local), SSE (Server-Sent Events), and HTTP Stream Transport (modern unified endpoint)
+- **2 Transport Options**: stdio (local) and HTTP (network deployments)
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
 - **Comprehensive Testing**: Extensive test coverage with unit, integration, E2E, and fuzz tests
@@ -73,57 +73,24 @@ uv cache prune
 
 ### Advanced Usage
 
-#### HTTP Stream Transport
+#### HTTP Transport
 
-The HTTP Stream Transport is a modern MCP transport protocol using a single unified endpoint (`POST /`) for all operations.
-
-**Features:**
-
-- **Single Endpoint**: All MCP communication through `POST /` (no separate SSE/messages endpoints)
-- **Session Management**: Automatic session tracking via `mcp-session-id` header
-- **Stream Resumability**: Reconnect and replay missed messages using `last-event-id` header
-- **Flexible Response Modes**: Choose between streaming (SSE) or batch (JSON) responses
-- **Browser Support**: Enhanced CORS configuration for web clients
-- **DNS Rebinding Protection**: Configure allowed hosts to prevent attacks
-
-**Basic Usage:**
+For network-accessible deployments, use HTTP transport:
 
 ```bash
-# Development (localhost only)
-mcp-docker --transport httpstream --host 127.0.0.1 --port 8000
-
-# Production with TLS
-./start-mcp-docker-httpstream.sh
+# Run with HTTP transport
+mcp-docker --transport http --host 127.0.0.1 --port 8000
 ```
 
-**Configuration:** The complete list of HTTP Stream, CORS, and DNS-rebinding settings lives in
-[CONFIGURATION.md](CONFIGURATION.md#http-stream-transport-configuration) (including the security
-toggles that pair with OAuth, rate limiting, and audit logging). Use that reference to keep runtime
-behavior in sync with CI and production deployments.
+**Production Deployment:**
 
-**Endpoint Documentation:**
+For production use, deploy behind a reverse proxy (NGINX, Caddy) that provides:
+- HTTPS/TLS termination
+- OAuth/authentication
+- Rate limiting
+- IP filtering
 
-- **POST /**: Main endpoint for all MCP operations
-  - Send JSON-RPC messages in request body
-  - Session tracked via `mcp-session-id` response header
-  - Streaming responses use SSE format
-  - Batch responses return complete JSON arrays
-
-- **Resumability**: Include `last-event-id` header to replay missed events after reconnection
-
-#### SSE Transport with TLS
-
-For network-accessible deployments, use SSE transport with TLS/HTTPS:
-
-```bash
-# Production: Use the startup script with TLS
-./start-mcp-docker-sse.sh
-
-# Development: Run with SSE transport (no TLS)
-mcp-docker --transport sse --host 127.0.0.1 --port 8000
-```
-
-Command-line options: `--transport` (stdio/sse/httpstream), `--host`, `--port`
+Command-line options: `--transport` (stdio/http), `--host`, `--port`
 
 ## Security
 

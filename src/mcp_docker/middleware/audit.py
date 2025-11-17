@@ -8,6 +8,7 @@ from typing import Any
 
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.security.audit import AuditLogger
+from mcp_docker.utils.context_helpers import extract_client_id
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -65,11 +66,8 @@ class AuditMiddleware:
         arguments = context.get("arguments", {})
 
         # Build ClientInfo from context
-        # Try multiple sources for client identification
+        client_id = extract_client_id(context)
         client_ip = context.get("client_ip", "unknown")
-        session_id = context.get("session_id")
-        user_id = context.get("user_id")
-        client_id = session_id or user_id or client_ip
 
         # Get API key hash if available (for authenticated requests)
         api_key_hash = context.get("api_key_hash") or "none"

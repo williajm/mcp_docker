@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
+from mcp_docker.utils.context_helpers import extract_client_id
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -67,14 +68,7 @@ class RateLimitMiddleware:
             RateLimitExceeded: If rate limit is exceeded
         """
         # Extract client identifier from context
-        # Try multiple sources: IP address, session ID, user ID
-        client_id = (
-            context.get("client_ip")
-            or context.get("session_id")
-            or context.get("user_id")
-            or "unknown"
-        )
-
+        client_id = extract_client_id(context)
         tool_name = context.get("tool_name", "unknown_tool")
 
         # Check rate limit and acquire concurrent slot

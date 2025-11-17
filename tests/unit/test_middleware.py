@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from mcp_docker.middleware.audit import AuditMiddleware
-from mcp_docker.middleware.rate_limit import RateLimitMiddleware
-from mcp_docker.middleware.safety import SafetyMiddleware
+from mcp_docker.middleware.audit import AuditMiddleware, create_audit_middleware
+from mcp_docker.middleware.rate_limit import RateLimitMiddleware, create_rate_limit_middleware
+from mcp_docker.middleware.safety import SafetyMiddleware, create_safety_middleware
 from mcp_docker.safety import SafetyEnforcer
 from mcp_docker.security.audit import AuditLogger
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
@@ -98,6 +98,70 @@ class TestSafetyMiddleware:
         assert result == {"status": "success"}
         enforcer.enforce_all_checks.assert_not_called()
         call_next.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_call_no_safety_level_defaults_to_safe(self):
+        """Test calling when tool_func has no safety level defaults to SAFE."""
+        enforcer = Mock(spec=SafetyEnforcer)
+        enforcer.enforce_all_checks = Mock(return_value=None)
+
+        middleware = SafetyMiddleware(enforcer)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Create context with tool_func but no _safety_level attribute
+        tool_func = Mock(spec=[])  # No _safety_level attribute
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {},
+            "tool_func": tool_func,
+        }
+
+        # Call middleware
+        result = await middleware(call_next, context)
+
+        assert result == {"status": "success"}
+        # Should default to SAFE level
+        enforcer.enforce_all_checks.assert_called_once_with(
+            "docker_list_containers", OperationSafety.SAFE, {}
+        )
+        call_next.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_call_no_tool_func_defaults_to_safe(self):
+        """Test calling without tool_func in context defaults to SAFE."""
+        enforcer = Mock(spec=SafetyEnforcer)
+        enforcer.enforce_all_checks = Mock(return_value=None)
+
+        middleware = SafetyMiddleware(enforcer)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Create context without tool_func
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {"all": True},
+        }
+
+        # Call middleware
+        result = await middleware(call_next, context)
+
+        assert result == {"status": "success"}
+        # Should default to SAFE level
+        enforcer.enforce_all_checks.assert_called_once_with(
+            "docker_list_containers", OperationSafety.SAFE, {"all": True}
+        )
+        call_next.assert_called_once()
+
+    def test_create_safety_middleware_factory(self):
+        """Test create_safety_middleware factory function."""
+        enforcer = Mock(spec=SafetyEnforcer)
+        middleware = create_safety_middleware(enforcer)
+
+        assert isinstance(middleware, SafetyMiddleware)
+        assert middleware.enforcer == enforcer
 
 
 class TestRateLimitMiddleware:
@@ -280,6 +344,68 @@ class TestRateLimitMiddleware:
 
         # Next middleware should not be called
         call_next.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_client_id_priority_order(self):
+        """Test client_id extraction priority: session_id > user_id > client_ip."""
+        rate_limiter = Mock(spec=RateLimiter)
+        rate_limiter.enabled = True
+        rate_limiter.rpm = 60
+        rate_limiter.check_rate_limit = AsyncMock(return_value=None)
+        rate_limiter.acquire_concurrent_slot = AsyncMock(return_value=None)
+        rate_limiter.release_concurrent_slot = Mock(return_value=None)
+
+        middleware = RateLimitMiddleware(rate_limiter)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Test 1: session_id is preferred
+        context = {
+            "tool_name": "docker_list_containers",
+            "client_ip": "192.168.1.100",
+            "session_id": "session-123",
+            "user_id": "user-456",
+        }
+        await middleware(call_next, context)
+        rate_limiter.check_rate_limit.assert_called_with("session-123")
+
+        # Test 2: user_id is used when session_id is missing
+        rate_limiter.reset_mock()
+        context = {
+            "tool_name": "docker_list_containers",
+            "client_ip": "192.168.1.100",
+            "user_id": "user-456",
+        }
+        await middleware(call_next, context)
+        rate_limiter.check_rate_limit.assert_called_with("user-456")
+
+        # Test 3: client_ip is used when both session_id and user_id are missing
+        rate_limiter.reset_mock()
+        context = {
+            "tool_name": "docker_list_containers",
+            "client_ip": "192.168.1.100",
+        }
+        await middleware(call_next, context)
+        rate_limiter.check_rate_limit.assert_called_with("192.168.1.100")
+
+        # Test 4: "unknown" is used when all are missing
+        rate_limiter.reset_mock()
+        context = {
+            "tool_name": "docker_list_containers",
+        }
+        await middleware(call_next, context)
+        rate_limiter.check_rate_limit.assert_called_with("unknown")
+
+    def test_create_rate_limit_middleware_factory(self):
+        """Test create_rate_limit_middleware factory function."""
+        rate_limiter = Mock(spec=RateLimiter)
+        rate_limiter.enabled = True
+        rate_limiter.rpm = 60
+        middleware = create_rate_limit_middleware(rate_limiter)
+
+        assert isinstance(middleware, RateLimitMiddleware)
+        assert middleware.rate_limiter == rate_limiter
 
 
 class TestAuditMiddleware:
@@ -473,3 +599,98 @@ class TestAuditMiddleware:
 
         assert client_info.api_key_hash == "sha256:abc123"
         assert client_info.description == "mcp-client/1.0"
+
+    @pytest.mark.asyncio
+    async def test_client_info_priority_session_over_user(self):
+        """Test client_id priority: session_id > user_id > client_ip."""
+        audit_logger = Mock(spec=AuditLogger)
+        audit_logger.enabled = True
+        audit_logger.log_tool_call = Mock(return_value=None)
+
+        middleware = AuditMiddleware(audit_logger)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Test 1: session_id is preferred
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {},
+            "client_ip": "192.168.1.100",
+            "session_id": "session-123",
+            "user_id": "user-456",
+        }
+        await middleware(call_next, context)
+        call_args = audit_logger.log_tool_call.call_args
+        assert call_args.kwargs["client_info"].client_id == "session-123"
+
+        # Test 2: user_id is used when session_id is missing
+        audit_logger.reset_mock()
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {},
+            "client_ip": "192.168.1.100",
+            "user_id": "user-456",
+        }
+        await middleware(call_next, context)
+        call_args = audit_logger.log_tool_call.call_args
+        assert call_args.kwargs["client_info"].client_id == "user-456"
+
+        # Test 3: client_ip is used when both session_id and user_id are missing
+        audit_logger.reset_mock()
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {},
+            "client_ip": "192.168.1.100",
+        }
+        await middleware(call_next, context)
+        call_args = audit_logger.log_tool_call.call_args
+        assert call_args.kwargs["client_info"].client_id == "192.168.1.100"
+
+        # Test 4: "unknown" is used when all are missing
+        audit_logger.reset_mock()
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {},
+        }
+        await middleware(call_next, context)
+        call_args = audit_logger.log_tool_call.call_args
+        assert call_args.kwargs["client_info"].client_id == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_non_dict_result_handling(self):
+        """Test that non-dict results are wrapped correctly."""
+        audit_logger = Mock(spec=AuditLogger)
+        audit_logger.enabled = True
+        audit_logger.log_tool_call = Mock(return_value=None)
+
+        middleware = AuditMiddleware(audit_logger)
+
+        # Mock next middleware returning a string
+        call_next = AsyncMock(return_value="success")
+
+        # Create context
+        context = {
+            "tool_name": "docker_list_containers",
+            "arguments": {},
+            "client_ip": "192.168.1.100",
+        }
+
+        # Call middleware
+        result = await middleware(call_next, context)
+
+        assert result == "success"
+
+        # Verify result was wrapped
+        audit_logger.log_tool_call.assert_called_once()
+        call_args = audit_logger.log_tool_call.call_args
+        assert call_args.kwargs["result"] == {"value": "success"}
+
+    def test_create_audit_middleware_factory(self):
+        """Test create_audit_middleware factory function."""
+        audit_logger = Mock(spec=AuditLogger)
+        audit_logger.enabled = True
+        middleware = create_audit_middleware(audit_logger)
+
+        assert isinstance(middleware, AuditMiddleware)
+        assert middleware.audit_logger == audit_logger
