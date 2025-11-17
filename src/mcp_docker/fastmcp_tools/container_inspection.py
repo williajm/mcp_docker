@@ -33,6 +33,79 @@ logger = get_logger(__name__)
 # Constants
 MAX_STREAMING_LOG_LINES = 10000  # Prevents OOM when collecting streaming logs
 
+
+def _build_logs_kwargs(
+    tail: int | str,
+    since: str | None,
+    until: str | None,
+    timestamps: bool,
+    follow: bool,
+) -> dict[str, Any]:
+    """Build kwargs dict for container.logs() call.
+
+    Args:
+        tail: Number of lines to show from end
+        since: Show logs since timestamp
+        until: Show logs until timestamp
+        timestamps: Show timestamps
+        follow: Follow log output
+
+    Returns:
+        Dictionary of kwargs for container.logs()
+    """
+    kwargs: dict[str, Any] = {
+        "timestamps": timestamps,
+        "follow": follow,
+    }
+    if tail != "all":
+        kwargs["tail"] = int(tail)
+    if since:
+        kwargs["since"] = since
+    if until:
+        kwargs["until"] = until
+    return kwargs
+
+
+def _apply_log_truncation(
+    logs_str: str,
+    follow: bool,
+    safety_config: SafetyConfig,
+) -> tuple[str, dict[str, Any]]:
+    """Apply truncation limits to logs if needed.
+
+    Args:
+        logs_str: Log string to potentially truncate
+        follow: Whether in follow mode
+        safety_config: Safety configuration with max_log_lines
+
+    Returns:
+        Tuple of (truncated_logs, truncation_info_dict)
+    """
+    truncation_info: dict[str, Any] = {}
+
+    if not follow and safety_config.max_log_lines > 0:
+        original_lines = len(logs_str.splitlines())
+        truncation_msg = (
+            f"\n[Output truncated: showing first {safety_config.max_log_lines} of "
+            f"{original_lines} lines. "
+            f"Set SAFETY_MAX_LOG_LINES=0 to disable limit.]"
+        )
+        logs_str, was_truncated = truncate_lines(
+            logs_str,
+            safety_config.max_log_lines,
+            truncation_message=truncation_msg,
+        )
+
+        if was_truncated:
+            truncation_info = create_truncation_metadata(
+                was_truncated=True,
+                original_count=original_lines,
+                truncated_count=safety_config.max_log_lines,
+            )
+
+    return logs_str, truncation_info
+
+
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_CONTAINER_ID = "Container ID or name"
 DESC_TRUNCATION_INFO = "Information about output truncation if applied"
@@ -378,44 +451,14 @@ def create_container_logs_tool(
             container = docker_client.client.containers.get(container_id)
 
             # Prepare kwargs for logs
-            kwargs: dict[str, Any] = {
-                "timestamps": timestamps,
-                "follow": follow,
-            }
-
-            if tail != "all":
-                kwargs["tail"] = int(tail)
-            if since:
-                kwargs["since"] = since
-            if until:
-                kwargs["until"] = until
-
+            kwargs = _build_logs_kwargs(tail, since, until, timestamps, follow)
             logs = container.logs(**kwargs)
 
             # Handle different return types based on follow mode
             logs_str = _collect_streaming_logs(logs) if follow else _decode_static_logs(logs)
 
             # Apply output limits (non-streaming logs only)
-            truncation_info: dict[str, Any] = {}
-            if not follow and safety_config.max_log_lines > 0:
-                original_lines = len(logs_str.splitlines())
-                truncation_msg = (
-                    f"\n[Output truncated: showing first {safety_config.max_log_lines} of "
-                    f"{original_lines} lines. "
-                    f"Set SAFETY_MAX_LOG_LINES=0 to disable limit.]"
-                )
-                logs_str, was_truncated = truncate_lines(
-                    logs_str,
-                    safety_config.max_log_lines,
-                    truncation_message=truncation_msg,
-                )
-
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_lines,
-                        truncated_count=safety_config.max_log_lines,
-                    )
+            logs_str, truncation_info = _apply_log_truncation(logs_str, follow, safety_config)
 
             logger.info(f"Successfully retrieved logs for container: {container_id}")
 
