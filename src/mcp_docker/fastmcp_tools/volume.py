@@ -289,7 +289,7 @@ def create_inspect_volume_tool(
 
         except NotFound as e:
             logger.error(f"Volume not found: {volume_name}")
-            raise VolumeNotFound(ERROR_VOLUME_NOT_FOUND.format(volume_name=volume_name)) from e
+            raise VolumeNotFound(ERROR_VOLUME_NOT_FOUND.format(volume_name)) from e
         except APIError as e:
             logger.error(f"Failed to inspect volume: {e}")
             raise DockerOperationError(f"Failed to inspect volume: {e}") from e

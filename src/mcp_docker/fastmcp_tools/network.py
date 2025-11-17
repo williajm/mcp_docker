@@ -306,7 +306,7 @@ def create_inspect_network_tool(
 
         except NotFound as e:
             logger.error(f"Network not found: {network_id}")
-            raise NetworkNotFound(ERROR_NETWORK_NOT_FOUND.format(network_id=network_id)) from e
+            raise NetworkNotFound(ERROR_NETWORK_NOT_FOUND.format(network_id)) from e
         except APIError as e:
             logger.error(f"Failed to inspect network: {e}")
             raise DockerOperationError(f"Failed to inspect network: {e}") from e
@@ -485,10 +485,8 @@ def create_connect_container_tool(
             if "network" in error_msg:
                 logger.error(f"Network not found: {network_id}")
                 raise NetworkNotFound(f"Network not found: {network_id}") from e
-            logger.error(ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id))
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(container_id))
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to connect container: {e}")
             raise DockerOperationError(f"Failed to connect container: {e}") from e
@@ -575,10 +573,8 @@ def create_disconnect_container_tool(
             if "network" in error_msg:
                 logger.error(f"Network not found: {network_id}")
                 raise NetworkNotFound(f"Network not found: {network_id}") from e
-            logger.error(ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id))
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            logger.error(ERROR_CONTAINER_NOT_FOUND.format(container_id))
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to disconnect container: {e}")
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e

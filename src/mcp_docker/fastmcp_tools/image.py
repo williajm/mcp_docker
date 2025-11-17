@@ -364,7 +364,7 @@ def create_inspect_image_tool(
 
         except (DockerImageNotFound, NotFound) as e:
             logger.error(f"Image not found: {image_name}")
-            raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image_name=image_name)) from e
+            raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image_name)) from e
         except APIError as e:
             logger.error(f"Failed to inspect image: {e}")
             raise DockerOperationError(f"Failed to inspect image: {e}") from e
@@ -444,7 +444,7 @@ def create_image_history_tool(
 
         except (DockerImageNotFound, NotFound) as e:
             logger.error(f"Image not found: {image}")
-            raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image_name=image)) from e
+            raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image)) from e
         except APIError as e:
             logger.error(f"Failed to get image history: {e}")
             raise DockerOperationError(f"Failed to get image history: {e}") from e

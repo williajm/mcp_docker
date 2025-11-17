@@ -294,9 +294,7 @@ def create_inspect_container_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to inspect container {container_id}: {e}")
             raise DockerOperationError(f"Failed to inspect container: {e}") from e
@@ -428,9 +426,7 @@ def create_container_logs_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to get container logs: {e}")
             raise DockerOperationError(f"Failed to get container logs: {e}") from e
@@ -499,9 +495,7 @@ def create_container_stats_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to get container stats: {e}")
             raise DockerOperationError(f"Failed to get container stats: {e}") from e
@@ -631,9 +625,7 @@ def create_exec_command_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to execute command: {e}")
             raise DockerOperationError(f"Failed to execute command: {e}") from e

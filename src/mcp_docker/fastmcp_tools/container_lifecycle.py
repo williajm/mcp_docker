@@ -350,9 +350,7 @@ def create_start_container_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to start container: {e}")
             raise DockerOperationError(f"Failed to start container: {e}") from e
@@ -427,9 +425,7 @@ def create_stop_container_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to stop container: {e}")
             raise DockerOperationError(f"Failed to stop container: {e}") from e
@@ -493,9 +489,7 @@ def create_restart_container_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to restart container: {e}")
             raise DockerOperationError(f"Failed to restart container: {e}") from e
@@ -561,9 +555,7 @@ def create_remove_container_tool(
 
         except NotFound as e:
             logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(
-                ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
-            ) from e
+            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
         except APIError as e:
             logger.error(f"Failed to remove container: {e}")
             raise DockerOperationError(f"Failed to remove container: {e}") from e
