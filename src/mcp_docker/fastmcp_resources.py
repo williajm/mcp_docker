@@ -21,6 +21,28 @@ from mcp_docker.utils.stats_formatter import (
 logger = get_logger(__name__)
 
 
+def _decode_docker_logs(logs: bytes | Any) -> str:
+    """Decode Docker logs to string.
+
+    Args:
+        logs: Docker logs (bytes or generator)
+
+    Returns:
+        Decoded log text
+    """
+    if isinstance(logs, bytes):
+        return logs.decode("utf-8", errors="replace")
+
+    # Handle generator case
+    log_text = ""
+    for line in logs:
+        if isinstance(line, bytes):
+            log_text += line.decode("utf-8", errors="replace")
+        else:
+            log_text += str(line)
+    return log_text
+
+
 def create_container_logs_resource(
     docker_client: DockerClientWrapper,
 ) -> tuple[str, Any]:
@@ -51,19 +73,7 @@ def create_container_logs_resource(
             def _fetch_logs() -> str:
                 container = docker_client.client.containers.get(container_id)
                 logs = container.logs(tail=100, follow=False)
-
-                # Decode bytes to string
-                if isinstance(logs, bytes):
-                    return logs.decode("utf-8", errors="replace")
-
-                # If it's a generator (shouldn't be with follow=False)
-                log_text = ""
-                for line in logs:
-                    if isinstance(line, bytes):
-                        log_text += line.decode("utf-8", errors="replace")
-                    else:
-                        log_text += str(line)
-                return log_text
+                return _decode_docker_logs(logs)
 
             log_text = await asyncio.to_thread(_fetch_logs)
 

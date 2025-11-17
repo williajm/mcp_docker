@@ -27,6 +27,54 @@ from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
 
+
+def _parse_build_logs(build_logs: list[dict[str, Any]]) -> list[str]:
+    """Parse Docker build logs and extract stream messages.
+
+    Args:
+        build_logs: Raw build logs from Docker API
+
+    Returns:
+        List of log message strings
+    """
+    log_messages = []
+    for log in build_logs:
+        if isinstance(log, dict) and "stream" in log:
+            stream_val = log.get("stream")
+            if isinstance(stream_val, str):
+                log_messages.append(stream_val.strip())
+    return log_messages
+
+
+def _parse_push_stream(push_stream: str | bytes) -> tuple[str | None, str | None]:
+    """Parse Docker push stream and extract status/error.
+
+    Args:
+        push_stream: Raw push stream from Docker API
+
+    Returns:
+        Tuple of (last_status, error_message)
+    """
+    last_status = None
+    error_message = None
+
+    lines = push_stream.split("\n") if isinstance(push_stream, str) else [push_stream]
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            status_obj = json.loads(line)
+            if "error" in status_obj:
+                error_message = status_obj["error"]
+                break
+            if "status" in status_obj:
+                last_status = status_obj["status"]
+        except json.JSONDecodeError:
+            continue
+
+    return last_status, error_message
+
+
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_IMAGE_ID = "Image name or ID"
 DESC_TRUNCATION_INFO = "Information about output truncation if applied"
@@ -541,12 +589,7 @@ def create_build_image_tool(
 
             image_obj, build_logs = docker_client.client.images.build(**kwargs)
 
-            log_messages = []
-            for log in build_logs:
-                if isinstance(log, dict) and "stream" in log:
-                    stream_val = log.get("stream")
-                    if isinstance(stream_val, str):
-                        log_messages.append(stream_val.strip())
+            log_messages = _parse_build_logs(build_logs)
 
             logger.info(f"Successfully built image: {image_obj.id}")
             output = BuildImageOutput(
@@ -588,21 +631,7 @@ def create_push_image_tool(
 
             push_stream = docker_client.client.images.push(**kwargs)
 
-            last_status = None
-            error_message = None
-
-            for line in push_stream.split("\n") if isinstance(push_stream, str) else [push_stream]:
-                if not line.strip():
-                    continue
-                try:
-                    status_obj = json.loads(line)
-                    if "error" in status_obj:
-                        error_message = status_obj["error"]
-                        break
-                    if "status" in status_obj:
-                        last_status = status_obj["status"]
-                except json.JSONDecodeError:
-                    continue
+            last_status, error_message = _parse_push_stream(push_stream)
 
             if error_message:
                 logger.error(f"Failed to push image: {error_message}")
