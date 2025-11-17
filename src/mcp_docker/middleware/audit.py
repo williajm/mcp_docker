@@ -6,6 +6,7 @@ This middleware logs all Docker operations for audit and compliance purposes.
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from mcp_docker.auth.models import ClientInfo
 from mcp_docker.security.audit import AuditLogger
 from mcp_docker.utils.logger import get_logger
 
@@ -61,30 +62,54 @@ class AuditMiddleware:
         """
         # Extract information from context
         tool_name = context.get("tool_name", "unknown_tool")
-        client_id = (
-            context.get("client_ip")
-            or context.get("session_id")
-            or context.get("user_id")
-            or "unknown"
+        arguments = context.get("arguments", {})
+
+        # Build ClientInfo from context
+        # Try multiple sources for client identification
+        client_ip = context.get("client_ip", "unknown")
+        session_id = context.get("session_id")
+        user_id = context.get("user_id")
+        client_id = session_id or user_id or client_ip
+
+        # Get API key hash if available (for authenticated requests)
+        api_key_hash = context.get("api_key_hash") or "none"
+
+        # Get user agent or other description
+        description = context.get("user_agent") or None
+
+        # Create ClientInfo for structured audit logging
+        client_info = ClientInfo(
+            client_id=client_id,
+            ip_address=client_ip,
+            api_key_hash=api_key_hash,
+            description=description,
         )
 
-        # Note: We'll log after execution with the result
-        # (AuditLogger.log_tool_call expects ClientInfo, not raw values)
-
-        # Execute the tool
+        # Execute the tool and log the result
         try:
             result = await call_next()
 
-            # Log successful execution
-            # Note: Full audit logging with ClientInfo should be done at server level
-            # This middleware provides basic logging
-            logger.info(f"AuditMiddleware: {tool_name} succeeded for {client_id}")
+            # Log successful execution to structured audit log
+            self.audit_logger.log_tool_call(
+                client_info=client_info,
+                tool_name=tool_name,
+                arguments=arguments,
+                result=result if isinstance(result, dict) else {"value": str(result)},
+            )
 
+            logger.debug(f"AuditMiddleware: Logged successful {tool_name} for {client_id}")
             return result
 
         except Exception as e:
-            # Log failed execution
-            logger.error(f"AuditMiddleware: {tool_name} failed for {client_id}: {e}")
+            # Log failed execution to structured audit log
+            self.audit_logger.log_tool_call(
+                client_info=client_info,
+                tool_name=tool_name,
+                arguments=arguments,
+                error=str(e),
+            )
+
+            logger.debug(f"AuditMiddleware: Logged failed {tool_name} for {client_id}: {e}")
 
             # Re-raise the exception
             raise

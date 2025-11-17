@@ -77,17 +77,32 @@ class RateLimitMiddleware:
 
         tool_name = context.get("tool_name", "unknown_tool")
 
-        # Check rate limit
+        # Check rate limit and acquire concurrent slot
         if self.rate_limiter.enabled:
             try:
+                # Check RPM limit
                 await self.rate_limiter.check_rate_limit(client_id)
-                logger.debug(f"RateLimitMiddleware: Approved {tool_name} for {client_id}")
+                logger.debug(f"RateLimitMiddleware: RPM check passed for {tool_name} ({client_id})")
+
+                # Acquire concurrent slot
+                await self.rate_limiter.acquire_concurrent_slot(client_id)
+                logger.debug(
+                    f"RateLimitMiddleware: Concurrent slot acquired for {tool_name} ({client_id})"
+                )
             except RateLimitExceeded as e:
                 logger.warning(f"RateLimitMiddleware: Blocked {tool_name} for {client_id} - {e}")
                 raise
 
-        # Rate limit check passed, proceed to next handler
-        return await call_next()
+        # Execute the tool and ensure concurrent slot is released
+        try:
+            return await call_next()
+        finally:
+            # Always release the concurrent slot, even if the tool fails
+            if self.rate_limiter.enabled:
+                self.rate_limiter.release_concurrent_slot(client_id)
+                logger.debug(
+                    f"RateLimitMiddleware: Concurrent slot released for {tool_name} ({client_id})"
+                )
 
 
 def create_rate_limit_middleware(rate_limiter: RateLimiter) -> RateLimitMiddleware:
