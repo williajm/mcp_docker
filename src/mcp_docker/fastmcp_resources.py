@@ -72,7 +72,7 @@ def create_container_logs_resource(
 
         except Exception as e:
             if "404" in str(e):
-                error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
+                error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id)
                 raise ContainerNotFound(error_msg) from e
             logger.error(f"Failed to get logs for container {container_id}: {e}")
             raise MCPDockerError(f"Failed to get container logs: {e}") from e
@@ -144,7 +144,7 @@ Block I/O:
 
         except Exception as e:
             if "404" in str(e):
-                error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id=container_id)
+                error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id)
                 raise ContainerNotFound(error_msg) from e
             logger.error(f"Failed to get stats for container {container_id}: {e}")
             raise MCPDockerError(f"Failed to get container stats: {e}") from e
