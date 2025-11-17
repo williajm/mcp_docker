@@ -55,8 +55,8 @@ class TestFastMCPDockerServer:
         mock_auth_middleware.assert_called_once_with(config.security)
 
         # Verify middleware was attached (critical security fix)
-        assert mock_app.add_middleware.call_count == 3
-        # Verify the three middleware instances were attached
+        assert mock_app.add_middleware.call_count == 4
+        # Verify the four middleware instances were attached (auth, safety, rate_limit, audit)
         calls = mock_app.add_middleware.call_args_list
         assert any(isinstance(call[0][0].__class__.__name__, str) for call in calls)
 
