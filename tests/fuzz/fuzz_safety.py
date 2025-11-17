@@ -122,10 +122,10 @@ def fuzz_port_binding_validation(data: bytes) -> None:
 
     fdp = atheris.FuzzedDataProvider(data)
     port = fdp.ConsumeIntInRange(-1000, 70000)  # Include invalid ports
-    allow_privileged = fdp.ConsumeBool()
+    allow_privileged_ports = fdp.ConsumeBool()
 
     try:
-        validate_port_binding(port, allow_privileged)
+        validate_port_binding(port, allow_privileged_ports)
     except (ValueError, ValidationError, UnsafeOperationError):
         # Expected for privileged ports when not allowed
         pass

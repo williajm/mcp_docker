@@ -116,56 +116,6 @@ Controls server behavior and TLS settings.
 
 ---
 
-## HTTP Stream Transport Configuration
-
-HTTP Stream Transport is the modern network transport (recommended over SSE).
-
-### Response Mode
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HTTPSTREAM_JSON_RESPONSE_DEFAULT` | `false` | Default response mode<br>• `false`: Streaming SSE (default, recommended)<br>• `true`: Batch JSON (for simple clients) |
-| `HTTPSTREAM_STATELESS_MODE` | `false` | Disable session tracking<br>• `false`: Session-based (default)<br>• `true`: Stateless (no session management) |
-
-### Session Resumability
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HTTPSTREAM_RESUMABILITY_ENABLED` | `true` | Enable stream resumability with EventStore |
-| `HTTPSTREAM_EVENT_STORE_MAX_EVENTS` | `1000` | Maximum events in history (100-10000) |
-| `HTTPSTREAM_EVENT_STORE_TTL_SECONDS` | `300` | Event expiration time (60-3600 seconds) |
-
-### DNS Rebinding Protection
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HTTPSTREAM_DNS_REBINDING_PROTECTION` | `true` | Enable DNS rebinding attack protection<br>• `true`: Restrict Host header to allowed hosts (production)<br>• `false`: Allow any Host header (**UNSAFE**, dev only) |
-| `HTTPSTREAM_ALLOWED_HOSTS` | `[]` | JSON array of allowed hostnames/IPs<br>Example: `["api.example.com", "192.168.1.100"]`<br>**Required for wildcard bindings** (0.0.0.0/::) in production |
-
----
-
-## CORS Configuration
-
-Cross-Origin Resource Sharing for browser clients.
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CORS_ENABLED` | `false` | Enable CORS middleware |
-| `CORS_ALLOW_ORIGINS` | `[]` | JSON array of allowed origins<br>Example: `["https://app.example.com"]`<br>⚠️ Cannot use `["*"]` with credentials |
-| `CORS_ALLOW_METHODS` | `["GET", "POST", "OPTIONS"]` | Allowed HTTP methods |
-| `CORS_ALLOW_HEADERS` | `["Content-Type", "Authorization", "mcp-session-id", "last-event-id"]` | Allowed request headers |
-| `CORS_EXPOSE_HEADERS` | `["mcp-session-id"]` | Headers exposed to browser |
-| `CORS_ALLOW_CREDENTIALS` | `true` | Allow credentials (cookies, auth headers) |
-| `CORS_MAX_AGE` | `3600` | Preflight cache duration (seconds) |
-
-**CORS Security Notes:**
-
-- Cannot combine wildcard origins (`["*"]`) with `CORS_ALLOW_CREDENTIALS=true`
-- Always specify explicit origins in production
-- See [MDN CORS Documentation](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
-
----
-
 ## Transport Selection
 
 See [README.md](README.md#usage) for transport options and startup commands.
@@ -176,34 +126,38 @@ See [README.md](README.md#usage) for transport options and startup commands.
 
 **Local Development (stdio):** No configuration needed - `uv run mcp-docker`
 
-**Development Server (no TLS):** Set `SECURITY_OAUTH_ENABLED=false`, `MCP_TLS_ENABLED=false`, `HTTPSTREAM_DNS_REBINDING_PROTECTION=false` ⚠️ Trusted networks only
-
-**Production Server (HTTP Stream + TLS + OAuth):**
+**Development Server (HTTP, no reverse proxy):**
 
 ```bash
-# Security
-MCP_TLS_ENABLED=true
-MCP_TLS_CERT_FILE=/path/to/cert.pem
-MCP_TLS_KEY_FILE=/path/to/key.pem
-SECURITY_OAUTH_ENABLED=true
-SECURITY_OAUTH_ISSUER=https://auth.example.com/
-SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
-SECURITY_OAUTH_AUDIENCE=["mcp-docker-api"]
+# Security (development only - use reverse proxy in production)
+SECURITY_OAUTH_ENABLED=false
 SECURITY_RATE_LIMIT_ENABLED=true
+SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1"]
 
-# HTTP Stream Transport
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true
-HTTPSTREAM_ALLOWED_HOSTS=["api.example.com"]
+# Start: uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
+```
 
-# CORS (if browser clients)
-CORS_ENABLED=true
-CORS_ALLOW_ORIGINS=["https://app.example.com"]
-CORS_ALLOW_CREDENTIALS=true
+⚠️ **Warning:** Never expose HTTP transport directly to the internet without a reverse proxy providing HTTPS, authentication, and rate limiting.
+
+**Production Server (HTTP behind reverse proxy):**
+
+For production, deploy behind NGINX/Caddy reverse proxy that provides:
+
+- HTTPS/TLS termination
+- OAuth/authentication
+- Rate limiting
+- IP filtering
+
+```bash
+# Server config
+SECURITY_RATE_LIMIT_ENABLED=true
+SECURITY_AUDIT_LOG_ENABLED=true
 
 # Safety
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 
-# Start: uv run mcp-docker --transport httpstream --host 0.0.0.0 --port 8443
+# Start: uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
+# (Reverse proxy handles external HTTPS and forwards to localhost:8000)
 ```
 
 ---
