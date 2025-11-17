@@ -74,9 +74,10 @@ class FastMCPDockerServer:
         # - RateLimitMiddleware: Prevents abuse via request throttling
         # - AuditMiddleware: Logs all operations for accountability
         logger.info("Attaching security middleware to FastMCP app")
-        self.app.add_middleware(self.safety_middleware)
-        self.app.add_middleware(self.rate_limit_middleware)
-        self.app.add_middleware(self.audit_middleware)
+        # NOTE: Middleware classes are protocol-compatible but don't inherit from base class
+        self.app.add_middleware(self.safety_middleware)  # type: ignore[arg-type]
+        self.app.add_middleware(self.rate_limit_middleware)  # type: ignore[arg-type]
+        self.app.add_middleware(self.audit_middleware)  # type: ignore[arg-type]
         logger.info("Security middleware attached successfully")
 
         # Register all tools with middleware integration
