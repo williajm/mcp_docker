@@ -348,7 +348,7 @@ The project includes four levels of testing: unit, integration, end-to-end (E2E)
 #### Test Level Comparison
 
 | Aspect | Unit Tests | Integration Tests | E2E Tests | Fuzz Tests |
-|--------|-----------|-------------------|-----------|------------|
+| -------- | ----------- | ------------------- | ----------- | ------------ |
 | **Docker Daemon** | ❌ Not required | ✅ Required | ✅ Required | ❌ Not required |
 | **Docker Operations** | ❌ None | ✅ Real operations | ✅ Real operations | ❌ None |
 | **Server Instance** | ❌ None / Mocked | ✅ Real MCPDockerServer | ✅ Real MCPDockerServer | ❌ Component-level |
