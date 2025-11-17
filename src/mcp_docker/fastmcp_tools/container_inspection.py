@@ -555,6 +555,101 @@ def create_container_stats_tool(
     )
 
 
+def _validate_exec_inputs(
+    command: str | list[str],
+    environment: dict[str, str] | None,
+) -> None:
+    """Validate command and environment inputs for exec.
+
+    Args:
+        command: Command to validate
+        environment: Environment variables to validate
+
+    Raises:
+        ValidationError: If command or environment is invalid
+    """
+    # Validate command - SECURITY: Check for dangerous patterns
+    validate_command_safety(command)
+    validate_command(command)
+
+    # Validate environment variables - SECURITY: Prevent command injection
+    if environment:
+        for key, value in environment.items():
+            validate_environment_variable(key, value)
+
+
+def _build_exec_kwargs(
+    command: str | list[str],
+    privileged: bool,
+    workdir: str | None,
+    user: str | None,
+    environment: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Build kwargs dict for container.exec_run() call.
+
+    Args:
+        command: Command to execute
+        privileged: Run with elevated privileges
+        workdir: Working directory for command
+        user: User to run command as
+        environment: Environment variables for the command
+
+    Returns:
+        Kwargs dictionary for exec_run
+    """
+    kwargs: dict[str, Any] = {
+        "cmd": command,
+        "privileged": privileged,
+    }
+
+    if workdir:
+        kwargs["workdir"] = workdir
+    if user:
+        kwargs["user"] = user
+    if environment:
+        kwargs["environment"] = environment
+
+    return kwargs
+
+
+def _apply_exec_output_truncation(
+    output_str: str,
+    safety_config: SafetyConfig,
+) -> tuple[str, dict[str, Any]]:
+    """Apply truncation limits to exec output if needed.
+
+    Args:
+        output_str: Raw command output
+        safety_config: Safety configuration with limits
+
+    Returns:
+        Tuple of (truncated_output, truncation_metadata)
+    """
+    truncation_info: dict[str, Any] = {}
+
+    if safety_config.max_exec_output_bytes > 0:
+        original_bytes = len(output_str.encode("utf-8"))
+        truncation_msg = (
+            f"\n[Output truncated: showing first "
+            f"{safety_config.max_exec_output_bytes} bytes of {original_bytes} bytes. "
+            f"Set SAFETY_MAX_EXEC_OUTPUT_BYTES=0 to disable limit.]"
+        )
+        output_str, was_truncated = truncate_text(
+            output_str,
+            safety_config.max_exec_output_bytes,
+            truncation_message=truncation_msg,
+        )
+
+        if was_truncated:
+            truncation_info = create_truncation_metadata(
+                was_truncated=True,
+                original_count=original_bytes,
+                truncated_count=safety_config.max_exec_output_bytes,
+            )
+
+    return output_str, truncation_info
+
+
 def create_exec_command_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
@@ -596,14 +691,8 @@ def create_exec_command_tool(
             DockerOperationError: If command execution fails
         """
         try:
-            # Validate command - SECURITY: Check for dangerous patterns
-            validate_command_safety(command)
-            validate_command(command)
-
-            # Validate environment variables - SECURITY: Prevent command injection
-            if environment:
-                for key, value in environment.items():
-                    validate_environment_variable(key, value)
+            # Validate all inputs
+            _validate_exec_inputs(command, environment)
 
             # Check if privileged exec is allowed
             if privileged and not safety_config.allow_privileged_containers:
@@ -616,46 +705,15 @@ def create_exec_command_tool(
             logger.info(f"Executing command in container: {container_id}, command: {command}")
             container = docker_client.client.containers.get(container_id)
 
-            # Prepare kwargs for exec
-            kwargs: dict[str, Any] = {
-                "cmd": command,
-                "privileged": privileged,
-            }
-
-            if workdir:
-                kwargs["workdir"] = workdir
-            if user:
-                kwargs["user"] = user
-            if environment:
-                kwargs["environment"] = environment
-
-            # Execute command
+            # Build kwargs and execute command
+            kwargs = _build_exec_kwargs(command, privileged, workdir, user, environment)
             exit_code, output = container.exec_run(**kwargs)
 
             # Convert bytes to string
             output_str = output.decode("utf-8") if isinstance(output, bytes) else str(output)
 
             # Apply output limits
-            truncation_info: dict[str, Any] = {}
-            if safety_config.max_exec_output_bytes > 0:
-                original_bytes = len(output_str.encode("utf-8"))
-                truncation_msg = (
-                    f"\n[Output truncated: showing first "
-                    f"{safety_config.max_exec_output_bytes} bytes of {original_bytes} bytes. "
-                    f"Set SAFETY_MAX_EXEC_OUTPUT_BYTES=0 to disable limit.]"
-                )
-                output_str, was_truncated = truncate_text(
-                    output_str,
-                    safety_config.max_exec_output_bytes,
-                    truncation_message=truncation_msg,
-                )
-
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_bytes,
-                        truncated_count=safety_config.max_exec_output_bytes,
-                    )
+            output_str, truncation_info = _apply_exec_output_truncation(output_str, safety_config)
 
             logger.info(f"Successfully executed command in container: {container_id}")
 
