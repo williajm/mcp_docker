@@ -260,7 +260,6 @@ def create_list_networks_tool(
 
 def create_inspect_network_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Will be used for output truncation
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_network FastMCP tool.
 
@@ -326,7 +325,6 @@ def create_inspect_network_tool(
 
 def create_create_network_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the create_network FastMCP tool."""
 
@@ -403,7 +401,6 @@ def create_create_network_tool(
 
 def create_connect_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the connect_container FastMCP tool."""
 
@@ -506,7 +503,6 @@ def create_connect_container_tool(
 
 def create_disconnect_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the disconnect_container FastMCP tool."""
 
@@ -594,7 +590,6 @@ def create_disconnect_container_tool(
 
 def create_remove_network_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_network FastMCP tool."""
 
@@ -659,13 +654,13 @@ def register_network_tools(
     tools = [
         # SAFE tools (read-only)
         create_list_networks_tool(docker_client, safety_config),
-        create_inspect_network_tool(docker_client, safety_config),
+        create_inspect_network_tool(docker_client),
         # MODERATE tools (state-changing)
-        create_create_network_tool(docker_client, safety_config),
-        create_connect_container_tool(docker_client, safety_config),
-        create_disconnect_container_tool(docker_client, safety_config),
+        create_create_network_tool(docker_client),
+        create_connect_container_tool(docker_client),
+        create_disconnect_container_tool(docker_client),
         # DESTRUCTIVE tools (permanent deletion)
-        create_remove_network_tool(docker_client, safety_config),
+        create_remove_network_tool(docker_client),
     ]
 
     registered_names = []

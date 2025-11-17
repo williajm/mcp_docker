@@ -173,7 +173,7 @@ class TestToolMetadata:
     def test_inspect_container_tool_metadata(self, mock_docker_client, safety_config):
         """Test docker_inspect_container tool metadata."""
         name, description, safety_level, idempotent, open_world, func = (
-            create_inspect_container_tool(mock_docker_client, safety_config)
+            create_inspect_container_tool(mock_docker_client)
         )
 
         assert name == "docker_inspect_container"
@@ -199,7 +199,7 @@ class TestToolMetadata:
     def test_stats_tool_metadata(self, mock_docker_client, safety_config):
         """Test docker_container_stats tool metadata."""
         name, description, safety_level, idempotent, open_world, func = create_container_stats_tool(
-            mock_docker_client, safety_config
+            mock_docker_client
         )
 
         assert name == "docker_container_stats"
@@ -325,7 +325,7 @@ class TestInspectContainerTool:
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
         # Get the inspect function
-        *_, inspect_func = create_inspect_container_tool(mock_docker_client, safety_config)
+        *_, inspect_func = create_inspect_container_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(ContainerNotFound):
@@ -337,7 +337,7 @@ class TestInspectContainerTool:
         mock_docker_client.client.containers.get.side_effect = APIError("Inspect failed")
 
         # Get the inspect function
-        *_, inspect_func = create_inspect_container_tool(mock_docker_client, safety_config)
+        *_, inspect_func = create_inspect_container_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to inspect container"):
@@ -410,7 +410,7 @@ class TestContainerStatsTool:
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
         # Get the stats function
-        *_, stats_func = create_container_stats_tool(mock_docker_client, safety_config)
+        *_, stats_func = create_container_stats_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(ContainerNotFound):

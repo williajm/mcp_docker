@@ -78,7 +78,7 @@ def register_all_tools(
     registered["volume"] = register_volume_tools(app, docker_client, safety_config)
 
     # System tools (DESTRUCTIVE)
-    registered["system"] = register_system_tools(app, docker_client, safety_config)
+    registered["system"] = register_system_tools(app, docker_client)
 
     total_tools = sum(len(tools) for tools in registered.values())
     logger.info(

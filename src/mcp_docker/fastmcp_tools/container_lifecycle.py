@@ -297,7 +297,6 @@ def create_create_container_tool(  # noqa: PLR0915 - Complex validation logic
 
 def create_start_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the start_container FastMCP tool.
 
@@ -370,7 +369,6 @@ def create_start_container_tool(
 
 def create_stop_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the stop_container FastMCP tool.
 
@@ -445,7 +443,6 @@ def create_stop_container_tool(
 
 def create_restart_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the restart_container FastMCP tool.
 
@@ -509,7 +506,6 @@ def create_restart_container_tool(
 
 def create_remove_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_container FastMCP tool.
 
@@ -590,10 +586,10 @@ def register_container_lifecycle_tools(
     """
     tools = [
         create_create_container_tool(docker_client, safety_config),
-        create_start_container_tool(docker_client, safety_config),
-        create_stop_container_tool(docker_client, safety_config),
-        create_restart_container_tool(docker_client, safety_config),
-        create_remove_container_tool(docker_client, safety_config),
+        create_start_container_tool(docker_client),
+        create_stop_container_tool(docker_client),
+        create_restart_container_tool(docker_client),
+        create_remove_container_tool(docker_client),
     ]
 
     registered_names = []

@@ -132,7 +132,7 @@ class TestInspectVolumeTool:
         mock_docker_client.client.volumes.get.return_value = volume
 
         # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client)
 
         # Execute
         result = await inspect_func(volume_name="test-volume")
@@ -149,7 +149,7 @@ class TestInspectVolumeTool:
         mock_docker_client.client.volumes.get.side_effect = NotFound("Volume not found")
 
         # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(VolumeNotFound, match="Volume not found"):
@@ -161,7 +161,7 @@ class TestInspectVolumeTool:
         mock_docker_client.client.volumes.get.side_effect = APIError("Inspect failed")
 
         # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to inspect volume"):
@@ -198,7 +198,7 @@ class TestCreateVolumeTool:
         mock_docker_client.client.volumes.create.return_value = volume
 
         # Get the create function
-        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute
         result = await create_func(name="test-volume")
@@ -222,7 +222,7 @@ class TestCreateVolumeTool:
         mock_docker_client.client.volumes.create.return_value = volume
 
         # Get the create function
-        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute with options
         await create_func(
@@ -250,7 +250,7 @@ class TestCreateVolumeTool:
         mock_docker_client.client.volumes.create.return_value = volume
 
         # Get the create function
-        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute without name
         result = await create_func()
@@ -264,7 +264,7 @@ class TestCreateVolumeTool:
         mock_docker_client.client.volumes.create.side_effect = APIError("Create failed")
 
         # Get the create function
-        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to create volume"):
@@ -297,7 +297,7 @@ class TestRemoveVolumeTool:
         mock_docker_client.client.volumes.get.return_value = volume
 
         # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client)
 
         # Execute
         result = await remove_func(volume_name="test-volume")
@@ -317,7 +317,7 @@ class TestRemoveVolumeTool:
         mock_docker_client.client.volumes.get.return_value = volume
 
         # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client)
 
         # Execute with force
         await remove_func(volume_name="test-volume", force=True)
@@ -331,7 +331,7 @@ class TestRemoveVolumeTool:
         mock_docker_client.client.volumes.get.side_effect = NotFound("Volume not found")
 
         # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(VolumeNotFound, match="Volume not found"):
@@ -346,7 +346,7 @@ class TestRemoveVolumeTool:
         mock_docker_client.client.volumes.get.return_value = volume
 
         # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to remove volume"):
@@ -378,7 +378,7 @@ class TestPruneVolumesTool:
         }
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client)
 
         # Execute standard prune
         result = await prune_func(force_all=False)
@@ -397,7 +397,7 @@ class TestPruneVolumesTool:
         }
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client)
 
         # Execute with filters
         filters = {"label": ["env=test"]}
@@ -412,7 +412,7 @@ class TestPruneVolumesTool:
         mock_docker_client.client.volumes.prune.side_effect = APIError("Prune failed")
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to prune volumes"):

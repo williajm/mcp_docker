@@ -240,7 +240,6 @@ def create_list_volumes_tool(
 
 def create_inspect_volume_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Will be used for output truncation
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_volume FastMCP tool.
 
@@ -306,7 +305,6 @@ def create_inspect_volume_tool(
 
 def create_create_volume_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the create_volume FastMCP tool."""
 
@@ -369,7 +367,6 @@ def create_create_volume_tool(
 
 def create_remove_volume_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_volume FastMCP tool."""
 
@@ -419,7 +416,6 @@ def create_remove_volume_tool(
 
 def create_prune_volumes_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_volumes FastMCP tool."""
 
@@ -492,12 +488,12 @@ def register_volume_tools(
     tools = [
         # SAFE tools (read-only)
         create_list_volumes_tool(docker_client, safety_config),
-        create_inspect_volume_tool(docker_client, safety_config),
+        create_inspect_volume_tool(docker_client),
         # MODERATE tools (state-changing)
-        create_create_volume_tool(docker_client, safety_config),
+        create_create_volume_tool(docker_client),
         # DESTRUCTIVE tools (permanent deletion)
-        create_remove_volume_tool(docker_client, safety_config),
-        create_prune_volumes_tool(docker_client, safety_config),
+        create_remove_volume_tool(docker_client),
+        create_prune_volumes_tool(docker_client),
     ]
 
     registered_names = []

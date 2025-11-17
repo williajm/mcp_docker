@@ -319,7 +319,6 @@ def create_list_images_tool(
 
 def create_inspect_image_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Will be used for output truncation
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_image FastMCP tool.
 
@@ -465,7 +464,6 @@ def create_image_history_tool(
 
 def create_pull_image_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the pull_image FastMCP tool."""
 
@@ -510,7 +508,6 @@ def create_pull_image_tool(
 
 def create_build_image_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the build_image FastMCP tool."""
 
@@ -573,7 +570,6 @@ def create_build_image_tool(
 
 def create_push_image_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the push_image FastMCP tool."""
 
@@ -636,7 +632,6 @@ def create_push_image_tool(
 
 def create_tag_image_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the tag_image FastMCP tool."""
 
@@ -677,7 +672,6 @@ def create_tag_image_tool(
 
 def create_remove_image_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_image FastMCP tool."""
 
@@ -714,7 +708,6 @@ def create_remove_image_tool(
 
 def create_prune_images_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_images FastMCP tool."""
 
@@ -782,16 +775,16 @@ def register_image_tools(
     tools = [
         # SAFE tools
         create_list_images_tool(docker_client, safety_config),
-        create_inspect_image_tool(docker_client, safety_config),
+        create_inspect_image_tool(docker_client),
         create_image_history_tool(docker_client, safety_config),
         # MODERATE tools
-        create_pull_image_tool(docker_client, safety_config),
-        create_build_image_tool(docker_client, safety_config),
-        create_push_image_tool(docker_client, safety_config),
-        create_tag_image_tool(docker_client, safety_config),
+        create_pull_image_tool(docker_client),
+        create_build_image_tool(docker_client),
+        create_push_image_tool(docker_client),
+        create_tag_image_tool(docker_client),
         # DESTRUCTIVE tools
-        create_remove_image_tool(docker_client, safety_config),
-        create_prune_images_tool(docker_client, safety_config),
+        create_remove_image_tool(docker_client),
+        create_prune_images_tool(docker_client),
     ]
 
     registered_names = []

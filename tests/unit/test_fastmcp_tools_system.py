@@ -47,7 +47,7 @@ class TestPruneSystemTool:
         }
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute
         result = await prune_func()
@@ -87,7 +87,7 @@ class TestPruneSystemTool:
         }
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute with volumes=True
         result = await prune_func(volumes=True)
@@ -118,7 +118,7 @@ class TestPruneSystemTool:
         }
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute with filters
         filters = {"until": "24h"}
@@ -149,7 +149,7 @@ class TestPruneSystemTool:
         }
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute
         result = await prune_func()
@@ -168,7 +168,7 @@ class TestPruneSystemTool:
         mock_docker_client.client.api.prune_containers.side_effect = APIError("Prune failed")
 
         # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client, safety_config)
+        _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to prune system"):
@@ -177,7 +177,7 @@ class TestPruneSystemTool:
     def test_create_prune_system_tool_metadata(self, mock_docker_client, safety_config):
         """Test tool metadata is correct."""
         name, description, safety_level, idempotent, open_world, func = create_prune_system_tool(
-            mock_docker_client, safety_config
+            mock_docker_client
         )
 
         assert name == "docker_prune_system"

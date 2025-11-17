@@ -249,7 +249,6 @@ def create_list_containers_tool(
 
 def create_inspect_container_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Will be used for output truncation
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_container FastMCP tool.
 
@@ -447,7 +446,6 @@ def create_container_logs_tool(
 
 def create_container_stats_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the container_stats FastMCP tool.
 
@@ -661,9 +659,9 @@ def register_container_inspection_tools(
     """
     tools = [
         create_list_containers_tool(docker_client, safety_config),
-        create_inspect_container_tool(docker_client, safety_config),
+        create_inspect_container_tool(docker_client),
         create_container_logs_tool(docker_client, safety_config),
-        create_container_stats_tool(docker_client, safety_config),
+        create_container_stats_tool(docker_client),
         create_exec_command_tool(docker_client, safety_config),
     ]
 

@@ -49,7 +49,6 @@ class SystemPruneOutput(BaseModel):
 
 def create_prune_system_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,  # noqa: ARG001 - Kept for consistency
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_system FastMCP tool."""
 
@@ -135,21 +134,19 @@ def create_prune_system_tool(
 def register_system_tools(
     app: Any,
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> list[str]:
     """Register all system tools with FastMCP.
 
     Args:
         app: FastMCP application instance
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         List of registered tool names
     """
     tools = [
         # DESTRUCTIVE tools (permanent deletion)
-        create_prune_system_tool(docker_client, safety_config),
+        create_prune_system_tool(docker_client),
     ]
 
     registered_names = []
