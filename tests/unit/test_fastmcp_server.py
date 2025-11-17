@@ -35,6 +35,8 @@ class TestFastMCPDockerServer:
         """Test basic FastMCPDockerServer initialization."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1", "tool2"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -51,6 +53,12 @@ class TestFastMCPDockerServer:
         mock_docker_wrapper.assert_called_once_with(config.docker)
         mock_safety_enforcer.assert_called_once_with(config.safety)
         mock_auth_middleware.assert_called_once_with(config.security)
+
+        # Verify middleware was attached (critical security fix)
+        assert mock_app.add_middleware.call_count == 3
+        # Verify the three middleware instances were attached
+        calls = mock_app.add_middleware.call_args_list
+        assert any(isinstance(call[0][0].__class__.__name__, str) for call in calls)
 
     @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
     @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
@@ -76,6 +84,8 @@ class TestFastMCPDockerServer:
         """Test initialization with destructive operations warning."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -115,6 +125,7 @@ class TestFastMCPDockerServer:
         """Test start() with healthy Docker daemon."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -158,6 +169,7 @@ class TestFastMCPDockerServer:
         """Test start() with unhealthy Docker daemon."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -201,6 +213,7 @@ class TestFastMCPDockerServer:
         """Test start() with Docker health check error."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -227,6 +240,7 @@ class TestFastMCPDockerServer:
     @patch("mcp_docker.fastmcp_server.AuditLogger")
     @patch("mcp_docker.fastmcp_server.register_all_tools")
     @patch("mcp_docker.fastmcp_server.register_all_resources")
+    @patch("mcp_docker.fastmcp_server.register_all_prompts")
     @pytest.mark.asyncio
     async def test_stop(  # noqa: PLR0913
         self,
@@ -243,6 +257,7 @@ class TestFastMCPDockerServer:
         """Test stop() method."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -290,6 +305,7 @@ class TestFastMCPDockerServer:
         """Test get_app() method."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -327,6 +343,7 @@ class TestFastMCPDockerServer:
         """Test get_middleware_components() method."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}
@@ -369,6 +386,7 @@ class TestFastMCPDockerServer:
         """Test _wrap_tools_with_middleware() method."""
         # Setup mocks
         mock_app = Mock()
+        mock_app.add_middleware = Mock()  # Mock middleware attachment
         mock_create_app.return_value = mock_app
         mock_register_tools.return_value = {"container": ["tool1"]}
         mock_register_resources.return_value = {"container": ["resource1"]}

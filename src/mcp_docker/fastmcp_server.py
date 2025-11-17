@@ -68,6 +68,17 @@ class FastMCPDockerServer:
         self.rate_limit_middleware = RateLimitMiddleware(self.rate_limiter)
         self.audit_middleware = AuditMiddleware(self.audit_logger)
 
+        # CRITICAL: Attach middleware to FastMCP app
+        # These middleware enforce security controls for ALL tool executions:
+        # - SafetyMiddleware: Validates operations against safety policies
+        # - RateLimitMiddleware: Prevents abuse via request throttling
+        # - AuditMiddleware: Logs all operations for accountability
+        logger.info("Attaching security middleware to FastMCP app")
+        self.app.add_middleware(self.safety_middleware)
+        self.app.add_middleware(self.rate_limit_middleware)
+        self.app.add_middleware(self.audit_middleware)
+        logger.info("Security middleware attached successfully")
+
         # Register all tools with middleware integration
         registered_tools = register_all_tools(self.app, self.docker_client, config.safety)
         total_tools = sum(len(tools) for tools in registered_tools.values())
@@ -96,30 +107,6 @@ class FastMCPDockerServer:
                 "Clients can permanently delete containers, images, volumes, and networks. "
                 "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false to disable."
             )
-
-        # Apply middleware to FastMCP tools
-        # Note: FastMCP's built-in middleware system will be used in future phases
-        # For now, we're wrapping the tool handlers
-        self._wrap_tools_with_middleware()
-
-    def _wrap_tools_with_middleware(self) -> None:
-        """Wrap FastMCP tool handlers with middleware.
-
-        This method applies the middleware chain to all registered tools.
-        Each tool execution will go through:
-        1. Safety checks (via SafetyMiddleware)
-        2. Rate limiting (via RateLimitMiddleware)
-        3. Audit logging (via AuditMiddleware)
-        """
-        logger.debug("Wrapping FastMCP tools with middleware...")
-
-        # Get all registered tools from the FastMCP app
-        # FastMCP stores tools internally, we'll access them via the app
-        # Note: This will be improved when FastMCP adds official middleware support
-
-        # For now, middleware will be applied at the handler level in __main__.py
-        # when we integrate with the MCP SDK's call_tool handler
-        logger.debug("Middleware wrapping prepared (will be applied at handler level)")
 
     async def start(self) -> None:
         """Start the FastMCP server."""
