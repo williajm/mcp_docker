@@ -33,6 +33,10 @@ logger = get_logger(__name__)
 # Constants
 MAX_STREAMING_LOG_LINES = 10000  # Prevents OOM when collecting streaming logs
 
+# Common field descriptions (avoid string duplication per SonarCloud S1192)
+DESC_CONTAINER_ID = "Container ID or name"
+DESC_TRUNCATION_INFO = "Information about output truncation if applied"
+
 # Input/Output Models (reused from legacy tools)
 
 
@@ -57,14 +61,14 @@ class ListContainersOutput(BaseModel):
     count: int = Field(description="Total number of containers found")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
 class InspectContainerInput(BaseModel):
     """Input for inspecting a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=DESC_CONTAINER_ID)
 
 
 class InspectContainerOutput(BaseModel):
@@ -73,14 +77,14 @@ class InspectContainerOutput(BaseModel):
     container_info: dict[str, Any] = Field(description="Detailed container information")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
 class ContainerLogsInput(BaseModel):
     """Input for getting container logs."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=DESC_CONTAINER_ID)
     tail: int | str = Field(default="all", description="Number of lines to show from end")
     since: str | None = Field(
         default=None, description="Show logs since timestamp or relative (e.g., '1h')"
@@ -97,14 +101,14 @@ class ContainerLogsOutput(BaseModel):
     container_id: str = Field(description="Container ID")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
 class ContainerStatsInput(BaseModel):
     """Input for getting container stats."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=DESC_CONTAINER_ID)
     stream: bool = Field(default=False, description="Stream stats continuously")
 
 
@@ -118,7 +122,7 @@ class ContainerStatsOutput(BaseModel):
 class ExecCommandInput(BaseModel):
     """Input for executing a command in a container."""
 
-    container_id: str = Field(description="Container ID or name")
+    container_id: str = Field(description=DESC_CONTAINER_ID)
     command: str | list[str] = Field(description="Command to execute")
     workdir: str | None = Field(default=None, description="Working directory for command")
     user: str | None = Field(default=None, description="User to run command as")
@@ -146,7 +150,7 @@ class ExecCommandOutput(BaseModel):
     output: str = Field(description="Command output (stdout and stderr combined)")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 

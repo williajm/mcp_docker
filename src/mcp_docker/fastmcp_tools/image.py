@@ -27,6 +27,10 @@ from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
 
+# Common field descriptions (avoid string duplication per SonarCloud S1192)
+DESC_IMAGE_ID = "Image name or ID"
+DESC_TRUNCATION_INFO = "Information about output truncation if applied"
+
 # Input/Output Models (reused from legacy tools)
 
 
@@ -51,14 +55,14 @@ class ListImagesOutput(BaseModel):
     count: int = Field(description="Total number of images")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
 class InspectImageInput(BaseModel):
     """Input for inspecting an image."""
 
-    image_name: str = Field(description="Image name or ID")
+    image_name: str = Field(description=DESC_IMAGE_ID)
 
 
 class InspectImageOutput(BaseModel):
@@ -67,14 +71,14 @@ class InspectImageOutput(BaseModel):
     details: dict[str, Any] = Field(description="Detailed image information")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
 class ImageHistoryInput(BaseModel):
     """Input for viewing image history."""
 
-    image: str = Field(description="Image name or ID")
+    image: str = Field(description=DESC_IMAGE_ID)
 
 
 class ImageHistoryOutput(BaseModel):
@@ -83,7 +87,7 @@ class ImageHistoryOutput(BaseModel):
     history: list[dict[str, Any]] = Field(description="Image layer history")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
@@ -169,7 +173,7 @@ class TagImageOutput(BaseModel):
 class RemoveImageInput(BaseModel):
     """Input for removing an image."""
 
-    image: str = Field(description="Image name or ID")
+    image: str = Field(description=DESC_IMAGE_ID)
     force: bool = Field(default=False, description="Force removal")
     noprune: bool = Field(default=False, description="Do not delete untagged parents")
 
