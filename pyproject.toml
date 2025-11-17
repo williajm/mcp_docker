@@ -36,7 +36,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.21.0",
+    "fastmcp>=2.0.0",  # FastMCP 2.0
     "docker>=7.1.0",
     "pydantic>=2.12.4",
     "pydantic-settings>=2.12.0",
@@ -180,6 +180,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "mcp.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "fastmcp.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
