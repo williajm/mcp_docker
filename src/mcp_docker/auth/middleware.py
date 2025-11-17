@@ -1,5 +1,8 @@
 """Authentication middleware for MCP Docker server."""
 
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.auth.oauth_auth import OAuthAuthenticationError, OAuthAuthenticator
 from mcp_docker.config import SecurityConfig
@@ -58,6 +61,53 @@ class AuthMiddleware:
             )
         else:
             logger.info("IP allowlist disabled - all IPs allowed")
+
+    async def __call__(
+        self,
+        call_next: Callable[[], Awaitable[Any]],
+        context: dict[str, Any],
+    ) -> Any:
+        """FastMCP 2.0 middleware entry point for authentication.
+
+        Extracts authentication credentials from FastMCP context and validates them
+        before allowing the request to proceed.
+
+        Args:
+            call_next: Next middleware/handler in the chain
+            context: FastMCP request context
+
+        Returns:
+            Result from next handler
+
+        Raises:
+            AuthenticationError: If authentication fails
+        """
+        # Extract authentication details from context
+        ip_address = context.get("client_ip")
+        bearer_token = context.get("bearer_token") or context.get("authorization")
+
+        # Authenticate the request
+        try:
+            client_info = await self.authenticate_request(
+                ip_address=ip_address,
+                bearer_token=bearer_token,
+            )
+
+            # Add authenticated client info to context for downstream middleware
+            context["client_info"] = client_info
+            context["authenticated"] = True
+
+            logger.debug(
+                f"AuthMiddleware: Authenticated {client_info.client_id} "
+                f"(method: {client_info.auth_method})"
+            )
+
+            # Authentication succeeded, proceed
+            return await call_next()
+
+        except AuthenticationError as e:
+            logger.error(f"AuthMiddleware: Authentication failed - {e}")
+            raise
 
     async def authenticate_request(
         self,

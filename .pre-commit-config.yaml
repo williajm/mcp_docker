@@ -30,6 +30,7 @@ repos:
           - pydantic-settings>=2.0.0
           - loguru>=0.7.0
           - mcp>=1.2.0
+          - fastmcp>=2.0.0
           - uvicorn>=0.27.0
           - starlette>=0.27.0
         args: [--strict, --config-file=pyproject.toml]

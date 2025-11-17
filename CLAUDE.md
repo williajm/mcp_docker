@@ -8,11 +8,11 @@ This is an MCP (Model Context Protocol) server that exposes Docker functionality
 
 **Key Technologies:**
 - Python 3.11+ with strict type checking (mypy)
-- MCP SDK (>=1.2.0) for protocol implementation
+- FastMCP 2.0 for MCP protocol implementation
 - Docker SDK for Python (>=7.1.0)
 - Pydantic for validation and settings
 - uv for package management
-- Supports three transports: stdio (local), SSE (legacy network), and HTTP Stream Transport (modern network)
+- Supports two transports: stdio (local) and HTTP (network)
 
 ## Development Commands
 
@@ -87,18 +87,14 @@ uv run mypy src/mcp_docker/
 # Run server with stdio transport (local, default)
 uv run mcp-docker
 
-# Run server with HTTP Stream Transport (recommended for network deployments)
-uv run mcp-docker --transport httpstream --host 127.0.0.1 --port 8000
-
-# Run server with SSE transport (legacy network transport)
-uv run mcp-docker --transport sse --host 127.0.0.1 --port 8000
-
-# Run with full security (TLS, auth, rate limiting)
-./start-mcp-docker-httpstream.sh  # HTTP Stream Transport (recommended)
-./start-mcp-docker-sse.sh         # SSE Transport (legacy)
+# Run server with HTTP transport (for network deployments)
+uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
 
 # Run directly via Python module
 uv run python -m mcp_docker
+
+# Note: For production HTTP deployments, use a reverse proxy (NGINX, Caddy)
+# for HTTPS/TLS termination, authentication, and rate limiting
 ```
 
 ### Building and Publishing
@@ -182,14 +178,13 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - **Rate Limiting** (`security/rate_limiter.py`): Per-client request throttling
    - **Audit Logging** (`security/audit.py`): Operation tracking with client IPs
    - **Error Sanitization** (`utils/error_sanitizer.py`): Prevents information disclosure
-   - **Security Headers**: HSTS, CSP, X-Frame-Options via `secure` library
-   - **TLS/HTTPS**: Required for production SSE deployments
+   - **TLS/HTTPS**: Use reverse proxy (NGINX, Caddy) for production HTTP deployments
 
 5. **Configuration** (`src/mcp_docker/config.py`)
    - Pydantic Settings with environment variable support
-   - Four config sections: DockerConfig, SafetyConfig, SecurityConfig, MCPConfig
+   - Four config sections: DockerConfig, SafetyConfig, SecurityConfig, ServerConfig
    - Auto-detects Docker socket based on OS (Windows npipe, Linux/macOS/WSL unix socket)
-   - Validates TLS certificates and security settings
+   - Validates Docker TLS certificates
    - Env prefix: `DOCKER_*`, `SAFETY_*`, `SECURITY_*`, `MCP_*`
 
 6. **Docker Wrapper** (`src/mcp_docker/docker_wrapper/client.py`)
@@ -199,66 +194,74 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 7. **Transport Implementations** (`src/mcp_docker/__main__.py`)
    - **stdio**: Local process-to-process communication (default, no network)
-   - **SSE**: Legacy Server-Sent Events with separate `/sse` and `/messages` endpoints
-   - **HTTP Stream Transport**: Modern unified `POST /` endpoint with session management
-     - Single endpoint for all operations
-     - Session tracking via `mcp-session-id` header
-     - Stream resumability with `InMemoryEventStore` (`src/mcp_docker/event_store.py`)
-     - Flexible response modes (streaming SSE or batch JSON)
-     - Enhanced CORS configuration (`src/mcp_docker/config.py`)
-     - DNS rebinding protection with allowed hosts
+   - **HTTP**: FastMCP 2.0 native HTTP transport
+     - Plain HTTP (use reverse proxy for HTTPS in production)
+     - Single unified endpoint
+     - Built-in session management
 
 ### Adding New Tools
 
-Tools are auto-discovered via reflection. To add a new tool:
+Tools use FastMCP's decorator pattern. To add a new tool:
 
-1. Create tool class inheriting from `BaseTool` in appropriate module (`tools/container_*.py`, `tools/image_tools.py`, etc.)
-2. Implement required properties: `name`, `description`, `input_schema`, `output_schema`, `safety_level`
-3. Optionally override annotation properties: `idempotent`, `open_world_interaction` (readOnly/destructive auto-set from safety_level)
-4. Implement `execute(arguments: dict[str, Any]) -> ToolResult` method
-5. Tool will be automatically registered on server startup (no manual registration needed)
+1. Add function to appropriate module in `fastmcp_tools/` directory
+2. Define Pydantic input/output models for type safety
+3. Return tuple of (name, description, function, safety_level, annotations) from factory function
+4. Tool will be registered in `register_all_tools()` in `fastmcp_tools/__init__.py`
 
 Example:
 ```python
-class MyNewTool(BaseTool):
-    @property
-    def name(self) -> str:
-        return "docker_my_operation"
+def create_my_tool(
+    docker_client: DockerClientWrapper,
+    safety_config: SafetyConfig,
+) -> tuple[str, str, Any, OperationSafety, dict[str, Any]]:
+    """Create my new Docker tool."""
 
-    @property
-    def safety_level(self) -> OperationSafety:
-        return OperationSafety.MODERATE  # or SAFE or DESTRUCTIVE
+    async def my_tool(container_id: str) -> dict[str, Any]:
+        """My tool description.
 
-    @property
-    def idempotent(self) -> bool:
-        """Override if operation is safe to retry."""
-        return True  # e.g., start container is idempotent
+        Args:
+            container_id: Container ID or name
 
-    @property
-    def open_world_interaction(self) -> bool:
-        """Override if tool talks to external systems."""
-        return True  # e.g., pulls from Docker Hub
+        Returns:
+            Operation result
+        """
+        # Use asyncio.to_thread for blocking Docker SDK calls
+        def _do_operation():
+            container = docker_client.client.containers.get(container_id)
+            return container.some_operation()
 
-    # ... implement other required methods
+        result = await asyncio.to_thread(_do_operation)
+        return {"status": "success", "data": result}
+
+    safety_level = OperationSafety.MODERATE
+    annotations = get_mcp_annotations(safety_level)
+    annotations["idempotent"] = True  # if operation is safe to retry
+
+    return (
+        "docker_my_operation",
+        "Description of what this tool does",
+        my_tool,
+        safety_level,
+        annotations,
+    )
 ```
 
 ### Test Structure
 
 - **tests/unit/**: Fast tests, mock Docker, no Docker daemon required
-  - `test_httpstream_config.py`: HTTP Stream Transport configuration tests
   - `test_safety.py`, `test_validation.py`: Safety and validation logic
+  - `test_config.py`: Configuration validation tests
 - **tests/integration/**: Real Docker operations, requires daemon, tests component integration
-- **tests/e2e/**: Full workflow tests with real MCP protocol, stdio/SSE/HTTP Stream transports
+  - `test_fastmcp_server.py`: FastMCP server integration tests
+- **tests/e2e/**: Full workflow tests with real MCP protocol
   - `test_stdio_transport_e2e.py`: stdio transport E2E tests
-  - `test_sse_transport_e2e.py`: SSE transport E2E tests
-  - `test_httpstream_transport_e2e.py`: HTTP Stream Transport E2E tests (resumability, CORS, sessions)
 - **tests/fuzz/**: ClusterFuzzLite fuzz tests for security (validation, JSON parsing)
 - **tests/conftest.py**: Shared pytest fixtures (mock Docker client, config, etc.)
 
 When adding tests:
 - Unit tests for business logic and validation
 - Integration tests for Docker operations
-- E2E tests for multi-step workflows (include all three transports)
+- E2E tests for multi-step workflows
 - Mark slow tests with `@pytest.mark.slow` (still run in CI, just slower)
 - Mark stress/performance tests with `@pytest.mark.stress` (skipped in CI, run locally)
 
@@ -336,7 +339,7 @@ Two Claude-powered workflows are available (requires `CLAUDE_CODE_OAUTH_TOKEN` s
 
 - **RADE Risk**: Container logs may contain malicious prompts (treat as untrusted input)
 - **Docker Socket Access**: Equivalent to root access on host
-- **TLS Required**: For production SSE deployments
+- **HTTPS Required**: Use reverse proxy (NGINX, Caddy) for production HTTP deployments
 - **Auth Required**: For network-accessible deployments
 - **Rate Limiting**: Prevents abuse
 - **Command Injection**: Validated via safety.py patterns
@@ -353,15 +356,10 @@ All configuration is via environment variables. For complete reference of all op
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 SAFETY_ALLOWED_TOOLS=docker_list_containers,docker_inspect_container
 
-# HTTP Stream Transport
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true
-HTTPSTREAM_ALLOWED_HOSTS='["api.example.com"]'
-CORS_ENABLED=true
-
 # Security
 SECURITY_OAUTH_ENABLED=true
 SECURITY_RATE_LIMIT_RPM=60
-MCP_TLS_ENABLED=true
+SECURITY_ALLOWED_CLIENT_IPS='["127.0.0.1"]'
 ```
 
 See [CONFIGURATION.md](CONFIGURATION.md) for all available options and common scenarios.
@@ -369,11 +367,13 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options and common sc
 ## Common Tasks
 
 ### Adding a new Docker operation
-1. Add tool class to appropriate `tools/*.py` file
-2. Implement `BaseTool` interface
-3. Add unit tests in `tests/unit/test_*_tools.py`
-4. Add integration tests in `tests/integration/test_*_operations.py`
-5. Update tool count in README.md if needed
+1. Add tool factory function to appropriate `fastmcp_tools/*.py` file
+2. Define Pydantic models for input/output validation
+3. Return (name, description, function, safety_level, annotations) tuple
+4. Register in `register_all_tools()` in `fastmcp_tools/__init__.py`
+5. Add unit tests in `tests/unit/`
+6. Add integration tests in `tests/integration/`
+7. Update tool count in README.md if needed
 
 ### Debugging test failures
 ```bash
