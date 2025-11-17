@@ -9,7 +9,6 @@ from typing import Any
 from docker.errors import APIError
 from pydantic import BaseModel, Field
 
-from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
@@ -52,7 +51,7 @@ def create_prune_system_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_system FastMCP tool."""
 
-    async def prune_system(
+    def prune_system(
         filters: dict[str, str | list[str]] | None = None,
         volumes: bool = False,
     ) -> dict[str, Any]:

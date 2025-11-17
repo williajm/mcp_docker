@@ -184,7 +184,7 @@ def create_list_networks_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def list_networks(
+    def list_networks(
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
         """List Docker networks with optional filters.
@@ -271,7 +271,7 @@ def create_inspect_network_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def inspect_network(
+    def inspect_network(
         network_id: str,
     ) -> dict[str, Any]:
         """Get detailed information about a Docker network.
@@ -328,7 +328,7 @@ def create_create_network_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the create_network FastMCP tool."""
 
-    async def create_network(  # noqa: PLR0913 - Docker API requires these parameters
+    def create_network(  # noqa: PLR0913 - Docker API requires these parameters
         name: str,
         driver: str = "bridge",
         options: dict[str, Any] | None = None,
@@ -404,7 +404,7 @@ def create_connect_container_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the connect_container FastMCP tool."""
 
-    async def connect_container(  # noqa: PLR0913 - Docker API requires these parameters
+    def connect_container(  # noqa: PLR0913 - Docker API requires these parameters
         network_id: str,
         container_id: str,
         aliases: list[str] | None = None,
@@ -506,7 +506,7 @@ def create_disconnect_container_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the disconnect_container FastMCP tool."""
 
-    async def disconnect_container(
+    def disconnect_container(
         network_id: str,
         container_id: str,
         force: bool = False,
@@ -593,7 +593,7 @@ def create_remove_network_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_network FastMCP tool."""
 
-    async def remove_network(
+    def remove_network(
         network_id: str,
     ) -> dict[str, Any]:
         """Remove a Docker network.

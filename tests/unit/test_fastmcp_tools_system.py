@@ -29,8 +29,7 @@ class TestPruneSystemTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_prune_system_success_without_volumes(self, mock_docker_client, safety_config):
+    def test_prune_system_success_without_volumes(self, mock_docker_client, safety_config):
         """Test successful system prune without volumes."""
         # Mock Docker API responses
         mock_docker_client.client.api.prune_containers.return_value = {
@@ -50,7 +49,7 @@ class TestPruneSystemTool:
         _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute
-        result = await prune_func()
+        result = prune_func()
 
         # Verify
         assert result["containers_deleted"] == ["container1", "container2"]
@@ -65,8 +64,7 @@ class TestPruneSystemTool:
         mock_docker_client.client.api.prune_networks.assert_called_once_with(filters=None)
         mock_docker_client.client.volumes.prune.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_prune_system_success_with_volumes(self, mock_docker_client, safety_config):
+    def test_prune_system_success_with_volumes(self, mock_docker_client, safety_config):
         """Test successful system prune with volumes."""
         # Mock Docker API responses
         mock_docker_client.client.api.prune_containers.return_value = {
@@ -90,7 +88,7 @@ class TestPruneSystemTool:
         _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute with volumes=True
-        result = await prune_func(volumes=True)
+        result = prune_func(volumes=True)
 
         # Verify
         assert result["containers_deleted"] == ["container1"]
@@ -100,8 +98,7 @@ class TestPruneSystemTool:
         # Verify volumes.prune was called
         mock_docker_client.client.volumes.prune.assert_called_once_with(filters=None)
 
-    @pytest.mark.asyncio
-    async def test_prune_system_with_filters(self, mock_docker_client, safety_config):
+    def test_prune_system_with_filters(self, mock_docker_client, safety_config):
         """Test system prune with filters."""
         # Mock Docker API responses
         mock_docker_client.client.api.prune_containers.return_value = {
@@ -122,7 +119,7 @@ class TestPruneSystemTool:
 
         # Execute with filters
         filters = {"until": "24h"}
-        result = await prune_func(filters=filters)
+        result = prune_func(filters=filters)
 
         # Verify filters were passed
         mock_docker_client.client.api.prune_containers.assert_called_once_with(filters=filters)
@@ -131,8 +128,7 @@ class TestPruneSystemTool:
 
         assert result["space_reclaimed"] == 0
 
-    @pytest.mark.asyncio
-    async def test_prune_system_empty_results(self, mock_docker_client, safety_config):
+    def test_prune_system_empty_results(self, mock_docker_client, safety_config):
         """Test system prune with no resources to delete."""
         # Mock Docker API responses with None (no deletions)
         mock_docker_client.client.api.prune_containers.return_value = {
@@ -152,7 +148,7 @@ class TestPruneSystemTool:
         _, _, _, _, _, prune_func = create_prune_system_tool(mock_docker_client)
 
         # Execute
-        result = await prune_func()
+        result = prune_func()
 
         # Verify empty lists (None -> [])
         assert result["containers_deleted"] == []
@@ -161,8 +157,7 @@ class TestPruneSystemTool:
         assert result["volumes_deleted"] == []
         assert result["space_reclaimed"] == 0
 
-    @pytest.mark.asyncio
-    async def test_prune_system_api_error(self, mock_docker_client, safety_config):
+    def test_prune_system_api_error(self, mock_docker_client, safety_config):
         """Test system prune with Docker API error."""
         # Mock Docker API to raise error
         mock_docker_client.client.api.prune_containers.side_effect = APIError("Prune failed")
@@ -172,7 +167,7 @@ class TestPruneSystemTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to prune system"):
-            await prune_func()
+            prune_func()
 
     def test_create_prune_system_tool_metadata(self, mock_docker_client, safety_config):
         """Test tool metadata is correct."""

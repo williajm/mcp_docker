@@ -239,8 +239,7 @@ class TestListContainersTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_list_containers_success(self, mock_docker_client, safety_config):
+    def test_list_containers_success(self, mock_docker_client, safety_config):
         """Test successful container listing."""
         # Mock image object
         mock_image = Mock()
@@ -262,7 +261,7 @@ class TestListContainersTool:
         *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
 
         # Execute
-        result = await list_func()
+        result = list_func()
 
         # Verify
         assert result["count"] == 1
@@ -272,8 +271,7 @@ class TestListContainersTool:
         assert result["containers"][0]["image"] == "nginx:latest"
         assert result["containers"][0]["status"] == "running"
 
-    @pytest.mark.asyncio
-    async def test_list_containers_with_filters(self, mock_docker_client, safety_config):
+    def test_list_containers_with_filters(self, mock_docker_client, safety_config):
         """Test container listing with filters."""
         mock_docker_client.client.containers.list.return_value = []
 
@@ -282,7 +280,7 @@ class TestListContainersTool:
 
         # Execute with filters
         filters = {"status": ["running"]}
-        result = await list_func(filters=filters)
+        result = list_func(filters=filters)
 
         # Verify filters were passed
         mock_docker_client.client.containers.list.assert_called_once_with(
@@ -290,8 +288,7 @@ class TestListContainersTool:
         )
         assert result["count"] == 0
 
-    @pytest.mark.asyncio
-    async def test_list_containers_api_error(self, mock_docker_client, safety_config):
+    def test_list_containers_api_error(self, mock_docker_client, safety_config):
         """Test container listing with API error."""
         mock_docker_client.client.containers.list.side_effect = APIError("List failed")
 
@@ -300,7 +297,7 @@ class TestListContainersTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to list containers"):
-            await list_func()
+            list_func()
 
 
 class TestInspectContainerTool:
@@ -319,8 +316,7 @@ class TestInspectContainerTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_inspect_container_not_found(self, mock_docker_client, safety_config):
+    def test_inspect_container_not_found(self, mock_docker_client, safety_config):
         """Test inspecting non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
@@ -329,10 +325,9 @@ class TestInspectContainerTool:
 
         # Execute and expect error
         with pytest.raises(ContainerNotFound):
-            await inspect_func(container_id="nonexistent")
+            inspect_func(container_id="nonexistent")
 
-    @pytest.mark.asyncio
-    async def test_inspect_container_api_error(self, mock_docker_client, safety_config):
+    def test_inspect_container_api_error(self, mock_docker_client, safety_config):
         """Test container inspection with API error."""
         mock_docker_client.client.containers.get.side_effect = APIError("Inspect failed")
 
@@ -341,7 +336,7 @@ class TestInspectContainerTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to inspect container"):
-            await inspect_func(container_id="test")
+            inspect_func(container_id="test")
 
 
 class TestContainerLogsTool:
@@ -360,8 +355,7 @@ class TestContainerLogsTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_logs_container_not_found(self, mock_docker_client, safety_config):
+    def test_logs_container_not_found(self, mock_docker_client, safety_config):
         """Test logs for non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
@@ -370,10 +364,9 @@ class TestContainerLogsTool:
 
         # Execute and expect error
         with pytest.raises(ContainerNotFound):
-            await logs_func(container_id="nonexistent")
+            logs_func(container_id="nonexistent")
 
-    @pytest.mark.asyncio
-    async def test_logs_api_error(self, mock_docker_client, safety_config):
+    def test_logs_api_error(self, mock_docker_client, safety_config):
         """Test logs with API error."""
         mock_container = Mock()
         mock_container.logs.side_effect = APIError("Logs failed")
@@ -385,7 +378,7 @@ class TestContainerLogsTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to get container logs"):
-            await logs_func(container_id="test")
+            logs_func(container_id="test")
 
 
 class TestContainerStatsTool:
@@ -404,8 +397,7 @@ class TestContainerStatsTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_stats_container_not_found(self, mock_docker_client, safety_config):
+    def test_stats_container_not_found(self, mock_docker_client, safety_config):
         """Test stats for non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
@@ -414,7 +406,7 @@ class TestContainerStatsTool:
 
         # Execute and expect error
         with pytest.raises(ContainerNotFound):
-            await stats_func(container_id="nonexistent")
+            stats_func(container_id="nonexistent")
 
 
 class TestExecCommandTool:
@@ -433,8 +425,7 @@ class TestExecCommandTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_exec_container_not_found(self, mock_docker_client, safety_config):
+    def test_exec_container_not_found(self, mock_docker_client, safety_config):
         """Test exec on non-existent container."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
@@ -443,10 +434,9 @@ class TestExecCommandTool:
 
         # Execute and expect error
         with pytest.raises(ContainerNotFound):
-            await exec_func(container_id="nonexistent", command=["ls"])
+            exec_func(container_id="nonexistent", command=["ls"])
 
-    @pytest.mark.asyncio
-    async def test_exec_api_error(self, mock_docker_client, safety_config):
+    def test_exec_api_error(self, mock_docker_client, safety_config):
         """Test exec with API error."""
         mock_container = Mock()
         mock_container.exec_run.side_effect = APIError("Exec failed")
@@ -458,4 +448,4 @@ class TestExecCommandTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to execute command"):
-            await exec_func(container_id="test", command=["ls"])
+            exec_func(container_id="test", command=["ls"])

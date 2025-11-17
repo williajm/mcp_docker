@@ -33,8 +33,7 @@ class TestListVolumesTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_list_volumes_success(self, mock_docker_client, safety_config):
+    def test_list_volumes_success(self, mock_docker_client, safety_config):
         """Test successful volume listing."""
         # Mock volume objects
         vol1 = Mock()
@@ -61,7 +60,7 @@ class TestListVolumesTool:
         _, _, _, _, _, list_func = create_list_volumes_tool(mock_docker_client, safety_config)
 
         # Execute
-        result = await list_func()
+        result = list_func()
 
         # Verify
         assert result["count"] == 2
@@ -71,8 +70,7 @@ class TestListVolumesTool:
         assert result["volumes"][0]["labels"] == {"env": "test"}
         assert result["volumes"][1]["name"] == "volume2"
 
-    @pytest.mark.asyncio
-    async def test_list_volumes_with_filters(self, mock_docker_client, safety_config):
+    def test_list_volumes_with_filters(self, mock_docker_client, safety_config):
         """Test volume listing with filters."""
         mock_docker_client.client.volumes.list.return_value = []
 
@@ -81,14 +79,13 @@ class TestListVolumesTool:
 
         # Execute with filters
         filters = {"dangling": ["true"]}
-        result = await list_func(filters=filters)
+        result = list_func(filters=filters)
 
         # Verify filters were passed
         mock_docker_client.client.volumes.list.assert_called_once_with(filters=filters)
         assert result["count"] == 0
 
-    @pytest.mark.asyncio
-    async def test_list_volumes_api_error(self, mock_docker_client, safety_config):
+    def test_list_volumes_api_error(self, mock_docker_client, safety_config):
         """Test volume listing with API error."""
         mock_docker_client.client.volumes.list.side_effect = APIError("List failed")
 
@@ -97,7 +94,7 @@ class TestListVolumesTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to list volumes"):
-            await list_func()
+            list_func()
 
 
 class TestInspectVolumeTool:
@@ -116,8 +113,7 @@ class TestInspectVolumeTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_inspect_volume_success(self, mock_docker_client, safety_config):
+    def test_inspect_volume_success(self, mock_docker_client, safety_config):
         """Test successful volume inspection."""
         # Mock volume object
         volume = Mock()
@@ -135,7 +131,7 @@ class TestInspectVolumeTool:
         _, _, _, _, _, inspect_func = create_inspect_volume_tool(mock_docker_client)
 
         # Execute
-        result = await inspect_func(volume_name="test-volume")
+        result = inspect_func(volume_name="test-volume")
 
         # Verify
         assert result["details"]["Name"] == "test-volume"
@@ -143,8 +139,7 @@ class TestInspectVolumeTool:
         assert result["details"]["Labels"] == {"env": "prod"}
         mock_docker_client.client.volumes.get.assert_called_once_with("test-volume")
 
-    @pytest.mark.asyncio
-    async def test_inspect_volume_not_found(self, mock_docker_client, safety_config):
+    def test_inspect_volume_not_found(self, mock_docker_client, safety_config):
         """Test inspecting non-existent volume."""
         mock_docker_client.client.volumes.get.side_effect = NotFound("Volume not found")
 
@@ -153,10 +148,9 @@ class TestInspectVolumeTool:
 
         # Execute and expect error
         with pytest.raises(VolumeNotFound, match="Volume not found"):
-            await inspect_func(volume_name="nonexistent")
+            inspect_func(volume_name="nonexistent")
 
-    @pytest.mark.asyncio
-    async def test_inspect_volume_api_error(self, mock_docker_client, safety_config):
+    def test_inspect_volume_api_error(self, mock_docker_client, safety_config):
         """Test volume inspection with API error."""
         mock_docker_client.client.volumes.get.side_effect = APIError("Inspect failed")
 
@@ -165,7 +159,7 @@ class TestInspectVolumeTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to inspect volume"):
-            await inspect_func(volume_name="test-volume")
+            inspect_func(volume_name="test-volume")
 
 
 class TestCreateVolumeTool:
@@ -184,8 +178,7 @@ class TestCreateVolumeTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_create_volume_success(self, mock_docker_client, safety_config):
+    def test_create_volume_success(self, mock_docker_client, safety_config):
         """Test successful volume creation."""
         # Mock volume object
         volume = Mock()
@@ -201,15 +194,14 @@ class TestCreateVolumeTool:
         _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute
-        result = await create_func(name="test-volume")
+        result = create_func(name="test-volume")
 
         # Verify
         assert result["name"] == "test-volume"
         assert result["driver"] == "local"
         mock_docker_client.client.volumes.create.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_create_volume_with_options(self, mock_docker_client, safety_config):
+    def test_create_volume_with_options(self, mock_docker_client, safety_config):
         """Test volume creation with driver options and labels."""
         # Mock volume object
         volume = Mock()
@@ -225,7 +217,7 @@ class TestCreateVolumeTool:
         _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute with options
-        await create_func(
+        create_func(
             name="nfs-volume",
             driver="nfs",
             driver_opts={"type": "nfs", "device": ":/path"},
@@ -239,8 +231,7 @@ class TestCreateVolumeTool:
         assert call_args.kwargs["driver_opts"] == {"type": "nfs", "device": ":/path"}
         assert call_args.kwargs["labels"] == {"env": "prod"}
 
-    @pytest.mark.asyncio
-    async def test_create_volume_auto_name(self, mock_docker_client, safety_config):
+    def test_create_volume_auto_name(self, mock_docker_client, safety_config):
         """Test volume creation with auto-generated name."""
         # Mock volume object
         volume = Mock()
@@ -253,13 +244,12 @@ class TestCreateVolumeTool:
         _, _, _, _, _, create_func = create_create_volume_tool(mock_docker_client)
 
         # Execute without name
-        result = await create_func()
+        result = create_func()
 
         # Verify auto-generated name was used
         assert result["name"] == "auto-generated-123"
 
-    @pytest.mark.asyncio
-    async def test_create_volume_api_error(self, mock_docker_client, safety_config):
+    def test_create_volume_api_error(self, mock_docker_client, safety_config):
         """Test volume creation with API error."""
         mock_docker_client.client.volumes.create.side_effect = APIError("Create failed")
 
@@ -268,7 +258,7 @@ class TestCreateVolumeTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to create volume"):
-            await create_func(name="test-volume")
+            create_func(name="test-volume")
 
 
 class TestRemoveVolumeTool:
@@ -287,8 +277,7 @@ class TestRemoveVolumeTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_remove_volume_success(self, mock_docker_client, safety_config):
+    def test_remove_volume_success(self, mock_docker_client, safety_config):
         """Test successful volume removal."""
         # Mock volume object
         volume = Mock()
@@ -300,15 +289,14 @@ class TestRemoveVolumeTool:
         _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client)
 
         # Execute
-        result = await remove_func(volume_name="test-volume")
+        result = remove_func(volume_name="test-volume")
 
         # Verify
         assert result["volume_name"] == "test-volume"
         mock_docker_client.client.volumes.get.assert_called_once_with("test-volume")
         volume.remove.assert_called_once_with(force=False)
 
-    @pytest.mark.asyncio
-    async def test_remove_volume_with_force(self, mock_docker_client, safety_config):
+    def test_remove_volume_with_force(self, mock_docker_client, safety_config):
         """Test volume removal with force flag."""
         # Mock volume object
         volume = Mock()
@@ -320,13 +308,12 @@ class TestRemoveVolumeTool:
         _, _, _, _, _, remove_func = create_remove_volume_tool(mock_docker_client)
 
         # Execute with force
-        await remove_func(volume_name="test-volume", force=True)
+        remove_func(volume_name="test-volume", force=True)
 
         # Verify force was used
         volume.remove.assert_called_once_with(force=True)
 
-    @pytest.mark.asyncio
-    async def test_remove_volume_not_found(self, mock_docker_client, safety_config):
+    def test_remove_volume_not_found(self, mock_docker_client, safety_config):
         """Test removing non-existent volume."""
         mock_docker_client.client.volumes.get.side_effect = NotFound("Volume not found")
 
@@ -335,10 +322,9 @@ class TestRemoveVolumeTool:
 
         # Execute and expect error
         with pytest.raises(VolumeNotFound, match="Volume not found"):
-            await remove_func(volume_name="nonexistent")
+            remove_func(volume_name="nonexistent")
 
-    @pytest.mark.asyncio
-    async def test_remove_volume_api_error(self, mock_docker_client, safety_config):
+    def test_remove_volume_api_error(self, mock_docker_client, safety_config):
         """Test volume removal with API error."""
         volume = Mock()
         volume.remove.side_effect = APIError("Remove failed")
@@ -350,7 +336,7 @@ class TestRemoveVolumeTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to remove volume"):
-            await remove_func(volume_name="test-volume")
+            remove_func(volume_name="test-volume")
 
 
 class TestPruneVolumesTool:
@@ -369,8 +355,7 @@ class TestPruneVolumesTool:
         """Create safety config."""
         return SafetyConfig()
 
-    @pytest.mark.asyncio
-    async def test_prune_volumes_standard(self, mock_docker_client, safety_config):
+    def test_prune_volumes_standard(self, mock_docker_client, safety_config):
         """Test standard volume prune (unused only)."""
         mock_docker_client.client.volumes.prune.return_value = {
             "VolumesDeleted": ["volume1", "volume2"],
@@ -381,15 +366,14 @@ class TestPruneVolumesTool:
         _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client)
 
         # Execute standard prune
-        result = await prune_func(force_all=False)
+        result = prune_func(force_all=False)
 
         # Verify
         assert result["deleted"] == ["volume1", "volume2"]
         assert result["space_reclaimed"] == 5000
         mock_docker_client.client.volumes.prune.assert_called_once_with(filters=None)
 
-    @pytest.mark.asyncio
-    async def test_prune_volumes_with_filters(self, mock_docker_client, safety_config):
+    def test_prune_volumes_with_filters(self, mock_docker_client, safety_config):
         """Test volume prune with filters."""
         mock_docker_client.client.volumes.prune.return_value = {
             "VolumesDeleted": [],
@@ -401,13 +385,12 @@ class TestPruneVolumesTool:
 
         # Execute with filters
         filters = {"label": ["env=test"]}
-        await prune_func(filters=filters, force_all=False)
+        prune_func(filters=filters, force_all=False)
 
         # Verify filters were passed
         mock_docker_client.client.volumes.prune.assert_called_once_with(filters=filters)
 
-    @pytest.mark.asyncio
-    async def test_prune_volumes_api_error(self, mock_docker_client, safety_config):
+    def test_prune_volumes_api_error(self, mock_docker_client, safety_config):
         """Test volume prune with API error."""
         mock_docker_client.client.volumes.prune.side_effect = APIError("Prune failed")
 
@@ -416,4 +399,4 @@ class TestPruneVolumesTool:
 
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to prune volumes"):
-            await prune_func(force_all=False)
+            prune_func(force_all=False)

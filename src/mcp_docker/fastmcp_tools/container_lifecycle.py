@@ -212,7 +212,7 @@ def create_create_container_tool(  # noqa: PLR0915 - Complex validation logic
 
         return kwargs
 
-    async def create_container(  # noqa: PLR0913 - Docker API requires these parameters
+    def create_container(  # noqa: PLR0913 - Docker API requires these parameters
         image: str,
         name: str | None = None,
         command: str | list[str] | None = None,
@@ -308,7 +308,7 @@ def create_start_container_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def start_container(
+    def start_container(
         container_id: str,
     ) -> dict[str, Any]:
         """Start a stopped Docker container.
@@ -380,7 +380,7 @@ def create_stop_container_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def stop_container(
+    def stop_container(
         container_id: str,
         timeout: int = 10,
     ) -> dict[str, Any]:
@@ -454,7 +454,7 @@ def create_restart_container_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def restart_container(
+    def restart_container(
         container_id: str,
         timeout: int = 10,
     ) -> dict[str, Any]:
@@ -517,7 +517,7 @@ def create_remove_container_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def remove_container(
+    def remove_container(
         container_id: str,
         force: bool = False,
         volumes: bool = False,

@@ -165,7 +165,7 @@ def create_list_volumes_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def list_volumes(
+    def list_volumes(
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
         """List Docker volumes with optional filters.
@@ -251,7 +251,7 @@ def create_inspect_volume_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def inspect_volume(
+    def inspect_volume(
         volume_name: str,
     ) -> dict[str, Any]:
         """Get detailed information about a Docker volume.
@@ -308,7 +308,7 @@ def create_create_volume_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the create_volume FastMCP tool."""
 
-    async def create_volume(
+    def create_volume(
         name: str | None = None,
         driver: str = "local",
         driver_opts: dict[str, str] | None = None,
@@ -370,7 +370,7 @@ def create_remove_volume_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_volume FastMCP tool."""
 
-    async def remove_volume(
+    def remove_volume(
         volume_name: str,
         force: bool = False,
     ) -> dict[str, Any]:
@@ -419,7 +419,7 @@ def create_prune_volumes_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_volumes FastMCP tool."""
 
-    async def prune_volumes(
+    def prune_volumes(
         filters: dict[str, str | list[str]] | None = None,
         force_all: bool = False,
     ) -> dict[str, Any]:

@@ -171,7 +171,7 @@ def create_list_containers_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def list_containers(
+    def list_containers(
         all: bool = False,
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
@@ -260,7 +260,7 @@ def create_inspect_container_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def inspect_container(
+    def inspect_container(
         container_id: str,
     ) -> dict[str, Any]:
         """Get detailed information about a Docker container.
@@ -348,7 +348,7 @@ def create_container_logs_tool(
             logger.error(f"Error collecting logs in follow mode: {e}")
             return f"Error collecting logs: {e}"
 
-    async def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
+    def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
         container_id: str,
         tail: int | str = "all",
         since: str | None = None,
@@ -457,7 +457,7 @@ def create_container_stats_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def container_stats(
+    def container_stats(
         container_id: str,
         stream: bool = False,
     ) -> dict[str, Any]:
@@ -526,7 +526,7 @@ def create_exec_command_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def exec_command(  # noqa: PLR0913 - Docker API requires these parameters
+    def exec_command(  # noqa: PLR0913 - Docker API requires these parameters
         container_id: str,
         command: str | list[str],
         workdir: str | None = None,

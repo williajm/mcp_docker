@@ -242,7 +242,7 @@ def create_list_images_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def list_images(
+    def list_images(
         all: bool = False,
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
@@ -330,7 +330,7 @@ def create_inspect_image_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def inspect_image(
+    def inspect_image(
         image_name: str,
     ) -> dict[str, Any]:
         """Get detailed information about a Docker image.
@@ -396,7 +396,7 @@ def create_image_history_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    async def image_history(
+    def image_history(
         image: str,
     ) -> dict[str, Any]:
         """View the history of a Docker image.
@@ -467,7 +467,7 @@ def create_pull_image_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the pull_image FastMCP tool."""
 
-    async def pull_image(
+    def pull_image(
         image: str,
         tag: str | None = None,
         all_tags: bool = False,
@@ -511,7 +511,7 @@ def create_build_image_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the build_image FastMCP tool."""
 
-    async def build_image(  # noqa: PLR0913 - Docker API requires these parameters
+    def build_image(  # noqa: PLR0913 - Docker API requires these parameters
         path: str,
         tag: str | None = None,
         dockerfile: str = "Dockerfile",
@@ -573,7 +573,7 @@ def create_push_image_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the push_image FastMCP tool."""
 
-    async def push_image(
+    def push_image(
         image: str,
         tag: str | None = None,
     ) -> dict[str, Any]:
@@ -635,7 +635,7 @@ def create_tag_image_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the tag_image FastMCP tool."""
 
-    async def tag_image(
+    def tag_image(
         image: str,
         repository: str,
         tag: str = "latest",
@@ -675,7 +675,7 @@ def create_remove_image_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_image FastMCP tool."""
 
-    async def remove_image(
+    def remove_image(
         image: str,
         force: bool = False,
         noprune: bool = False,
@@ -711,7 +711,7 @@ def create_prune_images_tool(
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_images FastMCP tool."""
 
-    async def prune_images(
+    def prune_images(
         all: bool = False,
         filters: dict[str, str | list[str]] | None = None,
         force_all: bool = False,
