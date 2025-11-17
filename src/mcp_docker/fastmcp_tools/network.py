@@ -28,6 +28,38 @@ from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
+
+def _build_connect_kwargs(
+    container_id: str,
+    aliases: list[str] | None,
+    ipv4_address: str | None,
+    ipv6_address: str | None,
+    links: list[str] | None,
+) -> dict[str, Any]:
+    """Build kwargs for network.connect() call.
+
+    Args:
+        container_id: Container ID or name
+        aliases: Network-scoped aliases
+        ipv4_address: IPv4 address
+        ipv6_address: IPv6 address
+        links: Legacy container links
+
+    Returns:
+        Dictionary of kwargs for network.connect()
+    """
+    kwargs: dict[str, Any] = {"container": container_id}
+    if aliases:
+        kwargs["aliases"] = aliases
+    if ipv4_address:
+        kwargs["ipv4_address"] = ipv4_address
+    if ipv6_address:
+        kwargs["ipv6_address"] = ipv6_address
+    if links:
+        kwargs["links"] = links
+    return kwargs
+
+
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_NETWORK_ID = "Network ID or name"
 
@@ -459,16 +491,7 @@ def create_connect_container_tool(
                 ).model_dump()
 
             # Not connected - perform the connection
-            kwargs: dict[str, Any] = {"container": container_id}
-            if aliases:
-                kwargs["aliases"] = aliases
-            if ipv4_address:
-                kwargs["ipv4_address"] = ipv4_address
-            if ipv6_address:
-                kwargs["ipv6_address"] = ipv6_address
-            if links:
-                kwargs["links"] = links
-
+            kwargs = _build_connect_kwargs(container_id, aliases, ipv4_address, ipv6_address, links)
             network.connect(**kwargs)
 
             logger.info(f"Successfully connected container {container_id} to network {network_id}")

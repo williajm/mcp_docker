@@ -28,7 +28,7 @@ from mcp_docker.utils.validation import validate_image_name
 logger = get_logger(__name__)
 
 
-def _parse_build_logs(build_logs: list[dict[str, Any]]) -> list[str]:
+def _parse_build_logs(build_logs: Any) -> list[str]:
     """Parse Docker build logs and extract stream messages.
 
     Args:
@@ -58,7 +58,9 @@ def _parse_push_stream(push_stream: str | bytes) -> tuple[str | None, str | None
     last_status = None
     error_message = None
 
-    lines = push_stream.split("\n") if isinstance(push_stream, str) else [push_stream]
+    # Convert bytes to str if needed
+    stream_str = push_stream if isinstance(push_stream, str) else str(push_stream)
+    lines = stream_str.split("\n")
     for line in lines:
         if not line.strip():
             continue
