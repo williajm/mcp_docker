@@ -69,18 +69,18 @@ class FastMCPDockerServer:
         self.audit_middleware = AuditMiddleware(self.audit_logger)
 
         # CRITICAL: Attach middleware to FastMCP app
-        # These middleware enforce security controls for ALL tool executions:
+        # Middleware execution order: first added = outermost wrapper
+        # - AuditMiddleware: OUTERMOST - logs all requests (including blocked ones)
         # - AuthMiddleware: Validates OAuth/IP allowlist before tool execution
         # - SafetyMiddleware: Validates operations against safety policies
-        # - RateLimitMiddleware: Prevents abuse via request throttling
-        # - AuditMiddleware: Logs all operations for accountability
+        # - RateLimitMiddleware: INNERMOST - prevents abuse via request throttling
         logger.info("Attaching security middleware to FastMCP app")
         # NOTE: Middleware classes are protocol-compatible but don't inherit from base class
+        self.app.add_middleware(self.audit_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.auth_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.safety_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.rate_limit_middleware)  # type: ignore[arg-type]
-        self.app.add_middleware(self.audit_middleware)  # type: ignore[arg-type]
-        logger.info("Security middleware attached successfully (auth, safety, rate_limit, audit)")
+        logger.info("Security middleware attached successfully (audit, auth, safety, rate_limit)")
 
         # Register all tools with middleware integration
         registered_tools = register_all_tools(self.app, self.docker_client, config.safety)
