@@ -263,24 +263,29 @@ class TestRateLimitMiddleware:
         rate_limiter.enabled = True
         rate_limiter.rpm = 60
         rate_limiter.check_rate_limit = AsyncMock(return_value=None)  # Allow
+        rate_limiter.acquire_concurrent_slot = AsyncMock(return_value=None)
+        rate_limiter.release_concurrent_slot = Mock(return_value=None)
 
         middleware = RateLimitMiddleware(rate_limiter)
 
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
 
-        # Call middleware
-        result = await middleware(call_next, context)
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None  # No session for stdio
+
+        # Call middleware with correct parameter order
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
-        rate_limiter.check_rate_limit.assert_called_once_with("192.168.1.100")
-        call_next.assert_called_once()
+        rate_limiter.check_rate_limit.assert_called_once_with("unknown")
+        call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
     async def test_call_rate_limited(self):
@@ -298,15 +303,18 @@ class TestRateLimitMiddleware:
         # Mock next middleware
         call_next = AsyncMock()
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "test-client",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware should raise
         with pytest.raises(RateLimitExceeded, match="Rate limit exceeded"):
-            await middleware(call_next, context)
+            await middleware(context, call_next)
 
         # Next middleware should not be called
         call_next.assert_not_called()
@@ -322,16 +330,22 @@ class TestRateLimitMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context
-        context = {"tool_name": "docker_list_containers"}
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
         # check_rate_limit should not be called when disabled
         rate_limiter.check_rate_limit.assert_not_called()
-        call_next.assert_called_once()
+        call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
     async def test_concurrent_slot_acquired_and_released(self):
@@ -348,21 +362,24 @@ class TestRateLimitMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
         # Verify concurrent slot was acquired
-        rate_limiter.acquire_concurrent_slot.assert_called_once_with("192.168.1.100")
+        rate_limiter.acquire_concurrent_slot.assert_called_once_with("unknown")
         # Verify concurrent slot was released
-        rate_limiter.release_concurrent_slot.assert_called_once_with("192.168.1.100")
-        call_next.assert_called_once()
+        rate_limiter.release_concurrent_slot.assert_called_once_with("unknown")
+        call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
     async def test_concurrent_slot_released_on_exception(self):
@@ -380,20 +397,23 @@ class TestRateLimitMiddleware:
         error = RuntimeError("Tool execution failed")
         call_next = AsyncMock(side_effect=error)
 
-        # Create context
-        context = {
-            "tool_name": "docker_remove_container",
-            "client_ip": "10.0.0.1",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_remove_container"
+        message.arguments = {"container_id": "test123"}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware - should raise but still release slot
         with pytest.raises(RuntimeError, match="Tool execution failed"):
-            await middleware(call_next, context)
+            await middleware(context, call_next)
 
         # Verify concurrent slot was acquired
-        rate_limiter.acquire_concurrent_slot.assert_called_once_with("10.0.0.1")
+        rate_limiter.acquire_concurrent_slot.assert_called_once_with("unknown")
         # Verify concurrent slot was released (in finally block)
-        rate_limiter.release_concurrent_slot.assert_called_once_with("10.0.0.1")
+        rate_limiter.release_concurrent_slot.assert_called_once_with("unknown")
 
     @pytest.mark.asyncio
     async def test_concurrent_slot_limit_exceeded(self):
@@ -412,22 +432,25 @@ class TestRateLimitMiddleware:
         # Mock next middleware
         call_next = AsyncMock()
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware should raise
         with pytest.raises(RateLimitExceeded, match="Concurrent request limit exceeded"):
-            await middleware(call_next, context)
+            await middleware(context, call_next)
 
         # Next middleware should not be called
         call_next.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_client_id_priority_order(self):
-        """Test client_id extraction priority: session_id > user_id > client_ip."""
+    async def test_client_id_extraction_with_session(self):
+        """Test client_id extraction when session_id is available."""
         rate_limiter = Mock(spec=RateLimiter)
         rate_limiter.enabled = True
         rate_limiter.rpm = 60
@@ -440,41 +463,27 @@ class TestRateLimitMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Test 1: session_id is preferred
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-            "session_id": "session-123",
-            "user_id": "user-456",
-        }
-        await middleware(call_next, context)
+        # Test 1: session_id is extracted from fastmcp_context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+
+        # Mock fastmcp_context with session_id
+        fastmcp_ctx = Mock()
+        fastmcp_ctx.request_context = Mock()  # Session established
+        fastmcp_ctx.session_id = "session-123"
+        context.fastmcp_context = fastmcp_ctx
+
+        await middleware(context, call_next)
         rate_limiter.check_rate_limit.assert_called_with("session-123")
 
-        # Test 2: user_id is used when session_id is missing
+        # Test 2: "unknown" is used when fastmcp_context is None
         rate_limiter.reset_mock()
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-            "user_id": "user-456",
-        }
-        await middleware(call_next, context)
-        rate_limiter.check_rate_limit.assert_called_with("user-456")
-
-        # Test 3: client_ip is used when both session_id and user_id are missing
-        rate_limiter.reset_mock()
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-        }
-        await middleware(call_next, context)
-        rate_limiter.check_rate_limit.assert_called_with("192.168.1.100")
-
-        # Test 4: "unknown" is used when all are missing
-        rate_limiter.reset_mock()
-        context = {
-            "tool_name": "docker_list_containers",
-        }
-        await middleware(call_next, context)
+        context.fastmcp_context = None
+        await middleware(context, call_next)
         rate_limiter.check_rate_limit.assert_called_with("unknown")
 
     def test_create_rate_limit_middleware_factory(self):
@@ -509,17 +518,20 @@ class TestAuditMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success", "data": "test"})
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "client_ip": "192.168.1.100",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success", "data": "test"}
-        call_next.assert_called_once()
+        call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
     async def test_call_logs_failure(self):
@@ -532,17 +544,20 @@ class TestAuditMiddleware:
         error = RuntimeError("Operation failed")
         call_next = AsyncMock(side_effect=error)
 
-        # Create context
-        context = {
-            "tool_name": "docker_remove_container",
-            "client_ip": "10.0.0.1",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_remove_container"
+        message.arguments = {"container_id": "test123"}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware - should raise but still log
         with pytest.raises(RuntimeError, match="Operation failed"):
-            await middleware(call_next, context)
+            await middleware(context, call_next)
 
-        call_next.assert_called_once()
+        call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
     async def test_call_unknown_client(self):
@@ -554,14 +569,20 @@ class TestAuditMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context without client info
-        context = {"tool_name": "docker_list_containers"}
+        # Create FastMCP 2.0 middleware context without client info
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware - should use "unknown" for client
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
-        call_next.assert_called_once()
+        call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
     async def test_audit_logger_called_on_success(self):
@@ -575,19 +596,34 @@ class TestAuditMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success", "data": "test"})
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {"all": True},
-            "client_ip": "192.168.1.100",
-            "session_id": "session-123",
-        }
+        # Create FastMCP 2.0 middleware context with client info
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+
+        # Mock fastmcp_context with session_id and client IP
+        fastmcp_ctx = Mock()
+        fastmcp_ctx.session_id = "session-123"
+
+        # Mock request_context with client IP
+        request_ctx = Mock()
+        request = Mock()
+        client = Mock()
+        client.host = "192.168.1.100"
+        request.client = client
+        request_ctx.request = request
+        fastmcp_ctx.request_context = request_ctx
+
+        context.fastmcp_context = fastmcp_ctx
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success", "data": "test"}
-        call_next.assert_called_once()
+        call_next.assert_called_once_with(context)
 
         # Verify log_tool_call was called with ClientInfo
         audit_logger.log_tool_call.assert_called_once()
@@ -617,18 +653,34 @@ class TestAuditMiddleware:
         error = RuntimeError("Container not found")
         call_next = AsyncMock(side_effect=error)
 
-        # Create context
-        context = {
-            "tool_name": "docker_remove_container",
-            "arguments": {"container_id": "abc123"},
-            "client_ip": "10.0.0.1",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_remove_container"
+        message.arguments = {"container_id": "abc123"}
+
+        context = Mock()
+        context.message = message
+
+        # Mock fastmcp_context with client IP but no session_id
+        fastmcp_ctx = Mock()
+        fastmcp_ctx.session_id = None  # No session
+
+        # Mock request_context with client IP
+        request_ctx = Mock()
+        request = Mock()
+        client = Mock()
+        client.host = "10.0.0.1"
+        request.client = client
+        request_ctx.request = request
+        fastmcp_ctx.request_context = request_ctx
+
+        context.fastmcp_context = fastmcp_ctx
 
         # Call middleware - should raise but still log
         with pytest.raises(RuntimeError, match="Container not found"):
-            await middleware(call_next, context)
+            await middleware(context, call_next)
 
-        call_next.assert_called_once()
+        call_next.assert_called_once_with(context)
 
         # Verify log_tool_call was called with error
         audit_logger.log_tool_call.assert_called_once()
@@ -636,7 +688,7 @@ class TestAuditMiddleware:
 
         # Check that ClientInfo was passed
         client_info = call_args.kwargs["client_info"]
-        assert client_info.client_id == "10.0.0.1"  # Uses IP when no session_id
+        assert client_info.client_id == "unknown"  # No session_id, defaults to "unknown"
         assert client_info.ip_address == "10.0.0.1"
 
         # Check that error was logged
@@ -646,8 +698,8 @@ class TestAuditMiddleware:
         assert call_args.kwargs.get("result") is None
 
     @pytest.mark.asyncio
-    async def test_audit_logger_with_api_key_hash(self):
-        """Regression test: Verify API key hash is logged for authenticated requests."""
+    async def test_audit_logger_with_default_values(self):
+        """Regression test: Verify ClientInfo has default values when not provided."""
         audit_logger = Mock(spec=AuditLogger)
         audit_logger.enabled = True
         audit_logger.log_tool_call = Mock(return_value=None)
@@ -657,32 +709,34 @@ class TestAuditMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context with API key hash
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-            "client_ip": "192.168.1.100",
-            "session_id": "session-456",
-            "api_key_hash": "sha256:abc123",
-            "user_agent": "mcp-client/1.0",
-        }
+        # Create FastMCP 2.0 middleware context without extra info
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
 
-        # Verify ClientInfo includes API key hash and user agent
+        # Verify ClientInfo has default values
         audit_logger.log_tool_call.assert_called_once()
         call_args = audit_logger.log_tool_call.call_args
         client_info = call_args.kwargs["client_info"]
 
-        assert client_info.api_key_hash == "sha256:abc123"
-        assert client_info.description == "mcp-client/1.0"
+        # Default values when fastmcp_context is None
+        assert client_info.client_id == "unknown"
+        assert client_info.ip_address == "unknown"
+        assert client_info.api_key_hash == "none"
+        assert client_info.description is None
 
     @pytest.mark.asyncio
-    async def test_client_info_priority_session_over_user(self):
-        """Test client_id priority: session_id > user_id > client_ip."""
+    async def test_client_info_extraction_from_session(self):
+        """Test client_id extraction from session_id when available."""
         audit_logger = Mock(spec=AuditLogger)
         audit_logger.enabled = True
         audit_logger.log_tool_call = Mock(return_value=None)
@@ -692,48 +746,33 @@ class TestAuditMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Test 1: session_id is preferred
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-            "client_ip": "192.168.1.100",
-            "session_id": "session-123",
-            "user_id": "user-456",
-        }
-        await middleware(call_next, context)
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {}
+
+        context = Mock()
+        context.message = message
+
+        # Test 1: session_id is extracted from fastmcp_context
+        fastmcp_ctx = Mock()
+        fastmcp_ctx.session_id = "session-123"
+
+        # Mock request_context properly to avoid auto-creating Mock objects
+        request_ctx = Mock()
+        request_ctx.request = None  # No request info available (stdio mode)
+        fastmcp_ctx.request_context = request_ctx
+
+        context.fastmcp_context = fastmcp_ctx
+
+        await middleware(context, call_next)
         call_args = audit_logger.log_tool_call.call_args
         assert call_args.kwargs["client_info"].client_id == "session-123"
 
-        # Test 2: user_id is used when session_id is missing
+        # Test 2: "unknown" is used when fastmcp_context is None
         audit_logger.reset_mock()
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-            "client_ip": "192.168.1.100",
-            "user_id": "user-456",
-        }
-        await middleware(call_next, context)
-        call_args = audit_logger.log_tool_call.call_args
-        assert call_args.kwargs["client_info"].client_id == "user-456"
-
-        # Test 3: client_ip is used when both session_id and user_id are missing
-        audit_logger.reset_mock()
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-            "client_ip": "192.168.1.100",
-        }
-        await middleware(call_next, context)
-        call_args = audit_logger.log_tool_call.call_args
-        assert call_args.kwargs["client_info"].client_id == "192.168.1.100"
-
-        # Test 4: "unknown" is used when all are missing
-        audit_logger.reset_mock()
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-        }
-        await middleware(call_next, context)
+        context.fastmcp_context = None
+        await middleware(context, call_next)
         call_args = audit_logger.log_tool_call.call_args
         assert call_args.kwargs["client_info"].client_id == "unknown"
 
@@ -749,15 +788,17 @@ class TestAuditMiddleware:
         # Mock next middleware returning a string
         call_next = AsyncMock(return_value="success")
 
-        # Create context
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-            "client_ip": "192.168.1.100",
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {}
+
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == "success"
 
