@@ -1,6 +1,6 @@
 """Unit tests for middleware components."""
 
-from unittest.mock import AsyncMock, Mock, MagicMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 

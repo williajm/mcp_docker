@@ -104,16 +104,12 @@ class SafetyMiddleware:
                 return safety_level
 
             # Default to SAFE if no metadata found
-            logger.warning(
-                f"No safety level metadata found for {tool_name}, defaulting to SAFE"
-            )
+            logger.warning(f"No safety level metadata found for {tool_name}, defaulting to SAFE")
             return OperationSafety.SAFE
 
         except Exception as e:
             # If we can't get the tool, log warning and default to SAFE
-            logger.warning(
-                f"Failed to get safety level for {tool_name}: {e}, defaulting to SAFE"
-            )
+            logger.warning(f"Failed to get safety level for {tool_name}: {e}, defaulting to SAFE")
             return OperationSafety.SAFE
 
 

@@ -19,8 +19,6 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcp.types import CallToolResult
 
-from mcp_docker.config import Config
-
 # ============================================================================
 # Test Fixtures
 # ============================================================================
