@@ -10,9 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.filters import should_register_tool
+from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
-from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
@@ -650,27 +649,4 @@ def register_container_lifecycle_tools(
         create_remove_container_tool(docker_client),
     ]
 
-    registered_names = []
-
-    for name, description, safety_level, idempotent, open_world, func in tools:
-        # Check if tool should be registered based on allow/deny lists
-        if not should_register_tool(name, safety_config):
-            continue
-
-        # Get MCP annotations based on safety level
-        annotations = get_mcp_annotations(safety_level)
-        annotations["idempotent"] = idempotent
-        annotations["openWorldInteraction"] = open_world
-
-        # Attach safety metadata for middleware BEFORE decoration
-        # FastMCP stores the original function in tool.fn, so we need to attach metadata first
-        func._safety_level = safety_level  # pyright: ignore[reportAttributeAccessIssue]
-        func._tool_name = name  # pyright: ignore[reportAttributeAccessIssue]
-
-        # Register with FastMCP
-        app.tool(name=name, description=description, annotations=annotations)(func)
-
-        registered_names.append(name)
-        logger.debug(f"Registered FastMCP tool: {name} (safety: {safety_level.value})")
-
-    return registered_names
+    return register_tools_with_filtering(app, tools, safety_config)
