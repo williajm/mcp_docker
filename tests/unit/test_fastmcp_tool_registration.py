@@ -1,7 +1,7 @@
 """Unit tests for FastMCP tool registration.
 
 This module tests that all tools (SAFE, MODERATE, DESTRUCTIVE) can be registered
-successfully with FastMCP. Updated for Phase 4 completion (31 total tools).
+successfully with FastMCP. Updated for Phase 4 completion (33 total tools).
 """
 
 from unittest.mock import MagicMock, Mock
@@ -39,7 +39,7 @@ def test_register_all_tools_phase4(
     mock_docker_client: Mock,
     safety_config: SafetyConfig,
 ) -> None:
-    """Test that all 31 tools (Phase 3 + Phase 4) are registered successfully."""
+    """Test that all 33 tools (Phase 3 + Phase 4) are registered successfully."""
     # Register all tools
     registered = register_all_tools(fastmcp_app, mock_docker_client, safety_config)
 
@@ -67,11 +67,11 @@ def test_register_all_tools_phase4(
     assert len(registered["volume"]) == 5, (
         "Expected 5 volume tools (2 SAFE + 3 MODERATE/DESTRUCTIVE)"
     )
-    assert len(registered["system"]) == 1, "Expected 1 system tool (DESTRUCTIVE)"
+    assert len(registered["system"]) == 3, "Expected 3 system tools (2 SAFE + 1 DESTRUCTIVE)"
 
-    # Verify total tool count (Phase 3: 11 SAFE + Phase 4: 20 MODERATE/DESTRUCTIVE = 31 total)
+    # Verify total tool count (Phase 3: 13 SAFE + Phase 4: 20 MODERATE/DESTRUCTIVE = 33 total)
     total_tools = sum(len(tools) for tools in registered.values())
-    assert total_tools == 31, f"Expected 31 total tools, got {total_tools}"
+    assert total_tools == 33, f"Expected 33 total tools, got {total_tools}"
 
 
 def test_registered_tool_names_phase4(
@@ -79,7 +79,7 @@ def test_registered_tool_names_phase4(
     mock_docker_client: Mock,
     safety_config: SafetyConfig,
 ) -> None:
-    """Test that all expected tool names (31 tools) are registered."""
+    """Test that all expected tool names (33 tools) are registered."""
     # Expected tool names by category (Phase 3 + Phase 4)
     expected_tools = {
         "container_inspection": [
@@ -123,6 +123,8 @@ def test_registered_tool_names_phase4(
             "docker_prune_volumes",  # Phase 4: DESTRUCTIVE
         ],
         "system": [  # Phase 4: New category
+            "docker_version",  # SAFE
+            "docker_events",  # SAFE
             "docker_prune_system",  # DESTRUCTIVE
         ],
     }
@@ -155,6 +157,6 @@ def test_registration_with_custom_safety_config(
     # Register tools
     registered = register_all_tools(fastmcp_app, mock_docker_client, custom_config)
 
-    # Verify registration succeeds with custom config (31 tools total)
+    # Verify registration succeeds with custom config (33 tools total)
     total_tools = sum(len(tools) for tools in registered.values())
-    assert total_tools == 31, "Registration should succeed with custom config"
+    assert total_tools == 33, "Registration should succeed with custom config"

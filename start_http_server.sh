@@ -56,6 +56,9 @@ echo "Press Ctrl+C to stop the server"
 echo "=========================================="
 echo ""
 
-# Start the server using local code
-# First unset SAFETY_ALLOWED_TOOLS, then set it to ensure clean state
-exec env -u SAFETY_ALLOWED_TOOLS env SAFETY_ALLOWED_TOOLS="docker_list_containers" uv run python -m mcp_docker --transport http --host "$HOST" --port "$PORT"
+# Start the server using local code with all tools and safety levels enabled
+exec env \
+  -u SAFETY_ALLOWED_TOOLS \
+  SAFETY_ALLOW_MODERATE_OPERATIONS=true \
+  SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true \
+  uv run python -m mcp_docker --transport http --host "$HOST" --port "$PORT"

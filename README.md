@@ -17,7 +17,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Features
 
-- **36 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
+- **33 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
 - **2 Transport Options**: stdio (local) and HTTP (network deployments)
@@ -119,7 +119,7 @@ checklists live in [SECURITY.md](SECURITY.md).
 
 ## Tools Overview
 
-The server provides 36 tools organized into 5 categories:
+The server provides 33 tools organized into 5 categories:
 
 ### Container Management (10 tools)
 
@@ -163,14 +163,11 @@ The server provides 36 tools organized into 5 categories:
 - `docker_remove_volume` - Remove volume
 - `docker_prune_volumes` - Clean unused volumes
 
-### System Tools (6 tools)
+### System Tools (3 tools)
 
-- `docker_system_info` - Get Docker system information
-- `docker_system_df` - Disk usage statistics
-- `docker_system_prune` - Clean all unused resources
 - `docker_version` - Get Docker version info
-- `docker_events` - Stream Docker events
-- `docker_healthcheck` - Check Docker daemon health
+- `docker_events` - Get Docker events with optional time range and filters
+- `docker_prune_system` - Clean all unused resources
 
 ## Prompts
 
