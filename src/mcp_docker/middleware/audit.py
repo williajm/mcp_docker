@@ -97,11 +97,11 @@ class AuditMiddleware:
 
             # Create ClientInfo for fallback case
             client_info = ClientInfo(
-            client_id=client_id,
-            ip_address=client_ip,
-            api_key_hash=api_key_hash,
-            description=description,
-        )
+                client_id=client_id,
+                ip_address=client_ip,
+                api_key_hash=api_key_hash,
+                description=description,
+            )
 
         # Execute the tool and log the result
         try:
@@ -115,7 +115,9 @@ class AuditMiddleware:
                 result=result if isinstance(result, dict) else {"value": str(result)},
             )
 
-            logger.debug(f"AuditMiddleware: Logged successful {tool_name} for {client_info.client_id}")
+            logger.debug(
+                f"AuditMiddleware: Logged successful {tool_name} for {client_info.client_id}"
+            )
             return result
 
         except Exception as e:
@@ -127,7 +129,9 @@ class AuditMiddleware:
                 error=str(e),
             )
 
-            logger.debug(f"AuditMiddleware: Logged failed {tool_name} for {client_info.client_id}: {e}")
+            logger.debug(
+                f"AuditMiddleware: Logged failed {tool_name} for {client_info.client_id}: {e}"
+            )
 
             # Re-raise the exception
             raise
