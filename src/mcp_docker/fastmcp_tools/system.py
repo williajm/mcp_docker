@@ -34,11 +34,17 @@ class EventsInput(BaseModel):
 
     since: str | None = Field(
         default=None,
-        description="Show events since timestamp or relative time (e.g., '10m', '1h30m')",
+        description=(
+            "Show events since timestamp. Accepts Unix timestamp (seconds since epoch) "
+            "or ISO 8601 datetime (e.g., '2024-01-15T10:00:00')"
+        ),
     )
     until: str | None = Field(
         default=None,
-        description="Show events until timestamp or relative time",
+        description=(
+            "Show events until timestamp. Accepts Unix timestamp (seconds since epoch) "
+            "or ISO 8601 datetime (e.g., '2024-01-15T11:00:00')"
+        ),
     )
     filters: dict[str, str | list[str]] | None = Field(
         default=None,
@@ -144,8 +150,8 @@ def create_events_tool(
         """Get Docker events from the daemon.
 
         Args:
-            since: Show events since timestamp or relative time (e.g., '10m', '1h30m')
-            until: Show events until timestamp or relative time
+            since: Show events since timestamp (Unix timestamp or ISO 8601 datetime)
+            until: Show events until timestamp (Unix timestamp or ISO 8601 datetime)
             filters: Filters to apply (e.g., {'type': 'container', 'event': 'start'})
 
         Returns:
