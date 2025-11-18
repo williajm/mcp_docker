@@ -195,7 +195,11 @@ async def test_moderate_operation_start_container_allowed_when_enabled(
     # Should succeed because SAFETY_ALLOW_MODERATE_OPERATIONS=true
     assert isinstance(result, CallToolResult)
     assert len(result.content) > 0
-    assert "started" in result.content[0].text.lower()
+    # Tool returns JSON with container_id and status fields
+    response_text = result.content[0].text.lower()
+    assert "container_id" in response_text
+    assert "status" in response_text
+    assert "running" in response_text
 
 
 @pytest.mark.e2e
