@@ -42,6 +42,9 @@ async def mcp_client_session(skip_if_no_docker: None) -> Any:
     """Create an MCP client connected to the server via stdio.
 
     This simulates a real MCP client (like Claude Desktop) connecting to the server.
+
+    Note: Uses manual context manager enter/exit with error suppression to avoid
+    asyncio teardown issues with pytest-asyncio.
     """
     # Server parameters - connect to our MCP server via stdio
     server_params = StdioServerParameters(
@@ -57,12 +60,30 @@ async def mcp_client_session(skip_if_no_docker: None) -> Any:
         },
     )
 
-    # Connect to server
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            # Initialize the session
+    # Manually manage context managers to handle teardown errors
+    stdio_ctx = stdio_client(server_params)
+    read, write = await stdio_ctx.__aenter__()
+
+    try:
+        session_ctx = ClientSession(read, write)
+        session = await session_ctx.__aenter__()
+        try:
             await session.initialize()
             yield session
+        finally:
+            try:
+                await session_ctx.__aexit__(None, None, None)
+            except RuntimeError as e:
+                if "cancel scope" not in str(e):
+                    raise
+                # Suppress "cancel scope in different task" errors
+    finally:
+        try:
+            await stdio_ctx.__aexit__(None, None, None)
+        except RuntimeError as e:
+            if "cancel scope" not in str(e):
+                raise
+            # Suppress "cancel scope in different task" errors
 
 
 @pytest.fixture
@@ -70,6 +91,9 @@ async def mcp_client_session_safe_only(skip_if_no_docker: None) -> Any:
     """Create an MCP client with MODERATE and DESTRUCTIVE operations disabled.
 
     This tests the safety enforcement - only SAFE (read-only) tools should work.
+
+    Note: Uses manual context manager enter/exit with error suppression to avoid
+    asyncio teardown issues with pytest-asyncio.
     """
     server_params = StdioServerParameters(
         command="python",
@@ -83,10 +107,30 @@ async def mcp_client_session_safe_only(skip_if_no_docker: None) -> Any:
         },
     )
 
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
+    # Manually manage context managers to handle teardown errors
+    stdio_ctx = stdio_client(server_params)
+    read, write = await stdio_ctx.__aenter__()
+
+    try:
+        session_ctx = ClientSession(read, write)
+        session = await session_ctx.__aenter__()
+        try:
             await session.initialize()
             yield session
+        finally:
+            try:
+                await session_ctx.__aexit__(None, None, None)
+            except RuntimeError as e:
+                if "cancel scope" not in str(e):
+                    raise
+                # Suppress "cancel scope in different task" errors
+    finally:
+        try:
+            await stdio_ctx.__aexit__(None, None, None)
+        except RuntimeError as e:
+            if "cancel scope" not in str(e):
+                raise
+            # Suppress "cancel scope in different task" errors
 
 
 @pytest.fixture
