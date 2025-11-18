@@ -4,22 +4,24 @@ This module contains all volume tools migrated to FastMCP 2.0,
 including SAFE (read-only), MODERATE (state-changing), and DESTRUCTIVE operations.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.common import (
+    DESC_TRUNCATION_INFO,
+    FiltersInput,
+    JsonStringFieldsMixin,
+    PaginatedListOutput,
+    apply_list_pagination,
+)
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
-from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_VOLUME_NOT_FOUND
-from mcp_docker.utils.output_limits import (
-    create_truncation_metadata,
-    truncate_list,
-)
 from mcp_docker.utils.prune_helpers import force_remove_all_volumes
 from mcp_docker.utils.safety import OperationSafety
 
@@ -28,28 +30,14 @@ logger = get_logger(__name__)
 # Input/Output Models (reused from legacy tools)
 
 
-class ListVolumesInput(BaseModel):
+class ListVolumesInput(FiltersInput):
     """Input for listing volumes."""
 
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None,
-        description=(
-            "Filters to apply as key-value pairs. "
-            "Examples: {'dangling': ['true']}, {'driver': 'local'}, "
-            "{'label': ['env=prod']}"
-        ),
-    )
 
-
-class ListVolumesOutput(BaseModel):
+class ListVolumesOutput(PaginatedListOutput):
     """Output for listing volumes."""
 
     volumes: list[dict[str, Any]] = Field(description="List of volumes with basic info")
-    count: int = Field(description="Total number of volumes")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Information about output truncation if applied",
-    )
 
 
 class InspectVolumeInput(BaseModel):
@@ -64,12 +52,14 @@ class InspectVolumeOutput(BaseModel):
     details: dict[str, Any] = Field(description="Detailed volume information")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
-class CreateVolumeInput(BaseModel):
+class CreateVolumeInput(JsonStringFieldsMixin, BaseModel):
     """Input for creating a volume."""
+
+    json_string_fields: ClassVar[tuple[str, ...]] = ("driver_opts", "labels")
 
     name: str | None = Field(default=None, description="Volume name (auto-generated if not set)")
     driver: str = Field(default="local", description="Volume driver")
@@ -87,13 +77,6 @@ class CreateVolumeInput(BaseModel):
             "Example: {'environment': 'production', 'backup': 'daily'}"
         ),
     )
-
-    @field_validator("driver_opts", "labels", mode="before")
-    @classmethod
-    def parse_json_strings(cls, v: Any, info: Any) -> Any:
-        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, "field_name") else "field"
-        return parse_json_string_field(v, field_name)
 
 
 class CreateVolumeOutput(BaseModel):
@@ -194,24 +177,11 @@ def create_list_volumes_tool(
                 for vol in volumes
             ]
 
-            # Apply output limits
-            original_count = len(volume_list)
-            truncation_info: dict[str, Any] = {}
-            if safety_config.max_list_results > 0:
-                volume_list, was_truncated = truncate_list(
-                    volume_list,
-                    safety_config.max_list_results,
-                )
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_count,
-                        truncated_count=len(volume_list),
-                    )
-                    truncation_info["message"] = (
-                        f"Results truncated: showing {len(volume_list)} of {original_count} "
-                        f"volumes. Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
-                    )
+            volume_list, truncation_info, original_count = apply_list_pagination(
+                volume_list,
+                safety_config,
+                "volumes",
+            )
 
             logger.info(f"Found {len(volume_list)} volumes (total: {original_count})")
 

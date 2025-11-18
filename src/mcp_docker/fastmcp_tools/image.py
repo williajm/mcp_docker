@@ -4,23 +4,25 @@ This module contains read-only image tools migrated to FastMCP 2.0.
 """
 
 import json
-from typing import Any
+from typing import Any, ClassVar
 
 from docker.errors import APIError, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.common import (
+    DESC_TRUNCATION_INFO,
+    FiltersInput,
+    JsonStringFieldsMixin,
+    PaginatedListOutput,
+    apply_list_pagination,
+)
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
-from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_IMAGE_NOT_FOUND
-from mcp_docker.utils.output_limits import (
-    create_truncation_metadata,
-    truncate_list,
-)
 from mcp_docker.utils.prune_helpers import force_remove_all_images, prune_all_unused_images
 from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import validate_image_name
@@ -79,34 +81,20 @@ def _parse_push_stream(push_stream: str | bytes) -> tuple[str | None, str | None
 
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_IMAGE_ID = "Image name or ID"
-DESC_TRUNCATION_INFO = "Information about output truncation if applied"
 
 # Input/Output Models (reused from legacy tools)
 
 
-class ListImagesInput(BaseModel):
+class ListImagesInput(FiltersInput):
     """Input for listing images."""
 
     all: bool = Field(default=False, description="Show all images including intermediates")
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None,
-        description=(
-            "Filters to apply as key-value pairs. "
-            "Examples: {'dangling': ['true']}, {'reference': 'ubuntu:*'}, "
-            "{'label': ['maintainer=myname']}"
-        ),
-    )
 
 
-class ListImagesOutput(BaseModel):
+class ListImagesOutput(PaginatedListOutput):
     """Output for listing images."""
 
     images: list[dict[str, Any]] = Field(description="List of images with basic info")
-    count: int = Field(description="Total number of images")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class InspectImageInput(BaseModel):
@@ -158,8 +146,10 @@ class PullImageOutput(BaseModel):
     tags: list[str] = Field(description="Image tags")
 
 
-class BuildImageInput(BaseModel):
+class BuildImageInput(JsonStringFieldsMixin, BaseModel):
     """Input for building an image."""
+
+    json_string_fields: ClassVar[tuple[str, ...]] = ("buildargs",)
 
     path: str = Field(description="Path to build context")
     tag: str | None = Field(default=None, description="Tag for the image")
@@ -174,13 +164,6 @@ class BuildImageInput(BaseModel):
     nocache: bool = Field(default=False, description="Do not use cache")
     rm: bool = Field(default=True, description="Remove intermediate containers")
     pull: bool = Field(default=False, description="Always pull newer base images")
-
-    @field_validator("buildargs", mode="before")
-    @classmethod
-    def parse_buildargs_json(cls, v: Any, info: Any) -> Any:
-        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, "field_name") else "buildargs"
-        return parse_json_string_field(v, field_name)
 
 
 class BuildImageOutput(BaseModel):
@@ -323,24 +306,11 @@ def create_list_images_tool(
                 for img in images
             ]
 
-            # Apply output limits
-            original_count = len(image_list)
-            truncation_info: dict[str, Any] = {}
-            if safety_config.max_list_results > 0:
-                image_list, was_truncated = truncate_list(
-                    image_list,
-                    safety_config.max_list_results,
-                )
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_count,
-                        truncated_count=len(image_list),
-                    )
-                    truncation_info["message"] = (
-                        f"Results truncated: showing {len(image_list)} of {original_count} "
-                        f"images. Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
-                    )
+            image_list, truncation_info, original_count = apply_list_pagination(
+                image_list,
+                safety_config,
+                "images",
+            )
 
             logger.info(f"Found {len(image_list)} images (total: {original_count})")
 
@@ -466,24 +436,7 @@ def create_image_history_tool(
             image_obj = docker_client.client.images.get(image)
             history = image_obj.history()
 
-            # Apply output limits
-            original_count = len(history)
-            truncation_info: dict[str, Any] = {}
-            if safety_config.max_list_results > 0:
-                history, was_truncated = truncate_list(
-                    history,
-                    safety_config.max_list_results,
-                )
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_count,
-                        truncated_count=len(history),
-                    )
-                    truncation_info["message"] = (
-                        f"Results truncated: showing {len(history)} of {original_count} "
-                        f"layers. Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
-                    )
+            history, truncation_info, _ = apply_list_pagination(history, safety_config, "layers")
 
             logger.info(f"Successfully retrieved history for image: {image}")
 
