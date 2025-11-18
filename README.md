@@ -17,7 +17,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Features
 
-- **33 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
+- **36 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
 - **2 Transport Options**: stdio (local) and HTTP (network deployments)
