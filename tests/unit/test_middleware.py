@@ -1,6 +1,6 @@
 """Unit tests for middleware components."""
 
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, MagicMock
 
 import pytest
 
@@ -20,9 +20,11 @@ class TestSafetyMiddleware:
     def test_init(self):
         """Test SafetyMiddleware initialization."""
         enforcer = Mock(spec=SafetyEnforcer)
-        middleware = SafetyMiddleware(enforcer)
+        app = Mock()
+        middleware = SafetyMiddleware(enforcer, app)
 
         assert middleware.enforcer == enforcer
+        assert middleware.app == app
 
     @pytest.mark.asyncio
     async def test_call_safe_tool(self):
@@ -30,27 +32,34 @@ class TestSafetyMiddleware:
         enforcer = Mock(spec=SafetyEnforcer)
         enforcer.enforce_all_checks = Mock(return_value=None)  # Allow tool
 
-        middleware = SafetyMiddleware(enforcer)
+        # Create mock app with a safe tool
+        app = Mock()
+        safe_func = AsyncMock()
+        safe_func._safety_level = OperationSafety.SAFE
+        mock_tool = Mock()
+        mock_tool.fn = safe_func
+        app.get_tool = AsyncMock(return_value=mock_tool)
+
+        middleware = SafetyMiddleware(enforcer, app)
 
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context
-        tool_func = Mock()
-        tool_func._safety_level = OperationSafety.SAFE
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {"all": True},
-            "tool_func": tool_func,
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+        context = Mock()
+        context.message = message
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
         enforcer.enforce_all_checks.assert_called_once_with(
             "docker_list_containers", OperationSafety.SAFE, {"all": True}
         )
+        app.get_tool.assert_called_once_with("docker_list_containers")
         call_next.assert_called_once()
 
     @pytest.mark.asyncio
@@ -59,23 +68,29 @@ class TestSafetyMiddleware:
         enforcer = Mock(spec=SafetyEnforcer)
         enforcer.enforce_all_checks = Mock(side_effect=UnsafeOperationError("Tool not allowed"))
 
-        middleware = SafetyMiddleware(enforcer)
+        # Create mock app with a destructive tool
+        app = Mock()
+        destructive_func = AsyncMock()
+        destructive_func._safety_level = OperationSafety.DESTRUCTIVE
+        mock_tool = Mock()
+        mock_tool.fn = destructive_func
+        app.get_tool = AsyncMock(return_value=mock_tool)
+
+        middleware = SafetyMiddleware(enforcer, app)
 
         # Mock next middleware
         call_next = AsyncMock()
 
-        # Create context
-        tool_func = Mock()
-        tool_func._safety_level = OperationSafety.DESTRUCTIVE
-        context = {
-            "tool_name": "docker_remove_container",
-            "arguments": {"container_id": "test"},
-            "tool_func": tool_func,
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_remove_container"
+        message.arguments = {"container_id": "test"}
+        context = Mock()
+        context.message = message
 
         # Call middleware should raise
         with pytest.raises(UnsafeOperationError, match="Tool not allowed"):
-            await middleware(call_next, context)
+            await middleware(context, call_next)
 
         # Next middleware should not be called
         call_next.assert_not_called()
@@ -84,19 +99,23 @@ class TestSafetyMiddleware:
     async def test_call_no_tool_name(self):
         """Test calling with missing tool_name in context."""
         enforcer = Mock(spec=SafetyEnforcer)
-        middleware = SafetyMiddleware(enforcer)
+        app = Mock()
+        middleware = SafetyMiddleware(enforcer, app)
 
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context without tool_name
-        context = {"arguments": {}}
+        # Create context without tool_name (message has no name attribute)
+        message = Mock(spec=[])  # No 'name' attribute
+        context = Mock()
+        context.message = message
 
         # Should proceed without checking
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
         enforcer.enforce_all_checks.assert_not_called()
+        app.get_tool.assert_not_called()
         call_next.assert_called_once()
 
     @pytest.mark.asyncio
@@ -105,63 +124,124 @@ class TestSafetyMiddleware:
         enforcer = Mock(spec=SafetyEnforcer)
         enforcer.enforce_all_checks = Mock(return_value=None)
 
-        middleware = SafetyMiddleware(enforcer)
+        # Create mock app with tool that has no _safety_level attribute
+        app = Mock()
+        tool_func = AsyncMock(spec=[])  # No _safety_level attribute
+        mock_tool = Mock()
+        mock_tool.fn = tool_func
+        app.get_tool = AsyncMock(return_value=mock_tool)
+
+        middleware = SafetyMiddleware(enforcer, app)
 
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context with tool_func but no _safety_level attribute
-        tool_func = Mock(spec=[])  # No _safety_level attribute
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {},
-            "tool_func": tool_func,
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {}
+        context = Mock()
+        context.message = message
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
         # Should default to SAFE level
         enforcer.enforce_all_checks.assert_called_once_with(
             "docker_list_containers", OperationSafety.SAFE, {}
         )
+        app.get_tool.assert_called_once_with("docker_list_containers")
         call_next.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_call_no_tool_func_defaults_to_safe(self):
-        """Test calling without tool_func in context defaults to SAFE."""
+        """Test calling when get_tool fails defaults to SAFE."""
         enforcer = Mock(spec=SafetyEnforcer)
         enforcer.enforce_all_checks = Mock(return_value=None)
 
-        middleware = SafetyMiddleware(enforcer)
+        # Create mock app that raises when getting tool
+        app = Mock()
+        app.get_tool = AsyncMock(side_effect=Exception("Tool not found"))
+
+        middleware = SafetyMiddleware(enforcer, app)
 
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Create context without tool_func
-        context = {
-            "tool_name": "docker_list_containers",
-            "arguments": {"all": True},
-        }
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+        context = Mock()
+        context.message = message
 
         # Call middleware
-        result = await middleware(call_next, context)
+        result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
-        # Should default to SAFE level
+        # Should default to SAFE level when tool lookup fails
         enforcer.enforce_all_checks.assert_called_once_with(
             "docker_list_containers", OperationSafety.SAFE, {"all": True}
         )
+        app.get_tool.assert_called_once_with("docker_list_containers")
         call_next.assert_called_once()
 
     def test_create_safety_middleware_factory(self):
         """Test create_safety_middleware factory function."""
         enforcer = Mock(spec=SafetyEnforcer)
-        middleware = create_safety_middleware(enforcer)
+        app = Mock()
+        middleware = create_safety_middleware(enforcer, app)
 
         assert isinstance(middleware, SafetyMiddleware)
         assert middleware.enforcer == enforcer
+        assert middleware.app == app
+
+    @pytest.mark.asyncio
+    async def test_reads_actual_tool_safety_level_not_default_safe(self):
+        """Regression test for P0 bug: Safety middleware must read actual tool safety level.
+
+        Previously, the middleware always set safety_level = OperationSafety.SAFE,
+        which allowed DESTRUCTIVE operations to bypass safety checks.
+        This test ensures the middleware reads the tool's actual _safety_level metadata.
+        """
+        enforcer = Mock(spec=SafetyEnforcer)
+        enforcer.enforce_all_checks = Mock(return_value=None)
+
+        # Create mock app with a destructive tool
+        app = Mock()
+        destructive_func = AsyncMock()
+        destructive_func._safety_level = OperationSafety.DESTRUCTIVE
+        destructive_func._tool_name = "docker_remove_container"
+
+        mock_tool = Mock()
+        mock_tool.fn = destructive_func
+        app.get_tool = AsyncMock(return_value=mock_tool)
+
+        middleware = SafetyMiddleware(enforcer, app)
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_remove_container"
+        message.arguments = {"container_id": "test123"}
+
+        context = Mock()
+        context.message = message
+
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Call middleware
+        await middleware(context, call_next)
+
+        # CRITICAL: Verify enforcer was called with DESTRUCTIVE level, not SAFE
+        enforcer.enforce_all_checks.assert_called_once_with(
+            "docker_remove_container",
+            OperationSafety.DESTRUCTIVE,  # Must be DESTRUCTIVE, not SAFE
+            {"container_id": "test123"},
+        )
+        # Verify app.get_tool was called to fetch metadata
+        app.get_tool.assert_called_once_with("docker_remove_container")
+        call_next.assert_called_once()
 
 
 class TestRateLimitMiddleware:

@@ -773,12 +773,13 @@ def register_container_inspection_tools(
         annotations["idempotent"] = idempotent
         annotations["openWorldInteraction"] = open_world
 
-        # Register with FastMCP
-        decorated = app.tool(name=name, description=description, annotations=annotations)(func)
+        # Attach safety metadata for middleware BEFORE decoration
+        # FastMCP stores the original function in tool.fn, so we need to attach metadata first
+        func._safety_level = safety_level  # pyright: ignore[reportAttributeAccessIssue]
+        func._tool_name = name  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Attach safety metadata for middleware
-        decorated._safety_level = safety_level
-        decorated._tool_name = name
+        # Register with FastMCP
+        app.tool(name=name, description=description, annotations=annotations)(func)
 
         registered_names.append(name)
         logger.debug(f"Registered FastMCP tool: {name} (safety: {safety_level.value})")
