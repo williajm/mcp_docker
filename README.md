@@ -17,7 +17,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 ## Features
 
-- **33 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
+- **34 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management, plus AI-powered diagnostics
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
 - **2 Resources**: Real-time container logs and resource statistics
 - **2 Transport Options**: stdio (local) and HTTP (network deployments)
@@ -285,31 +285,35 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 
 > **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
 
-## MCP Server vs. Docker CLI
+## AI Using MCP Server vs. AI Using Docker CLI
 
-| Feature | Docker CLI Directly | MCP Docker Server |
+| Feature | AI Using Docker CLI | AI Using MCP Docker Server |
 | --------- | ------------------- | ------------------- |
 | **Claude Desktop** | ❌ No CLI access | ✅ **Required** (only option) |
-| **Claude Code** | ✅ Works immediately | ✅ Optional (adds safety) |
+| **Claude Code** | ✅ Works immediately | ✅ Optional (adds capabilities) |
 | **Setup** | None needed | Install & configure |
-| **Safety Controls** | ❌ None | ✅ Read-only mode, operation blocking |
-| **Data Format** | Text (requires parsing) | Structured JSON |
-| **Audit Logging** | Manual setup | ✅ Built-in |
-| **Rate Limiting** | ❌ None | ✅ Configurable |
-| **Input Validation** | ❌ None | ✅ Pydantic schemas |
-| **Docker Coverage** | 100% (all features) | 36 core operations |
-| **Complexity** | Low (standard commands) | Medium (MCP protocol) |
+| **Data Format** | Text (AI must parse) | Structured JSON |
+| **Type Safety** | ❌ String parsing errors | ✅ Pydantic validation |
+| **Error Handling** | Manual parsing of stderr | Structured error objects |
+| **Safety Controls** | ❌ None (AI can run anything) | ✅ Read-only mode, operation blocking |
+| **Audit Logging** | Manual setup | ✅ Built-in with client tracking |
+| **Rate Limiting** | ❌ None | ✅ Prevents AI abuse |
+| **AI-to-AI Analysis** | ❌ Not available | ✅ Via `ctx.sample()` (planned) |
+| **Progress Reporting** | ❌ No feedback on long ops | ✅ Real-time progress (planned) |
+| **Streaming Data** | Must poll repeatedly | ✅ True streaming resources (planned) |
+| **Docker Coverage** | 100% (all features) | 34 core operations + AI analysis |
+| **Complexity** | Low (bash commands) | Medium (MCP protocol) |
 
-**When to use MCP Server:**
+**When AI should use MCP Server:**
 
 - **Required:** Claude Desktop (no other option)
-- **Recommended:** Production automation, compliance requirements, multi-user access, safety controls needed
+- **Recommended:** Production automation, safety controls needed, compliance requirements, complex diagnostics, multi-step workflows
 
-**When to use CLI directly:**
+**When AI should use CLI directly:**
 
-- **Best for:** Claude Code with simple tasks, advanced Docker features, minimal setup
+- **Best for:** Claude Code with simple tasks, advanced Docker features not in MCP, minimal setup
 
-**Hybrid approach:** Use MCP for common operations + CLI for advanced features.
+**Future hybrid approach:** MCP server can use `ctx.sample()` for AI-powered analysis, making it superior to CLI for diagnostics and intelligent automation.
 
 ## Documentation
 
@@ -425,6 +429,77 @@ mcp_docker/
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Roadmap
+
+Future enhancements leveraging FastMCP 2.0+ context capabilities to make AI using MCP clearly superior to AI using Docker CLI:
+
+### 1. AI-Powered Container Diagnostics
+**Status:** 🚧 In Development
+
+**Tool:** `docker_diagnose_container`
+
+**AI using Docker CLI:**
+- Runs `docker logs container_id`, parses text output
+- Runs `docker inspect container_id`, parses JSON manually
+- Runs `docker stats --no-stream container_id`, parses text
+- Copies all output to user
+- User must interpret and diagnose
+
+**AI using MCP Docker:**
+- Calls `docker_diagnose_container(container_id)`
+- Tool gathers logs/stats/config via MCP resources
+- Uses `ctx.sample()` for AI-to-AI analysis
+- Returns structured diagnosis: `{root_cause, fix_commands, prevention_steps}`
+- User gets actionable solution immediately
+
+**Why better:** Automated AI analysis instead of raw data dumps.
+
+### 2. Smart Deployment with Progress Reporting
+**Status:** 📋 Planned
+
+**Tool:** `docker_deploy_with_validation`
+
+**AI using Docker CLI:**
+- Runs `docker pull image` - no progress feedback during multi-GB download
+- Runs `docker ps` to check port conflicts - must parse text
+- Runs `docker run ...` with guessed resource limits
+- If fails, user sees cryptic error
+- No rollback automation
+
+**AI using MCP Docker:**
+- Calls `docker_deploy_with_validation(image, config)`
+- Reports progress: "Pulling layer 3/8 (45%)" via `ctx.report_progress()`
+- Pre-flight validation (ports, resources, image security)
+- Intelligent config (auto-selects memory limits based on system)
+- Automatic rollback on health check failure
+- Returns: `{status, container_id, validation_results}`
+
+**Why better:** Real-time progress + intelligent validation + error recovery.
+
+### 3. Real-Time Log Streaming with Anomaly Detection
+**Status:** 📋 Planned
+
+**Resource:** `container://logs/{container_id}/stream`
+
+**AI using Docker CLI:**
+- Runs `docker logs -f container_id`
+- Streams raw text continuously
+- AI must manually scan for errors
+- No proactive alerting
+
+**AI using MCP Docker:**
+- Reads `container://logs/{container_id}/stream` resource
+- Receives log stream in real-time
+- Tool uses `ctx.sample()` to detect anomalies as they occur
+- Sends `ctx.warning()` when suspicious patterns found
+- Returns: Stream + inline analysis (`{log_line, severity, explanation}`)
+
+**Why better:** Proactive AI-powered anomaly detection during live streams.
+
+---
+
+**Key Advantage:** These features use FastMCP 2.0's `ctx.sample()` for **AI-to-AI communication** - the MCP server can ask the client's AI to analyze data, creating intelligent tools impossible with CLI.
 
 ## Acknowledgments
 

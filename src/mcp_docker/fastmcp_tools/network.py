@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.fastmcp_tools.registry import build_tools_from_factories
 from mcp_docker.utils.errors import (
     ContainerNotFound,
     DockerOperationError,
@@ -659,6 +660,18 @@ def create_remove_network_tool(
     )
 
 
+# Tool registry for this module
+# Each entry: (factory_function, requires_safety_config)
+TOOL_FACTORIES: list[tuple[Any, bool]] = [
+    (create_list_networks_tool, True),
+    (create_inspect_network_tool, False),
+    (create_create_network_tool, False),
+    (create_connect_container_tool, False),
+    (create_disconnect_container_tool, False),
+    (create_remove_network_tool, False),
+]
+
+
 def register_network_tools(
     app: Any,
     docker_client: DockerClientWrapper,
@@ -674,16 +687,5 @@ def register_network_tools(
     Returns:
         List of registered tool names
     """
-    tools = [
-        # SAFE tools (read-only)
-        create_list_networks_tool(docker_client, safety_config),
-        create_inspect_network_tool(docker_client),
-        # MODERATE tools (state-changing)
-        create_create_network_tool(docker_client),
-        create_connect_container_tool(docker_client),
-        create_disconnect_container_tool(docker_client),
-        # DESTRUCTIVE tools (permanent deletion)
-        create_remove_network_tool(docker_client),
-    ]
-
+    tools = build_tools_from_factories(TOOL_FACTORIES, docker_client, safety_config)
     return register_tools_with_filtering(app, tools, safety_config)

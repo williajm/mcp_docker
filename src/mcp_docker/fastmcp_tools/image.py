@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.fastmcp_tools.registry import build_tools_from_factories
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
@@ -788,6 +789,21 @@ def create_prune_images_tool(
     )
 
 
+# Tool registry for this module
+# Each entry: (factory_function, requires_safety_config)
+TOOL_FACTORIES: list[tuple[Any, bool]] = [
+    (create_list_images_tool, True),
+    (create_inspect_image_tool, False),
+    (create_image_history_tool, True),
+    (create_pull_image_tool, False),
+    (create_build_image_tool, False),
+    (create_push_image_tool, False),
+    (create_tag_image_tool, False),
+    (create_remove_image_tool, False),
+    (create_prune_images_tool, False),
+]
+
+
 def register_image_tools(
     app: Any,
     docker_client: DockerClientWrapper,
@@ -803,19 +819,5 @@ def register_image_tools(
     Returns:
         List of registered tool names
     """
-    tools = [
-        # SAFE tools
-        create_list_images_tool(docker_client, safety_config),
-        create_inspect_image_tool(docker_client),
-        create_image_history_tool(docker_client, safety_config),
-        # MODERATE tools
-        create_pull_image_tool(docker_client),
-        create_build_image_tool(docker_client),
-        create_push_image_tool(docker_client),
-        create_tag_image_tool(docker_client),
-        # DESTRUCTIVE tools
-        create_remove_image_tool(docker_client),
-        create_prune_images_tool(docker_client),
-    ]
-
+    tools = build_tools_from_factories(TOOL_FACTORIES, docker_client, safety_config)
     return register_tools_with_filtering(app, tools, safety_config)

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.fastmcp_tools.registry import build_tools_from_factories
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
@@ -626,6 +627,17 @@ def create_remove_container_tool(
     )
 
 
+# Tool registry for this module
+# Each entry: (factory_function, requires_safety_config)
+TOOL_FACTORIES: list[tuple[Any, bool]] = [
+    (create_create_container_tool, True),
+    (create_start_container_tool, False),
+    (create_stop_container_tool, False),
+    (create_restart_container_tool, False),
+    (create_remove_container_tool, False),
+]
+
+
 def register_container_lifecycle_tools(
     app: Any,
     docker_client: DockerClientWrapper,
@@ -641,12 +653,5 @@ def register_container_lifecycle_tools(
     Returns:
         List of registered tool names
     """
-    tools = [
-        create_create_container_tool(docker_client, safety_config),
-        create_start_container_tool(docker_client),
-        create_stop_container_tool(docker_client),
-        create_restart_container_tool(docker_client),
-        create_remove_container_tool(docker_client),
-    ]
-
+    tools = build_tools_from_factories(TOOL_FACTORIES, docker_client, safety_config)
     return register_tools_with_filtering(app, tools, safety_config)

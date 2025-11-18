@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.fastmcp_tools.registry import build_tools_from_factories
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
@@ -292,6 +293,15 @@ def create_prune_system_tool(
     )
 
 
+# Tool registry for this module
+# Each entry: (factory_function, requires_safety_config)
+TOOL_FACTORIES: list[tuple[Any, bool]] = [
+    (create_version_tool, False),
+    (create_events_tool, False),
+    (create_prune_system_tool, False),
+]
+
+
 def register_system_tools(
     app: Any,
     docker_client: DockerClientWrapper,
@@ -307,12 +317,5 @@ def register_system_tools(
     Returns:
         List of registered tool names
     """
-    tools = [
-        # SAFE tools (read-only)
-        create_version_tool(docker_client),
-        create_events_tool(docker_client),
-        # DESTRUCTIVE tools (permanent deletion)
-        create_prune_system_tool(docker_client),
-    ]
-
+    tools = build_tools_from_factories(TOOL_FACTORIES, docker_client, safety_config)
     return register_tools_with_filtering(app, tools, safety_config)

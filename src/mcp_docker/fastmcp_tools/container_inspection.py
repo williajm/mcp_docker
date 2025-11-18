@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.fastmcp_tools.registry import build_tools_from_factories
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
@@ -742,6 +743,17 @@ def create_exec_command_tool(
     )
 
 
+# Tool registry for this module
+# Each entry: (factory_function, requires_safety_config)
+TOOL_FACTORIES: list[tuple[Any, bool]] = [
+    (create_list_containers_tool, True),
+    (create_inspect_container_tool, False),
+    (create_container_logs_tool, True),
+    (create_container_stats_tool, False),
+    (create_exec_command_tool, True),
+]
+
+
 def register_container_inspection_tools(
     app: Any,
     docker_client: DockerClientWrapper,
@@ -757,12 +769,5 @@ def register_container_inspection_tools(
     Returns:
         List of registered tool names
     """
-    tools = [
-        create_list_containers_tool(docker_client, safety_config),
-        create_inspect_container_tool(docker_client),
-        create_container_logs_tool(docker_client, safety_config),
-        create_container_stats_tool(docker_client),
-        create_exec_command_tool(docker_client, safety_config),
-    ]
-
+    tools = build_tools_from_factories(TOOL_FACTORIES, docker_client, safety_config)
     return register_tools_with_filtering(app, tools, safety_config)
