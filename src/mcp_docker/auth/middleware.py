@@ -63,6 +63,58 @@ class AuthMiddleware:
         else:
             logger.info("IP allowlist disabled - all IPs allowed")
 
+    def _extract_ip_address(self, context: MiddlewareContext[Any]) -> str | None:
+        """Extract IP address from FastMCP context.
+
+        Args:
+            context: FastMCP middleware context
+
+        Returns:
+            IP address string or None if not available
+        """
+        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
+            return None
+
+        req_ctx = context.fastmcp_context.request_context
+        if not (req_ctx and hasattr(req_ctx, "request")):
+            return None
+
+        request = req_ctx.request
+        if not (request and hasattr(request, "client")):
+            return None
+
+        client = request.client
+        if client and hasattr(client, "host"):
+            return client.host
+
+        return None
+
+    def _extract_bearer_token(self, context: MiddlewareContext[Any]) -> str | None:
+        """Extract bearer token from Authorization header.
+
+        Args:
+            context: FastMCP middleware context
+
+        Returns:
+            Bearer token string (without 'Bearer ' prefix) or None if not available
+        """
+        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
+            return None
+
+        req_ctx = context.fastmcp_context.request_context
+        if not (req_ctx and hasattr(req_ctx, "request")):
+            return None
+
+        request = req_ctx.request
+        if not (request and hasattr(request, "headers")):
+            return None
+
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            return auth_header[7:]  # Remove "Bearer " prefix
+
+        return None
+
     async def __call__(
         self,
         context: MiddlewareContext[Any],
@@ -84,24 +136,8 @@ class AuthMiddleware:
             AuthenticationError: If authentication fails
         """
         # Extract authentication details from context
-        ip_address = None
-        bearer_token = None
-
-        # Try to get IP address from request context
-        if context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
-            req_ctx = context.fastmcp_context.request_context
-            if req_ctx and hasattr(req_ctx, "request"):
-                request = req_ctx.request
-                if request and hasattr(request, "client"):
-                    client = request.client
-                    if client and hasattr(client, "host"):
-                        ip_address = client.host
-
-                # Try to get bearer token from request headers
-                if request and hasattr(request, "headers"):
-                    auth_header = request.headers.get("authorization", "")
-                    if auth_header.startswith("Bearer "):
-                        bearer_token = auth_header[7:]  # Remove "Bearer " prefix
+        ip_address = self._extract_ip_address(context)
+        bearer_token = self._extract_bearer_token(context)
 
         # Authenticate the request
         try:
