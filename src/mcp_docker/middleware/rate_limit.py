@@ -69,8 +69,13 @@ class RateLimitMiddleware:
         """
         # Extract client identifier and tool name from context
         client_id = "unknown"
-        # Check if MCP session is established before accessing session_id
-        if context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
+
+        # First, try to get authenticated client info from auth middleware
+        if context.fastmcp_context and hasattr(context.fastmcp_context, "client_info"):
+            client_info = context.fastmcp_context.client_info
+            client_id = client_info.client_id
+        # Fall back to session_id if client_info not available (e.g., stdio transport)
+        elif context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
             req_ctx = context.fastmcp_context.request_context
             # Only access session_id if request_context is available (session established)
             if req_ctx:

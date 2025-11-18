@@ -450,7 +450,7 @@ class TestRateLimitMiddleware:
 
     @pytest.mark.asyncio
     async def test_client_id_extraction_with_session(self):
-        """Test client_id extraction when session_id is available."""
+        """Test client_id extraction when session_id is available (no client_info)."""
         rate_limiter = Mock(spec=RateLimiter)
         rate_limiter.enabled = True
         rate_limiter.rpm = 60
@@ -463,7 +463,7 @@ class TestRateLimitMiddleware:
         # Mock next middleware
         call_next = AsyncMock(return_value={"status": "success"})
 
-        # Test 1: session_id is extracted from fastmcp_context
+        # Test 1: session_id is extracted from fastmcp_context when client_info not present
         message = Mock()
         message.name = "docker_list_containers"
         message.arguments = {"all": True}
@@ -471,8 +471,8 @@ class TestRateLimitMiddleware:
         context = Mock()
         context.message = message
 
-        # Mock fastmcp_context with session_id
-        fastmcp_ctx = Mock()
+        # Mock fastmcp_context with session_id but no client_info
+        fastmcp_ctx = Mock(spec=["request_context", "session_id"])
         fastmcp_ctx.request_context = Mock()  # Session established
         fastmcp_ctx.session_id = "session-123"
         context.fastmcp_context = fastmcp_ctx
@@ -485,6 +485,50 @@ class TestRateLimitMiddleware:
         context.fastmcp_context = None
         await middleware(context, call_next)
         rate_limiter.check_rate_limit.assert_called_with("unknown")
+
+    @pytest.mark.asyncio
+    async def test_client_id_extraction_with_authenticated_client_info(self):
+        """Test client_id extraction from authenticated client_info (from auth middleware)."""
+        from mcp_docker.auth.models import ClientInfo
+
+        rate_limiter = Mock(spec=RateLimiter)
+        rate_limiter.enabled = True
+        rate_limiter.rpm = 60
+        rate_limiter.check_rate_limit = AsyncMock(return_value=None)
+        rate_limiter.acquire_concurrent_slot = AsyncMock(return_value=None)
+        rate_limiter.release_concurrent_slot = Mock(return_value=None)
+
+        middleware = RateLimitMiddleware(rate_limiter)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Test: client_info from auth middleware takes precedence over session_id
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+
+        # Create authenticated client info (as set by auth middleware)
+        client_info = ClientInfo(
+            client_id="oauth:user@example.com",
+            auth_method="oauth",
+            ip_address="192.168.1.100",
+        )
+
+        # Mock fastmcp_context with both client_info and session_id
+        fastmcp_ctx = Mock(spec=["client_info", "request_context", "session_id"])
+        fastmcp_ctx.client_info = client_info
+        fastmcp_ctx.request_context = Mock()  # Session established
+        fastmcp_ctx.session_id = "session-456"  # This should be ignored
+        context.fastmcp_context = fastmcp_ctx
+
+        await middleware(context, call_next)
+
+        # Should use client_info.client_id, not session_id
+        rate_limiter.check_rate_limit.assert_called_with("oauth:user@example.com")
 
     def test_create_rate_limit_middleware_factory(self):
         """Test create_rate_limit_middleware factory function."""
@@ -604,8 +648,8 @@ class TestAuditMiddleware:
         context = Mock()
         context.message = message
 
-        # Mock fastmcp_context with session_id and client IP
-        fastmcp_ctx = Mock()
+        # Mock fastmcp_context with session_id and client IP (but no client_info)
+        fastmcp_ctx = Mock(spec=["session_id", "request_context"])
         fastmcp_ctx.session_id = "session-123"
 
         # Mock request_context with client IP
@@ -661,8 +705,8 @@ class TestAuditMiddleware:
         context = Mock()
         context.message = message
 
-        # Mock fastmcp_context with client IP but no session_id
-        fastmcp_ctx = Mock()
+        # Mock fastmcp_context with client IP but no session_id (and no client_info)
+        fastmcp_ctx = Mock(spec=["session_id", "request_context"])
         fastmcp_ctx.session_id = None  # No session
 
         # Mock request_context with client IP
@@ -754,8 +798,8 @@ class TestAuditMiddleware:
         context = Mock()
         context.message = message
 
-        # Test 1: session_id is extracted from fastmcp_context
-        fastmcp_ctx = Mock()
+        # Test 1: session_id is extracted from fastmcp_context (when client_info not available)
+        fastmcp_ctx = Mock(spec=["session_id", "request_context"])
         fastmcp_ctx.session_id = "session-123"
 
         # Mock request_context properly to avoid auto-creating Mock objects
@@ -806,6 +850,57 @@ class TestAuditMiddleware:
         audit_logger.log_tool_call.assert_called_once()
         call_args = audit_logger.log_tool_call.call_args
         assert call_args.kwargs["result"] == {"value": "success"}
+
+    @pytest.mark.asyncio
+    async def test_audit_uses_authenticated_client_info(self):
+        """Test audit middleware uses authenticated client_info from auth middleware."""
+        from mcp_docker.auth.models import ClientInfo
+
+        audit_logger = Mock(spec=AuditLogger)
+        audit_logger.enabled = True
+        audit_logger.log_tool_call = Mock(return_value=None)
+
+        middleware = AuditMiddleware(audit_logger)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
+
+        context = Mock()
+        context.message = message
+
+        # Create authenticated client info (as set by auth middleware)
+        authenticated_client_info = ClientInfo(
+            client_id="oauth:user@example.com",
+            auth_method="oauth",
+            ip_address="192.168.1.100",
+            scopes=["read", "write"],
+            extra={"email": "user@example.com", "name": "Test User"},
+        )
+
+        # Mock fastmcp_context with authenticated client_info
+        fastmcp_ctx = Mock(spec=["client_info"])
+        fastmcp_ctx.client_info = authenticated_client_info
+        context.fastmcp_context = fastmcp_ctx
+
+        # Call middleware
+        await middleware(context, call_next)
+
+        # Verify audit logger was called with the authenticated client_info
+        audit_logger.log_tool_call.assert_called_once()
+        call_args = audit_logger.log_tool_call.call_args
+
+        # The client_info passed to audit logger should be the authenticated one
+        logged_client_info = call_args.kwargs["client_info"]
+        assert logged_client_info.client_id == "oauth:user@example.com"
+        assert logged_client_info.auth_method == "oauth"
+        assert logged_client_info.ip_address == "192.168.1.100"
+        assert logged_client_info.scopes == ["read", "write"]
+        assert logged_client_info.extra["email"] == "user@example.com"
 
     def test_create_audit_middleware_factory(self):
         """Test create_audit_middleware factory function."""

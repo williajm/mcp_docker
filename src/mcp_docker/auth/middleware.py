@@ -115,9 +115,11 @@ class AuthMiddleware:
                 f"(method: {client_info.auth_method})"
             )
 
-            # Authentication succeeded, proceed
-            # Note: We can't modify the frozen MiddlewareContext, so we store client_info
-            # in the fastmcp_context if available for downstream middleware
+            # Store client_info in fastmcp_context for downstream middleware
+            # (rate limiting and audit logging need this)
+            if context.fastmcp_context:
+                context.fastmcp_context.client_info = client_info  # type: ignore[attr-defined]
+
             return await call_next(context)
 
         except AuthenticationError as e:

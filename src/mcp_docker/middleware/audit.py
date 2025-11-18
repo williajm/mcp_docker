@@ -67,31 +67,36 @@ class AuditMiddleware:
         arguments = getattr(context.message, "arguments", {}) or {}
 
         # Extract client information
-        # Try to get from fastmcp_context if available
-        client_id = "unknown"
-        client_ip = "unknown"
-        api_key_hash = "none"
-        description = None
+        # First, try to get authenticated client info from auth middleware
+        if context.fastmcp_context and hasattr(context.fastmcp_context, "client_info"):
+            # Use the authenticated client info from auth middleware
+            client_info = context.fastmcp_context.client_info
+        else:
+            # Fall back to extracting from context (e.g., stdio transport)
+            client_id = "unknown"
+            client_ip = "unknown"
+            api_key_hash = "none"
+            description = None
 
-        # Check if MCP session is established before accessing session_id
-        if context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
-            req_ctx = context.fastmcp_context.request_context
-            # Only access session_id if request_context is available (session established)
-            if req_ctx:
-                session_id = getattr(context.fastmcp_context, "session_id", None)
-                if session_id:
-                    client_id = session_id
+            # Check if MCP session is established before accessing session_id
+            if context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
+                req_ctx = context.fastmcp_context.request_context
+                # Only access session_id if request_context is available (session established)
+                if req_ctx:
+                    session_id = getattr(context.fastmcp_context, "session_id", None)
+                    if session_id:
+                        client_id = session_id
 
-                # Try to get client IP from request
-                if hasattr(req_ctx, "request"):
-                    request = req_ctx.request
-                    if request and hasattr(request, "client"):
-                        client = request.client
-                        if client and hasattr(client, "host"):
-                            client_ip = client.host
+                    # Try to get client IP from request
+                    if hasattr(req_ctx, "request"):
+                        request = req_ctx.request
+                        if request and hasattr(request, "client"):
+                            client = request.client
+                            if client and hasattr(client, "host"):
+                                client_ip = client.host
 
-        # Create ClientInfo for structured audit logging
-        client_info = ClientInfo(
+            # Create ClientInfo for fallback case
+            client_info = ClientInfo(
             client_id=client_id,
             ip_address=client_ip,
             api_key_hash=api_key_hash,
@@ -110,7 +115,7 @@ class AuditMiddleware:
                 result=result if isinstance(result, dict) else {"value": str(result)},
             )
 
-            logger.debug(f"AuditMiddleware: Logged successful {tool_name} for {client_id}")
+            logger.debug(f"AuditMiddleware: Logged successful {tool_name} for {client_info.client_id}")
             return result
 
         except Exception as e:
@@ -122,7 +127,7 @@ class AuditMiddleware:
                 error=str(e),
             )
 
-            logger.debug(f"AuditMiddleware: Logged failed {tool_name} for {client_id}: {e}")
+            logger.debug(f"AuditMiddleware: Logged failed {tool_name} for {client_info.client_id}: {e}")
 
             # Re-raise the exception
             raise
