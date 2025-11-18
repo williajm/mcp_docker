@@ -165,7 +165,6 @@ def create_events_tool(
             Without it, Docker's events API will block indefinitely waiting for new events.
         """
         try:
-
             logger.info(f"Getting Docker events (since={since}, until={until}, filters={filters})")
 
             # Get events from Docker API
@@ -201,7 +200,7 @@ def create_events_tool(
 
     return (
         "docker_events",
-        "Get Docker events from the daemon with time range and filters (requires 'until' parameter)",
+        "Get Docker events with time range and filters (requires 'until')",
         OperationSafety.SAFE,
         False,  # not idempotent (events change over time)
         False,  # not open_world
