@@ -1,7 +1,8 @@
 """Authentication middleware for MCP Docker server."""
 
-from collections.abc import Awaitable, Callable
 from typing import Any
+
+from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.auth.oauth_auth import OAuthAuthenticationError, OAuthAuthenticator
@@ -62,10 +63,62 @@ class AuthMiddleware:
         else:
             logger.info("IP allowlist disabled - all IPs allowed")
 
+    def _extract_ip_address(self, context: MiddlewareContext[Any]) -> str | None:
+        """Extract IP address from FastMCP context.
+
+        Args:
+            context: FastMCP middleware context
+
+        Returns:
+            IP address string or None if not available
+        """
+        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
+            return None
+
+        req_ctx = context.fastmcp_context.request_context
+        if not (req_ctx and hasattr(req_ctx, "request")):
+            return None
+
+        request = req_ctx.request
+        if not (request and hasattr(request, "client")):
+            return None
+
+        client = request.client
+        if client and hasattr(client, "host"):
+            return client.host
+
+        return None
+
+    def _extract_bearer_token(self, context: MiddlewareContext[Any]) -> str | None:
+        """Extract bearer token from Authorization header.
+
+        Args:
+            context: FastMCP middleware context
+
+        Returns:
+            Bearer token string (without 'Bearer ' prefix) or None if not available
+        """
+        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
+            return None
+
+        req_ctx = context.fastmcp_context.request_context
+        if not (req_ctx and hasattr(req_ctx, "request")):
+            return None
+
+        request = req_ctx.request
+        if not (request and hasattr(request, "headers")):
+            return None
+
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            return auth_header[7:]  # Remove "Bearer " prefix
+
+        return None
+
     async def __call__(
         self,
-        call_next: Callable[[], Awaitable[Any]],
-        context: dict[str, Any],
+        context: MiddlewareContext[Any],
+        call_next: CallNext[Any, Any],
     ) -> Any:
         """FastMCP 2.0 middleware entry point for authentication.
 
@@ -73,8 +126,8 @@ class AuthMiddleware:
         before allowing the request to proceed.
 
         Args:
+            context: FastMCP middleware context
             call_next: Next middleware/handler in the chain
-            context: FastMCP request context
 
         Returns:
             Result from next handler
@@ -83,8 +136,8 @@ class AuthMiddleware:
             AuthenticationError: If authentication fails
         """
         # Extract authentication details from context
-        ip_address = context.get("client_ip")
-        bearer_token = context.get("bearer_token") or context.get("authorization")
+        ip_address = self._extract_ip_address(context)
+        bearer_token = self._extract_bearer_token(context)
 
         # Authenticate the request
         try:
@@ -93,17 +146,17 @@ class AuthMiddleware:
                 bearer_token=bearer_token,
             )
 
-            # Add authenticated client info to context for downstream middleware
-            context["client_info"] = client_info
-            context["authenticated"] = True
-
             logger.debug(
                 f"AuthMiddleware: Authenticated {client_info.client_id} "
                 f"(method: {client_info.auth_method})"
             )
 
-            # Authentication succeeded, proceed
-            return await call_next()
+            # Store client_info in fastmcp_context for downstream middleware
+            # (rate limiting and audit logging need this)
+            if context.fastmcp_context:
+                context.fastmcp_context.client_info = client_info  # type: ignore[attr-defined]
+
+            return await call_next(context)
 
         except AuthenticationError as e:
             logger.error(f"AuthMiddleware: Authentication failed - {e}")
