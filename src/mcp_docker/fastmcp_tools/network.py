@@ -4,26 +4,28 @@ This module contains all network tools migrated to FastMCP 2.0,
 including SAFE (read-only), MODERATE (state-changing), and DESTRUCTIVE operations.
 """
 
-from typing import Any
+from typing import Any, ClassVar
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.common import (
+    DESC_TRUNCATION_INFO,
+    FiltersInput,
+    JsonStringFieldsMixin,
+    PaginatedListOutput,
+    apply_list_pagination,
+)
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import (
     ContainerNotFound,
     DockerOperationError,
     NetworkNotFound,
 )
-from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND, ERROR_NETWORK_NOT_FOUND
-from mcp_docker.utils.output_limits import (
-    create_truncation_metadata,
-    truncate_list,
-)
 from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
@@ -66,28 +68,14 @@ DESC_NETWORK_ID = "Network ID or name"
 # Input/Output Models (reused from legacy tools)
 
 
-class ListNetworksInput(BaseModel):
+class ListNetworksInput(FiltersInput):
     """Input for listing networks."""
 
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None,
-        description=(
-            "Filters to apply as key-value pairs. "
-            "Examples: {'driver': ['bridge']}, {'name': 'my-network'}, "
-            "{'type': ['custom']}"
-        ),
-    )
 
-
-class ListNetworksOutput(BaseModel):
+class ListNetworksOutput(PaginatedListOutput):
     """Output for listing networks."""
 
     networks: list[dict[str, Any]] = Field(description="List of networks with basic info")
-    count: int = Field(description="Total number of networks")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Information about output truncation if applied",
-    )
 
 
 class InspectNetworkInput(BaseModel):
@@ -102,12 +90,14 @@ class InspectNetworkOutput(BaseModel):
     details: dict[str, Any] = Field(description="Detailed network information")
     truncation_info: dict[str, Any] = Field(
         default_factory=dict,
-        description="Information about output truncation if applied",
+        description=DESC_TRUNCATION_INFO,
     )
 
 
-class CreateNetworkInput(BaseModel):
+class CreateNetworkInput(JsonStringFieldsMixin, BaseModel):
     """Input for creating a network."""
+
+    json_string_fields: ClassVar[tuple[str, ...]] = ("options", "ipam", "labels")
 
     name: str = Field(description="Network name")
     driver: str = Field(default="bridge", description="Network driver (bridge, overlay, etc.)")
@@ -135,13 +125,6 @@ class CreateNetworkInput(BaseModel):
     )
     enable_ipv6: bool = Field(default=False, description="Enable IPv6")
     attachable: bool = Field(default=False, description="Enable manual container attachment")
-
-    @field_validator("options", "ipam", "labels", mode="before")
-    @classmethod
-    def parse_json_strings(cls, v: Any, info: Any) -> Any:
-        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, "field_name") else "field"
-        return parse_json_string_field(v, field_name)
 
 
 class CreateNetworkOutput(BaseModel):
@@ -246,24 +229,11 @@ def create_list_networks_tool(
                 for net in networks
             ]
 
-            # Apply output limits
-            original_count = len(network_list)
-            truncation_info: dict[str, Any] = {}
-            if safety_config.max_list_results > 0:
-                network_list, was_truncated = truncate_list(
-                    network_list,
-                    safety_config.max_list_results,
-                )
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_count,
-                        truncated_count=len(network_list),
-                    )
-                    truncation_info["message"] = (
-                        f"Results truncated: showing {len(network_list)} of {original_count} "
-                        f"networks. Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
-                    )
+            network_list, truncation_info, original_count = apply_list_pagination(
+                network_list,
+                safety_config,
+                "networks",
+            )
 
             logger.info(f"Found {len(network_list)} networks (total: {original_count})")
 

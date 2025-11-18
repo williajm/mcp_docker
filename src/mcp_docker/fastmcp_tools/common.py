@@ -1,0 +1,80 @@
+"""Shared helpers and models for FastMCP tool modules."""
+
+from __future__ import annotations
+
+from typing import Any, ClassVar
+
+from pydantic import BaseModel, Field, model_validator
+
+from mcp_docker.config import SafetyConfig
+from mcp_docker.utils.json_parsing import parse_json_string_field
+from mcp_docker.utils.output_limits import create_truncation_metadata, truncate_list
+
+DESC_TRUNCATION_INFO = "Information about output truncation if applied"
+
+
+class FiltersInput(BaseModel):
+    """Base model for Docker list endpoints supporting filters."""
+
+    filters: dict[str, str | list[str]] | None = Field(
+        default=None,
+        description=(
+            "Filters to apply as key-value pairs matching Docker API semantics "
+            "(e.g., {'status': ['running']}, {'driver': ['bridge']})."
+        ),
+    )
+
+
+class PaginatedListOutput(BaseModel):
+    """Base model for list outputs with count and truncation metadata."""
+
+    count: int = Field(description="Total number of items found")
+    truncation_info: dict[str, Any] = Field(
+        default_factory=dict,
+        description=DESC_TRUNCATION_INFO,
+    )
+
+
+class JsonStringFieldsMixin:
+    """Mixin that converts JSON string payloads to objects before validation."""
+
+    json_string_fields: ClassVar[tuple[str, ...]] = ()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_json_strings(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or not cls.json_string_fields:
+            return data
+
+        parsed = dict(data)
+        for field_name in cls.json_string_fields:
+            if field_name in parsed:
+                parsed[field_name] = parse_json_string_field(parsed[field_name], field_name)
+
+        return parsed
+
+
+def apply_list_pagination(
+    items: list[dict[str, Any]],
+    safety_config: SafetyConfig,
+    item_label: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any], int]:
+    """Apply SAFETY_MAX_LIST_RESULTS truncation logic shared by list_* tools."""
+
+    original_count = len(items)
+    truncation_info: dict[str, Any] = {}
+
+    if safety_config.max_list_results > 0:
+        items, was_truncated = truncate_list(items, safety_config.max_list_results)
+        if was_truncated:
+            truncation_info = create_truncation_metadata(
+                was_truncated=True,
+                original_count=original_count,
+                truncated_count=len(items),
+            )
+            truncation_info["message"] = (
+                f"Results truncated: showing {len(items)} of {original_count} {item_label}. "
+                "Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
+            )
+
+    return items, truncation_info, original_count
