@@ -10,6 +10,12 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.common import (
+    DESC_TRUNCATION_INFO,
+    FiltersInput,
+    PaginatedListOutput,
+    apply_list_pagination,
+)
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
@@ -18,7 +24,6 @@ from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.output_limits import (
     create_truncation_metadata,
     truncate_lines,
-    truncate_list,
     truncate_text,
 )
 from mcp_docker.utils.safety import (
@@ -108,34 +113,20 @@ def _apply_log_truncation(
 
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_CONTAINER_ID = "Container ID or name"
-DESC_TRUNCATION_INFO = "Information about output truncation if applied"
 
 # Input/Output Models (reused from legacy tools)
 
 
-class ListContainersInput(BaseModel):
+class ListContainersInput(FiltersInput):
     """Input for listing containers."""
 
     all: bool = Field(default=False, description="Show all containers (default shows just running)")
-    filters: dict[str, str | list[str]] | None = Field(
-        default=None,
-        description=(
-            "Filters to apply as key-value pairs. "
-            "Examples: {'status': ['running']}, {'name': 'my-container'}, "
-            "{'label': ['env=prod', 'app=web']}"
-        ),
-    )
 
 
-class ListContainersOutput(BaseModel):
+class ListContainersOutput(PaginatedListOutput):
     """Output for listing containers."""
 
     containers: list[dict[str, Any]] = Field(description="List of containers")
-    count: int = Field(description="Total number of containers found")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class InspectContainerInput(BaseModel):
@@ -276,24 +267,11 @@ def create_list_containers_tool(
                 for c in containers
             ]
 
-            # Apply output limits
-            original_count = len(container_list)
-            truncation_info: dict[str, Any] = {}
-            if safety_config.max_list_results > 0:
-                container_list, was_truncated = truncate_list(
-                    container_list,
-                    safety_config.max_list_results,
-                )
-                if was_truncated:
-                    truncation_info = create_truncation_metadata(
-                        was_truncated=True,
-                        original_count=original_count,
-                        truncated_count=len(container_list),
-                    )
-                    truncation_info["message"] = (
-                        f"Results truncated: showing {len(container_list)} of {original_count} "
-                        f"containers. Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
-                    )
+            container_list, truncation_info, original_count = apply_list_pagination(
+                container_list,
+                safety_config,
+                "containers",
+            )
 
             logger.info(f"Found {len(container_list)} containers (total: {original_count})")
 

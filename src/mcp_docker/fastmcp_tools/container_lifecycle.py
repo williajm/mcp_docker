@@ -3,16 +3,18 @@
 This module contains container lifecycle management tools migrated to FastMCP 2.0.
 """
 
-from typing import Any
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any, ClassVar, TypeVar
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.common import JsonStringFieldsMixin
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
-from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import (
@@ -32,11 +34,35 @@ logger = get_logger(__name__)
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_CONTAINER_ID = "Container ID or name"
 
+TStatusOutput = TypeVar("TStatusOutput", bound="ContainerStatusOutput")
+
+
+class ContainerRefInput(BaseModel):
+    """Base input referencing a container by ID or name."""
+
+    container_id: str = Field(description=DESC_CONTAINER_ID)
+
+
+class TimedContainerRefInput(ContainerRefInput):
+    """Base input for operations that require an optional timeout."""
+
+    timeout: int = Field(default=10, description="Timeout in seconds before killing")
+
+
+class ContainerStatusOutput(BaseModel):
+    """Base output for container lifecycle commands returning status."""
+
+    container_id: str = Field(description="Container ID")
+    status: str = Field(description="Container status")
+
+
 # Input/Output Models
 
 
-class CreateContainerInput(BaseModel):
+class CreateContainerInput(JsonStringFieldsMixin, BaseModel):
     """Input for creating a container."""
+
+    json_string_fields: ClassVar[tuple[str, ...]] = ("ports", "environment", "volumes")
 
     image: str = Field(description="Image name to create container from")
     name: str | None = Field(default=None, description="Optional container name")
@@ -69,14 +95,6 @@ class CreateContainerInput(BaseModel):
     mem_limit: str | None = Field(default=None, description="Memory limit (e.g., '512m', '2g')")
     cpu_shares: int | None = Field(default=None, description="CPU shares (relative weight)")
 
-    @field_validator("ports", "environment", "volumes", mode="before")
-    @classmethod
-    def parse_json_strings(cls, v: Any, info: Any) -> Any:
-        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, "field_name") else "field"
-        return parse_json_string_field(v, field_name)
-
-
 class CreateContainerOutput(BaseModel):
     """Output for creating a container."""
 
@@ -85,51 +103,33 @@ class CreateContainerOutput(BaseModel):
     warnings: list[str] | None = Field(default=None, description="Any warnings from creation")
 
 
-class StartContainerInput(BaseModel):
+class StartContainerInput(ContainerRefInput):
     """Input for starting a container."""
 
-    container_id: str = Field(description=DESC_CONTAINER_ID)
 
-
-class StartContainerOutput(BaseModel):
+class StartContainerOutput(ContainerStatusOutput):
     """Output for starting a container."""
 
-    container_id: str = Field(description="Started container ID")
-    status: str = Field(description="Container status after start")
 
-
-class StopContainerInput(BaseModel):
+class StopContainerInput(TimedContainerRefInput):
     """Input for stopping a container."""
 
-    container_id: str = Field(description=DESC_CONTAINER_ID)
-    timeout: int = Field(default=10, description="Timeout in seconds before killing")
 
-
-class StopContainerOutput(BaseModel):
+class StopContainerOutput(ContainerStatusOutput):
     """Output for stopping a container."""
 
-    container_id: str = Field(description="Stopped container ID")
-    status: str = Field(description="Container status after stop")
 
-
-class RestartContainerInput(BaseModel):
+class RestartContainerInput(TimedContainerRefInput):
     """Input for restarting a container."""
 
-    container_id: str = Field(description=DESC_CONTAINER_ID)
-    timeout: int = Field(default=10, description="Timeout in seconds before killing")
 
-
-class RestartContainerOutput(BaseModel):
+class RestartContainerOutput(ContainerStatusOutput):
     """Output for restarting a container."""
 
-    container_id: str = Field(description="Restarted container ID")
-    status: str = Field(description="Container status after restart")
 
-
-class RemoveContainerInput(BaseModel):
+class RemoveContainerInput(ContainerRefInput):
     """Input for removing a container."""
 
-    container_id: str = Field(description=DESC_CONTAINER_ID)
     force: bool = Field(default=False, description="Force removal of running container")
     volumes: bool = Field(default=False, description="Remove associated volumes")
 
@@ -259,6 +259,56 @@ def _prepare_create_container_kwargs(input_data: CreateContainerInput) -> dict[s
     return kwargs
 
 
+@dataclass(slots=True)
+class ContainerActionSettings:
+    start_log: str
+    success_log: str
+    error_action: str
+    already_ok_statuses: tuple[str, ...] | None = None
+    already_ok_message: str | None = None
+    log_suffix: str = ""
+
+
+def _execute_container_action(
+    docker_client: DockerClientWrapper,
+    container_id: str,
+    action: Callable[[Any], None],
+    output_model: type[TStatusOutput],
+    settings: ContainerActionSettings,
+) -> TStatusOutput:
+    """Run common container lifecycle operations (start/stop/restart)."""
+
+    try:
+        logger.info(f"{settings.start_log} container: {container_id}{settings.log_suffix}")
+        container = docker_client.client.containers.get(container_id)
+
+        if settings.already_ok_statuses and container.status in settings.already_ok_statuses:
+            message = settings.already_ok_message or (
+                f"Container {container_id} already {container.status}"
+            )
+            logger.info(message)
+            return output_model(
+                container_id=str(container.id),
+                status=container.status,
+            )
+
+        action(container)
+        container.reload()
+
+        logger.info(f"{settings.success_log} container: {container_id}")
+        return output_model(
+            container_id=str(container.id),
+            status=container.status,
+        )
+
+    except NotFound as e:
+        logger.error(f"Container not found: {container_id}")
+        raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
+    except APIError as e:
+        logger.error(f"Failed to {settings.error_action} container: {e}")
+        raise DockerOperationError(f"Failed to {settings.error_action} container: {e}") from e
+
+
 def create_create_container_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
@@ -383,39 +433,20 @@ def create_start_container_tool(
             ContainerNotFound: If container doesn't exist
             DockerOperationError: If start fails
         """
-        try:
-            logger.info(f"Starting container: {container_id}")
-            container = docker_client.client.containers.get(container_id)
-
-            # Check if already running (idempotent: safe to retry)
-            if container.status == "running":
-                logger.info(f"Container {container_id} already running")
-                output = StartContainerOutput(
-                    container_id=str(container.id),
-                    status=container.status,
-                )
-                return output.model_dump()
-
-            # Not running - start it
-            container.start()
-            container.reload()
-
-            logger.info(f"Successfully started container: {container_id}")
-
-            # Convert to output model for validation
-            output = StartContainerOutput(
-                container_id=str(container.id),
-                status=container.status,
-            )
-
-            return output.model_dump()
-
-        except NotFound as e:
-            logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
-        except APIError as e:
-            logger.error(f"Failed to start container: {e}")
-            raise DockerOperationError(f"Failed to start container: {e}") from e
+        result = _execute_container_action(
+            docker_client,
+            container_id,
+            action=lambda container: container.start(),
+            output_model=StartContainerOutput,
+            settings=ContainerActionSettings(
+                start_log="Starting",
+                success_log="Successfully started",
+                error_action="start",
+                already_ok_statuses=("running",),
+                already_ok_message=f"Container {container_id} already running",
+            ),
+        )
+        return result.model_dump()
 
     return (
         "docker_start_container",
@@ -456,39 +487,21 @@ def create_stop_container_tool(
             ContainerNotFound: If container doesn't exist
             DockerOperationError: If stop fails
         """
-        try:
-            logger.info(f"Stopping container: {container_id} (timeout={timeout})")
-            container = docker_client.client.containers.get(container_id)
-
-            # Check if already stopped (idempotent: safe to retry)
-            if container.status in ("exited", "created"):
-                logger.info(f"Container {container_id} already stopped")
-                output = StopContainerOutput(
-                    container_id=str(container.id),
-                    status=container.status,
-                )
-                return output.model_dump()
-
-            # Still running - stop it
-            container.stop(timeout=timeout)
-            container.reload()
-
-            logger.info(f"Successfully stopped container: {container_id}")
-
-            # Convert to output model for validation
-            output = StopContainerOutput(
-                container_id=str(container.id),
-                status=container.status,
-            )
-
-            return output.model_dump()
-
-        except NotFound as e:
-            logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
-        except APIError as e:
-            logger.error(f"Failed to stop container: {e}")
-            raise DockerOperationError(f"Failed to stop container: {e}") from e
+        result = _execute_container_action(
+            docker_client,
+            container_id,
+            action=lambda container: container.stop(timeout=timeout),
+            output_model=StopContainerOutput,
+            settings=ContainerActionSettings(
+                start_log="Stopping",
+                success_log="Successfully stopped",
+                error_action="stop",
+                already_ok_statuses=("exited", "created"),
+                already_ok_message=f"Container {container_id} already stopped",
+                log_suffix=f" (timeout={timeout})",
+            ),
+        )
+        return result.model_dump()
 
     return (
         "docker_stop_container",
@@ -529,28 +542,19 @@ def create_restart_container_tool(
             ContainerNotFound: If container doesn't exist
             DockerOperationError: If restart fails
         """
-        try:
-            logger.info(f"Restarting container: {container_id} (timeout={timeout})")
-            container = docker_client.client.containers.get(container_id)
-            container.restart(timeout=timeout)
-            container.reload()
-
-            logger.info(f"Successfully restarted container: {container_id}")
-
-            # Convert to output model for validation
-            output = RestartContainerOutput(
-                container_id=str(container.id),
-                status=container.status,
-            )
-
-            return output.model_dump()
-
-        except NotFound as e:
-            logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
-        except APIError as e:
-            logger.error(f"Failed to restart container: {e}")
-            raise DockerOperationError(f"Failed to restart container: {e}") from e
+        result = _execute_container_action(
+            docker_client,
+            container_id,
+            action=lambda container: container.restart(timeout=timeout),
+            output_model=RestartContainerOutput,
+            settings=ContainerActionSettings(
+                start_log="Restarting",
+                success_log="Successfully restarted",
+                error_action="restart",
+                log_suffix=f" (timeout={timeout})",
+            ),
+        )
+        return result.model_dump()
 
     return (
         "docker_restart_container",
