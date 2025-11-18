@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that exposes Docker functionality to AI assistants. It provides 36 Docker tools, 5 AI prompts, and 2 resources for managing containers, images, networks, and volumes with comprehensive safety controls.
+This is an MCP (Model Context Protocol) server that exposes Docker functionality to AI assistants. It provides 33 Docker tools, 5 AI prompts, and 2 resources for managing containers, images, networks, and volumes with comprehensive safety controls.
 
 **Key Technologies:**
 - Python 3.11+ with strict type checking (mypy)
