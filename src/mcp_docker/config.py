@@ -220,7 +220,7 @@ class SafetyConfig(BaseSettings):
 
     # Tool filtering (works alongside safety level restrictions)
     # Note: Using str | list[str] type to prevent Pydantic Settings from trying JSON parsing
-    # on empty strings, which causes errors. The validator handles conversion.
+    # on empty strings, which causes errors. The validator handles conversion to list[str].
     allowed_tools: str | list[str] = Field(
         default=[],
         description=(

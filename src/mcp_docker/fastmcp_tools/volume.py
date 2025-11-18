@@ -496,9 +496,16 @@ def register_volume_tools(
         create_prune_volumes_tool(docker_client),
     ]
 
+    # Import here to avoid circular dependency
+    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
+
     registered_names = []
 
     for name, description, safety_level, idempotent, open_world, func in tools:
+        # Check if tool should be registered based on allow/deny lists
+        if not should_register_tool(name, safety_config):
+            continue
+
         # Get MCP annotations based on safety level
         annotations = get_mcp_annotations(safety_level)
         annotations["idempotent"] = idempotent

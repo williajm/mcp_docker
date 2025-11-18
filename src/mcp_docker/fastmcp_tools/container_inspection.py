@@ -757,6 +757,9 @@ def register_container_inspection_tools(
     Returns:
         List of registered tool names
     """
+    # Import here to avoid circular dependency
+    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
+
     tools = [
         create_list_containers_tool(docker_client, safety_config),
         create_inspect_container_tool(docker_client),
@@ -768,6 +771,10 @@ def register_container_inspection_tools(
     registered_names = []
 
     for name, description, safety_level, idempotent, open_world, func in tools:
+        # Check if tool should be registered based on allow/deny lists
+        if not should_register_tool(name, safety_config):
+            continue
+
         # Get MCP annotations based on safety level
         annotations = get_mcp_annotations(safety_level)
         annotations["idempotent"] = idempotent

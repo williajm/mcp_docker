@@ -133,16 +133,21 @@ def create_prune_system_tool(
 def register_system_tools(
     app: Any,
     docker_client: DockerClientWrapper,
+    safety_config: Any = None,
 ) -> list[str]:
     """Register all system tools with FastMCP.
 
     Args:
         app: FastMCP application instance
         docker_client: Docker client wrapper
+        safety_config: Safety configuration (optional, for tool filtering)
 
     Returns:
         List of registered tool names
     """
+    # Import here to avoid circular dependency
+    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
+
     tools = [
         # DESTRUCTIVE tools (permanent deletion)
         create_prune_system_tool(docker_client),
@@ -151,6 +156,10 @@ def register_system_tools(
     registered_names = []
 
     for name, description, safety_level, idempotent, open_world, func in tools:
+        # Check if tool should be registered based on allow/deny lists
+        if safety_config and not should_register_tool(name, safety_config):
+            continue
+
         # Get MCP annotations based on safety level
         annotations = get_mcp_annotations(safety_level)
         annotations["idempotent"] = idempotent

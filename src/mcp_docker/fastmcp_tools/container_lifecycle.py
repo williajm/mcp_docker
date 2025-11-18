@@ -195,10 +195,20 @@ def _validate_volume_mounts(
     """
     assert isinstance(volumes, dict)
     for mount_path in volumes:
-        allowlist = safety_config.volume_mount_allowlist or None
+        # Config validators ensure these are always lists, safe to cast
+        blocklist = (
+            list(safety_config.volume_mount_blocklist)
+            if safety_config.volume_mount_blocklist
+            else []
+        )
+        allowlist = (
+            list(safety_config.volume_mount_allowlist)
+            if safety_config.volume_mount_allowlist
+            else None
+        )
         validate_mount_path(
             mount_path,
-            blocked_paths=safety_config.volume_mount_blocklist,
+            blocked_paths=blocklist,
             allowed_paths=allowlist,
             yolo_mode=safety_config.yolo_mode,
         )
@@ -631,6 +641,9 @@ def register_container_lifecycle_tools(
     Returns:
         List of registered tool names
     """
+    # Import here to avoid circular dependency
+    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
+
     tools = [
         create_create_container_tool(docker_client, safety_config),
         create_start_container_tool(docker_client),
@@ -642,6 +655,10 @@ def register_container_lifecycle_tools(
     registered_names = []
 
     for name, description, safety_level, idempotent, open_world, func in tools:
+        # Check if tool should be registered based on allow/deny lists
+        if not should_register_tool(name, safety_config):
+            continue
+
         # Get MCP annotations based on safety level
         annotations = get_mcp_annotations(safety_level)
         annotations["idempotent"] = idempotent
