@@ -78,6 +78,7 @@ class CreateVolumeInput(JsonStringFieldsMixin, BaseModel):
         ),
     )
 
+
 class CreateVolumeOutput(BaseModel):
     """Output for creating a volume."""
 

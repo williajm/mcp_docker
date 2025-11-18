@@ -95,6 +95,7 @@ class CreateContainerInput(JsonStringFieldsMixin, BaseModel):
     mem_limit: str | None = Field(default=None, description="Memory limit (e.g., '512m', '2g')")
     cpu_shares: int | None = Field(default=None, description="CPU shares (relative weight)")
 
+
 class CreateContainerOutput(BaseModel):
     """Output for creating a container."""
 

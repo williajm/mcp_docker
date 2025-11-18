@@ -71,6 +71,7 @@ DESC_NETWORK_ID = "Network ID or name"
 class ListNetworksInput(FiltersInput):
     """Input for listing networks."""
 
+
 class ListNetworksOutput(PaginatedListOutput):
     """Output for listing networks."""
 
@@ -124,6 +125,7 @@ class CreateNetworkInput(JsonStringFieldsMixin, BaseModel):
     )
     enable_ipv6: bool = Field(default=False, description="Enable IPv6")
     attachable: bool = Field(default=False, description="Enable manual container attachment")
+
 
 class CreateNetworkOutput(BaseModel):
     """Output for creating a network."""

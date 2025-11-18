@@ -165,6 +165,7 @@ class BuildImageInput(JsonStringFieldsMixin, BaseModel):
     rm: bool = Field(default=True, description="Remove intermediate containers")
     pull: bool = Field(default=False, description="Always pull newer base images")
 
+
 class BuildImageOutput(BaseModel):
     """Output for building an image."""
 
