@@ -57,4 +57,5 @@ echo "=========================================="
 echo ""
 
 # Start the server using local code
-exec uv run python -m mcp_docker --transport http --host "$HOST" --port "$PORT"
+# First unset SAFETY_ALLOWED_TOOLS, then set it to ensure clean state
+exec env -u SAFETY_ALLOWED_TOOLS env SAFETY_ALLOWED_TOOLS="docker_list_containers" uv run python -m mcp_docker --transport http --host "$HOST" --port "$PORT"

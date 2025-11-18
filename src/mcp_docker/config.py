@@ -219,16 +219,18 @@ class SafetyConfig(BaseSettings):
     )
 
     # Tool filtering (works alongside safety level restrictions)
-    allowed_tools: list[str] = Field(
-        default_factory=list,
+    # Note: Using str | list[str] type to prevent Pydantic Settings from trying JSON parsing
+    # on empty strings, which causes errors. The validator handles conversion.
+    allowed_tools: str | list[str] = Field(
+        default=[],
         description=(
             "Allowed tool names (empty list = allow all based on safety level). "
             "Example: ['docker_list_containers', 'docker_inspect_container']. "
             "Can be set via SAFETY_ALLOWED_TOOLS as comma-separated string."
         ),
     )
-    denied_tools: list[str] = Field(
-        default_factory=list,
+    denied_tools: str | list[str] = Field(
+        default=[],
         description=(
             "Denied tool names (takes precedence over allowed_tools). "
             "Example: ['docker_remove_container', 'docker_prune_images']. "
@@ -244,7 +246,7 @@ class SafetyConfig(BaseSettings):
             "Enable for advanced use cases where you need full control."
         ),
     )
-    volume_mount_blocklist: list[str] = Field(
+    volume_mount_blocklist: str | list[str] = Field(
         default_factory=lambda: [
             "/etc",  # System configuration
             "/root",  # Root user home
@@ -257,8 +259,8 @@ class SafetyConfig(BaseSettings):
             "Can be set via SAFETY_VOLUME_MOUNT_BLOCKLIST as comma-separated string."
         ),
     )
-    volume_mount_allowlist: list[str] = Field(
-        default_factory=list,
+    volume_mount_allowlist: str | list[str] = Field(
+        default=[],
         description=(
             "Allowed volume mount paths (empty = allow all except blocked). "
             "Can be set via SAFETY_VOLUME_MOUNT_ALLOWLIST as comma-separated string."
@@ -341,12 +343,14 @@ class SecurityConfig(BaseSettings):
     )
 
     # Network Security
-    allowed_client_ips: list[str] = Field(
-        default_factory=list,
+    # Note: Using str | list[str] type to prevent Pydantic Settings from trying JSON parsing
+    # on empty strings, which causes errors. Validators handle conversion.
+    allowed_client_ips: str | list[str] = Field(
+        default=[],
         description="Allowed client IP addresses (empty list = allow all)",
     )
-    trusted_proxies: list[str] = Field(
-        default_factory=list,
+    trusted_proxies: str | list[str] = Field(
+        default=[],
         description=(
             "Trusted proxy IP addresses/networks for X-Forwarded-For header. "
             "Empty list = don't trust any proxies (secure default). "
@@ -404,6 +408,19 @@ class SecurityConfig(BaseSettings):
         ge=0,
         le=300,
     )
+
+    @field_validator("allowed_client_ips", "trusted_proxies", mode="before")
+    @classmethod
+    def parse_ip_list(cls, value: str | list[str] | None) -> list[str]:
+        """Parse list from comma-separated string or list.
+
+        Args:
+            value: List as string (comma-separated), list, or None
+
+        Returns:
+            Normalized list of strings (empty list if None/empty)
+        """
+        return _parse_comma_separated_list(value)
 
     @model_validator(mode="after")
     def parse_oauth_list_fields(self) -> "SecurityConfig":
