@@ -162,10 +162,17 @@ class SafetyEnforcer:
         Raises:
             UnsafeOperationError: If mount path is unsafe
         """
+        # Config validators ensure these are always lists, safe to cast
+        blocklist = (
+            list(self.config.volume_mount_blocklist) if self.config.volume_mount_blocklist else []
+        )
+        allowlist = (
+            list(self.config.volume_mount_allowlist) if self.config.volume_mount_allowlist else None
+        )
         validate_mount_path(
             path,
-            blocked_paths=self.config.volume_mount_blocklist,
-            allowed_paths=self.config.volume_mount_allowlist,
+            blocked_paths=blocklist,
+            allowed_paths=allowlist,
             yolo_mode=self.config.yolo_mode,
         )
 

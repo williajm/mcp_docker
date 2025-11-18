@@ -10,8 +10,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
-from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
@@ -765,22 +765,4 @@ def register_container_inspection_tools(
         create_exec_command_tool(docker_client, safety_config),
     ]
 
-    registered_names = []
-
-    for name, description, safety_level, idempotent, open_world, func in tools:
-        # Get MCP annotations based on safety level
-        annotations = get_mcp_annotations(safety_level)
-        annotations["idempotent"] = idempotent
-        annotations["openWorldInteraction"] = open_world
-
-        # Register with FastMCP
-        decorated = app.tool(name=name, description=description, annotations=annotations)(func)
-
-        # Attach safety metadata for middleware
-        decorated._safety_level = safety_level
-        decorated._tool_name = name
-
-        registered_names.append(name)
-        logger.debug(f"Registered FastMCP tool: {name} (safety: {safety_level.value})")
-
-    return registered_names
+    return register_tools_with_filtering(app, tools, safety_config)

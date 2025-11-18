@@ -7,6 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-11-18
+
+### ⚠️ Breaking Changes
+- **FastMCP 2.0 Migration**: Updated all middleware to FastMCP 2.0 protocol signature
+  - Middleware now uses `MiddlewareContext[Any]` and `CallNext[Any, Any]` types
+  - Context extraction updated for FastMCP 2.0 request structure
+  - **Action Required**: If using custom middleware, update to FastMCP 2.0 API
+  - All built-in middleware (auth, safety, rate limiting, audit) updated and tested
+
+### Security
+- **CRITICAL: P0 Safety Bypass Fix**: Fixed middleware ignoring tool safety metadata
+  - Safety middleware now correctly reads `_safety_level` from tool functions
+  - DESTRUCTIVE operations no longer bypass safety checks
+  - Regression test added to prevent future bypasses
+  - **Impact**: Tools with DESTRUCTIVE safety level are now properly enforced
+
+### Added
+- **New System Tools**: Added Docker system information and event streaming
+  - `docker_version`: Get Docker daemon version, API version, and system info
+  - `docker_events`: Stream real-time Docker events with filters and time bounds
+  - Both tools include comprehensive validation and error handling
+- **Tool Filtering at Registration**: Performance optimization for large tool sets
+  - Tools now filtered at registration time based on safety configuration
+  - Reduces MCP protocol overhead for clients
+  - Improves initial handshake performance
+  - Configuration: `SAFETY_ALLOWED_TOOLS`, `SAFETY_DENIED_TOOLS`
+
+### Fixed
+- **Middleware Context Propagation**: Fixed authenticated client info propagation
+  - Auth middleware now stores `client_info` in `fastmcp_context`
+  - Downstream middleware (rate limiting, audit) can access authentication details
+  - Fixes missing client information in audit logs
+- **Empty String Environment Variables**: Fixed Pydantic Settings validation
+  - Empty strings in environment variables now handled correctly
+  - Prevents validation errors for unset optional configurations
+  - Affects OAuth and other optional security settings
+- **Docker Events Parameter Validation**: Improved `docker_events` tool
+  - `until` parameter now required to prevent indefinite hangs
+  - Fixed timestamp parameter descriptions for clarity
+  - Better error messages for invalid time ranges
+- **Type Safety**: Added type ignore comments for Docker SDK calls
+  - Suppresses mypy errors for calls without type stubs
+  - Maintains strict type checking for project code
+- **Circular Import**: Resolved tool registration circular dependency
+  - Refactored registration to eliminate import cycles
+  - Improves module initialization reliability
+- **E2E Test Stability**: Suppressed cancel scope errors in teardown
+  - Async cleanup errors no longer fail tests
+  - Improves CI reliability
+
+### Code Quality
+- **Reduced Cognitive Complexity**: Refactored complex middleware methods
+  - `AuthMiddleware.__call__`: 24 → 15 (extracted 2 helper methods)
+  - `AuditMiddleware.__call__`: 33 → 15 (extracted 6 helper methods)
+  - Improved readability and maintainability
+  - Resolves SonarQube code smell issues
+- **100% Auth Middleware Coverage**: Added comprehensive unit tests
+  - 15 new tests for `AuthMiddleware.__call__` method
+  - Tests cover IP extraction, bearer token extraction, and edge cases
+  - Validates FastMCP 2.0 context handling
+  - Total: 35 auth middleware tests, all passing
+
+### Tests
+- **15 new unit tests** for AuthMiddleware FastMCP 2.0 integration
+- **8 new unit tests** for safety middleware (including P0 regression test)
+- **Multiple integration tests** for Docker system tools
+- All 769+ unit tests passing
+- CI/CD: Ruff, mypy, pytest all passing
+
+### Performance
+- Tool filtering reduces protocol overhead for filtered tool sets
+- Faster client initialization with pre-filtered tool inventory
+- Reduced memory footprint for safety-restricted configurations
+
 ## [1.1.1] - 2025-11-15
 
 ### Added

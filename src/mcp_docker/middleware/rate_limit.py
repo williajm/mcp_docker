@@ -3,11 +3,11 @@
 This middleware enforces rate limits for Docker operations to prevent abuse.
 """
 
-from collections.abc import Awaitable, Callable
 from typing import Any
 
+from fastmcp.server.middleware import CallNext, MiddlewareContext
+
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
-from mcp_docker.utils.context_helpers import extract_client_id
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,14 +52,14 @@ class RateLimitMiddleware:
 
     async def __call__(
         self,
-        call_next: Callable[[], Awaitable[Any]],
-        context: dict[str, Any],
+        context: MiddlewareContext[Any],
+        call_next: CallNext[Any, Any],
     ) -> Any:
         """Check rate limits before tool execution.
 
         Args:
+            context: FastMCP middleware context with client information
             call_next: Next middleware/handler in the chain
-            context: Request context with client information
 
         Returns:
             Result from next handler
@@ -67,9 +67,23 @@ class RateLimitMiddleware:
         Raises:
             RateLimitExceeded: If rate limit is exceeded
         """
-        # Extract client identifier from context
-        client_id = extract_client_id(context)
-        tool_name = context.get("tool_name", "unknown_tool")
+        # Extract client identifier and tool name from context
+        client_id = "unknown"
+
+        # First, try to get authenticated client info from auth middleware
+        if context.fastmcp_context and hasattr(context.fastmcp_context, "client_info"):
+            client_info = context.fastmcp_context.client_info
+            client_id = client_info.client_id
+        # Fall back to session_id if client_info not available (e.g., stdio transport)
+        elif context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
+            req_ctx = context.fastmcp_context.request_context
+            # Only access session_id if request_context is available (session established)
+            if req_ctx:
+                session_id = getattr(context.fastmcp_context, "session_id", None)
+                if session_id:
+                    client_id = session_id
+
+        tool_name = getattr(context.message, "name", "unknown_tool")
 
         # Check rate limit and acquire concurrent slot
         if self.rate_limiter.enabled:
@@ -89,7 +103,7 @@ class RateLimitMiddleware:
 
         # Execute the tool and ensure concurrent slot is released
         try:
-            return await call_next()
+            return await call_next(context)
         finally:
             # Always release the concurrent slot, even if the tool fails
             if self.rate_limiter.enabled:

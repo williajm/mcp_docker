@@ -10,14 +10,56 @@ from docker.errors import APIError
 from pydantic import BaseModel, Field
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError
-from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
 # Input/Output Models
+
+
+class VersionOutput(BaseModel):
+    """Output for Docker version information."""
+
+    version: str = Field(description="Docker version")
+    api_version: str = Field(description="Docker API version")
+    platform: dict[str, str] = Field(description="Platform information")
+    components: list[dict[str, Any]] = Field(description="Docker components")
+
+
+class EventsInput(BaseModel):
+    """Input for Docker events."""
+
+    since: str | None = Field(
+        default=None,
+        description=(
+            "Show events since timestamp. Accepts Unix timestamp (seconds since epoch) "
+            "or ISO 8601 datetime (e.g., '2024-01-15T10:00:00')"
+        ),
+    )
+    until: str = Field(
+        description=(
+            "Show events until timestamp (REQUIRED to prevent infinite streaming). "
+            "Accepts Unix timestamp (seconds since epoch) or ISO 8601 datetime "
+            "(e.g., '2024-01-15T11:00:00')"
+        ),
+    )
+    filters: dict[str, str | list[str]] | None = Field(
+        default=None,
+        description=(
+            "Filters to apply. Examples: {'type': 'container'}, "
+            "{'event': ['start', 'stop']}, {'container': 'my-container'}"
+        ),
+    )
+
+
+class EventsOutput(BaseModel):
+    """Output for Docker events."""
+
+    events: list[dict[str, Any]] = Field(description="List of Docker events")
+    count: int = Field(description="Number of events returned")
 
 
 class SystemPruneInput(BaseModel):
@@ -44,6 +86,126 @@ class SystemPruneOutput(BaseModel):
 
 
 # FastMCP Tool Functions
+
+
+def create_version_tool(
+    docker_client: DockerClientWrapper,
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+    """Create the docker_version FastMCP tool."""
+
+    def version() -> dict[str, Any]:
+        """Get Docker version information.
+
+        Returns:
+            Dictionary with Docker version, API version, platform info, and components
+
+        Raises:
+            DockerOperationError: If getting version fails
+        """
+        try:
+            logger.info("Getting Docker version information")
+
+            version_info = docker_client.client.version()  # type: ignore[no-untyped-call]
+
+            # Extract key information
+            output = VersionOutput(
+                version=version_info.get("Version", "unknown"),
+                api_version=version_info.get("ApiVersion", "unknown"),
+                platform={
+                    "name": version_info.get("Platform", {}).get("Name", "unknown"),
+                    "os": version_info.get("Os", "unknown"),
+                    "arch": version_info.get("Arch", "unknown"),
+                    "kernel": version_info.get("KernelVersion", "unknown"),
+                },
+                components=version_info.get("Components", []),
+            )
+
+            logger.info(f"Docker version: {output.version}, API: {output.api_version}")
+            return output.model_dump()
+
+        except APIError as e:
+            logger.error(f"Failed to get Docker version: {e}")
+            raise DockerOperationError(f"Failed to get Docker version: {e}") from e
+
+    return (
+        "docker_version",
+        "Get Docker version information including API version, platform, and components",
+        OperationSafety.SAFE,
+        True,  # idempotent (always returns same info)
+        False,  # not open_world
+        version,
+    )
+
+
+def create_events_tool(
+    docker_client: DockerClientWrapper,
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+    """Create the docker_events FastMCP tool."""
+
+    def events(
+        until: str,
+        since: str | None = None,
+        filters: dict[str, str | list[str]] | None = None,
+    ) -> dict[str, Any]:
+        """Get Docker events from the daemon.
+
+        Args:
+            until: End timestamp (REQUIRED - Unix timestamp or ISO 8601 datetime)
+            since: Start timestamp (optional - Unix timestamp or ISO 8601 datetime)
+            filters: Filters to apply (e.g., {'type': 'container', 'event': 'start'})
+
+        Returns:
+            Dictionary with list of events and count
+
+        Raises:
+            DockerOperationError: If getting events fails
+
+        Note:
+            The 'until' parameter is required to prevent infinite streaming.
+            Without it, Docker's events API will block indefinitely waiting for new events.
+        """
+        try:
+            logger.info(f"Getting Docker events (since={since}, until={until}, filters={filters})")
+
+            # Get events from Docker API
+            # Note: This returns a generator, so we need to decode and collect events
+            event_generator = docker_client.client.events(  # type: ignore[no-untyped-call]
+                since=since,
+                until=until,
+                filters=filters,
+                decode=True,
+            )
+
+            # Collect events (limit to prevent excessive memory usage)
+            events_list = []
+            max_events = 1000  # Safety limit
+
+            for event in event_generator:
+                events_list.append(event)
+                if len(events_list) >= max_events:
+                    logger.warning(f"Reached max events limit ({max_events}), stopping collection")
+                    break
+
+            logger.info(f"Retrieved {len(events_list)} Docker events")
+
+            output = EventsOutput(
+                events=events_list,
+                count=len(events_list),
+            )
+            return output.model_dump()
+
+        except APIError as e:
+            logger.error(f"Failed to get Docker events: {e}")
+            raise DockerOperationError(f"Failed to get Docker events: {e}") from e
+
+    return (
+        "docker_events",
+        "Get Docker events with time range and filters (requires 'until')",
+        OperationSafety.SAFE,
+        False,  # not idempotent (events change over time)
+        False,  # not open_world
+        events,
+    )
 
 
 def create_prune_system_tool(
@@ -133,37 +295,24 @@ def create_prune_system_tool(
 def register_system_tools(
     app: Any,
     docker_client: DockerClientWrapper,
+    safety_config: Any = None,
 ) -> list[str]:
     """Register all system tools with FastMCP.
 
     Args:
         app: FastMCP application instance
         docker_client: Docker client wrapper
+        safety_config: Safety configuration (optional, for tool filtering)
 
     Returns:
         List of registered tool names
     """
     tools = [
+        # SAFE tools (read-only)
+        create_version_tool(docker_client),
+        create_events_tool(docker_client),
         # DESTRUCTIVE tools (permanent deletion)
         create_prune_system_tool(docker_client),
     ]
 
-    registered_names = []
-
-    for name, description, safety_level, idempotent, open_world, func in tools:
-        # Get MCP annotations based on safety level
-        annotations = get_mcp_annotations(safety_level)
-        annotations["idempotent"] = idempotent
-        annotations["openWorldInteraction"] = open_world
-
-        # Register with FastMCP
-        decorated = app.tool(name=name, description=description, annotations=annotations)(func)
-
-        # Attach safety metadata for middleware
-        decorated._safety_level = safety_level
-        decorated._tool_name = name
-
-        registered_names.append(name)
-        logger.debug(f"Registered FastMCP tool: {name} (safety: {safety_level.value})")
-
-    return registered_names
+    return register_tools_with_filtering(app, tools, safety_config)

@@ -426,3 +426,460 @@ class TestAuthMiddlewareOAuth:
 
         # OAuth authentication should have been called
         mock_authenticator.authenticate_token.assert_called_once_with("valid_jwt_token")
+
+
+class TestAuthMiddlewareCall:
+    """Test the __call__ method (FastMCP 2.0 middleware entry point)."""
+
+    async def test_call_with_stdio_context(self) -> None:
+        """Test __call__ with stdio context (no IP address)."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context for stdio (no fastmcp_context or IP)
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = None
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_ip_address_extraction(self) -> None:
+        """Test __call__ extracts IP address from FastMCP context correctly."""
+        config = SecurityConfig(allowed_client_ips=["192.168.1.100"])
+        middleware = AuthMiddleware(config)
+
+        # Create mock FastMCP context with full request structure
+        mock_client = AsyncMock()
+        mock_client.host = "192.168.1.100"
+
+        mock_request = AsyncMock()
+        mock_request.client = mock_client
+        mock_request.headers = {}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+        # Verify client_info was stored in context
+        assert hasattr(mock_fastmcp_context, "client_info")
+        assert mock_fastmcp_context.client_info.ip_address == "192.168.1.100"
+
+    async def test_call_with_bearer_token_extraction(self) -> None:
+        """Test __call__ extracts bearer token from Authorization header."""
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
+        )
+
+        with patch("mcp_docker.auth.middleware.OAuthAuthenticator") as mock_oauth_class:
+            # Mock the OAuthAuthenticator instance
+            mock_authenticator = AsyncMock()
+            mock_oauth_class.return_value = mock_authenticator
+
+            # Mock successful OAuth authentication
+            mock_client_info = ClientInfo(
+                client_id="user123",
+                auth_method="oauth",
+                api_key_hash="oauth",
+                description="OAuth authenticated client",
+                scopes=["docker.read"],
+                authenticated_at=datetime.now(UTC),
+            )
+            mock_authenticator.authenticate_token.return_value = mock_client_info
+
+            middleware = AuthMiddleware(config)
+
+            # Create mock FastMCP context with Authorization header
+            mock_client = AsyncMock()
+            mock_client.host = "192.168.1.100"
+
+            mock_request = AsyncMock()
+            mock_request.client = mock_client
+            mock_request.headers = {"authorization": "Bearer test_jwt_token"}
+
+            mock_request_context = AsyncMock()
+            mock_request_context.request = mock_request
+
+            mock_fastmcp_context = AsyncMock()
+            mock_fastmcp_context.request_context = mock_request_context
+
+            mock_context = AsyncMock()
+            mock_context.fastmcp_context = mock_fastmcp_context
+
+            # Mock call_next
+            mock_call_next = AsyncMock(return_value="success")
+
+            # Call the middleware
+            result = await middleware(mock_context, mock_call_next)
+
+            # Verify it succeeded
+            assert result == "success"
+            mock_call_next.assert_called_once_with(mock_context)
+
+            # Verify bearer token was extracted and validated
+            mock_authenticator.authenticate_token.assert_called_once_with("test_jwt_token")
+
+            # Verify client_info was stored in context
+            assert hasattr(mock_fastmcp_context, "client_info")
+            assert mock_fastmcp_context.client_info.client_id == "user123"
+
+    async def test_call_with_authorization_header_without_bearer_prefix(self) -> None:
+        """Test __call__ ignores Authorization header without 'Bearer ' prefix."""
+        config = SecurityConfig(allowed_client_ips=["192.168.1.100"])
+        middleware = AuthMiddleware(config)
+
+        # Create mock FastMCP context with Authorization header (no Bearer prefix)
+        mock_client = AsyncMock()
+        mock_client.host = "192.168.1.100"
+
+        mock_request = AsyncMock()
+        mock_request.client = mock_client
+        mock_request.headers = {"authorization": "Basic dXNlcjpwYXNz"}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded (falls back to IP-based auth)
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_authentication_error_propagation(self) -> None:
+        """Test __call__ propagates AuthenticationError when auth fails."""
+        config = SecurityConfig(allowed_client_ips=["192.168.1.100"])
+        middleware = AuthMiddleware(config)
+
+        # Create mock FastMCP context with blocked IP
+        mock_client = AsyncMock()
+        mock_client.host = "10.0.0.1"  # Not in allowlist
+
+        mock_request = AsyncMock()
+        mock_request.client = mock_client
+        mock_request.headers = {}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next (should not be called)
+        mock_call_next = AsyncMock()
+
+        # Call the middleware - should raise AuthenticationError
+        with pytest.raises(AuthenticationError) as exc_info:
+            await middleware(mock_context, mock_call_next)
+
+        # Verify error message
+        assert "IP address not allowed" in str(exc_info.value)
+        assert "10.0.0.1" in str(exc_info.value)
+
+        # Verify call_next was never called
+        mock_call_next.assert_not_called()
+
+    async def test_call_with_partial_context_no_request_context(self) -> None:
+        """Test __call__ handles missing request_context gracefully."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context without request_context attribute
+        mock_fastmcp_context = AsyncMock(spec=[])  # Empty spec, no attributes
+        del mock_fastmcp_context.request_context  # Ensure it doesn't have it
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_partial_context_no_request(self) -> None:
+        """Test __call__ handles missing request gracefully."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context without request attribute
+        mock_request_context = AsyncMock(spec=[])  # Empty spec
+        del mock_request_context.request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_partial_context_no_client(self) -> None:
+        """Test __call__ handles missing client gracefully."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context without client attribute
+        mock_request = AsyncMock(spec=["headers"])
+        del mock_request.client
+        mock_request.headers = {}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_partial_context_no_host(self) -> None:
+        """Test __call__ handles missing host gracefully."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context without host attribute
+        mock_client = AsyncMock(spec=[])
+        del mock_client.host
+
+        mock_request = AsyncMock()
+        mock_request.client = mock_client
+        mock_request.headers = {}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_partial_context_no_headers(self) -> None:
+        """Test __call__ handles missing headers gracefully."""
+        config = SecurityConfig(allowed_client_ips=["192.168.1.100"])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context without headers attribute
+        mock_client = AsyncMock()
+        mock_client.host = "192.168.1.100"
+
+        mock_request = AsyncMock(spec=["client"])
+        del mock_request.headers
+        mock_request.client = mock_client
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_none_request_context(self) -> None:
+        """Test __call__ handles None request_context."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context with None request_context
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = None
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_none_request(self) -> None:
+        """Test __call__ handles None request."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context with None request
+        mock_request_context = AsyncMock()
+        mock_request_context.request = None
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_with_none_client(self) -> None:
+        """Test __call__ handles None client."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context with None client
+        mock_request = AsyncMock()
+        mock_request.client = None
+        mock_request.headers = {}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should treat as stdio)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
+
+    async def test_call_stores_client_info_in_context(self) -> None:
+        """Test __call__ stores client_info in fastmcp_context for downstream middleware."""
+        config = SecurityConfig(allowed_client_ips=["192.168.1.100"])
+        middleware = AuthMiddleware(config)
+
+        # Create mock FastMCP context
+        mock_client = AsyncMock()
+        mock_client.host = "192.168.1.100"
+
+        mock_request = AsyncMock()
+        mock_request.client = mock_client
+        mock_request.headers = {}
+
+        mock_request_context = AsyncMock()
+        mock_request_context.request = mock_request
+
+        mock_fastmcp_context = AsyncMock()
+        mock_fastmcp_context.request_context = mock_request_context
+
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = mock_fastmcp_context
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware
+        await middleware(mock_context, mock_call_next)
+
+        # Verify client_info was stored
+        assert hasattr(mock_fastmcp_context, "client_info")
+        client_info = mock_fastmcp_context.client_info
+        assert client_info.client_id == "192.168.1.100"
+        assert client_info.auth_method == "ip"
+        assert client_info.ip_address == "192.168.1.100"
+
+    async def test_call_does_not_store_client_info_if_no_fastmcp_context(self) -> None:
+        """Test __call__ handles missing fastmcp_context when storing client_info."""
+        config = SecurityConfig(allowed_client_ips=[])
+        middleware = AuthMiddleware(config)
+
+        # Create mock context without fastmcp_context
+        mock_context = AsyncMock()
+        mock_context.fastmcp_context = None
+
+        # Mock call_next
+        mock_call_next = AsyncMock(return_value="success")
+
+        # Call the middleware (should not crash)
+        result = await middleware(mock_context, mock_call_next)
+
+        # Verify it succeeded
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)

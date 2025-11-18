@@ -64,7 +64,7 @@ class FastMCPDockerServer:
         )
 
         # Create middleware instances
-        self.safety_middleware = SafetyMiddleware(self.safety_enforcer)
+        self.safety_middleware = SafetyMiddleware(self.safety_enforcer, self.app)
         self.rate_limit_middleware = RateLimitMiddleware(self.rate_limiter)
         self.audit_middleware = AuditMiddleware(self.audit_logger)
 
