@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.filters import should_register_tool
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.utils.json_parsing import parse_json_string_field
@@ -641,9 +642,6 @@ def register_container_lifecycle_tools(
     Returns:
         List of registered tool names
     """
-    # Import here to avoid circular dependency
-    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
-
     tools = [
         create_create_container_tool(docker_client, safety_config),
         create_start_container_tool(docker_client),

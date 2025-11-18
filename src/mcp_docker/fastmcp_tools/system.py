@@ -10,6 +10,7 @@ from docker.errors import APIError
 from pydantic import BaseModel, Field
 
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.filters import should_register_tool
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.utils.logger import get_logger
@@ -145,9 +146,6 @@ def register_system_tools(
     Returns:
         List of registered tool names
     """
-    # Import here to avoid circular dependency
-    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
-
     tools = [
         # DESTRUCTIVE tools (permanent deletion)
         create_prune_system_tool(docker_client),

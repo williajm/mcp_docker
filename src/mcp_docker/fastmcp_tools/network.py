@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.filters import should_register_tool
 from mcp_docker.utils.errors import (
     ContainerNotFound,
     DockerOperationError,
@@ -685,9 +686,6 @@ def register_network_tools(
         # DESTRUCTIVE tools (permanent deletion)
         create_remove_network_tool(docker_client),
     ]
-
-    # Import here to avoid circular dependency
-    from mcp_docker.fastmcp_tools.registration import should_register_tool  # noqa: PLC0415
 
     registered_names = []
 
