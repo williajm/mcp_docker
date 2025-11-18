@@ -39,11 +39,11 @@ class EventsInput(BaseModel):
             "or ISO 8601 datetime (e.g., '2024-01-15T10:00:00')"
         ),
     )
-    until: str | None = Field(
-        default=None,
+    until: str = Field(
         description=(
-            "Show events until timestamp. Accepts Unix timestamp (seconds since epoch) "
-            "or ISO 8601 datetime (e.g., '2024-01-15T11:00:00')"
+            "Show events until timestamp (REQUIRED to prevent infinite streaming). "
+            "Accepts Unix timestamp (seconds since epoch) or ISO 8601 datetime "
+            "(e.g., '2024-01-15T11:00:00')"
         ),
     )
     filters: dict[str, str | list[str]] | None = Field(
@@ -143,15 +143,15 @@ def create_events_tool(
     """Create the docker_events FastMCP tool."""
 
     def events(
+        until: str,
         since: str | None = None,
-        until: str | None = None,
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
         """Get Docker events from the daemon.
 
         Args:
-            since: Show events since timestamp (Unix timestamp or ISO 8601 datetime)
-            until: Show events until timestamp (Unix timestamp or ISO 8601 datetime)
+            until: End timestamp (REQUIRED - Unix timestamp or ISO 8601 datetime)
+            since: Start timestamp (optional - Unix timestamp or ISO 8601 datetime)
             filters: Filters to apply (e.g., {'type': 'container', 'event': 'start'})
 
         Returns:
@@ -159,8 +159,13 @@ def create_events_tool(
 
         Raises:
             DockerOperationError: If getting events fails
+
+        Note:
+            The 'until' parameter is required to prevent infinite streaming.
+            Without it, Docker's events API will block indefinitely waiting for new events.
         """
         try:
+
             logger.info(f"Getting Docker events (since={since}, until={until}, filters={filters})")
 
             # Get events from Docker API
@@ -172,7 +177,7 @@ def create_events_tool(
                 decode=True,
             )
 
-            # Collect events (limit to prevent hanging)
+            # Collect events (limit to prevent excessive memory usage)
             events_list = []
             max_events = 1000  # Safety limit
 
@@ -196,7 +201,7 @@ def create_events_tool(
 
     return (
         "docker_events",
-        "Get Docker events from the daemon with optional time range and filters",
+        "Get Docker events from the daemon with time range and filters (requires 'until' parameter)",
         OperationSafety.SAFE,
         False,  # not idempotent (events change over time)
         False,  # not open_world
