@@ -87,8 +87,12 @@ class AuthMiddleware:
             ):
                 return request.client.host
         except (RuntimeError, LookupError):
-            # Not in HTTP context or dependency injection not available (unit tests)
-            pass
+            # Expected: Not in HTTP context (stdio) or dependency injection unavailable (unit tests)
+            # Will fall back to context extraction below
+            logger.debug(
+                "get_http_request() unavailable (stdio transport or unit test), "
+                "falling back to context extraction"
+            )
 
         # Method 2: Fall back to context extraction (for unit tests with mocked contexts)
         if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
@@ -151,7 +155,12 @@ class AuthMiddleware:
                 if auth_header.startswith("Bearer "):
                     return auth_header[7:]  # Remove "Bearer " prefix
         except (RuntimeError, LookupError):
-            pass
+            # Expected: Not in HTTP context (stdio) or dependency injection unavailable (unit tests)
+            # Will fall back to context extraction below
+            logger.debug(
+                "get_http_request() unavailable for bearer token extraction "
+                "(stdio transport or unit test), falling back to context extraction"
+            )
 
         # Method 2: Fall back to context extraction (for unit tests)
         if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
