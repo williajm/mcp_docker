@@ -15,6 +15,9 @@ from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Log level constants (from Python logging module)
+DEBUG_LEVEL = 10  # DEBUG log level
+
 
 class DebugLoggingMiddleware:
     """FastMCP middleware for debug-level request/response logging.
@@ -22,7 +25,11 @@ class DebugLoggingMiddleware:
     This middleware logs all MCP protocol operations (tools/list, resources/list,
     prompts/list, tool calls, etc.) and their responses at DEBUG level only.
 
-    Only enabled when log level is DEBUG. Has no performance impact at INFO or higher.
+    Performance:
+    - When DEBUG logging is disabled (INFO or higher), the middleware returns
+      immediately without any JSON serialization or string formatting.
+    - Zero performance overhead for production deployments with INFO/WARNING levels.
+    - Only processes requests when at least one log handler accepts DEBUG messages.
 
     Example:
         ```python
@@ -40,8 +47,9 @@ class DebugLoggingMiddleware:
     def __init__(self) -> None:
         """Initialize debug logging middleware.
 
-        Note: This middleware always logs at DEBUG level. If the logger is configured
-        for INFO or higher, the DEBUG logs will be automatically filtered out by loguru.
+        Note: This middleware checks the logger's minimum level and returns early
+        if DEBUG logging is disabled, avoiding any performance overhead from JSON
+        serialization or string formatting.
         """
         logger.debug("DebugLoggingMiddleware initialized (will log MCP protocol at DEBUG level)")
         logger.info("DebugLoggingMiddleware initialized")
@@ -75,8 +83,8 @@ class DebugLoggingMiddleware:
     ) -> Any:
         """Log MCP protocol request and response at DEBUG level.
 
-        Note: All logging uses logger.debug(), so if log level is INFO or higher,
-        nothing will be output (no performance impact).
+        Early return if DEBUG logging is disabled to avoid performance overhead
+        from JSON serialization and string formatting.
 
         Args:
             context: FastMCP middleware context
@@ -85,7 +93,12 @@ class DebugLoggingMiddleware:
         Returns:
             Result from next handler
         """
-        # Extract operation information
+        # Early return if DEBUG logging is disabled (performance optimization)
+        # Access logger._core.min_level to check if any handler accepts DEBUG messages
+        if logger._core.min_level > DEBUG_LEVEL:
+            return await call_next(context)
+
+        # Extract operation information (only when DEBUG is enabled)
         operation_type = get_operation_type(context)
         arguments = getattr(context.message, "arguments", None) or getattr(
             context.message, "params", {}
