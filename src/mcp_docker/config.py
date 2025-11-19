@@ -238,6 +238,26 @@ class SafetyConfig(BaseSettings):
         ),
     )
 
+    # Prompt filtering (controls which prompts are exposed)
+    allowed_prompts: str | list[str] = Field(
+        default=[],
+        description=(
+            "Allowed prompt names (empty list = allow all prompts). "
+            "Example: ['troubleshoot_container', 'optimize_container']. "
+            "Can be set via SAFETY_ALLOWED_PROMPTS as comma-separated string."
+        ),
+    )
+
+    # Resource filtering (controls which resources are exposed)
+    allowed_resources: str | list[str] = Field(
+        default=[],
+        description=(
+            "Allowed resource names (empty list = allow all resources). "
+            "Example: ['container_logs', 'container_info']. "
+            "Can be set via SAFETY_ALLOWED_RESOURCES as comma-separated string."
+        ),
+    )
+
     # Volume mount validation (simple Linux-focused protection)
     yolo_mode: bool = Field(
         default=False,
@@ -270,6 +290,8 @@ class SafetyConfig(BaseSettings):
     @field_validator(
         "allowed_tools",
         "denied_tools",
+        "allowed_prompts",
+        "allowed_resources",
         "volume_mount_blocklist",
         "volume_mount_allowlist",
         mode="before",

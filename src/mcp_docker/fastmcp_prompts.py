@@ -345,12 +345,17 @@ Please analyze for security risks:
     )
 
 
-def register_all_prompts(app: Any, docker_client: DockerClientWrapper) -> dict[str, list[str]]:
+def register_all_prompts(
+    app: Any,
+    docker_client: DockerClientWrapper,
+    allowed_prompts: list[str] | None = None,
+) -> dict[str, list[str]]:
     """Register all Docker prompts with FastMCP.
 
     Args:
         app: FastMCP application instance
         docker_client: Docker client wrapper
+        allowed_prompts: Optional list of allowed prompt names (None = allow all)
 
     Returns:
         Dictionary mapping category names to lists of registered prompt names
@@ -369,6 +374,12 @@ def register_all_prompts(app: Any, docker_client: DockerClientWrapper) -> dict[s
     ]
 
     for name, description, func in prompts:
+        # Filter based on allowed_prompts if specified
+        # None = allow all, [] = allow none, ['foo'] = allow only foo
+        if allowed_prompts is not None and name not in allowed_prompts:
+            logger.debug(f"Skipping prompt (not in allowed list): {name}")
+            continue
+
         app.prompt(description=description)(func)
         registered["docker"].append(name)
         logger.debug(f"Registered prompt: {name}")
