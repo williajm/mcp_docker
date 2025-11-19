@@ -95,14 +95,19 @@ class TestToolFiltering:
         allowed, reason = enforcer.is_tool_allowed("docker_list_containers")
         assert allowed is True
 
-    def test_empty_denied_tools_denies_nothing(self):
-        """Test that denied_tools=[] denies all tools in combination with check."""
+    def test_empty_denied_tools_denies_all(self):
+        """Test that denied_tools=[] denies all tools (explicit deny-all)."""
         config = SafetyConfig(denied_tools=[])
         enforcer = SafetyEnforcer(config)
 
-        # With empty deny list and no allow list (None), all should be allowed
+        # Empty deny list should deny all tools
         allowed, reason = enforcer.is_tool_allowed("docker_list_containers")
-        assert allowed is True
+        assert allowed is False
+        assert "All tools denied" in reason or "empty deny list" in reason
+
+        # All tools should be denied
+        allowed, reason = enforcer.is_tool_allowed("docker_remove_container")
+        assert allowed is False
 
     def test_none_denied_tools_is_default(self):
         """Test that denied_tools=None is the default (no denials)."""
@@ -165,6 +170,20 @@ class TestToolFilteringBackwardsCompatibility:
 
         assert config.allowed_tools == ["docker_list_containers", "docker_inspect_container"]
 
+    def test_explicit_empty_denied_tools_blocks_all(self, monkeypatch):
+        """Test that SAFETY_DENIED_TOOLS="" denies all tools."""
+        monkeypatch.setenv("SAFETY_DENIED_TOOLS", "")
+        config = SafetyConfig()
+        enforcer = SafetyEnforcer(config)
+
+        # Empty string should parse to [] which denies all
+        assert config.denied_tools == []
+
+        # All tools should be denied
+        assert enforcer.is_tool_allowed("docker_list_containers")[0] is False
+        assert enforcer.is_tool_allowed("docker_inspect_container")[0] is False
+        assert enforcer.is_tool_allowed("docker_remove_container")[0] is False
+
 
 class TestShouldRegisterTool:
     """Test the should_register_tool function that controls tool registration.
@@ -214,17 +233,19 @@ class TestShouldRegisterTool:
         assert should_register_tool("docker_list_containers", config) is True
         assert should_register_tool("docker_remove_container", config) is True
 
-    def test_empty_list_denied_tools_denies_nothing(self):
-        """Test that denied_tools=[] denies no tools (empty list).
+    def test_empty_list_denied_tools_denies_all(self):
+        """Test that denied_tools=[] denies all tools (explicit deny-all).
 
-        Unlike allowed_tools where [] means "block all", denied_tools=[] means
-        "deny nothing" because it's checking membership in the deny list.
+        Both allowed_tools=[] and denied_tools=[] mean "block/deny all".
+        This is consistent with the documentation that says
+        "Set to empty string to deny all tools."
         """
         config = SafetyConfig(denied_tools=[])
 
-        # Empty deny list should allow all tools
-        assert should_register_tool("docker_list_containers", config) is True
-        assert should_register_tool("docker_remove_container", config) is True
+        # Empty deny list should block all tools from registration
+        assert should_register_tool("docker_list_containers", config) is False
+        assert should_register_tool("docker_remove_container", config) is False
+        assert should_register_tool("any_tool", config) is False
 
     def test_specific_tools_denied_blocks_those(self):
         """Test that denied_tools=['foo'] blocks registration of foo."""
@@ -256,11 +277,11 @@ class TestShouldRegisterTool:
     def test_empty_allowed_and_empty_denied_blocks_all(self):
         """Test that allowed_tools=[] with denied_tools=[] blocks all registrations.
 
-        Edge case: Empty allow list (block all) combined with empty deny list (deny nothing).
-        The allow list should take effect and block everything.
+        Edge case: Empty allow list (block all) combined with empty deny list (deny all).
+        The deny list is checked first and will block everything.
         """
         config = SafetyConfig(allowed_tools=[], denied_tools=[])
 
-        # Empty allow list should block all tools
+        # Empty deny list should block all tools (deny list takes precedence)
         assert should_register_tool("docker_list_containers", config) is False
         assert should_register_tool("docker_remove_container", config) is False

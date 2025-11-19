@@ -74,8 +74,13 @@ class SafetyEnforcer:
         """
         # Deny list takes precedence
         # None = no deny list, [] = deny all, ['foo'] = deny only foo
-        if self.config.denied_tools is not None and tool_name in self.config.denied_tools:
-            return False, f"Tool denied by configuration: {tool_name}"
+        if self.config.denied_tools is not None:
+            # Empty list = deny all
+            if len(self.config.denied_tools) == 0:
+                return False, f"All tools denied by configuration (empty deny list): {tool_name}"
+            # Non-empty list = deny only listed tools
+            if tool_name in self.config.denied_tools:
+                return False, f"Tool denied by configuration: {tool_name}"
 
         # If allow list is set, tool must be in it
         # None = allow all (default), [] = allow none, ['foo'] = allow only foo
