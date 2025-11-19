@@ -360,4 +360,7 @@ class TestMain:
         assert result.exit_code == 0
         # Typer shows the function docstring, not the app help
         assert "Run the MCP Docker server" in result.output or "MCP Docker Server" in result.output
-        assert "--transport" in result.output
+        # Check for key options - case-insensitive to handle different terminal formats
+        assert "transport" in result.output.lower()
+        assert "stdio" in result.output.lower()
+        assert "http" in result.output.lower()

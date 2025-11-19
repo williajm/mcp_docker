@@ -75,7 +75,7 @@ Issues = "https://github.com/williajm/mcp_docker/issues"
 Changelog = "https://github.com/williajm/mcp_docker/releases"
 
 [project.scripts]
-mcp-docker = "mcp_docker.__main__:main"
+mcp-docker = "mcp_docker.__main__:app"
 
 [build-system]
 requires = ["hatchling"]
