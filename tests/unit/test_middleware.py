@@ -732,7 +732,8 @@ class TestAuditMiddleware:
 
         # Check that ClientInfo was passed
         client_info = call_args.kwargs["client_info"]
-        assert client_info.client_id == "unknown"  # No session_id, defaults to "unknown"
+        # No session_id, falls back to IP address as client_id
+        assert client_info.client_id == "10.0.0.1"
         assert client_info.ip_address == "10.0.0.1"
 
         # Check that error was logged

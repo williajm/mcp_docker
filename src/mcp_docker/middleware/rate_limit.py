@@ -7,6 +7,7 @@ from typing import Any
 
 from fastmcp.server.middleware import CallNext, MiddlewareContext
 
+from mcp_docker.middleware.utils import get_operation_name
 from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
 from mcp_docker.utils.logger import get_logger
 
@@ -83,22 +84,28 @@ class RateLimitMiddleware:
                 if session_id:
                     client_id = session_id
 
-        tool_name = getattr(context.message, "name", "unknown_tool")
+        # Get operation name (tool name or MCP protocol operation)
+        operation_name = get_operation_name(context)
 
         # Check rate limit and acquire concurrent slot
         if self.rate_limiter.enabled:
             try:
                 # Check RPM limit
                 await self.rate_limiter.check_rate_limit(client_id)
-                logger.debug(f"RateLimitMiddleware: RPM check passed for {tool_name} ({client_id})")
+                logger.debug(
+                    f"RateLimitMiddleware: RPM check passed for {operation_name} ({client_id})"
+                )
 
                 # Acquire concurrent slot
                 await self.rate_limiter.acquire_concurrent_slot(client_id)
                 logger.debug(
-                    f"RateLimitMiddleware: Concurrent slot acquired for {tool_name} ({client_id})"
+                    f"RateLimitMiddleware: Concurrent slot acquired for {operation_name} "
+                    f"({client_id})"
                 )
             except RateLimitExceeded as e:
-                logger.warning(f"RateLimitMiddleware: Blocked {tool_name} for {client_id} - {e}")
+                logger.warning(
+                    f"RateLimitMiddleware: Blocked {operation_name} for {client_id} - {e}"
+                )
                 raise
 
         # Execute the tool and ensure concurrent slot is released
@@ -109,7 +116,8 @@ class RateLimitMiddleware:
             if self.rate_limiter.enabled:
                 self.rate_limiter.release_concurrent_slot(client_id)
                 logger.debug(
-                    f"RateLimitMiddleware: Concurrent slot released for {tool_name} ({client_id})"
+                    f"RateLimitMiddleware: Concurrent slot released for {operation_name} "
+                    f"({client_id})"
                 )
 
 

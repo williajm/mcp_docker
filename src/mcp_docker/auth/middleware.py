@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.auth.models import ClientInfo
@@ -64,7 +65,10 @@ class AuthMiddleware:
             logger.info("IP allowlist disabled - all IPs allowed")
 
     def _extract_ip_address(self, context: MiddlewareContext[Any]) -> str | None:
-        """Extract IP address from FastMCP context.
+        """Extract IP address from HTTP request.
+
+        Tries FastMCP's dependency injection first (works during initialization),
+        falls back to context extraction for unit test compatibility.
 
         Args:
             context: FastMCP middleware context
@@ -72,6 +76,25 @@ class AuthMiddleware:
         Returns:
             IP address string or None if not available
         """
+        # Method 1: Try FastMCP's dependency injection (works during initialization)
+        try:
+            request = get_http_request()
+            if (
+                request
+                and hasattr(request, "client")
+                and request.client
+                and hasattr(request.client, "host")
+            ):
+                return request.client.host
+        except (RuntimeError, LookupError):
+            # Expected: Not in HTTP context (stdio) or dependency injection unavailable (unit tests)
+            # Will fall back to context extraction below
+            logger.debug(
+                "get_http_request() unavailable (stdio transport or unit test), "
+                "falling back to context extraction"
+            )
+
+        # Method 2: Fall back to context extraction (for unit tests with mocked contexts)
         if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
             return None
 
@@ -79,18 +102,44 @@ class AuthMiddleware:
         if not (req_ctx and hasattr(req_ctx, "request")):
             return None
 
-        request = req_ctx.request
-        if not (request and hasattr(request, "client")):
+        ctx_request = req_ctx.request
+        if not (ctx_request and hasattr(ctx_request, "client")):
             return None
 
-        client = request.client
+        client = ctx_request.client
         if client and hasattr(client, "host"):
             return client.host
 
         return None
 
+    def _is_http_transport(self, context: MiddlewareContext[Any]) -> bool:
+        """Determine if this is an HTTP transport request.
+
+        Tries FastMCP's dependency injection first, falls back to context check.
+
+        Args:
+            context: FastMCP middleware context
+
+        Returns:
+            True if HTTP transport, False if stdio transport
+        """
+        # Method 1: Try FastMCP's dependency injection (works during initialization)
+        try:
+            request = get_http_request()
+            return request is not None
+        except (RuntimeError, LookupError):
+            pass
+
+        # Method 2: Fall back to context check (for unit tests)
+        if not context.fastmcp_context:
+            return False
+
+        return hasattr(context.fastmcp_context, "request_context")
+
     def _extract_bearer_token(self, context: MiddlewareContext[Any]) -> str | None:
         """Extract bearer token from Authorization header.
+
+        Tries FastMCP's dependency injection first, falls back to context extraction.
 
         Args:
             context: FastMCP middleware context
@@ -98,6 +147,22 @@ class AuthMiddleware:
         Returns:
             Bearer token string (without 'Bearer ' prefix) or None if not available
         """
+        # Method 1: Try FastMCP's dependency injection (works during initialization)
+        try:
+            request = get_http_request()
+            if request and hasattr(request, "headers"):
+                auth_header = request.headers.get("authorization", "")
+                if auth_header.startswith("Bearer "):
+                    return auth_header[7:]  # Remove "Bearer " prefix
+        except (RuntimeError, LookupError):
+            # Expected: Not in HTTP context (stdio) or dependency injection unavailable (unit tests)
+            # Will fall back to context extraction below
+            logger.debug(
+                "get_http_request() unavailable for bearer token extraction "
+                "(stdio transport or unit test), falling back to context extraction"
+            )
+
+        # Method 2: Fall back to context extraction (for unit tests)
         if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
             return None
 
@@ -105,11 +170,11 @@ class AuthMiddleware:
         if not (req_ctx and hasattr(req_ctx, "request")):
             return None
 
-        request = req_ctx.request
-        if not (request and hasattr(request, "headers")):
+        ctx_request = req_ctx.request
+        if not (ctx_request and hasattr(ctx_request, "headers")):
             return None
 
-        auth_header = request.headers.get("authorization", "")
+        auth_header = ctx_request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             return auth_header[7:]  # Remove "Bearer " prefix
 
@@ -136,8 +201,14 @@ class AuthMiddleware:
             AuthenticationError: If authentication fails
         """
         # Extract authentication details from context
+        is_http = self._is_http_transport(context)
         ip_address = self._extract_ip_address(context)
         bearer_token = self._extract_bearer_token(context)
+
+        logger.debug(
+            f"Auth detection: is_http={is_http}, ip_address={ip_address}, "
+            f"has_bearer={bearer_token is not None}"
+        )
 
         # Authenticate the request
         try:
@@ -236,18 +307,18 @@ class AuthMiddleware:
                 logger.warning(f"OAuth authentication failed from IP {ip_address}: {e}")
                 raise AuthenticationError(f"OAuth authentication failed: {e}") from e
 
-        # OAuth not enabled - fall back to IP allowlist
+        # OAuth not enabled - fall back to IP allowlist (HTTP transport)
         if self.config.allowed_client_ips and ip_address not in self.config.allowed_client_ips:
-            logger.warning(f"Request blocked: IP {ip_address} not in allowlist")
+            logger.warning(f"HTTP transport request blocked: IP {ip_address} not in allowlist")
             raise AuthenticationError(f"IP address not allowed: {ip_address}")
 
-        # IP allowed or no allowlist configured
-        logger.debug(f"Request allowed from IP: {ip_address}")
+        # IP allowed or no allowlist configured (HTTP transport)
+        logger.debug(f"HTTP transport request allowed from IP: {ip_address}")
         return ClientInfo(
             client_id=ip_address,
             auth_method="ip",
             api_key_hash="none",
-            description="IP-based access",
+            description="HTTP IP-based access",
             ip_address=ip_address,
         )
 

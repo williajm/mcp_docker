@@ -8,6 +8,7 @@ from typing import Any
 
 from fastmcp.server.middleware import CallNext, MiddlewareContext
 
+from mcp_docker.middleware.utils import get_operation_type
 from mcp_docker.safety.core import SafetyEnforcer
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import OperationSafety
@@ -69,7 +70,12 @@ class SafetyMiddleware:
         arguments = getattr(context.message, "arguments", {}) or {}
 
         if not tool_name:
-            logger.warning("SafetyMiddleware: No tool name in context")
+            # This is not a tool call - it's an MCP protocol operation (tools/list, etc.)
+            operation_type = get_operation_type(context)
+            logger.debug(
+                f"SafetyMiddleware: Skipping safety checks for MCP protocol "
+                f"operation: {operation_type}"
+            )
             return await call_next(context)
 
         # Get safety level from tool metadata

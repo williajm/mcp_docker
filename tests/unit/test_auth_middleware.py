@@ -117,7 +117,7 @@ class TestAuthMiddleware:
         result = await middleware.authenticate_request(ip_address="192.168.1.100")
         assert result.client_id == "192.168.1.100"
         assert result.api_key_hash == "none"
-        assert result.description == "IP-based access"
+        assert result.description == "HTTP IP-based access"
         assert result.ip_address == "192.168.1.100"
         assert result.auth_method == "ip"
 

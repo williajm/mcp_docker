@@ -8,6 +8,7 @@ from typing import Any, cast
 from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.auth.models import ClientInfo
+from mcp_docker.middleware.utils import get_operation_name
 from mcp_docker.security.audit import AuditLogger
 from mcp_docker.utils.logger import get_logger
 
@@ -75,6 +76,10 @@ class AuditMiddleware:
         client_id = self._extract_client_id(context)
         client_ip = self._extract_client_ip(context)
 
+        # Use IP address as client_id if we have it but no session_id
+        if client_id == "unknown" and client_ip != "unknown":
+            client_id = client_ip
+
         return ClientInfo(
             client_id=client_id,
             ip_address=client_ip,
@@ -96,10 +101,17 @@ class AuditMiddleware:
 
         req_ctx = context.fastmcp_context.request_context
         if not req_ctx:
+            # request_context is None during initialization
+            # Cannot access session_id yet - it will raise RuntimeError
             return "unknown"
 
-        session_id = cast(str | None, getattr(context.fastmcp_context, "session_id", None))
-        return session_id if session_id else "unknown"
+        # Safe to access session_id only after request_context is available
+        try:
+            session_id = cast(str | None, getattr(context.fastmcp_context, "session_id", None))
+            return session_id if session_id else "unknown"
+        except RuntimeError:
+            # session_id not yet available during early initialization
+            return "unknown"
 
     def _extract_client_ip(self, context: MiddlewareContext[Any]) -> str:
         """Extract client IP from context or return 'unknown'.
@@ -181,8 +193,8 @@ class AuditMiddleware:
         Returns:
             Result from next handler
         """
-        # Extract tool information from context
-        tool_name = getattr(context.message, "name", "unknown_tool")
+        # Extract operation information from context
+        operation_name = get_operation_name(context)
         arguments = getattr(context.message, "arguments", {}) or {}
 
         # Extract client information
@@ -191,10 +203,10 @@ class AuditMiddleware:
         # Execute the tool and log the result
         try:
             result = await call_next(context)
-            self._log_tool_execution(client_info, tool_name, arguments, result)
+            self._log_tool_execution(client_info, operation_name, arguments, result)
             return result
         except Exception as e:
-            self._log_tool_error(client_info, tool_name, arguments, e)
+            self._log_tool_error(client_info, operation_name, arguments, e)
             raise
 
 
