@@ -117,7 +117,11 @@ def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], 
 def _prune_all_unused_images(
     docker_client: Any, filters: dict[str, str | list[str]] | None
 ) -> tuple[list[dict[str, Any]], int]:
-    """Prune all unused images with fallback to manual iteration if needed.
+    """Prune all unused images (equivalent to docker image prune -a).
+
+    The Docker SDK's prune() method only removes dangling images by default.
+    To remove ALL unused images (including tagged but unused), we must manually
+    iterate and remove images not in use by any container.
 
     Args:
         docker_client: Docker client instance
@@ -127,33 +131,26 @@ def _prune_all_unused_images(
         Tuple of (deleted_images, space_reclaimed)
     """
     prune_filters = filters or {}
-    result = docker_client.images.prune(filters=prune_filters)
+    all_images = docker_client.images.list(all=True, filters=prune_filters)
+    containers = docker_client.containers.list(all=True)
+    images_in_use = {c.image.id for c in containers if c.image}
 
-    deleted = result.get("ImagesDeleted") or []
-    space_reclaimed = result.get("SpaceReclaimed", 0)
+    deleted = []
+    space_reclaimed = 0
 
-    # Fallback to manual iteration if SDK returned nothing and no custom filters
-    if not deleted and not filters:
-        all_images = docker_client.images.list(all=True, filters=prune_filters)
-        containers = docker_client.containers.list(all=True)
-        images_in_use = {c.image.id for c in containers if c.image}
+    for image in all_images:
+        if image.id in images_in_use or not image.id:
+            continue
 
-        deleted = []
-        space_reclaimed = 0
-
-        for image in all_images:
-            if image.id in images_in_use or not image.id:
-                continue
-
-            try:
-                size = image.attrs.get("Size", 0)
-                docker_client.images.remove(image.id, force=False)
-                deleted.append({"Deleted": image.id})
-                space_reclaimed += size
-                logger.debug(f"Removed unused image {image.id[:12]}")
-            except (APIError, DockerException) as e:
-                logger.debug(f"Could not remove image {image.id[:12]}: {e}")
-                continue
+        try:
+            size = image.attrs.get("Size", 0)
+            docker_client.images.remove(image.id, force=False)
+            deleted.append({"Deleted": image.id})
+            space_reclaimed += size
+            logger.debug(f"Removed unused image {image.id[:12]}")
+        except (APIError, DockerException) as e:
+            logger.debug(f"Could not remove image {image.id[:12]}: {e}")
+            continue
 
     return deleted, space_reclaimed
 

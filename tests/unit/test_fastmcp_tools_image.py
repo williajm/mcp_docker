@@ -835,31 +835,7 @@ class TestPruneImagesTool:
         mock_docker_client.client.images.prune.assert_called_once_with(filters=None)
 
     def test_prune_images_all(self, mock_docker_client):
-        """Test pruning all unused images."""
-        # Mock the SDK's prune call returning results
-        mock_docker_client.client.images.prune.return_value = {
-            "ImagesDeleted": [{"Deleted": "sha256:unused1"}],
-            "SpaceReclaimed": 1500,
-        }
-
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with all=True
-        result = prune_func(all=True)
-
-        # Verify SDK prune was used
-        assert len(result["deleted"]) == 1
-        assert result["space_reclaimed"] == 1500
-
-    def test_prune_images_all_fallback_to_manual(self, mock_docker_client):
-        """Test pruning all unused images with fallback to manual iteration."""
-        # Mock SDK prune returning None (triggers fallback)
-        mock_docker_client.client.images.prune.return_value = {
-            "ImagesDeleted": None,
-            "SpaceReclaimed": 0,
-        }
-
+        """Test pruning all unused images using manual iteration."""
         # Create mock images
         image1 = Mock()
         image1.id = "sha256:unused1"
@@ -880,10 +856,10 @@ class TestPruneImagesTool:
         # Get the prune function
         _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
 
-        # Execute with all=True (no filters, triggers fallback)
+        # Execute with all=True
         result = prune_func(all=True)
 
-        # Verify only unused image was removed
+        # Verify only unused image was removed (always uses manual iteration)
         assert len(result["deleted"]) == 1
         assert result["deleted"][0] == {"Deleted": "sha256:unused1"}
         assert result["space_reclaimed"] == 1000
@@ -891,14 +867,30 @@ class TestPruneImagesTool:
             "sha256:unused1", force=False
         )
 
-    def test_prune_images_all_fallback_with_removal_error(self, mock_docker_client):
-        """Test manual fallback handles removal errors gracefully."""
-        # Mock SDK prune returning None
-        mock_docker_client.client.images.prune.return_value = {
-            "ImagesDeleted": None,
-            "SpaceReclaimed": 0,
-        }
+    def test_prune_images_all_with_filters(self, mock_docker_client):
+        """Test pruning all unused images with custom filters."""
+        # Create mock image
+        image1 = Mock()
+        image1.id = "sha256:unused1"
+        image1.attrs = {"Size": 1500}
 
+        mock_docker_client.client.images.list.return_value = [image1]
+        mock_docker_client.client.containers.list.return_value = []
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True and custom filters
+        filters = {"label": ["env=test"]}
+        result = prune_func(all=True, filters=filters)
+
+        # Verify manual iteration was used with filters
+        mock_docker_client.client.images.list.assert_called_once_with(all=True, filters=filters)
+        assert len(result["deleted"]) == 1
+        assert result["space_reclaimed"] == 1500
+
+    def test_prune_images_all_with_removal_error(self, mock_docker_client):
+        """Test manual iteration handles removal errors gracefully."""
         # Create mock images
         image1 = Mock()
         image1.id = "sha256:error1"
