@@ -10,8 +10,6 @@ from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.image import (
     BuildImageInput,
-    _parse_build_logs,
-    _parse_push_stream,
     create_build_image_tool,
     create_image_history_tool,
     create_inspect_image_tool,
@@ -50,98 +48,6 @@ class TestBuildImageInputValidation:
         """Test that buildargs can be None."""
         input_data = BuildImageInput(path=".")
         assert input_data.buildargs is None
-
-
-class TestParseBuildLogs:
-    """Test _parse_build_logs helper function."""
-
-    def test_parse_build_logs_success(self):
-        """Test parsing valid build logs."""
-        build_logs = [
-            {"stream": "Step 1/3 : FROM ubuntu\n"},
-            {"stream": "Step 2/3 : RUN echo hello\n"},
-            {"stream": "Successfully built abc123\n"},
-        ]
-        result = _parse_build_logs(build_logs)
-        assert len(result) == 3
-        assert result[0] == "Step 1/3 : FROM ubuntu"
-        assert result[1] == "Step 2/3 : RUN echo hello"
-        assert result[2] == "Successfully built abc123"
-
-    def test_parse_build_logs_empty(self):
-        """Test parsing empty build logs."""
-        result = _parse_build_logs([])
-        assert result == []
-
-    def test_parse_build_logs_no_stream(self):
-        """Test parsing build logs without stream key."""
-        build_logs = [
-            {"status": "Pulling image"},
-            {"progress": "50%"},
-        ]
-        result = _parse_build_logs(build_logs)
-        assert result == []
-
-    def test_parse_build_logs_mixed_types(self):
-        """Test parsing build logs with mixed types."""
-        build_logs = [
-            {"stream": "Step 1\n"},
-            {"status": "Not a stream"},
-            {"stream": "Step 2\n"},
-            "not a dict",
-            {"stream": None},  # Non-string stream value
-        ]
-        result = _parse_build_logs(build_logs)
-        assert len(result) == 2
-        assert result[0] == "Step 1"
-        assert result[1] == "Step 2"
-
-
-class TestParsePushStream:
-    """Test _parse_push_stream helper function."""
-
-    def test_parse_push_stream_success(self):
-        """Test parsing successful push stream."""
-        stream = '{"status": "Pushing"}\n{"status": "Pushed"}\n'
-        last_status, error = _parse_push_stream(stream)
-        assert last_status == "Pushed"
-        assert error is None
-
-    def test_parse_push_stream_with_error(self):
-        """Test parsing push stream with error."""
-        stream = '{"status": "Pushing"}\n{"error": "Authentication required"}\n'
-        last_status, error = _parse_push_stream(stream)
-        assert error == "Authentication required"
-
-    def test_parse_push_stream_bytes(self):
-        """Test parsing push stream as bytes."""
-        # The function converts bytes using str(), which doesn't decode properly
-        # This test verifies the actual behavior
-        stream = b'{"status": "Pushing"}\n{"status": "Pushed"}\n'
-        last_status, error = _parse_push_stream(stream)
-        # Due to str(bytes) conversion, JSON parsing will fail
-        assert last_status is None
-        assert error is None
-
-    def test_parse_push_stream_empty(self):
-        """Test parsing empty push stream."""
-        last_status, error = _parse_push_stream("")
-        assert last_status is None
-        assert error is None
-
-    def test_parse_push_stream_invalid_json(self):
-        """Test parsing push stream with invalid JSON."""
-        stream = "not json\n{invalid}\n"
-        last_status, error = _parse_push_stream(stream)
-        assert last_status is None
-        assert error is None
-
-    def test_parse_push_stream_multiple_statuses(self):
-        """Test parsing push stream with multiple status updates."""
-        stream = '{"status": "Preparing"}\n{"status": "Pushing"}\n{"status": "Pushed"}\n'
-        last_status, error = _parse_push_stream(stream)
-        assert last_status == "Pushed"
-        assert error is None
 
 
 class TestListImagesTool:
@@ -547,9 +453,10 @@ class TestBuildImageTool:
         image.id = "sha256:abc123"
         image.tags = ["myapp:latest"]
 
+        # Build logs as JSON strings (how Docker SDK actually returns them)
         build_logs = [
-            {"stream": "Step 1/2 : FROM ubuntu\n"},
-            {"stream": "Step 2/2 : RUN echo hello\n"},
+            '{"stream": "Step 1/2 : FROM ubuntu\\n"}\n',
+            '{"stream": "Step 2/2 : RUN echo hello\\n"}\n',
         ]
 
         mock_docker_client.client.images.build.return_value = (image, build_logs)
@@ -660,7 +567,11 @@ class TestPushImageTool:
 
     def test_push_image_success(self, mock_docker_client):
         """Test successful image push."""
-        push_stream = '{"status": "Pushing"}\n{"status": "Pushed"}\n'
+        # Push stream as iterable of JSON strings (how Docker SDK actually returns them)
+        push_stream = [
+            '{"status": "Pushing"}\n',
+            '{"status": "Pushed"}\n',
+        ]
         mock_docker_client.client.images.push.return_value = push_stream
 
         # Get the push function
@@ -676,7 +587,8 @@ class TestPushImageTool:
 
     def test_push_image_with_tag(self, mock_docker_client):
         """Test pushing image with tag."""
-        push_stream = '{"status": "Pushed"}\n'
+        # Push stream as iterable of JSON strings
+        push_stream = ['{"status": "Pushed"}\n']
         mock_docker_client.client.images.push.return_value = push_stream
 
         # Get the push function
@@ -924,7 +836,12 @@ class TestPruneImagesTool:
 
     def test_prune_images_all(self, mock_docker_client):
         """Test pruning all unused images."""
-        # Mock the prune_all_unused_images function behavior
+        # Mock the SDK's prune call (which now uses built-in method)
+        mock_docker_client.client.images.prune.return_value = {
+            "ImagesDeleted": None,  # SDK might return None when no images to prune
+            "SpaceReclaimed": 0,
+        }
+        # For fallback to manual iteration
         mock_docker_client.client.images.list.return_value = []
         mock_docker_client.client.containers.list.return_value = []
 
