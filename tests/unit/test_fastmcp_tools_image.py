@@ -836,14 +836,11 @@ class TestPruneImagesTool:
 
     def test_prune_images_all(self, mock_docker_client):
         """Test pruning all unused images."""
-        # Mock the SDK's prune call (which now uses built-in method)
+        # Mock the SDK's prune call returning results
         mock_docker_client.client.images.prune.return_value = {
-            "ImagesDeleted": None,  # SDK might return None when no images to prune
-            "SpaceReclaimed": 0,
+            "ImagesDeleted": [{"Deleted": "sha256:unused1"}],
+            "SpaceReclaimed": 1500,
         }
-        # For fallback to manual iteration
-        mock_docker_client.client.images.list.return_value = []
-        mock_docker_client.client.containers.list.return_value = []
 
         # Get the prune function
         _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
@@ -851,9 +848,86 @@ class TestPruneImagesTool:
         # Execute with all=True
         result = prune_func(all=True)
 
-        # Verify all unused images were pruned
-        assert "deleted" in result
-        assert "space_reclaimed" in result
+        # Verify SDK prune was used
+        assert len(result["deleted"]) == 1
+        assert result["space_reclaimed"] == 1500
+
+    def test_prune_images_all_fallback_to_manual(self, mock_docker_client):
+        """Test pruning all unused images with fallback to manual iteration."""
+        # Mock SDK prune returning None (triggers fallback)
+        mock_docker_client.client.images.prune.return_value = {
+            "ImagesDeleted": None,
+            "SpaceReclaimed": 0,
+        }
+
+        # Create mock images
+        image1 = Mock()
+        image1.id = "sha256:unused1"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:inuse1"
+        image2.attrs = {"Size": 2000}
+
+        # Create mock container using image2
+        container = Mock()
+        container.image = Mock()
+        container.image.id = "sha256:inuse1"
+
+        mock_docker_client.client.images.list.return_value = [image1, image2]
+        mock_docker_client.client.containers.list.return_value = [container]
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True (no filters, triggers fallback)
+        result = prune_func(all=True)
+
+        # Verify only unused image was removed
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == {"Deleted": "sha256:unused1"}
+        assert result["space_reclaimed"] == 1000
+        mock_docker_client.client.images.remove.assert_called_once_with(
+            "sha256:unused1", force=False
+        )
+
+    def test_prune_images_all_fallback_with_removal_error(self, mock_docker_client):
+        """Test manual fallback handles removal errors gracefully."""
+        # Mock SDK prune returning None
+        mock_docker_client.client.images.prune.return_value = {
+            "ImagesDeleted": None,
+            "SpaceReclaimed": 0,
+        }
+
+        # Create mock images
+        image1 = Mock()
+        image1.id = "sha256:error1"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:success1"
+        image2.attrs = {"Size": 2000}
+
+        mock_docker_client.client.images.list.return_value = [image1, image2]
+        mock_docker_client.client.containers.list.return_value = []
+
+        # First removal fails, second succeeds
+        def remove_side_effect(image_id, force):
+            if image_id == "sha256:error1":
+                raise APIError("Removal failed")
+
+        mock_docker_client.client.images.remove.side_effect = remove_side_effect
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True
+        result = prune_func(all=True)
+
+        # Should continue after first failure
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == {"Deleted": "sha256:success1"}
+        assert result["space_reclaimed"] == 2000
 
     def test_prune_images_with_filters(self, mock_docker_client):
         """Test pruning images with filters."""
@@ -874,8 +948,19 @@ class TestPruneImagesTool:
 
     def test_prune_images_force_all(self, mock_docker_client):
         """Test force removing all images."""
-        # Mock the force_remove_all_images function behavior
-        mock_docker_client.client.images.list.return_value = []
+        # Create mock images with IDs and sizes
+        image1 = Mock()
+        image1.id = "sha256:abc123"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:def456"
+        image2.attrs = {"Size": 2000}
+
+        image3 = Mock()
+        image3.id = None  # Test skipping images without IDs
+
+        mock_docker_client.client.images.list.return_value = [image1, image2, image3]
 
         # Get the prune function
         _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
@@ -883,9 +968,48 @@ class TestPruneImagesTool:
         # Execute with force_all=True
         result = prune_func(force_all=True)
 
-        # Verify force removal was called
-        assert "deleted" in result
-        assert "space_reclaimed" in result
+        # Verify force removal was called for images with IDs
+        assert len(result["deleted"]) == 2
+        assert result["deleted"][0] == {"Deleted": "sha256:abc123"}
+        assert result["deleted"][1] == {"Deleted": "sha256:def456"}
+        assert result["space_reclaimed"] == 3000
+
+        # Verify remove was called with force=True
+        assert mock_docker_client.client.images.remove.call_count == 2
+        mock_docker_client.client.images.remove.assert_any_call("sha256:abc123", force=True)
+        mock_docker_client.client.images.remove.assert_any_call("sha256:def456", force=True)
+
+    def test_prune_images_force_all_with_errors(self, mock_docker_client):
+        """Test force removing all images with some failures."""
+        # Create mock images
+        image1 = Mock()
+        image1.id = "sha256:abc123"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:def456"
+        image2.attrs = {"Size": 2000}
+
+        mock_docker_client.client.images.list.return_value = [image1, image2]
+
+        # Make first image removal fail, second succeed
+        def remove_side_effect(image_id, force):
+            if image_id == "sha256:abc123":
+                raise APIError("Image in use")
+            # Second one succeeds (no exception)
+
+        mock_docker_client.client.images.remove.side_effect = remove_side_effect
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with force_all=True
+        result = prune_func(force_all=True)
+
+        # Should continue after first failure and remove second image
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == {"Deleted": "sha256:def456"}
+        assert result["space_reclaimed"] == 2000
 
     def test_prune_images_api_error(self, mock_docker_client):
         """Test image prune with API error."""
