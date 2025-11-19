@@ -162,12 +162,17 @@ Block I/O:
     return ("container://stats/{container_id}", get_container_stats)
 
 
-def register_all_resources(app: Any, docker_client: DockerClientWrapper) -> dict[str, list[str]]:
+def register_all_resources(
+    app: Any,
+    docker_client: DockerClientWrapper,
+    allowed_resources: list[str] | None = None,
+) -> dict[str, list[str]]:
     """Register all Docker resources with FastMCP.
 
     Args:
         app: FastMCP application instance
         docker_client: Docker client wrapper
+        allowed_resources: Optional list of allowed resource names (None = allow all)
 
     Returns:
         Dictionary mapping category names to lists of registered resource URIs
@@ -176,17 +181,22 @@ def register_all_resources(app: Any, docker_client: DockerClientWrapper) -> dict
 
     registered: dict[str, list[str]] = {"container": []}
 
-    # Register container logs resource
-    logs_uri, logs_func = create_container_logs_resource(docker_client)
-    app.resource(logs_uri)(logs_func)
-    registered["container"].append(logs_uri)
-    logger.debug(f"Registered resource: {logs_uri}")
+    # Define all available resources with their names
+    all_resources = [
+        ("container_logs", create_container_logs_resource(docker_client)),
+        ("container_stats", create_container_stats_resource(docker_client)),
+    ]
 
-    # Register container stats resource
-    stats_uri, stats_func = create_container_stats_resource(docker_client)
-    app.resource(stats_uri)(stats_func)
-    registered["container"].append(stats_uri)
-    logger.debug(f"Registered resource: {stats_uri}")
+    for resource_name, (uri, func) in all_resources:
+        # Filter based on allowed_resources if specified
+        # None (not set) = allow all, [] (empty string) = block all, ['foo'] = allow only foo
+        if allowed_resources is not None and resource_name not in allowed_resources:
+            logger.debug(f"Skipping resource (not in allowed list): {resource_name}")
+            continue
+
+        app.resource(uri)(func)
+        registered["container"].append(uri)
+        logger.debug(f"Registered resource: {uri}")
 
     total_resources = sum(len(resources) for resources in registered.values())
     logger.info(f"Successfully registered {total_resources} FastMCP resources")

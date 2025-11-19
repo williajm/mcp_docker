@@ -30,12 +30,20 @@ def should_register_tool(tool_name: str, safety_config: SafetyConfig) -> bool:
         3. Otherwise -> True
     """
     # Check deny list first (takes precedence)
-    if safety_config.denied_tools and tool_name in safety_config.denied_tools:
-        logger.debug(f"Skipping tool {tool_name} (in deny list)")
-        return False
+    # None = no deny list, [] = deny all, ['foo'] = deny only foo
+    if safety_config.denied_tools is not None:
+        # Empty list = deny all tools
+        if len(safety_config.denied_tools) == 0:
+            logger.debug(f"Skipping tool {tool_name} (deny all - empty deny list)")
+            return False
+        # Non-empty list = deny only listed tools
+        if tool_name in safety_config.denied_tools:
+            logger.debug(f"Skipping tool {tool_name} (in deny list)")
+            return False
 
     # Check allow list (if specified)
-    if safety_config.allowed_tools and tool_name not in safety_config.allowed_tools:
+    # None (not set) = allow all, [] (empty list) = block all
+    if safety_config.allowed_tools is not None and tool_name not in safety_config.allowed_tools:
         logger.debug(f"Skipping tool {tool_name} (not in allow list)")
         return False
 

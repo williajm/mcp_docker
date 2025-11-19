@@ -16,7 +16,12 @@ from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_prompts import register_all_prompts
 from mcp_docker.fastmcp_resources import register_all_resources
 from mcp_docker.fastmcp_tools import register_all_tools
-from mcp_docker.middleware import AuditMiddleware, RateLimitMiddleware, SafetyMiddleware
+from mcp_docker.middleware import (
+    AuditMiddleware,
+    DebugLoggingMiddleware,
+    RateLimitMiddleware,
+    SafetyMiddleware,
+)
 from mcp_docker.safety import SafetyEnforcer
 from mcp_docker.security.audit import AuditLogger
 from mcp_docker.security.rate_limiter import RateLimiter
@@ -64,34 +69,49 @@ class FastMCPDockerServer:
         )
 
         # Create middleware instances
+        self.debug_middleware = DebugLoggingMiddleware()
         self.safety_middleware = SafetyMiddleware(self.safety_enforcer, self.app)
         self.rate_limit_middleware = RateLimitMiddleware(self.rate_limiter)
         self.audit_middleware = AuditMiddleware(self.audit_logger)
 
         # CRITICAL: Attach middleware to FastMCP app
         # Middleware execution order: first added = outermost wrapper
-        # - AuditMiddleware: OUTERMOST - logs all requests (including blocked ones)
+        # - DebugLoggingMiddleware: OUTERMOST - logs MCP requests/responses at DEBUG level
+        # - AuditMiddleware: Logs all requests (including blocked ones) for audit trail
         # - AuthMiddleware: Validates OAuth/IP allowlist before tool execution
         # - SafetyMiddleware: Validates operations against safety policies
         # - RateLimitMiddleware: INNERMOST - prevents abuse via request throttling
-        logger.info("Attaching security middleware to FastMCP app")
+        logger.info("Attaching middleware to FastMCP app")
         # NOTE: Middleware classes are protocol-compatible but don't inherit from base class
+        self.app.add_middleware(self.debug_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.audit_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.auth_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.safety_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.rate_limit_middleware)  # type: ignore[arg-type]
-        logger.info("Security middleware attached successfully (audit, auth, safety, rate_limit)")
+        logger.info("Middleware attached successfully (debug, audit, auth, safety, rate_limit)")
 
         # Register all tools with middleware integration
         registered_tools = register_all_tools(self.app, self.docker_client, config.safety)
         total_tools = sum(len(tools) for tools in registered_tools.values())
 
-        # Register all resources
-        registered_resources = register_all_resources(self.app, self.docker_client)
+        # Register resources with optional filtering
+        allowed_resources = (
+            config.safety.allowed_resources
+            if isinstance(config.safety.allowed_resources, list)
+            else None
+        )
+        registered_resources = register_all_resources(
+            self.app, self.docker_client, allowed_resources
+        )
         total_resources = sum(len(resources) for resources in registered_resources.values())
 
-        # Register all prompts
-        registered_prompts = register_all_prompts(self.app, self.docker_client)
+        # Register prompts with optional filtering
+        allowed_prompts = (
+            config.safety.allowed_prompts
+            if isinstance(config.safety.allowed_prompts, list)
+            else None
+        )
+        registered_prompts = register_all_prompts(self.app, self.docker_client, allowed_prompts)
         total_prompts = sum(len(prompts) for prompts in registered_prompts.values())
 
         logger.info(
