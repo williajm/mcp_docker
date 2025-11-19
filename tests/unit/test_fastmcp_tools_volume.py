@@ -400,3 +400,69 @@ class TestPruneVolumesTool:
         # Execute and expect error
         with pytest.raises(DockerOperationError, match="Failed to prune volumes"):
             prune_func(force_all=False)
+
+    def test_prune_volumes_force_all(self, mock_docker_client, safety_config):
+        """Test force removing all volumes."""
+        # Create mock volumes
+        volume1 = Mock()
+        volume1.name = "test-vol-1"
+
+        volume2 = Mock()
+        volume2.name = "test-vol-2"
+
+        mock_docker_client.client.volumes.list.return_value = [volume1, volume2]
+
+        # Mock get and remove
+        def get_side_effect(name):
+            vol = Mock()
+            vol.remove = Mock()
+            return vol
+
+        mock_docker_client.client.volumes.get.side_effect = get_side_effect
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client)
+
+        # Execute with force_all=True
+        result = prune_func(force_all=True)
+
+        # Verify all volumes were force removed
+        assert len(result["deleted"]) == 2
+        assert "test-vol-1" in result["deleted"]
+        assert "test-vol-2" in result["deleted"]
+        assert result["space_reclaimed"] == 0  # force_all doesn't track space
+
+        # Verify get and remove were called with force=True
+        assert mock_docker_client.client.volumes.get.call_count == 2
+
+    def test_prune_volumes_force_all_with_errors(self, mock_docker_client, safety_config):
+        """Test force removing all volumes with some failures."""
+        # Create mock volumes
+        volume1 = Mock()
+        volume1.name = "error-vol"
+
+        volume2 = Mock()
+        volume2.name = "success-vol"
+
+        mock_docker_client.client.volumes.list.return_value = [volume1, volume2]
+
+        # Mock get to return volumes that can be removed
+        def get_side_effect(name):
+            vol = Mock()
+            if name == "error-vol":
+                vol.remove.side_effect = APIError("Volume in use")
+            else:
+                vol.remove = Mock()  # Succeeds
+            return vol
+
+        mock_docker_client.client.volumes.get.side_effect = get_side_effect
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_volumes_tool(mock_docker_client)
+
+        # Execute with force_all=True
+        result = prune_func(force_all=True)
+
+        # Should continue after first failure
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == "success-vol"
