@@ -38,11 +38,16 @@ class TestResourceFiltering:
         assert any("logs" in uri for uri in uris)
         assert any("stats" in uri for uri in uris)
 
-    def test_empty_list_allows_no_resources(self, mock_app, mock_docker_client):
-        """Test that allowed_resources=[] registers NO resources (allow none)."""
+    def test_empty_list_blocks_all_resources(self, mock_app, mock_docker_client):
+        """Test that allowed_resources=[] blocks ALL resources (SAFETY_ALLOWED_RESOURCES='').
+
+        When SAFETY_ALLOWED_RESOURCES is explicitly set to empty string, it parses to []
+        which means 'block all resources'. This is different from None (not set) which
+        means 'allow all'.
+        """
         result = register_all_resources(mock_app, mock_docker_client, allowed_resources=[])
 
-        # Should register 0 resources
+        # Should register 0 resources (empty list explicitly blocks all)
         assert len(result["container"]) == 0
         assert result["container"] == []
 

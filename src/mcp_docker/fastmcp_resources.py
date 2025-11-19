@@ -189,7 +189,7 @@ def register_all_resources(
 
     for resource_name, (uri, func) in all_resources:
         # Filter based on allowed_resources if specified
-        # None = allow all, [] = allow none, ['foo'] = allow only foo
+        # None (not set) = allow all, [] (empty string) = block all, ['foo'] = allow only foo
         if allowed_resources is not None and resource_name not in allowed_resources:
             logger.debug(f"Skipping resource (not in allowed list): {resource_name}")
             continue

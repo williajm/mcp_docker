@@ -375,7 +375,7 @@ def register_all_prompts(
 
     for name, description, func in prompts:
         # Filter based on allowed_prompts if specified
-        # None = allow all, [] = allow none, ['foo'] = allow only foo
+        # None (not set) = allow all, [] (empty string) = block all, ['foo'] = allow only foo
         if allowed_prompts is not None and name not in allowed_prompts:
             logger.debug(f"Skipping prompt (not in allowed list): {name}")
             continue

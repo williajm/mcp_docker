@@ -239,20 +239,22 @@ class SafetyConfig(BaseSettings):
     )
 
     # Prompt filtering (controls which prompts are exposed)
-    allowed_prompts: str | list[str] = Field(
-        default=[],
+    allowed_prompts: str | list[str] | None = Field(
+        default=None,
         description=(
-            "Allowed prompt names (empty list = allow all prompts). "
+            "Allowed prompt names (None/not set = allow all prompts). "
+            "Set to empty string to disable all prompts. "
             "Example: ['troubleshoot_container', 'optimize_container']. "
             "Can be set via SAFETY_ALLOWED_PROMPTS as comma-separated string."
         ),
     )
 
     # Resource filtering (controls which resources are exposed)
-    allowed_resources: str | list[str] = Field(
-        default=[],
+    allowed_resources: str | list[str] | None = Field(
+        default=None,
         description=(
-            "Allowed resource names (empty list = allow all resources). "
+            "Allowed resource names (None/not set = allow all resources). "
+            "Set to empty string to disable all resources. "
             "Example: ['container_logs', 'container_info']. "
             "Can be set via SAFETY_ALLOWED_RESOURCES as comma-separated string."
         ),
@@ -290,8 +292,6 @@ class SafetyConfig(BaseSettings):
     @field_validator(
         "allowed_tools",
         "denied_tools",
-        "allowed_prompts",
-        "allowed_resources",
         "volume_mount_blocklist",
         "volume_mount_allowlist",
         mode="before",
@@ -318,6 +318,39 @@ class SafetyConfig(BaseSettings):
             # Already a list, just filter empty strings and strip
             return [tool.strip() for tool in value if tool and tool.strip()]
         return []
+
+    @field_validator(
+        "allowed_prompts",
+        "allowed_resources",
+        mode="before",
+    )
+    @classmethod
+    def parse_prompt_resource_list(cls, value: str | list[str] | None) -> list[str] | None:
+        """Parse list from comma-separated string or list, preserving None for defaults.
+
+        For prompts/resources, None means "allow all" (default), while empty list
+        means "block all" (explicit). This differs from allowed_tools where empty
+        list also means "allow all" for backwards compatibility.
+
+        Args:
+            value: List as string (comma-separated), list, or None
+
+        Returns:
+            Normalized list of strings, empty list for explicit empty string, or None
+        """
+        if value is None:
+            # Not set - return None to indicate "allow all" (default behavior)
+            return None
+        if value == "":
+            # Explicitly set to empty string - return [] to indicate "block all"
+            return []
+        if isinstance(value, str):
+            # Split by comma, strip whitespace, filter empty strings
+            return [item.strip() for item in value.split(",") if item.strip()]
+        if isinstance(value, list):
+            # Already a list, just filter empty strings and strip
+            return [item.strip() for item in value if item and item.strip()]
+        return None
 
 
 class SecurityConfig(BaseSettings):

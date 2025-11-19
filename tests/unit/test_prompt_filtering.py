@@ -39,11 +39,16 @@ class TestPromptFiltering:
         assert "debug_networking" in result["docker"]
         assert "security_audit" in result["docker"]
 
-    def test_empty_list_allows_no_prompts(self, mock_app, mock_docker_client):
-        """Test that allowed_prompts=[] registers NO prompts (allow none)."""
+    def test_empty_list_blocks_all_prompts(self, mock_app, mock_docker_client):
+        """Test that allowed_prompts=[] blocks ALL prompts (SAFETY_ALLOWED_PROMPTS='').
+
+        When SAFETY_ALLOWED_PROMPTS is explicitly set to empty string, it parses to []
+        which means 'block all prompts'. This is different from None (not set) which
+        means 'allow all'.
+        """
         result = register_all_prompts(mock_app, mock_docker_client, allowed_prompts=[])
 
-        # Should register 0 prompts
+        # Should register 0 prompts (empty list explicitly blocks all)
         assert len(result["docker"]) == 0
         assert result["docker"] == []
 
