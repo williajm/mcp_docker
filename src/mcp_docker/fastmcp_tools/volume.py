@@ -26,6 +26,33 @@ from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
+
+def _force_remove_all_volumes(docker_client: Any) -> list[str]:
+    """Force remove ALL volumes (extremely destructive).
+
+    Args:
+        docker_client: Docker client instance
+
+    Returns:
+        List of deleted volume names
+    """
+    logger.warning("force_all=True: Removing ALL volumes (extremely destructive)")
+    all_volumes = docker_client.volumes.list()
+
+    deleted = []
+    for volume in all_volumes:
+        try:
+            volume_name = volume.name
+            docker_client.volumes.get(volume_name).remove(force=True)
+            deleted.append(volume_name)
+            logger.debug(f"Force removed volume {volume_name}")
+        except (APIError, DockerException) as e:
+            logger.debug(f"Could not force remove volume {volume_name}: {e}")
+            continue
+
+    return deleted
+
+
 # Input/Output Models (reused from legacy tools)
 
 
@@ -408,21 +435,7 @@ def create_prune_volumes_tool(
             logger.info(f"Pruning volumes (force_all={force_all}, filters={filters})")
 
             if force_all:
-                # Force remove ALL volumes (extremely destructive)
-                logger.warning("force_all=True: Removing ALL volumes (extremely destructive)")
-                all_volumes = docker_client.client.volumes.list()
-
-                deleted = []
-                for volume in all_volumes:
-                    try:
-                        volume_name = volume.name
-                        docker_client.client.volumes.get(volume_name).remove(force=True)
-                        deleted.append(volume_name)
-                        logger.debug(f"Force removed volume {volume_name}")
-                    except (APIError, DockerException) as e:
-                        logger.debug(f"Could not force remove volume {volume_name}: {e}")
-                        continue
-
+                deleted = _force_remove_all_volumes(docker_client.client)
                 logger.info(f"Successfully force-pruned {len(deleted)} volumes (force_all=True)")
                 output = PruneVolumesOutput(deleted=deleted, space_reclaimed=0)
                 return output.model_dump()
