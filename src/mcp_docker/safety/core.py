@@ -73,11 +73,13 @@ class SafetyEnforcer:
             Tuple of (allowed: bool, reason: str)
         """
         # Deny list takes precedence
-        if self.config.denied_tools and tool_name in self.config.denied_tools:
+        # None = no deny list, [] = deny all, ['foo'] = deny only foo
+        if self.config.denied_tools is not None and tool_name in self.config.denied_tools:
             return False, f"Tool denied by configuration: {tool_name}"
 
-        # If allow list is non-empty, tool must be in it
-        if self.config.allowed_tools and tool_name not in self.config.allowed_tools:
+        # If allow list is set, tool must be in it
+        # None = allow all (default), [] = allow none, ['foo'] = allow only foo
+        if self.config.allowed_tools is not None and tool_name not in self.config.allowed_tools:
             return False, f"Tool not in allow list: {tool_name}"
 
         return True, "Tool allowed"

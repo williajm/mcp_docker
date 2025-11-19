@@ -160,10 +160,10 @@ class TestSafetyConfig:
         assert config.allowed_tools == []
 
     def test_parse_tool_list_none(self) -> None:
-        """Test parsing None returns empty list."""
+        """Test parsing None preserves None (default = allow all)."""
         config = SafetyConfig()
-        assert config.allowed_tools == []
-        assert config.denied_tools == []
+        assert config.allowed_tools is None
+        assert config.denied_tools is None
 
     def test_parse_tool_list_strips_whitespace(self) -> None:
         """Test that whitespace around tool names is stripped."""

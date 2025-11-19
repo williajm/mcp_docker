@@ -219,20 +219,20 @@ class SafetyConfig(BaseSettings):
     )
 
     # Tool filtering (works alongside safety level restrictions)
-    # Note: Using str | list[str] type to prevent Pydantic Settings from trying JSON parsing
-    # on empty strings, which causes errors. The validator handles conversion to list[str].
-    allowed_tools: str | list[str] = Field(
-        default=[],
+    allowed_tools: str | list[str] | None = Field(
+        default=None,
         description=(
-            "Allowed tool names (empty list = allow all based on safety level). "
+            "Allowed tool names (None/not set = allow all based on safety level). "
+            "Set to empty string to disable all tools. "
             "Example: ['docker_list_containers', 'docker_inspect_container']. "
             "Can be set via SAFETY_ALLOWED_TOOLS as comma-separated string."
         ),
     )
-    denied_tools: str | list[str] = Field(
-        default=[],
+    denied_tools: str | list[str] | None = Field(
+        default=None,
         description=(
             "Denied tool names (takes precedence over allowed_tools). "
+            "Set to empty string to deny all tools. "
             "Example: ['docker_remove_container', 'docker_prune_images']. "
             "Can be set via SAFETY_DENIED_TOOLS as comma-separated string."
         ),
@@ -290,18 +290,15 @@ class SafetyConfig(BaseSettings):
     )
 
     @field_validator(
-        "allowed_tools",
-        "denied_tools",
         "volume_mount_blocklist",
         "volume_mount_allowlist",
         mode="before",
     )
     @classmethod
-    def parse_tool_list(cls, value: str | list[str] | None) -> list[str]:
-        """Parse list from comma-separated string or list.
+    def parse_volume_mount_list(cls, value: str | list[str] | None) -> list[str]:
+        """Parse list from comma-separated string or list for volume mounts.
 
-        Handles environment variable input as comma-separated strings
-        and normalizes them to lists.
+        For volume mount lists, empty string/None both mean "use defaults" (empty list).
 
         Args:
             value: List as string (comma-separated), list, or None
@@ -313,30 +310,36 @@ class SafetyConfig(BaseSettings):
             return []
         if isinstance(value, str):
             # Split by comma, strip whitespace, filter empty strings
-            return [tool.strip() for tool in value.split(",") if tool.strip()]
+            return [item.strip() for item in value.split(",") if item.strip()]
         if isinstance(value, list):
             # Already a list, just filter empty strings and strip
-            return [tool.strip() for tool in value if tool and tool.strip()]
+            return [item.strip() for item in value if item and item.strip()]
         return []
 
     @field_validator(
+        "allowed_tools",
+        "denied_tools",
         "allowed_prompts",
         "allowed_resources",
         mode="before",
     )
     @classmethod
-    def parse_prompt_resource_list(cls, value: str | list[str] | None) -> list[str] | None:
+    def parse_filtering_list(cls, value: str | list[str] | None) -> list[str] | None:
         """Parse list from comma-separated string or list, preserving None for defaults.
 
-        For prompts/resources, None means "allow all" (default), while empty list
-        means "block all" (explicit). This differs from allowed_tools where empty
-        list also means "allow all" for backwards compatibility.
+        For all filtering lists (tools, prompts, resources), None means "allow all" (default),
+        while empty list means "block all" (explicit).
 
         Args:
             value: List as string (comma-separated), list, or None
 
         Returns:
             Normalized list of strings, empty list for explicit empty string, or None
+
+        Examples:
+            - Not set (None) → None → Allow all (default)
+            - Set to "" → [] → Block all (explicit)
+            - Set to "foo,bar" → ['foo', 'bar'] → Allow only those
         """
         if value is None:
             # Not set - return None to indicate "allow all" (default behavior)
