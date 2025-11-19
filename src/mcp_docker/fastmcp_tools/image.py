@@ -63,14 +63,21 @@ def _parse_push_stream_for_status(push_stream: Any) -> tuple[str | None, str | N
     error_message: str | None = None
 
     for status_entry in json_stream(push_stream):
-        if isinstance(status_entry, dict):
-            if "error" in status_entry:
-                error_val = status_entry["error"]
-                error_message = str(error_val) if error_val is not None else None
-                break
-            if "status" in status_entry:
-                status_val = status_entry["status"]
-                last_status = str(status_val) if status_val is not None else None
+        if not isinstance(status_entry, dict):
+            continue
+
+        # Check for errors first (errors terminate the loop)
+        if "error" in status_entry:
+            error_val = status_entry["error"]
+            if error_val is not None:
+                error_message = str(error_val)
+            break
+
+        # Track last status
+        if "status" in status_entry:
+            status_val = status_entry["status"]
+            if status_val is not None:
+                last_status = str(status_val)
 
     return last_status, error_message
 
