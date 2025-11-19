@@ -889,6 +889,52 @@ class TestPruneImagesTool:
         assert len(result["deleted"]) == 1
         assert result["space_reclaimed"] == 1500
 
+    def test_prune_images_all_removes_tagged_but_unused(self, mock_docker_client):
+        """Regression test: Ensure all=True removes tagged-but-unused images.
+
+        This verifies the fix for the issue where all=True would only remove
+        dangling images if they existed, leaving tagged-but-unused images on disk.
+        """
+        # Create mock tagged image that is not in use
+        tagged_unused = Mock()
+        tagged_unused.id = "sha256:tagged123"
+        tagged_unused.tags = ["myapp:old"]
+        tagged_unused.attrs = {"Size": 5000}
+
+        # Create dangling image (no tags)
+        dangling = Mock()
+        dangling.id = "sha256:dangling456"
+        dangling.tags = []
+        dangling.attrs = {"Size": 1000}
+
+        # Create image in use by a container
+        in_use = Mock()
+        in_use.id = "sha256:inuse789"
+        in_use.tags = ["myapp:latest"]
+        in_use.attrs = {"Size": 3000}
+
+        # Mock container using the in_use image
+        container = Mock()
+        container.image = Mock()
+        container.image.id = "sha256:inuse789"
+
+        mock_docker_client.client.images.list.return_value = [tagged_unused, dangling, in_use]
+        mock_docker_client.client.containers.list.return_value = [container]
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True
+        result = prune_func(all=True)
+
+        # Should remove BOTH tagged-unused AND dangling, but NOT in-use
+        assert len(result["deleted"]) == 2
+        deleted_ids = [d["Deleted"] for d in result["deleted"]]
+        assert "sha256:tagged123" in deleted_ids
+        assert "sha256:dangling456" in deleted_ids
+        assert "sha256:inuse789" not in deleted_ids
+        assert result["space_reclaimed"] == 6000
+
     def test_prune_images_all_with_removal_error(self, mock_docker_client):
         """Test manual iteration handles removal errors gracefully."""
         # Create mock images

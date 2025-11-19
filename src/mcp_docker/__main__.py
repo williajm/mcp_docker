@@ -152,7 +152,7 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.command()
+@app.callback(invoke_without_command=True)
 def main(  # noqa: B008
     transport: Transport = typer.Option(
         Transport.stdio,
