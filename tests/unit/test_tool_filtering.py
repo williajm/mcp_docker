@@ -5,6 +5,7 @@ including the new behavior where None = allow all, [] = block all.
 """
 
 from mcp_docker.config import SafetyConfig
+from mcp_docker.fastmcp_tools.filters import should_register_tool
 from mcp_docker.safety.core import SafetyEnforcer
 
 
@@ -163,3 +164,103 @@ class TestToolFilteringBackwardsCompatibility:
         config = SafetyConfig()
 
         assert config.allowed_tools == ["docker_list_containers", "docker_inspect_container"]
+
+
+class TestShouldRegisterTool:
+    """Test the should_register_tool function that controls tool registration.
+
+    This is a regression test for the bug where empty lists were treated the same as None,
+    causing SAFETY_ALLOWED_TOOLS="" to not block tool registration.
+    """
+
+    def test_none_allowed_tools_registers_all_tools(self):
+        """Test that allowed_tools=None allows all tools to be registered (default)."""
+        config = SafetyConfig(allowed_tools=None)
+
+        # All tools should be registered
+        assert should_register_tool("docker_list_containers", config) is True
+        assert should_register_tool("docker_remove_container", config) is True
+        assert should_register_tool("any_tool", config) is True
+
+    def test_empty_list_allowed_tools_blocks_all_registration(self):
+        """Test that allowed_tools=[] blocks all tool registration (explicit empty).
+
+        Regression test: Previously, empty list was treated the same as None due to
+        truthy check, causing all tools to be registered even with SAFETY_ALLOWED_TOOLS="".
+        """
+        config = SafetyConfig(allowed_tools=[])
+
+        # Empty list should block ALL tools from being registered
+        assert should_register_tool("docker_list_containers", config) is False
+        assert should_register_tool("docker_remove_container", config) is False
+        assert should_register_tool("any_tool", config) is False
+
+    def test_specific_tools_allowed_only_registers_those(self):
+        """Test that allowed_tools=['foo'] only registers foo."""
+        config = SafetyConfig(allowed_tools=["docker_list_containers"])
+
+        # Only the allowed tool should be registered
+        assert should_register_tool("docker_list_containers", config) is True
+
+        # Other tools should not be registered
+        assert should_register_tool("docker_remove_container", config) is False
+        assert should_register_tool("docker_inspect_container", config) is False
+
+    def test_none_denied_tools_denies_nothing(self):
+        """Test that denied_tools=None denies no tools (default)."""
+        config = SafetyConfig(denied_tools=None)
+
+        # All tools should be registered (no denials)
+        assert should_register_tool("docker_list_containers", config) is True
+        assert should_register_tool("docker_remove_container", config) is True
+
+    def test_empty_list_denied_tools_denies_nothing(self):
+        """Test that denied_tools=[] denies no tools (empty list).
+
+        Unlike allowed_tools where [] means "block all", denied_tools=[] means
+        "deny nothing" because it's checking membership in the deny list.
+        """
+        config = SafetyConfig(denied_tools=[])
+
+        # Empty deny list should allow all tools
+        assert should_register_tool("docker_list_containers", config) is True
+        assert should_register_tool("docker_remove_container", config) is True
+
+    def test_specific_tools_denied_blocks_those(self):
+        """Test that denied_tools=['foo'] blocks registration of foo."""
+        config = SafetyConfig(denied_tools=["docker_remove_container"])
+
+        # Denied tool should not be registered
+        assert should_register_tool("docker_remove_container", config) is False
+
+        # Other tools should be registered
+        assert should_register_tool("docker_list_containers", config) is True
+        assert should_register_tool("docker_inspect_container", config) is True
+
+    def test_denied_tools_takes_precedence_over_allowed(self):
+        """Test that denied_tools takes precedence over allowed_tools."""
+        config = SafetyConfig(
+            allowed_tools=["docker_list_containers", "docker_remove_container"],
+            denied_tools=["docker_remove_container"],
+        )
+
+        # Denied tool should not be registered even though it's in allowed list
+        assert should_register_tool("docker_remove_container", config) is False
+
+        # Other allowed tool should be registered
+        assert should_register_tool("docker_list_containers", config) is True
+
+        # Tools not in either list should not be registered
+        assert should_register_tool("docker_inspect_container", config) is False
+
+    def test_empty_allowed_and_empty_denied_blocks_all(self):
+        """Test that allowed_tools=[] with denied_tools=[] blocks all registrations.
+
+        Edge case: Empty allow list (block all) combined with empty deny list (deny nothing).
+        The allow list should take effect and block everything.
+        """
+        config = SafetyConfig(allowed_tools=[], denied_tools=[])
+
+        # Empty allow list should block all tools
+        assert should_register_tool("docker_list_containers", config) is False
+        assert should_register_tool("docker_remove_container", config) is False
