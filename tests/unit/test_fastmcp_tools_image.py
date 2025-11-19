@@ -10,8 +10,6 @@ from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.image import (
     BuildImageInput,
-    _parse_build_logs,
-    _parse_push_stream,
     create_build_image_tool,
     create_image_history_tool,
     create_inspect_image_tool,
@@ -50,98 +48,6 @@ class TestBuildImageInputValidation:
         """Test that buildargs can be None."""
         input_data = BuildImageInput(path=".")
         assert input_data.buildargs is None
-
-
-class TestParseBuildLogs:
-    """Test _parse_build_logs helper function."""
-
-    def test_parse_build_logs_success(self):
-        """Test parsing valid build logs."""
-        build_logs = [
-            {"stream": "Step 1/3 : FROM ubuntu\n"},
-            {"stream": "Step 2/3 : RUN echo hello\n"},
-            {"stream": "Successfully built abc123\n"},
-        ]
-        result = _parse_build_logs(build_logs)
-        assert len(result) == 3
-        assert result[0] == "Step 1/3 : FROM ubuntu"
-        assert result[1] == "Step 2/3 : RUN echo hello"
-        assert result[2] == "Successfully built abc123"
-
-    def test_parse_build_logs_empty(self):
-        """Test parsing empty build logs."""
-        result = _parse_build_logs([])
-        assert result == []
-
-    def test_parse_build_logs_no_stream(self):
-        """Test parsing build logs without stream key."""
-        build_logs = [
-            {"status": "Pulling image"},
-            {"progress": "50%"},
-        ]
-        result = _parse_build_logs(build_logs)
-        assert result == []
-
-    def test_parse_build_logs_mixed_types(self):
-        """Test parsing build logs with mixed types."""
-        build_logs = [
-            {"stream": "Step 1\n"},
-            {"status": "Not a stream"},
-            {"stream": "Step 2\n"},
-            "not a dict",
-            {"stream": None},  # Non-string stream value
-        ]
-        result = _parse_build_logs(build_logs)
-        assert len(result) == 2
-        assert result[0] == "Step 1"
-        assert result[1] == "Step 2"
-
-
-class TestParsePushStream:
-    """Test _parse_push_stream helper function."""
-
-    def test_parse_push_stream_success(self):
-        """Test parsing successful push stream."""
-        stream = '{"status": "Pushing"}\n{"status": "Pushed"}\n'
-        last_status, error = _parse_push_stream(stream)
-        assert last_status == "Pushed"
-        assert error is None
-
-    def test_parse_push_stream_with_error(self):
-        """Test parsing push stream with error."""
-        stream = '{"status": "Pushing"}\n{"error": "Authentication required"}\n'
-        last_status, error = _parse_push_stream(stream)
-        assert error == "Authentication required"
-
-    def test_parse_push_stream_bytes(self):
-        """Test parsing push stream as bytes."""
-        # The function converts bytes using str(), which doesn't decode properly
-        # This test verifies the actual behavior
-        stream = b'{"status": "Pushing"}\n{"status": "Pushed"}\n'
-        last_status, error = _parse_push_stream(stream)
-        # Due to str(bytes) conversion, JSON parsing will fail
-        assert last_status is None
-        assert error is None
-
-    def test_parse_push_stream_empty(self):
-        """Test parsing empty push stream."""
-        last_status, error = _parse_push_stream("")
-        assert last_status is None
-        assert error is None
-
-    def test_parse_push_stream_invalid_json(self):
-        """Test parsing push stream with invalid JSON."""
-        stream = "not json\n{invalid}\n"
-        last_status, error = _parse_push_stream(stream)
-        assert last_status is None
-        assert error is None
-
-    def test_parse_push_stream_multiple_statuses(self):
-        """Test parsing push stream with multiple status updates."""
-        stream = '{"status": "Preparing"}\n{"status": "Pushing"}\n{"status": "Pushed"}\n'
-        last_status, error = _parse_push_stream(stream)
-        assert last_status == "Pushed"
-        assert error is None
 
 
 class TestListImagesTool:
@@ -547,9 +453,10 @@ class TestBuildImageTool:
         image.id = "sha256:abc123"
         image.tags = ["myapp:latest"]
 
+        # Build logs as JSON strings (how Docker SDK actually returns them)
         build_logs = [
-            {"stream": "Step 1/2 : FROM ubuntu\n"},
-            {"stream": "Step 2/2 : RUN echo hello\n"},
+            '{"stream": "Step 1/2 : FROM ubuntu\\n"}\n',
+            '{"stream": "Step 2/2 : RUN echo hello\\n"}\n',
         ]
 
         mock_docker_client.client.images.build.return_value = (image, build_logs)
@@ -660,7 +567,11 @@ class TestPushImageTool:
 
     def test_push_image_success(self, mock_docker_client):
         """Test successful image push."""
-        push_stream = '{"status": "Pushing"}\n{"status": "Pushed"}\n'
+        # Push stream as iterable of JSON strings (how Docker SDK actually returns them)
+        push_stream = [
+            '{"status": "Pushing"}\n',
+            '{"status": "Pushed"}\n',
+        ]
         mock_docker_client.client.images.push.return_value = push_stream
 
         # Get the push function
@@ -676,7 +587,8 @@ class TestPushImageTool:
 
     def test_push_image_with_tag(self, mock_docker_client):
         """Test pushing image with tag."""
-        push_stream = '{"status": "Pushed"}\n'
+        # Push stream as iterable of JSON strings
+        push_stream = ['{"status": "Pushed"}\n']
         mock_docker_client.client.images.push.return_value = push_stream
 
         # Get the push function
@@ -923,10 +835,23 @@ class TestPruneImagesTool:
         mock_docker_client.client.images.prune.assert_called_once_with(filters=None)
 
     def test_prune_images_all(self, mock_docker_client):
-        """Test pruning all unused images."""
-        # Mock the prune_all_unused_images function behavior
-        mock_docker_client.client.images.list.return_value = []
-        mock_docker_client.client.containers.list.return_value = []
+        """Test pruning all unused images using manual iteration."""
+        # Create mock images
+        image1 = Mock()
+        image1.id = "sha256:unused1"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:inuse1"
+        image2.attrs = {"Size": 2000}
+
+        # Create mock container using image2
+        container = Mock()
+        container.image = Mock()
+        container.image.id = "sha256:inuse1"
+
+        mock_docker_client.client.images.list.return_value = [image1, image2]
+        mock_docker_client.client.containers.list.return_value = [container]
 
         # Get the prune function
         _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
@@ -934,9 +859,113 @@ class TestPruneImagesTool:
         # Execute with all=True
         result = prune_func(all=True)
 
-        # Verify all unused images were pruned
-        assert "deleted" in result
-        assert "space_reclaimed" in result
+        # Verify only unused image was removed (always uses manual iteration)
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == {"Deleted": "sha256:unused1"}
+        assert result["space_reclaimed"] == 1000
+        mock_docker_client.client.images.remove.assert_called_once_with(
+            "sha256:unused1", force=False
+        )
+
+    def test_prune_images_all_with_filters(self, mock_docker_client):
+        """Test pruning all unused images with custom filters."""
+        # Create mock image
+        image1 = Mock()
+        image1.id = "sha256:unused1"
+        image1.attrs = {"Size": 1500}
+
+        mock_docker_client.client.images.list.return_value = [image1]
+        mock_docker_client.client.containers.list.return_value = []
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True and custom filters
+        filters = {"label": ["env=test"]}
+        result = prune_func(all=True, filters=filters)
+
+        # Verify manual iteration was used with filters
+        mock_docker_client.client.images.list.assert_called_once_with(all=True, filters=filters)
+        assert len(result["deleted"]) == 1
+        assert result["space_reclaimed"] == 1500
+
+    def test_prune_images_all_removes_tagged_but_unused(self, mock_docker_client):
+        """Regression test: Ensure all=True removes tagged-but-unused images.
+
+        This verifies the fix for the issue where all=True would only remove
+        dangling images if they existed, leaving tagged-but-unused images on disk.
+        """
+        # Create mock tagged image that is not in use
+        tagged_unused = Mock()
+        tagged_unused.id = "sha256:tagged123"
+        tagged_unused.tags = ["myapp:old"]
+        tagged_unused.attrs = {"Size": 5000}
+
+        # Create dangling image (no tags)
+        dangling = Mock()
+        dangling.id = "sha256:dangling456"
+        dangling.tags = []
+        dangling.attrs = {"Size": 1000}
+
+        # Create image in use by a container
+        in_use = Mock()
+        in_use.id = "sha256:inuse789"
+        in_use.tags = ["myapp:latest"]
+        in_use.attrs = {"Size": 3000}
+
+        # Mock container using the in_use image
+        container = Mock()
+        container.image = Mock()
+        container.image.id = "sha256:inuse789"
+
+        mock_docker_client.client.images.list.return_value = [tagged_unused, dangling, in_use]
+        mock_docker_client.client.containers.list.return_value = [container]
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True
+        result = prune_func(all=True)
+
+        # Should remove BOTH tagged-unused AND dangling, but NOT in-use
+        assert len(result["deleted"]) == 2
+        deleted_ids = [d["Deleted"] for d in result["deleted"]]
+        assert "sha256:tagged123" in deleted_ids
+        assert "sha256:dangling456" in deleted_ids
+        assert "sha256:inuse789" not in deleted_ids
+        assert result["space_reclaimed"] == 6000
+
+    def test_prune_images_all_with_removal_error(self, mock_docker_client):
+        """Test manual iteration handles removal errors gracefully."""
+        # Create mock images
+        image1 = Mock()
+        image1.id = "sha256:error1"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:success1"
+        image2.attrs = {"Size": 2000}
+
+        mock_docker_client.client.images.list.return_value = [image1, image2]
+        mock_docker_client.client.containers.list.return_value = []
+
+        # First removal fails, second succeeds
+        def remove_side_effect(image_id, force):
+            if image_id == "sha256:error1":
+                raise APIError("Removal failed")
+
+        mock_docker_client.client.images.remove.side_effect = remove_side_effect
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with all=True
+        result = prune_func(all=True)
+
+        # Should continue after first failure
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == {"Deleted": "sha256:success1"}
+        assert result["space_reclaimed"] == 2000
 
     def test_prune_images_with_filters(self, mock_docker_client):
         """Test pruning images with filters."""
@@ -957,8 +986,19 @@ class TestPruneImagesTool:
 
     def test_prune_images_force_all(self, mock_docker_client):
         """Test force removing all images."""
-        # Mock the force_remove_all_images function behavior
-        mock_docker_client.client.images.list.return_value = []
+        # Create mock images with IDs and sizes
+        image1 = Mock()
+        image1.id = "sha256:abc123"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:def456"
+        image2.attrs = {"Size": 2000}
+
+        image3 = Mock()
+        image3.id = None  # Test skipping images without IDs
+
+        mock_docker_client.client.images.list.return_value = [image1, image2, image3]
 
         # Get the prune function
         _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
@@ -966,9 +1006,48 @@ class TestPruneImagesTool:
         # Execute with force_all=True
         result = prune_func(force_all=True)
 
-        # Verify force removal was called
-        assert "deleted" in result
-        assert "space_reclaimed" in result
+        # Verify force removal was called for images with IDs
+        assert len(result["deleted"]) == 2
+        assert result["deleted"][0] == {"Deleted": "sha256:abc123"}
+        assert result["deleted"][1] == {"Deleted": "sha256:def456"}
+        assert result["space_reclaimed"] == 3000
+
+        # Verify remove was called with force=True
+        assert mock_docker_client.client.images.remove.call_count == 2
+        mock_docker_client.client.images.remove.assert_any_call("sha256:abc123", force=True)
+        mock_docker_client.client.images.remove.assert_any_call("sha256:def456", force=True)
+
+    def test_prune_images_force_all_with_errors(self, mock_docker_client):
+        """Test force removing all images with some failures."""
+        # Create mock images
+        image1 = Mock()
+        image1.id = "sha256:abc123"
+        image1.attrs = {"Size": 1000}
+
+        image2 = Mock()
+        image2.id = "sha256:def456"
+        image2.attrs = {"Size": 2000}
+
+        mock_docker_client.client.images.list.return_value = [image1, image2]
+
+        # Make first image removal fail, second succeed
+        def remove_side_effect(image_id, force):
+            if image_id == "sha256:abc123":
+                raise APIError("Image in use")
+            # Second one succeeds (no exception)
+
+        mock_docker_client.client.images.remove.side_effect = remove_side_effect
+
+        # Get the prune function
+        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
+
+        # Execute with force_all=True
+        result = prune_func(force_all=True)
+
+        # Should continue after first failure and remove second image
+        assert len(result["deleted"]) == 1
+        assert result["deleted"][0] == {"Deleted": "sha256:def456"}
+        assert result["space_reclaimed"] == 2000
 
     def test_prune_images_api_error(self, mock_docker_client):
         """Test image prune with API error."""

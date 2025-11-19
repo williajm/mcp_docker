@@ -48,6 +48,7 @@ dependencies = [
     "secure>=1.0.1",
     "authlib>=1.6.5",
     "httpx>=0.28.1",
+    "typer>=0.9.0",
 ]
 
 [project.optional-dependencies]
@@ -74,7 +75,7 @@ Issues = "https://github.com/williajm/mcp_docker/issues"
 Changelog = "https://github.com/williajm/mcp_docker/releases"
 
 [project.scripts]
-mcp-docker = "mcp_docker.__main__:main"
+mcp-docker = "mcp_docker.__main__:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -142,9 +143,10 @@ ignore = []
 "tests/fuzz/**/*.py" = [
     "N802",     # TestOneInput function name is required by Atheris fuzzing framework
 ]
-# Main entry point has complex SSE server setup
+# Main entry point has Typer CLI setup
 "src/mcp_docker/__main__.py" = [
-    "PLR0915",  # Too many statements (run_sse function sets up complex middleware stack)
+    "PLR0915",  # Too many statements (main function sets up config and server)
+    "B008",     # Typer.Option in defaults is the standard Typer pattern
 ]
 
 [tool.mypy]
@@ -220,6 +222,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "cachetools.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "typer.*"
 ignore_missing_imports = true
 
 # Relax strict typing for test files (Mock objects, test fixtures, etc.)

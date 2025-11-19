@@ -3,11 +3,11 @@
 This module contains read-only image tools migrated to FastMCP 2.0.
 """
 
-import json
 from typing import Any, ClassVar
 
-from docker.errors import APIError, NotFound
+from docker.errors import APIError, DockerException, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
+from docker.utils.json_stream import json_stream
 from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
@@ -23,15 +23,17 @@ from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_IMAGE_NOT_FOUND
-from mcp_docker.utils.prune_helpers import force_remove_all_images, prune_all_unused_images
 from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
 
+# Common field descriptions (avoid string duplication per SonarCloud S1192)
+DESC_IMAGE_ID = "Image name or ID"
 
-def _parse_build_logs(build_logs: Any) -> list[str]:
-    """Parse Docker build logs and extract stream messages.
+
+def _parse_build_logs_from_stream(build_logs: Any) -> list[str]:
+    """Parse build logs using Docker SDK's json_stream utility.
 
     Args:
         build_logs: Raw build logs from Docker API
@@ -40,16 +42,16 @@ def _parse_build_logs(build_logs: Any) -> list[str]:
         List of log message strings
     """
     log_messages = []
-    for log in build_logs:
-        if isinstance(log, dict) and "stream" in log:
-            stream_val = log.get("stream")
+    for log_entry in json_stream(build_logs):
+        if isinstance(log_entry, dict) and "stream" in log_entry:
+            stream_val = log_entry.get("stream")
             if isinstance(stream_val, str):
                 log_messages.append(stream_val.strip())
     return log_messages
 
 
-def _parse_push_stream(push_stream: str | bytes) -> tuple[str | None, str | None]:
-    """Parse Docker push stream and extract status/error.
+def _parse_push_stream_for_status(push_stream: Any) -> tuple[str | None, str | None]:
+    """Parse push stream using Docker SDK's json_stream utility.
 
     Args:
         push_stream: Raw push stream from Docker API
@@ -57,30 +59,101 @@ def _parse_push_stream(push_stream: str | bytes) -> tuple[str | None, str | None
     Returns:
         Tuple of (last_status, error_message)
     """
-    last_status = None
-    error_message = None
+    last_status: str | None = None
+    error_message: str | None = None
 
-    # Convert bytes to str if needed
-    stream_str = push_stream if isinstance(push_stream, str) else str(push_stream)
-    lines = stream_str.split("\n")
-    for line in lines:
-        if not line.strip():
+    for status_entry in json_stream(push_stream):
+        if not isinstance(status_entry, dict):
             continue
-        try:
-            status_obj = json.loads(line)
-            if "error" in status_obj:
-                error_message = status_obj["error"]
-                break
-            if "status" in status_obj:
-                last_status = status_obj["status"]
-        except json.JSONDecodeError:
-            continue
+
+        # Check for errors first (errors terminate the loop)
+        if "error" in status_entry:
+            error_val = status_entry["error"]
+            if error_val is not None:
+                error_message = str(error_val)
+            break
+
+        # Track last status
+        if "status" in status_entry:
+            status_val = status_entry["status"]
+            if status_val is not None:
+                last_status = str(status_val)
 
     return last_status, error_message
 
 
-# Common field descriptions (avoid string duplication per SonarCloud S1192)
-DESC_IMAGE_ID = "Image name or ID"
+def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], int]:
+    """Force remove ALL images (extremely destructive).
+
+    Args:
+        docker_client: Docker client instance
+
+    Returns:
+        Tuple of (deleted_images, space_reclaimed)
+    """
+    logger.warning("force_all=True: Removing ALL images (extremely destructive)")
+    all_images = docker_client.images.list(all=True)
+
+    deleted = []
+    space_reclaimed = 0
+
+    for image in all_images:
+        if not image.id:
+            continue
+
+        try:
+            size = image.attrs.get("Size", 0)
+            docker_client.images.remove(image.id, force=True)
+            deleted.append({"Deleted": image.id})
+            space_reclaimed += size
+            logger.debug(f"Force removed image {image.id[:12]}")
+        except (APIError, DockerException) as e:
+            logger.debug(f"Could not force remove image {image.id[:12]}: {e}")
+            continue
+
+    return deleted, space_reclaimed
+
+
+def _prune_all_unused_images(
+    docker_client: Any, filters: dict[str, str | list[str]] | None
+) -> tuple[list[dict[str, Any]], int]:
+    """Prune all unused images (equivalent to docker image prune -a).
+
+    The Docker SDK's prune() method only removes dangling images by default.
+    To remove ALL unused images (including tagged but unused), we must manually
+    iterate and remove images not in use by any container.
+
+    Args:
+        docker_client: Docker client instance
+        filters: Optional filters to apply
+
+    Returns:
+        Tuple of (deleted_images, space_reclaimed)
+    """
+    prune_filters = filters or {}
+    all_images = docker_client.images.list(all=True, filters=prune_filters)
+    containers = docker_client.containers.list(all=True)
+    images_in_use = {c.image.id for c in containers if c.image}
+
+    deleted = []
+    space_reclaimed = 0
+
+    for image in all_images:
+        if image.id in images_in_use or not image.id:
+            continue
+
+        try:
+            size = image.attrs.get("Size", 0)
+            docker_client.images.remove(image.id, force=False)
+            deleted.append({"Deleted": image.id})
+            space_reclaimed += size
+            logger.debug(f"Removed unused image {image.id[:12]}")
+        except (APIError, DockerException) as e:
+            logger.debug(f"Could not remove image {image.id[:12]}: {e}")
+            continue
+
+    return deleted, space_reclaimed
+
 
 # Input/Output Models (reused from legacy tools)
 
@@ -544,7 +617,7 @@ def create_build_image_tool(
 
             image_obj, build_logs = docker_client.client.images.build(**kwargs)
 
-            log_messages = _parse_build_logs(build_logs)
+            log_messages = _parse_build_logs_from_stream(build_logs)
 
             logger.info(f"Successfully built image: {image_obj.id}")
             output = BuildImageOutput(
@@ -586,7 +659,7 @@ def create_push_image_tool(
 
             push_stream = docker_client.client.images.push(**kwargs)
 
-            last_status, error_message = _parse_push_stream(push_stream)
+            last_status, error_message = _parse_push_stream_for_status(push_stream)
 
             if error_message:
                 logger.error(f"Failed to push image: {error_message}")
@@ -705,18 +778,19 @@ def create_prune_images_tool(
             logger.info(f"Pruning images (all={all}, force_all={force_all}, filters={filters})")
 
             if force_all:
-                deleted, space_reclaimed = force_remove_all_images(docker_client.client)
+                deleted, space_reclaimed = _force_remove_all_images(docker_client.client)
                 logger.info(
                     f"Successfully force-pruned {len(deleted)} images (force_all=True), "
                     f"reclaimed {space_reclaimed} bytes"
                 )
             elif all:
-                deleted, space_reclaimed = prune_all_unused_images(docker_client.client, filters)
+                deleted, space_reclaimed = _prune_all_unused_images(docker_client.client, filters)
                 logger.info(
                     f"Successfully pruned {len(deleted)} images (all=True), "
                     f"reclaimed {space_reclaimed} bytes"
                 )
             else:
+                # Standard prune (only dangling images) using SDK
                 result = docker_client.client.images.prune(filters=filters)
                 deleted = result.get("ImagesDeleted") or []
                 space_reclaimed = result.get("SpaceReclaimed", 0)

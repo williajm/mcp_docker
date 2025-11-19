@@ -33,5 +33,6 @@ repos:
           - fastmcp>=2.0.0
           - uvicorn>=0.27.0
           - starlette>=0.27.0
+          - typer>=0.9.0
         args: [--strict, --config-file=pyproject.toml]
         files: ^src/
