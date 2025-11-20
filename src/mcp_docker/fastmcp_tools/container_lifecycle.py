@@ -31,6 +31,9 @@ from mcp_docker.utils.validation import (
 
 logger = get_logger(__name__)
 
+# Constants
+DEFAULT_CONTAINER_TIMEOUT_SECONDS = 10  # Default timeout for stop/restart operations
+
 # Common field descriptions (avoid string duplication per SonarCloud S1192)
 DESC_CONTAINER_ID = "Container ID or name"
 
@@ -46,7 +49,10 @@ class ContainerRefInput(BaseModel):
 class TimedContainerRefInput(ContainerRefInput):
     """Base input for operations that require an optional timeout."""
 
-    timeout: int = Field(default=10, description="Timeout in seconds before killing")
+    timeout: int = Field(
+        default=DEFAULT_CONTAINER_TIMEOUT_SECONDS,
+        description="Timeout in seconds before killing",
+    )
 
 
 class ContainerStatusOutput(BaseModel):
@@ -477,7 +483,7 @@ def create_stop_container_tool(
 
     def stop_container(
         container_id: str,
-        timeout: int = 10,
+        timeout: int = DEFAULT_CONTAINER_TIMEOUT_SECONDS,
     ) -> dict[str, Any]:
         """Stop a running Docker container gracefully.
 
@@ -532,7 +538,7 @@ def create_restart_container_tool(
 
     def restart_container(
         container_id: str,
-        timeout: int = 10,
+        timeout: int = DEFAULT_CONTAINER_TIMEOUT_SECONDS,
     ) -> dict[str, Any]:
         """Restart a Docker container.
 
