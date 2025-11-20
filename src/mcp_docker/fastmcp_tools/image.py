@@ -3,24 +3,24 @@
 This module contains read-only image tools migrated to FastMCP 2.0.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
 from docker.utils.json_stream import json_stream
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
-    JsonStringFieldsMixin,
     PaginatedListOutput,
     apply_list_pagination,
 )
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_IMAGE_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
@@ -219,10 +219,8 @@ class PullImageOutput(BaseModel):
     tags: list[str] = Field(description="Image tags")
 
 
-class BuildImageInput(JsonStringFieldsMixin, BaseModel):
+class BuildImageInput(BaseModel):
     """Input for building an image."""
-
-    json_string_fields: ClassVar[tuple[str, ...]] = ("buildargs",)
 
     path: str = Field(description="Path to build context")
     tag: str | None = Field(default=None, description="Tag for the image")
@@ -237,6 +235,12 @@ class BuildImageInput(JsonStringFieldsMixin, BaseModel):
     nocache: bool = Field(default=False, description="Do not use cache")
     rm: bool = Field(default=True, description="Remove intermediate containers")
     pull: bool = Field(default=False, description="Always pull newer base images")
+
+    @field_validator("buildargs", mode="before")
+    @classmethod
+    def _parse_json_fields(cls, v: Any, info: Any) -> Any:
+        """Parse JSON string fields to dicts."""
+        return parse_json_string_field(v, info.field_name)
 
 
 class BuildImageOutput(BaseModel):

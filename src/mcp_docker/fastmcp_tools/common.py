@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar
+from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.output_limits import create_truncation_metadata, truncate_list
 
 DESC_TRUNCATION_INFO = "Information about output truncation if applied"
@@ -33,25 +32,6 @@ class PaginatedListOutput(BaseModel):
         default_factory=dict,
         description=DESC_TRUNCATION_INFO,
     )
-
-
-class JsonStringFieldsMixin:
-    """Mixin that converts JSON string payloads to objects before validation."""
-
-    json_string_fields: ClassVar[tuple[str, ...]] = ()
-
-    @model_validator(mode="before")
-    @classmethod
-    def _parse_json_strings(cls, data: Any) -> Any:
-        if not isinstance(data, dict) or not cls.json_string_fields:
-            return data
-
-        parsed = dict(data)
-        for field_name in cls.json_string_fields:
-            if field_name in parsed:
-                parsed[field_name] = parse_json_string_field(parsed[field_name], field_name)
-
-        return parsed
 
 
 def apply_list_pagination(
