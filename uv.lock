@@ -811,7 +811,7 @@ wheels = [
 
 [[package]]
 name = "mcp-docker"
-version = "1.2.1.dev0"
+version = "1.2.2.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
