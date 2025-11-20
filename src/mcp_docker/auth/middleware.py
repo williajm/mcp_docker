@@ -8,6 +8,7 @@ from fastmcp.server.middleware import CallNext, MiddlewareContext
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.auth.oauth_auth import OAuthAuthenticationError, OAuthAuthenticator
 from mcp_docker.config import SecurityConfig
+from mcp_docker.utils.http_helpers import extract_client_ip
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -67,8 +68,7 @@ class AuthMiddleware:
     def _extract_ip_address(self, context: MiddlewareContext[Any]) -> str | None:
         """Extract IP address from HTTP request.
 
-        Tries FastMCP's dependency injection first (works during initialization),
-        falls back to context extraction for unit test compatibility.
+        Uses shared utility function from middleware.utils to avoid code duplication.
 
         Args:
             context: FastMCP middleware context
@@ -76,41 +76,7 @@ class AuthMiddleware:
         Returns:
             IP address string or None if not available
         """
-        # Method 1: Try FastMCP's dependency injection (works during initialization)
-        try:
-            request = get_http_request()
-            if (
-                request
-                and hasattr(request, "client")
-                and request.client
-                and hasattr(request.client, "host")
-            ):
-                return request.client.host
-        except (RuntimeError, LookupError):
-            # Expected: Not in HTTP context (stdio) or dependency injection unavailable (unit tests)
-            # Will fall back to context extraction below
-            logger.debug(
-                "get_http_request() unavailable (stdio transport or unit test), "
-                "falling back to context extraction"
-            )
-
-        # Method 2: Fall back to context extraction (for unit tests with mocked contexts)
-        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
-            return None
-
-        req_ctx = context.fastmcp_context.request_context
-        if not (req_ctx and hasattr(req_ctx, "request")):
-            return None
-
-        ctx_request = req_ctx.request
-        if not (ctx_request and hasattr(ctx_request, "client")):
-            return None
-
-        client = ctx_request.client
-        if client and hasattr(client, "host"):
-            return client.host
-
-        return None
+        return extract_client_ip(context)
 
     def _is_http_transport(self, context: MiddlewareContext[Any]) -> bool:
         """Determine if this is an HTTP transport request.

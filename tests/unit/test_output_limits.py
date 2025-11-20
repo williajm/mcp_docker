@@ -1,11 +1,10 @@
 """Unit tests for output limiting utilities."""
 
+from humanfriendly import format_size
+
 from mcp_docker.utils.output_limits import (
     create_truncation_metadata,
-    format_size,
-    truncate_dict_fields,
     truncate_lines,
-    truncate_list,
     truncate_text,
 )
 
@@ -97,113 +96,13 @@ class TestTruncateLines:
         assert msg in result
 
 
-class TestTruncateList:
-    """Tests for truncate_list function."""
-
-    def test_no_truncation_when_under_limit(self) -> None:
-        """Test that list under limit is not truncated."""
-        items = [1, 2, 3, 4, 5]
-        result, was_truncated = truncate_list(items, max_items=10)
-
-        assert result == items
-        assert was_truncated is False
-
-    def test_no_truncation_when_limit_is_zero(self) -> None:
-        """Test that zero limit means no truncation."""
-        items = [1, 2, 3, 4, 5]
-        result, was_truncated = truncate_list(items, max_items=0)
-
-        assert result == items
-        assert was_truncated is False
-
-    def test_truncation_when_over_limit(self) -> None:
-        """Test that list over limit is truncated."""
-        items = list(range(100))
-        result, was_truncated = truncate_list(items, max_items=10)
-
-        assert len(result) == 10
-        assert was_truncated is True
-        assert result == list(range(10))
-
-
-class TestTruncateDictFields:
-    """Tests for truncate_dict_fields function."""
-
-    def test_no_truncation_when_under_limit(self) -> None:
-        """Test that dict with small fields is not truncated."""
-        data = {"key1": "short", "key2": "value"}
-        result, truncated_fields = truncate_dict_fields(data, max_field_bytes=1000)
-
-        assert result == data
-        assert len(truncated_fields) == 0
-
-    def test_no_truncation_when_limit_is_zero(self) -> None:
-        """Test that zero limit means no truncation."""
-        data = {"key1": "short", "key2": "value"}
-        result, truncated_fields = truncate_dict_fields(data, max_field_bytes=0)
-
-        assert result == data
-        assert len(truncated_fields) == 0
-
-    def test_truncation_of_large_string_field(self) -> None:
-        """Test that large string fields are truncated."""
-        data = {"key1": "x" * 1000, "key2": "short"}
-        result, truncated_fields = truncate_dict_fields(data, max_field_bytes=100)
-
-        assert len(result["key1"].encode("utf-8")) <= 100
-        assert result["key2"] == "short"
-        assert "key1" in truncated_fields
-        assert truncated_fields["key1"] == 1000
-
-    def test_nested_dict_truncation(self) -> None:
-        """Test that nested dicts are truncated recursively."""
-        data = {
-            "outer": {
-                "inner": "x" * 1000,
-                "small": "value",
-            }
-        }
-        result, truncated_fields = truncate_dict_fields(data, max_field_bytes=100)
-
-        assert len(result["outer"]["inner"].encode("utf-8")) <= 100
-        assert result["outer"]["small"] == "value"
-        assert "outer.inner" in truncated_fields
-
-    def test_list_in_dict_truncation(self) -> None:
-        """Test that lists in dicts are handled."""
-        data = {"key": ["short", "x" * 1000]}
-        result, truncated_fields = truncate_dict_fields(data, max_field_bytes=100)
-
-        assert result["key"][0] == "short"
-        assert len(result["key"][1].encode("utf-8")) <= 100
-        assert "key[1]" in truncated_fields
-
-    def test_non_string_values_preserved(self) -> None:
-        """Test that non-string values are not truncated."""
-        data = {
-            "str": "x" * 1000,
-            "int": 42,
-            "float": 3.14,
-            "bool": True,
-            "none": None,
-        }
-        result, truncated_fields = truncate_dict_fields(data, max_field_bytes=100)
-
-        assert result["int"] == 42
-        assert result["float"] == 3.14
-        assert result["bool"] is True
-        assert result["none"] is None
-        assert "str" in truncated_fields
-
-
 class TestFormatSize:
-    """Tests for format_size function."""
+    """Tests for humanfriendly.format_size function."""
 
     def test_bytes(self) -> None:
         """Test formatting of byte values."""
-        assert format_size(0) == "0.0 B"
-        assert format_size(512) == "512.0 B"
-        assert format_size(1023) == "1023.0 B"
+        assert format_size(0) == "0 bytes"
+        assert format_size(512) == "512 bytes"
 
     def test_kilobytes(self) -> None:
         """Test formatting of kilobyte values."""

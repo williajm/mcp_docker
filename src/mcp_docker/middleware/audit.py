@@ -10,6 +10,7 @@ from fastmcp.server.middleware import CallNext, MiddlewareContext
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.middleware.utils import get_operation_name
 from mcp_docker.security.audit import AuditLogger
+from mcp_docker.utils.http_helpers import extract_client_ip
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -116,28 +117,15 @@ class AuditMiddleware:
     def _extract_client_ip(self, context: MiddlewareContext[Any]) -> str:
         """Extract client IP from context or return 'unknown'.
 
+        Uses shared utility function from middleware.utils to avoid code duplication.
+
         Args:
             context: FastMCP middleware context
 
         Returns:
-            Client IP address string
+            Client IP address string (or "unknown" if not available)
         """
-        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
-            return "unknown"
-
-        req_ctx = context.fastmcp_context.request_context
-        if not (req_ctx and hasattr(req_ctx, "request")):
-            return "unknown"
-
-        request = req_ctx.request
-        if not (request and hasattr(request, "client")):
-            return "unknown"
-
-        client = request.client
-        if client and hasattr(client, "host"):
-            return client.host
-
-        return "unknown"
+        return extract_client_ip(context) or "unknown"
 
     def _log_tool_execution(
         self, client_info: ClientInfo, tool_name: str, arguments: dict[str, Any], result: Any
