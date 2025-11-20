@@ -188,7 +188,6 @@ def _validate_port_mappings(ports: dict[str, int | tuple[str, int] | None]) -> N
     Args:
         ports: Port mappings to validate
     """
-    assert isinstance(ports, dict)
     for container_port, host_port in ports.items():
         if isinstance(host_port, int):
             validate_port_mapping(container_port, host_port)
@@ -204,7 +203,6 @@ def _validate_volume_mounts(
         volumes: Volume mappings to validate
         safety_config: Safety configuration for mount validation
     """
-    assert isinstance(volumes, dict)
     for mount_path in volumes:
         # Config validators ensure these are always lists, safe to cast
         blocklist = (
@@ -231,7 +229,6 @@ def _validate_environment_vars(environment: dict[str, str]) -> None:
     Args:
         environment: Environment variables to validate
     """
-    assert isinstance(environment, dict)
     for key, value in environment.items():
         validate_environment_variable(key, value)
 
@@ -252,13 +249,10 @@ def _prepare_create_container_kwargs(input_data: CreateContainerInput) -> dict[s
     if input_data.command:
         kwargs["command"] = input_data.command
     if input_data.environment:
-        assert isinstance(input_data.environment, dict)
         kwargs["environment"] = input_data.environment
     if input_data.ports:
-        assert isinstance(input_data.ports, dict)
         kwargs["ports"] = input_data.ports
     if input_data.volumes:
-        assert isinstance(input_data.volumes, dict)
         kwargs["volumes"] = input_data.volumes
     if input_data.mem_limit:
         kwargs["mem_limit"] = input_data.mem_limit

@@ -41,7 +41,8 @@ class DockerClientWrapper:
         """
         if self._client is None:
             self._connect()
-        assert self._client is not None  # _connect() raises on failure, so client is set
+        if self._client is None:  # Defensive check: _connect() should raise on failure
+            raise DockerConnectionError("Failed to initialize Docker client")
         return self._client
 
     def _connect(self) -> None:
