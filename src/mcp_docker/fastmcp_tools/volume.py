@@ -4,22 +4,22 @@ This module contains all volume tools migrated to FastMCP 2.0,
 including SAFE (read-only), MODERATE (state-changing), and DESTRUCTIVE operations.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
-    JsonStringFieldsMixin,
     PaginatedListOutput,
     apply_list_pagination,
 )
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_VOLUME_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
@@ -82,10 +82,8 @@ class InspectVolumeOutput(BaseModel):
     )
 
 
-class CreateVolumeInput(JsonStringFieldsMixin, BaseModel):
+class CreateVolumeInput(BaseModel):
     """Input for creating a volume."""
-
-    json_string_fields: ClassVar[tuple[str, ...]] = ("driver_opts", "labels")
 
     name: str | None = Field(default=None, description="Volume name (auto-generated if not set)")
     driver: str = Field(default="local", description="Volume driver")
@@ -103,6 +101,12 @@ class CreateVolumeInput(JsonStringFieldsMixin, BaseModel):
             "Example: {'environment': 'production', 'backup': 'daily'}"
         ),
     )
+
+    @field_validator("driver_opts", "labels", mode="before")
+    @classmethod
+    def _parse_json_fields(cls, v: Any, info: Any) -> Any:
+        """Parse JSON string fields to dicts."""
+        return parse_json_string_field(v, info.field_name)
 
 
 class CreateVolumeOutput(BaseModel):
