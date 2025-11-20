@@ -19,7 +19,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that ex
 
 - **33 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
 - **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
-- **2 Resources**: Real-time container logs and resource statistics
+- **2 Resource Templates**: Parameterized access to container logs and stats (via `resources/templates/list`)
 - **2 Transport Options**: stdio (local) and HTTP (network deployments)
 - **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
 - **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
@@ -179,12 +179,14 @@ Five prompts help AI assistants work with Docker:
 - **debug_networking** - Deep-dive analysis of container networking problems with systematic L3-L7 troubleshooting
 - **security_audit** - Comprehensive security analysis following CIS Docker Benchmark with compliance mapping
 
-## Resources
+## Resource Templates
 
-Two resources provide real-time access to container data:
+Two resource templates provide parameterized access to container data (discoverable via `resources/templates/list`):
 
-- **container://logs/{container_id}** - Stream container logs
-- **container://stats/{container_id}** - Get resource usage statistics
+- **container://logs/{container_id}** - Retrieve container logs (last 100 lines)
+- **container://stats/{container_id}** - Get real-time resource usage statistics (CPU, memory, network, I/O)
+
+Resource templates use URI parameters to dynamically generate resources. Clients can provide a `container_id` to access specific container data through the `resources/read` endpoint.
 
 ## Safety System
 
