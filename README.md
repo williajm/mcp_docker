@@ -195,8 +195,6 @@ The server implements a three-tier safety system with configurable operation mod
 ### Operation Safety Levels
 
 1. **SAFE** - Read-only operations (list, inspect, logs, stats)
-   - No restrictions
-   - Always allowed
    - Examples: `docker_list_containers`, `docker_inspect_image`, `docker_container_logs`
 
 2. **MODERATE** - State-changing but reversible (start, stop, create)
