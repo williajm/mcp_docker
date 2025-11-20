@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2025-11-20
+
+### Added
+- **Example HTTP Server Scripts**: Added example scripts with various safety profiles
+  - Safe mode: Read-only operations with minimal risk
+  - Moderate mode: Includes container lifecycle management
+  - Destructive mode: Full Docker control (use with caution)
+  - Debug middleware examples for development
+
 ### Changed
 - **Rate Limiting Simplified**: Changed from per-client to global rate limiting
   - Rate limits now apply globally instead of per-client
@@ -14,6 +23,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Simplified implementation: removed client tracking, eviction logic
   - Configuration: `SECURITY_RATE_LIMIT_RPM`, `SECURITY_RATE_LIMIT_CONCURRENT` now global limits
   - **Impact**: All clients share the same rate limit pool
+- **Code Quality Improvements**: Multiple refactoring and testing enhancements
+  - Replaced JsonStringFieldsMixin with native Pydantic field validators
+  - Simplified output limits and eliminated code duplication
+  - Removed unused docker_helpers.py utility module
+  - Replaced custom utilities with established libraries
+  - Refactored tests to use pytest.mark.parametrize
+
+### Documentation
+- **Resource Templates Clarification**: Updated docs to accurately describe resource templates
+  - Changed from "2 Resources" to "2 Resource Templates"
+  - Added explanation of parameterized URI access pattern
+  - Clarified discovery via `resources/templates/list`
+
+### Development
+- **Enhanced CI**: Enabled ruff linting for tests directory
+- **Updated Dependencies**: Bumped dev dependencies to latest versions
 
 ## [1.2.0] - 2025-11-18
 
