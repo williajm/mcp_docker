@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.2.1.dev0"
+version = "1.2.1"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
