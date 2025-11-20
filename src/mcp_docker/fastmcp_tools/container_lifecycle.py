@@ -5,16 +5,16 @@ This module contains container lifecycle management tools migrated to FastMCP 2.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, ClassVar, TypeVar
+from typing import Any, TypeVar
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.common import JsonStringFieldsMixin
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
 from mcp_docker.utils.safety import (
@@ -59,10 +59,8 @@ class ContainerStatusOutput(BaseModel):
 # Input/Output Models
 
 
-class CreateContainerInput(JsonStringFieldsMixin, BaseModel):
+class CreateContainerInput(BaseModel):
     """Input for creating a container."""
-
-    json_string_fields: ClassVar[tuple[str, ...]] = ("ports", "environment", "volumes")
 
     image: str = Field(description="Image name to create container from")
     name: str | None = Field(default=None, description="Optional container name")
@@ -94,6 +92,12 @@ class CreateContainerInput(JsonStringFieldsMixin, BaseModel):
     remove: bool = Field(default=False, description="Remove container when it exits")
     mem_limit: str | None = Field(default=None, description="Memory limit (e.g., '512m', '2g')")
     cpu_shares: int | None = Field(default=None, description="CPU shares (relative weight)")
+
+    @field_validator("ports", "environment", "volumes", mode="before")
+    @classmethod
+    def _parse_json_fields(cls, v: Any, info: Any) -> Any:
+        """Parse JSON string fields to dicts."""
+        return parse_json_string_field(v, info.field_name)
 
 
 class CreateContainerOutput(BaseModel):

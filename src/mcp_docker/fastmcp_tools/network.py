@@ -4,17 +4,16 @@ This module contains all network tools migrated to FastMCP 2.0,
 including SAFE (read-only), MODERATE (state-changing), and DESTRUCTIVE operations.
 """
 
-from typing import Any, ClassVar
+from typing import Any
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
-    JsonStringFieldsMixin,
     PaginatedListOutput,
     apply_list_pagination,
 )
@@ -24,6 +23,7 @@ from mcp_docker.utils.errors import (
     DockerOperationError,
     NetworkNotFound,
 )
+from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND, ERROR_NETWORK_NOT_FOUND
 from mcp_docker.utils.safety import OperationSafety
@@ -94,10 +94,8 @@ class InspectNetworkOutput(BaseModel):
     )
 
 
-class CreateNetworkInput(JsonStringFieldsMixin, BaseModel):
+class CreateNetworkInput(BaseModel):
     """Input for creating a network."""
-
-    json_string_fields: ClassVar[tuple[str, ...]] = ("options", "ipam", "labels")
 
     name: str = Field(description="Network name")
     driver: str = Field(default="bridge", description="Network driver (bridge, overlay, etc.)")
@@ -125,6 +123,12 @@ class CreateNetworkInput(JsonStringFieldsMixin, BaseModel):
     )
     enable_ipv6: bool = Field(default=False, description="Enable IPv6")
     attachable: bool = Field(default=False, description="Enable manual container attachment")
+
+    @field_validator("options", "ipam", "labels", mode="before")
+    @classmethod
+    def _parse_json_fields(cls, v: Any, info: Any) -> Any:
+        """Parse JSON string fields to dicts."""
+        return parse_json_string_field(v, info.field_name)
 
 
 class CreateNetworkOutput(BaseModel):
