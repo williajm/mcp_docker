@@ -369,25 +369,19 @@ class SecurityConfig(BaseSettings):
     # Rate Limiting
     rate_limit_enabled: bool = Field(
         default=True,
-        description="Enable rate limiting per client",
+        description="Enable global rate limiting",
     )
     rate_limit_rpm: int = Field(
         default=60,
-        description="Maximum requests per minute per client",
+        description="Maximum requests per minute (global)",
         gt=0,
         le=1000,
     )
     rate_limit_concurrent: int = Field(
         default=3,
-        description="Maximum concurrent requests per client",
+        description="Maximum concurrent requests (global)",
         gt=0,
         le=50,
-    )
-    rate_limit_max_clients: int = Field(
-        default=10,
-        description="Maximum number of unique clients to track (prevents memory exhaustion DoS)",
-        gt=0,
-        le=100,
     )
 
     # Audit Logging

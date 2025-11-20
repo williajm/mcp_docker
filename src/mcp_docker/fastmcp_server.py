@@ -60,8 +60,7 @@ class FastMCPDockerServer:
         self.rate_limiter = RateLimiter(
             enabled=config.security.rate_limit_enabled,
             requests_per_minute=config.security.rate_limit_rpm,
-            max_concurrent_per_client=config.security.rate_limit_concurrent,
-            max_clients=config.security.rate_limit_max_clients,
+            max_concurrent=config.security.rate_limit_concurrent,
         )
         self.audit_logger = AuditLogger(
             audit_log_file=config.security.audit_log_file,

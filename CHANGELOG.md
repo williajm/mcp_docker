@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Rate Limiting Simplified**: Changed from per-client to global rate limiting
+  - Rate limits now apply globally instead of per-client
+  - Removed `SECURITY_RATE_LIMIT_MAX_CLIENTS` configuration (no longer needed)
+  - Simplified implementation: removed client tracking, eviction logic
+  - Configuration: `SECURITY_RATE_LIMIT_RPM`, `SECURITY_RATE_LIMIT_CONCURRENT` now global limits
+  - **Impact**: All clients share the same rate limit pool
+
 ## [1.2.0] - 2025-11-18
 
 ### ⚠️ Breaking Changes

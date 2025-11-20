@@ -284,7 +284,7 @@ class TestRateLimitMiddleware:
         result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
-        rate_limiter.check_rate_limit.assert_called_once_with("unknown")
+        rate_limiter.check_rate_limit.assert_called_once()
         call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
@@ -376,9 +376,9 @@ class TestRateLimitMiddleware:
 
         assert result == {"status": "success"}
         # Verify concurrent slot was acquired
-        rate_limiter.acquire_concurrent_slot.assert_called_once_with("unknown")
+        rate_limiter.acquire_concurrent_slot.assert_called_once()
         # Verify concurrent slot was released
-        rate_limiter.release_concurrent_slot.assert_called_once_with("unknown")
+        rate_limiter.release_concurrent_slot.assert_called_once()
         call_next.assert_called_once_with(context)
 
     @pytest.mark.asyncio
@@ -411,9 +411,9 @@ class TestRateLimitMiddleware:
             await middleware(context, call_next)
 
         # Verify concurrent slot was acquired
-        rate_limiter.acquire_concurrent_slot.assert_called_once_with("unknown")
+        rate_limiter.acquire_concurrent_slot.assert_called_once()
         # Verify concurrent slot was released (in finally block)
-        rate_limiter.release_concurrent_slot.assert_called_once_with("unknown")
+        rate_limiter.release_concurrent_slot.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_concurrent_slot_limit_exceeded(self):
@@ -447,88 +447,6 @@ class TestRateLimitMiddleware:
 
         # Next middleware should not be called
         call_next.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_client_id_extraction_with_session(self):
-        """Test client_id extraction when session_id is available (no client_info)."""
-        rate_limiter = Mock(spec=RateLimiter)
-        rate_limiter.enabled = True
-        rate_limiter.rpm = 60
-        rate_limiter.check_rate_limit = AsyncMock(return_value=None)
-        rate_limiter.acquire_concurrent_slot = AsyncMock(return_value=None)
-        rate_limiter.release_concurrent_slot = Mock(return_value=None)
-
-        middleware = RateLimitMiddleware(rate_limiter)
-
-        # Mock next middleware
-        call_next = AsyncMock(return_value={"status": "success"})
-
-        # Test 1: session_id is extracted from fastmcp_context when client_info not present
-        message = Mock()
-        message.name = "docker_list_containers"
-        message.arguments = {"all": True}
-
-        context = Mock()
-        context.message = message
-
-        # Mock fastmcp_context with session_id but no client_info
-        fastmcp_ctx = Mock(spec=["request_context", "session_id"])
-        fastmcp_ctx.request_context = Mock()  # Session established
-        fastmcp_ctx.session_id = "session-123"
-        context.fastmcp_context = fastmcp_ctx
-
-        await middleware(context, call_next)
-        rate_limiter.check_rate_limit.assert_called_with("session-123")
-
-        # Test 2: "unknown" is used when fastmcp_context is None
-        rate_limiter.reset_mock()
-        context.fastmcp_context = None
-        await middleware(context, call_next)
-        rate_limiter.check_rate_limit.assert_called_with("unknown")
-
-    @pytest.mark.asyncio
-    async def test_client_id_extraction_with_authenticated_client_info(self):
-        """Test client_id extraction from authenticated client_info (from auth middleware)."""
-        from mcp_docker.auth.models import ClientInfo
-
-        rate_limiter = Mock(spec=RateLimiter)
-        rate_limiter.enabled = True
-        rate_limiter.rpm = 60
-        rate_limiter.check_rate_limit = AsyncMock(return_value=None)
-        rate_limiter.acquire_concurrent_slot = AsyncMock(return_value=None)
-        rate_limiter.release_concurrent_slot = Mock(return_value=None)
-
-        middleware = RateLimitMiddleware(rate_limiter)
-
-        # Mock next middleware
-        call_next = AsyncMock(return_value={"status": "success"})
-
-        # Test: client_info from auth middleware takes precedence over session_id
-        message = Mock()
-        message.name = "docker_list_containers"
-        message.arguments = {"all": True}
-
-        context = Mock()
-        context.message = message
-
-        # Create authenticated client info (as set by auth middleware)
-        client_info = ClientInfo(
-            client_id="oauth:user@example.com",
-            auth_method="oauth",
-            ip_address="192.168.1.100",
-        )
-
-        # Mock fastmcp_context with both client_info and session_id
-        fastmcp_ctx = Mock(spec=["client_info", "request_context", "session_id"])
-        fastmcp_ctx.client_info = client_info
-        fastmcp_ctx.request_context = Mock()  # Session established
-        fastmcp_ctx.session_id = "session-456"  # This should be ignored
-        context.fastmcp_context = fastmcp_ctx
-
-        await middleware(context, call_next)
-
-        # Should use client_info.client_id, not session_id
-        rate_limiter.check_rate_limit.assert_called_with("oauth:user@example.com")
 
     def test_create_rate_limit_middleware_factory(self):
         """Test create_rate_limit_middleware factory function."""
