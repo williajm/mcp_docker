@@ -275,7 +275,10 @@ class TestParseCommaSeparatedList:
             ('["docker.read","docker.write"]', ["docker.read", "docker.write"]),
             ('["docker.read", "docker.write"]', ["docker.read", "docker.write"]),
             ("docker.read,docker.write", ["docker.read", "docker.write"]),
-            ("docker.read, docker.write, docker.admin", ["docker.read", "docker.write", "docker.admin"]),
+            (
+                "docker.read, docker.write, docker.admin",
+                ["docker.read", "docker.write", "docker.admin"],
+            ),
             ("mcp-docker-api", ["mcp-docker-api"]),
             (["docker.read", "docker.write"], ["docker.read", "docker.write"]),
             (None, []),
@@ -294,7 +297,9 @@ class TestParseCommaSeparatedList:
             "json_whitespace",
         ],
     )
-    def test_parse_comma_separated_list(self, input_value: str | list[str] | None, expected: list[str]) -> None:
+    def test_parse_comma_separated_list(
+        self, input_value: str | list[str] | None, expected: list[str]
+    ) -> None:
         """Test parsing various input formats for comma-separated lists."""
         result = _parse_comma_separated_list(input_value)
         assert result == expected
