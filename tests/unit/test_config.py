@@ -269,52 +269,37 @@ class TestSecurityConfig:
 class TestParseCommaSeparatedList:
     """Test _parse_comma_separated_list helper function."""
 
-    def test_parse_json_array_compact(self):
-        """Test parsing compact JSON array format."""
-        result = _parse_comma_separated_list('["docker.read","docker.write"]')
-        assert result == ["docker.read", "docker.write"]
+    @pytest.mark.parametrize(
+        "input_value,expected",
+        [
+            ('["docker.read","docker.write"]', ["docker.read", "docker.write"]),
+            ('["docker.read", "docker.write"]', ["docker.read", "docker.write"]),
+            ("docker.read,docker.write", ["docker.read", "docker.write"]),
+            ("docker.read, docker.write, docker.admin", ["docker.read", "docker.write", "docker.admin"]),
+            ("mcp-docker-api", ["mcp-docker-api"]),
+            (["docker.read", "docker.write"], ["docker.read", "docker.write"]),
+            (None, []),
+            ("", []),
+            ('  ["docker.read", "docker.write"]  ', ["docker.read", "docker.write"]),
+        ],
+        ids=[
+            "json_compact",
+            "json_spaced",
+            "comma_sep",
+            "comma_spaces",
+            "single_value",
+            "already_list",
+            "none",
+            "empty_string",
+            "json_whitespace",
+        ],
+    )
+    def test_parse_comma_separated_list(self, input_value: str | list[str] | None, expected: list[str]) -> None:
+        """Test parsing various input formats for comma-separated lists."""
+        result = _parse_comma_separated_list(input_value)
+        assert result == expected
 
-    def test_parse_json_array_spaced(self):
-        """Test parsing spaced JSON array format."""
-        result = _parse_comma_separated_list('["docker.read", "docker.write"]')
-        assert result == ["docker.read", "docker.write"]
-
-    def test_parse_comma_separated(self):
-        """Test parsing comma-separated string."""
-        result = _parse_comma_separated_list("docker.read,docker.write")
-        assert result == ["docker.read", "docker.write"]
-
-    def test_parse_comma_separated_with_spaces(self):
-        """Test parsing comma-separated string with spaces."""
-        result = _parse_comma_separated_list("docker.read, docker.write, docker.admin")
-        assert result == ["docker.read", "docker.write", "docker.admin"]
-
-    def test_parse_single_value(self):
-        """Test parsing single value."""
-        result = _parse_comma_separated_list("mcp-docker-api")
-        assert result == ["mcp-docker-api"]
-
-    def test_parse_already_list(self):
-        """Test parsing when already a list."""
-        result = _parse_comma_separated_list(["docker.read", "docker.write"])
-        assert result == ["docker.read", "docker.write"]
-
-    def test_parse_none(self):
-        """Test parsing None."""
-        result = _parse_comma_separated_list(None)
-        assert result == []
-
-    def test_parse_empty_string(self):
-        """Test parsing empty string."""
-        result = _parse_comma_separated_list("")
-        assert result == []
-
-    def test_parse_json_array_with_whitespace(self):
-        """Test parsing JSON array with extra whitespace."""
-        result = _parse_comma_separated_list('  ["docker.read", "docker.write"]  ')
-        assert result == ["docker.read", "docker.write"]
-
-    def test_parse_malformed_json_falls_back(self):
+    def test_parse_malformed_json_falls_back(self) -> None:
         """Test that malformed JSON falls back to comma-separated parsing."""
         # This looks like JSON but has syntax error, should fall back
         result = _parse_comma_separated_list('["docker.read",docker.write"]')
@@ -325,27 +310,27 @@ class TestParseCommaSeparatedList:
 class TestSecurityConfigOAuthParsing:
     """Test SecurityConfig OAuth field parsing with environment variable formats."""
 
-    def test_oauth_audience_json_array(self):
+    def test_oauth_audience_json_array(self) -> None:
         """Test oauth_audience with JSON array format."""
         config = SecurityConfig(oauth_audience='["mcp-docker-api", "api.example.com"]')
         assert config.oauth_audience == ["mcp-docker-api", "api.example.com"]
 
-    def test_oauth_audience_comma_separated(self):
+    def test_oauth_audience_comma_separated(self) -> None:
         """Test oauth_audience with comma-separated format."""
         config = SecurityConfig(oauth_audience="mcp-docker-api,api.example.com")
         assert config.oauth_audience == ["mcp-docker-api", "api.example.com"]
 
-    def test_oauth_required_scopes_json_array(self):
+    def test_oauth_required_scopes_json_array(self) -> None:
         """Test oauth_required_scopes with JSON array format."""
         config = SecurityConfig(oauth_required_scopes='["docker.read", "docker.write"]')
         assert config.oauth_required_scopes == ["docker.read", "docker.write"]
 
-    def test_oauth_required_scopes_comma_separated(self):
+    def test_oauth_required_scopes_comma_separated(self) -> None:
         """Test oauth_required_scopes with comma-separated format."""
         config = SecurityConfig(oauth_required_scopes="docker.read,docker.write")
         assert config.oauth_required_scopes == ["docker.read", "docker.write"]
 
-    def test_oauth_fields_default_empty_list(self):
+    def test_oauth_fields_default_empty_list(self) -> None:
         """Test that OAuth fields default to empty lists."""
         config = SecurityConfig()
         assert config.oauth_audience == []

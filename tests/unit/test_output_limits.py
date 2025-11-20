@@ -1,6 +1,7 @@
 """Unit tests for output limiting utilities."""
 
-from humanfriendly import format_size
+import pytest
+from humanfriendly import format_size  # type: ignore[import-untyped]
 
 from mcp_docker.utils.output_limits import (
     create_truncation_metadata,
@@ -99,29 +100,34 @@ class TestTruncateLines:
 class TestFormatSize:
     """Tests for humanfriendly.format_size function."""
 
-    def test_bytes(self) -> None:
-        """Test formatting of byte values."""
-        assert format_size(0) == "0 bytes"
-        assert format_size(512) == "512 bytes"
+    @pytest.mark.parametrize(
+        "size,expected_output",
+        [
+            (0, "0 bytes"),
+            (512, "512 bytes"),
+        ],
+        ids=["zero", "512_bytes"],
+    )
+    def test_format_size_exact(self, size: int, expected_output: str) -> None:
+        """Test exact formatting for byte values."""
+        assert format_size(size) == expected_output
 
-    def test_kilobytes(self) -> None:
-        """Test formatting of kilobyte values."""
-        assert "KB" in format_size(1024)
-        assert "KB" in format_size(1024 * 512)
-
-    def test_megabytes(self) -> None:
-        """Test formatting of megabyte values."""
-        assert "MB" in format_size(1024 * 1024)
-        assert "MB" in format_size(1024 * 1024 * 50)
-
-    def test_gigabytes(self) -> None:
-        """Test formatting of gigabyte values."""
-        assert "GB" in format_size(1024 * 1024 * 1024)
-        assert "GB" in format_size(1024 * 1024 * 1024 * 5)
-
-    def test_terabytes(self) -> None:
-        """Test formatting of terabyte values."""
-        assert "TB" in format_size(1024 * 1024 * 1024 * 1024)
+    @pytest.mark.parametrize(
+        "size,expected_unit",
+        [
+            (1024, "KB"),
+            (1024 * 512, "KB"),
+            (1024 * 1024, "MB"),
+            (1024 * 1024 * 50, "MB"),
+            (1024 * 1024 * 1024, "GB"),
+            (1024 * 1024 * 1024 * 5, "GB"),
+            (1024 * 1024 * 1024 * 1024, "TB"),
+        ],
+        ids=["1kb", "512kb", "1mb", "50mb", "1gb", "5gb", "1tb"],
+    )
+    def test_format_size_units(self, size: int, expected_unit: str) -> None:
+        """Test unit formatting for various sizes."""
+        assert expected_unit in format_size(size)
 
 
 class TestCreateTruncationMetadata:
