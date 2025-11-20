@@ -1,0 +1,9 @@
+# Bandit and all dependencies with version pinning
+# Generated for GitHub Actions workflow to satisfy Scorecard requirements
+
+bandit==1.9.1 \
+    --hash=sha256:0a1f34c04f067ee28985b7854edaa659c9299bd71e1b7e18236e46cccc79720b
+stevedore==5.6.0 \
+    --hash=sha256:4a36dccefd7aeea0c70135526cecb7766c4c84c473b1af68db23d541b6dc1820
+pbr==6.1.0 \
+    --hash=sha256:a776ae228892d8013649c0aeccbb3d5f99ee15e005a4cbb7e61d55a067b28a2a

@@ -31,7 +31,7 @@ jobs:
         python-version: '3.11'
 
     - name: Install Bandit
-      run: pip install bandit[toml]==1.9.1
+      run: pip install --require-hashes -r .github/requirements/bandit.txt
 
     - name: Run Bandit security scan
       run: bandit -r src/mcp_docker/ -f json -o bandit-report.json
