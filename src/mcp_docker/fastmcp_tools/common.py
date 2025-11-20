@@ -7,7 +7,10 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.utils.output_limits import create_truncation_metadata, truncate_list
+from mcp_docker.utils.logger import get_logger
+from mcp_docker.utils.output_limits import create_truncation_metadata
+
+logger = get_logger(__name__)
 
 DESC_TRUNCATION_INFO = "Information about output truncation if applied"
 
@@ -44,17 +47,19 @@ def apply_list_pagination(
     original_count = len(items)
     truncation_info: dict[str, Any] = {}
 
-    if safety_config.max_list_results > 0:
-        items, was_truncated = truncate_list(items, safety_config.max_list_results)
-        if was_truncated:
-            truncation_info = create_truncation_metadata(
-                was_truncated=True,
-                original_count=original_count,
-                truncated_count=len(items),
-            )
-            truncation_info["message"] = (
-                f"Results truncated: showing {len(items)} of {original_count} {item_label}. "
-                "Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
-            )
+    if safety_config.max_list_results > 0 and len(items) > safety_config.max_list_results:
+        # Truncate list inline (was truncate_list function)
+        items = items[: safety_config.max_list_results]
+        logger.debug(f"Truncated list from {original_count} items to {len(items)} items")
+
+        truncation_info = create_truncation_metadata(
+            was_truncated=True,
+            original_count=original_count,
+            truncated_count=len(items),
+        )
+        truncation_info["message"] = (
+            f"Results truncated: showing {len(items)} of {original_count} {item_label}. "
+            "Set SAFETY_MAX_LIST_RESULTS=0 to disable limit."
+        )
 
     return items, truncation_info, original_count

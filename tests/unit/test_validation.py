@@ -19,9 +19,9 @@ from mcp_docker.utils.validation import (
 class TestValidateContainerName:
     """Tests for container name validation."""
 
-    def test_valid_names(self) -> None:
-        """Test valid container names."""
-        valid_names = [
+    @pytest.mark.parametrize(
+        "name",
+        [
             "mycontainer",
             "my-container",
             "my_container",
@@ -29,51 +29,59 @@ class TestValidateContainerName:
             "container123",
             "123container",
             "/mycontainer",
-        ]
-        for name in valid_names:
-            assert validate_container_name(name) == name
+        ],
+    )
+    def test_valid_names(self, name: str) -> None:
+        """Test valid container names."""
+        assert validate_container_name(name) == name
 
-    def test_invalid_names(self) -> None:
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "",
+            "a" * 256,
+            "-container",
+            ".container",
+        ],
+        ids=["empty", "too_long", "starts_with_dash", "starts_with_dot"],
+    )
+    def test_invalid_names(self, name: str) -> None:
         """Test invalid container names."""
         with pytest.raises(ValidationError):
-            validate_container_name("")
-
-        with pytest.raises(ValidationError):
-            validate_container_name("a" * 256)
-
-        with pytest.raises(ValidationError):
-            validate_container_name("-container")
-
-        with pytest.raises(ValidationError):
-            validate_container_name(".container")
+            validate_container_name(name)
 
 
 class TestValidateImageName:
     """Tests for image name validation."""
 
-    def test_valid_names(self) -> None:
-        """Test valid image names."""
-        valid_names = [
+    @pytest.mark.parametrize(
+        "name",
+        [
             "ubuntu",
             "ubuntu:22.04",
             "ubuntu:latest",
             "myregistry.com/ubuntu",
             "myregistry.com/namespace/ubuntu:22.04",
             "localhost:5000/myimage",
-        ]
-        for name in valid_names:
-            assert validate_image_name(name) == name
+        ],
+    )
+    def test_valid_names(self, name: str) -> None:
+        """Test valid image names."""
+        assert validate_image_name(name) == name
 
-    def test_invalid_names(self) -> None:
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "",
+            "a" * 256,
+            "UPPERCASE",
+        ],
+        ids=["empty", "too_long", "uppercase"],
+    )
+    def test_invalid_names(self, name: str) -> None:
         """Test invalid image names."""
         with pytest.raises(ValidationError):
-            validate_image_name("")
-
-        with pytest.raises(ValidationError):
-            validate_image_name("a" * 256)
-
-        with pytest.raises(ValidationError):
-            validate_image_name("UPPERCASE")
+            validate_image_name(name)
 
 
 class TestValidateLabel:
@@ -101,26 +109,29 @@ class TestValidateLabel:
 class TestValidatePort:
     """Tests for port validation."""
 
-    def test_valid_ports(self) -> None:
+    @pytest.mark.parametrize(
+        "port,expected",
+        [
+            (80, 80),
+            ("8080", 8080),
+            (1, 1),
+            (65535, 65535),
+        ],
+        ids=["80", "8080_str", "1", "65535_max"],
+    )
+    def test_valid_ports(self, port: int | str, expected: int) -> None:
         """Test valid ports."""
-        assert validate_port(80) == 80
-        assert validate_port("8080") == 8080
-        assert validate_port(1) == 1
-        assert validate_port(65535) == 65535
+        assert validate_port(port) == expected
 
-    def test_invalid_ports(self) -> None:
+    @pytest.mark.parametrize(
+        "port",
+        [0, 65536, -1, "invalid"],
+        ids=["0_too_low", "65536_too_high", "negative", "invalid_string"],
+    )
+    def test_invalid_ports(self, port: int | str) -> None:
         """Test invalid ports."""
         with pytest.raises(ValidationError):
-            validate_port(0)
-
-        with pytest.raises(ValidationError):
-            validate_port(65536)
-
-        with pytest.raises(ValidationError):
-            validate_port(-1)
-
-        with pytest.raises(ValidationError):
-            validate_port("invalid")
+            validate_port(port)
 
 
 class TestValidateMemoryString:
@@ -197,19 +208,22 @@ class TestValidateCommand:
         with pytest.raises(ValidationError, match="Command cannot be empty"):
             validate_command("   ")
 
-    def test_dangerous_patterns_in_command(self) -> None:
-        """Test dangerous patterns in commands."""
-        dangerous_commands = [
+    @pytest.mark.parametrize(
+        "command",
+        [
             "echo hello; rm -rf /",
             "echo hello && whoami",
             "echo hello || whoami",
             "echo hello | whoami",
             "echo `whoami`",
             "echo $(whoami)",
-        ]
-        for cmd in dangerous_commands:
-            with pytest.raises(ValidationError, match="contains potentially dangerous patterns"):
-                validate_command(cmd)
+        ],
+        ids=["semicolon", "and", "or", "pipe", "backtick", "command_subst"],
+    )
+    def test_dangerous_patterns_in_command(self, command: str) -> None:
+        """Test dangerous patterns in commands."""
+        with pytest.raises(ValidationError, match="contains potentially dangerous patterns"):
+            validate_command(command)
 
     def test_empty_list_command(self) -> None:
         """Test empty list command raises error."""
