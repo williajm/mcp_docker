@@ -70,9 +70,9 @@ Controls authentication, authorization, and audit logging.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECURITY_RATE_LIMIT_ENABLED` | `true` | Enable per-client rate limiting |
-| `SECURITY_RATE_LIMIT_RPM` | `60` | Maximum requests per minute per client |
-| `SECURITY_RATE_LIMIT_CONCURRENT` | `3` | Maximum concurrent requests per client |
+| `SECURITY_RATE_LIMIT_ENABLED` | `true` | Enable global rate limiting |
+| `SECURITY_RATE_LIMIT_RPM` | `60` | Maximum requests per minute (global) |
+| `SECURITY_RATE_LIMIT_CONCURRENT` | `3` | Maximum concurrent requests (global) |
 
 ### IP Filtering
 

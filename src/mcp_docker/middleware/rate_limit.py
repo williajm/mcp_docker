@@ -1,6 +1,6 @@
 """FastMCP rate limiting middleware.
 
-This middleware enforces rate limits for Docker operations to prevent abuse.
+This middleware enforces global rate limits for Docker operations to prevent abuse.
 """
 
 from typing import Any
@@ -15,10 +15,10 @@ logger = get_logger(__name__)
 
 
 class RateLimitMiddleware:
-    """FastMCP middleware for rate limiting.
+    """FastMCP middleware for global rate limiting.
 
     This middleware integrates with FastMCP's middleware system to enforce
-    rate limits on tool executions. It uses the existing RateLimiter class.
+    global rate limits on tool executions. It uses the existing RateLimiter class.
 
     Example:
         ```python
@@ -30,7 +30,7 @@ class RateLimitMiddleware:
         rate_limiter = RateLimiter(
             enabled=True,
             requests_per_minute=60,
-            max_concurrent_per_client=3
+            max_concurrent=3
         )
         middleware = RateLimitMiddleware(rate_limiter)
 
@@ -56,10 +56,10 @@ class RateLimitMiddleware:
         context: MiddlewareContext[Any],
         call_next: CallNext[Any, Any],
     ) -> Any:
-        """Check rate limits before tool execution.
+        """Check global rate limits before tool execution.
 
         Args:
-            context: FastMCP middleware context with client information
+            context: FastMCP middleware context
             call_next: Next middleware/handler in the chain
 
         Returns:
@@ -68,22 +68,6 @@ class RateLimitMiddleware:
         Raises:
             RateLimitExceeded: If rate limit is exceeded
         """
-        # Extract client identifier and tool name from context
-        client_id = "unknown"
-
-        # First, try to get authenticated client info from auth middleware
-        if context.fastmcp_context and hasattr(context.fastmcp_context, "client_info"):
-            client_info = context.fastmcp_context.client_info
-            client_id = client_info.client_id
-        # Fall back to session_id if client_info not available (e.g., stdio transport)
-        elif context.fastmcp_context and hasattr(context.fastmcp_context, "request_context"):
-            req_ctx = context.fastmcp_context.request_context
-            # Only access session_id if request_context is available (session established)
-            if req_ctx:
-                session_id = getattr(context.fastmcp_context, "session_id", None)
-                if session_id:
-                    client_id = session_id
-
         # Get operation name (tool name or MCP protocol operation)
         operation_name = get_operation_name(context)
 
@@ -91,21 +75,14 @@ class RateLimitMiddleware:
         if self.rate_limiter.enabled:
             try:
                 # Check RPM limit
-                await self.rate_limiter.check_rate_limit(client_id)
-                logger.debug(
-                    f"RateLimitMiddleware: RPM check passed for {operation_name} ({client_id})"
-                )
+                await self.rate_limiter.check_rate_limit()
+                logger.debug(f"RateLimitMiddleware: RPM check passed for {operation_name}")
 
                 # Acquire concurrent slot
-                await self.rate_limiter.acquire_concurrent_slot(client_id)
-                logger.debug(
-                    f"RateLimitMiddleware: Concurrent slot acquired for {operation_name} "
-                    f"({client_id})"
-                )
+                await self.rate_limiter.acquire_concurrent_slot()
+                logger.debug(f"RateLimitMiddleware: Concurrent slot acquired for {operation_name}")
             except RateLimitExceeded as e:
-                logger.warning(
-                    f"RateLimitMiddleware: Blocked {operation_name} for {client_id} - {e}"
-                )
+                logger.warning(f"RateLimitMiddleware: Blocked {operation_name} - {e}")
                 raise
 
         # Execute the tool and ensure concurrent slot is released
@@ -114,11 +91,8 @@ class RateLimitMiddleware:
         finally:
             # Always release the concurrent slot, even if the tool fails
             if self.rate_limiter.enabled:
-                self.rate_limiter.release_concurrent_slot(client_id)
-                logger.debug(
-                    f"RateLimitMiddleware: Concurrent slot released for {operation_name} "
-                    f"({client_id})"
-                )
+                self.rate_limiter.release_concurrent_slot()
+                logger.debug(f"RateLimitMiddleware: Concurrent slot released for {operation_name}")
 
 
 def create_rate_limit_middleware(rate_limiter: RateLimiter) -> RateLimitMiddleware:
