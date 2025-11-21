@@ -146,19 +146,19 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 ### Core Components
 
-1. **MCPDockerServer** (`src/mcp_docker/server.py`)
-   - Main MCP server implementation
-   - Auto-discovers and registers all tools via reflection
-   - Manages security (auth, rate limiting, audit logging)
-   - Handles concurrency with semaphores
+1. **FastMCPDockerServer** (`src/mcp_docker/fastmcp_server.py`)
+   - Main MCP server implementation using FastMCP 2.0
+   - Wraps FastMCP app with middleware and configuration
+   - Manages security (auth, rate limiting, audit logging) via middleware
+   - Handles concurrency with semaphores in safety middleware
    - Coordinates tools, resources, prompts, and safety enforcement
 
-2. **Tool System** (`src/mcp_docker/tools/`)
-   - **base.py**: `BaseTool` abstract class with safety enforcement
-   - All tools inherit from `BaseTool` and implement: `name`, `description`, `input_schema`, `output_schema`, `safety_level`, `execute()`
-   - Tools auto-register by being discovered in tool modules
-   - Five categories: container_lifecycle, container_inspection, image, network, volume, system
+2. **Tool System** (`src/mcp_docker/fastmcp_tools/`)
+   - **FastMCP 2.0 Decorator Pattern**: Tools use `@mcp.tool()` decorator
+   - **registration.py**: Central registration of all tool categories
+   - Six categories: container_inspection, container_lifecycle, image, network, volume, system
    - Each tool has a safety level: SAFE (read-only), MODERATE (reversible), DESTRUCTIVE (permanent)
+   - Tools are organized by category in separate modules (container_inspection.py, container_lifecycle.py, etc.)
    - **MCP Annotations**: Tools expose four standard MCP annotations to help clients make decisions:
      - `readOnly`: Tool only reads data without modification (auto-set for SAFE tools)
      - `destructive`: Tool permanently deletes data (auto-set for DESTRUCTIVE tools)
@@ -187,12 +187,20 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - Validates Docker TLS certificates
    - Env prefix: `DOCKER_*`, `SAFETY_*`, `SECURITY_*`, `MCP_*`
 
-6. **Docker Wrapper** (`src/mcp_docker/docker_wrapper/client.py`)
+6. **Middleware System** (`src/mcp_docker/middleware/`)
+   - **DebugLoggingMiddleware**: Logs all MCP requests/responses at DEBUG level
+   - **AuditMiddleware**: Logs all operations for compliance and audit trail
+   - **AuthMiddleware**: OAuth/IP allowlist authentication
+   - **SafetyMiddleware**: Enforces safety levels and tool filtering
+   - **RateLimitMiddleware**: Request throttling to prevent abuse
+   - Middleware executes in order: debug → audit → auth → safety → rate_limit
+
+7. **Docker Wrapper** (`src/mcp_docker/docker_wrapper/client.py`)
    - Wraps Docker SDK with error handling and timeout management
    - Provides async-friendly interfaces to synchronous Docker SDK
    - Handles connection lifecycle and cleanup
 
-7. **Transport Implementations** (`src/mcp_docker/__main__.py`)
+8. **Transport Implementations** (`src/mcp_docker/__main__.py`)
    - **stdio**: Local process-to-process communication (default, no network)
    - **HTTP**: FastMCP 2.0 native HTTP transport
      - Plain HTTP (use reverse proxy for HTTPS in production)
@@ -201,29 +209,37 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 ### Adding New Tools
 
-Tools use FastMCP's decorator pattern. To add a new tool:
+Tools use FastMCP 2.0's decorator pattern. To add a new tool:
 
-1. Add function to appropriate module in `fastmcp_tools/` directory
+1. Add tool to appropriate module in `src/mcp_docker/fastmcp_tools/` (choose by category or safety level)
 2. Define Pydantic input/output models for type safety
-3. Return tuple of (name, description, function, safety_level, annotations) from factory function
-4. Tool will be registered in `register_all_tools()` in `fastmcp_tools/__init__.py`
+3. Use `@mcp.tool()` decorator with annotations from `get_mcp_annotations()`
+4. Register in the category's `register_*_tools()` function
+5. Category registration is called from `register_all_tools()` in `registration.py`
 
 Example:
 ```python
-def create_my_tool(
+# In src/mcp_docker/fastmcp_tools/container_lifecycle.py
+from mcp_docker.fastmcp_tools.common import get_mcp_annotations
+from mcp_docker.utils.safety import OperationSafety
+
+def register_container_lifecycle_tools(
+    mcp: Any,
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, Any, OperationSafety, dict[str, Any]]:
-    """Create my new Docker tool."""
+) -> list[str]:
+    """Register container lifecycle tools."""
 
-    async def my_tool(container_id: str) -> dict[str, Any]:
+    # Define your tool using decorator pattern
+    @mcp.tool(annotations=get_mcp_annotations(OperationSafety.MODERATE))
+    async def docker_my_operation(container_id: str) -> dict[str, Any]:
         """My tool description.
 
         Args:
             container_id: Container ID or name
 
         Returns:
-            Operation result
+            Operation result with status and data
         """
         # Use asyncio.to_thread for blocking Docker SDK calls
         def _do_operation():
@@ -233,17 +249,7 @@ def create_my_tool(
         result = await asyncio.to_thread(_do_operation)
         return {"status": "success", "data": result}
 
-    safety_level = OperationSafety.MODERATE
-    annotations = get_mcp_annotations(safety_level)
-    annotations["idempotent"] = True  # if operation is safe to retry
-
-    return (
-        "docker_my_operation",
-        "Description of what this tool does",
-        my_tool,
-        safety_level,
-        annotations,
-    )
+    return ["docker_my_operation"]  # Return list of registered tool names
 ```
 
 ### Test Structure
@@ -269,38 +275,75 @@ When adding tests:
 
 - **Type hints required**: All functions must have type hints (enforced by mypy strict mode)
 - **Docstrings required**: Google-style docstrings for all public functions/classes
-- **Pydantic validation**: Use Pydantic models for all input/output schemas
-- **Error handling**: Return `ToolResult.error_result()` for expected errors, raise for unexpected
+- **Pydantic validation**: Use Pydantic models for tool input parameters (automatic validation)
+- **Error handling**: Raise exceptions for errors; FastMCP handles conversion to MCP error responses
 - **Logging**: Use `loguru` via `get_logger(__name__)`, never print statements
-- **Async where needed**: MCP handlers are async, Docker SDK is sync (wrap if needed)
+- **Async where needed**: All tool functions are async, Docker SDK is sync (use `asyncio.to_thread()`)
 - **Security first**: Validate all user input, sanitize errors, avoid information disclosure
 
 ## Common Patterns
 
-### Tool Result Pattern
+### Tool Function Pattern
 ```python
-try:
-    result = self.docker.some_operation()
-    return ToolResult.success_result(data=result, operation="operation_name")
-except DockerException as e:
-    return ToolResult.error_result(error=str(e))
+@mcp.tool(annotations=get_mcp_annotations(OperationSafety.SAFE))
+async def docker_my_tool(container_id: str) -> dict[str, Any]:
+    """Tool description.
+
+    Args:
+        container_id: Container ID or name
+
+    Returns:
+        Operation result
+    """
+    def _sync_operation():
+        # Docker SDK call (synchronous)
+        return docker_client.client.containers.get(container_id)
+
+    # Wrap sync Docker calls in asyncio.to_thread
+    result = await asyncio.to_thread(_sync_operation)
+    return {"status": "success", "data": result}
 ```
 
 ### Input Validation Pattern
 ```python
-class MyToolInput(ToolInput):
-    field: str = Field(..., min_length=1, max_length=255, pattern=r"^[a-zA-Z0-9_-]+$")
+from pydantic import BaseModel, Field
+
+class MyToolParams(BaseModel):
+    """Pydantic model for input validation."""
+    container_id: str = Field(..., min_length=1, max_length=255)
+    force: bool = Field(default=False)
+
+@mcp.tool()
+async def docker_my_tool(params: MyToolParams) -> dict[str, Any]:
+    # FastMCP automatically validates params using Pydantic
+    container_id = params.container_id
+    force = params.force
+    ...
 ```
 
-### Safety Enforcement Pattern
+### Safety Annotations Pattern
 ```python
-@property
-def safety_level(self) -> OperationSafety:
-    return OperationSafety.DESTRUCTIVE
+from mcp_docker.fastmcp_tools.common import get_mcp_annotations
+from mcp_docker.utils.safety import OperationSafety
 
-def execute(self, arguments: dict[str, Any]) -> ToolResult:
-    # BaseTool.execute_with_safety() checks safety before calling this
-    # No need to check safety level here
+# SAFE tool (read-only)
+@mcp.tool(annotations=get_mcp_annotations(OperationSafety.SAFE))
+async def docker_list_containers() -> list[dict[str, Any]]:
+    """List all containers (read-only)."""
+    ...
+
+# MODERATE tool (reversible changes)
+@mcp.tool(annotations=get_mcp_annotations(OperationSafety.MODERATE))
+async def docker_start_container(container_id: str) -> dict[str, Any]:
+    """Start a container (reversible)."""
+    ...
+
+# DESTRUCTIVE tool (permanent changes)
+annotations = get_mcp_annotations(OperationSafety.DESTRUCTIVE)
+@mcp.tool(annotations=annotations)
+async def docker_remove_container(container_id: str) -> dict[str, Any]:
+    """Remove a container (permanent)."""
+    ...
 ```
 
 ## CI/CD
@@ -367,13 +410,20 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options and common sc
 ## Common Tasks
 
 ### Adding a new Docker operation
-1. Add tool factory function to appropriate `fastmcp_tools/*.py` file
-2. Define Pydantic models for input/output validation
-3. Return (name, description, function, safety_level, annotations) tuple
-4. Register in `register_all_tools()` in `fastmcp_tools/__init__.py`
-5. Add unit tests in `tests/unit/`
-6. Add integration tests in `tests/integration/`
-7. Update tool count in README.md if needed
+1. Choose appropriate category module in `src/mcp_docker/fastmcp_tools/`
+   - `container_inspection.py`: SAFE (read-only) container tools
+   - `container_lifecycle.py`: MODERATE container tools (start/stop/create)
+   - `image.py`: Image management (pull/build/push/remove)
+   - `network.py`: Network management
+   - `volume.py`: Volume management
+   - `system.py`: System-level operations
+2. Add tool function with `@mcp.tool()` decorator
+3. Define Pydantic models for input validation if needed
+4. Set proper safety level via `get_mcp_annotations(OperationSafety.SAFE/MODERATE/DESTRUCTIVE)`
+5. Add tool name to return list in `register_*_tools()` function
+6. Add unit tests in `tests/unit/`
+7. Add integration tests in `tests/integration/`
+8. Update tool count in README.md if needed
 
 ### Debugging test failures
 ```bash
