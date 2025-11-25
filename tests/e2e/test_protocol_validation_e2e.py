@@ -121,6 +121,17 @@ def assert_no_crash(crashed: bool, response: str, has_error: bool, test_name: st
     assert "password" not in response_lower, f"{test_name}: Sensitive data leaked in error"
 
 
+def assert_no_crash_lenient(crashed: bool, response: str, test_name: str) -> None:
+    """Assert that server did not crash (error indication optional).
+
+    Args:
+        crashed: Whether server crashed
+        response: Server response
+        test_name: Name of the test for error messages
+    """
+    assert not crashed, f"{test_name}: Server crashed or hung. Response: {response[:200]}"
+
+
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -140,223 +151,131 @@ def skip_if_no_docker() -> Any:
 
 
 # ============================================================================
-# Fuzzing Tests (from mcp-testbench)
+# Parameterized Fuzzing Tests
 # ============================================================================
 
 
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_empty_payload(skip_if_no_docker: Any) -> None:
-    """Test that empty payload doesn't crash the server."""
-    crashed, response, has_error = await send_raw_jsonrpc_request("")
-    assert_no_crash(crashed, response, has_error, "empty_payload")
+class TestProtocolFuzzing:
+    """Test that various malformed inputs don't crash the server."""
 
+    @pytest.mark.e2e
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "test_name,request_data",
+        [
+            ("empty_payload", ""),
+            ("invalid_json", "{invalid json"),
+            ("null_payload", "null"),
+            ("array_payload", "[]"),
+            ("missing_method", {"jsonrpc": "2.0", "id": 1}),
+            ("invalid_method_type", {"jsonrpc": "2.0", "method": 123, "id": 1}),
+            ("missing_jsonrpc_version", {"method": "test", "id": 1}),
+            ("invalid_jsonrpc_version", {"jsonrpc": "1.0", "method": "test", "id": 1}),
+            (
+                "params_as_string",
+                {"jsonrpc": "2.0", "method": "test", "params": "invalid", "id": 1},
+            ),
+        ],
+    )
+    async def test_malformed_request_no_crash(
+        self, skip_if_no_docker: Any, test_name: str, request_data: str | dict
+    ) -> None:
+        """Test that malformed requests don't crash the server."""
+        crashed, response, has_error = await send_raw_jsonrpc_request(request_data)
+        assert_no_crash(crashed, response, has_error, test_name)
 
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_invalid_json(skip_if_no_docker: Any) -> None:
-    """Test that invalid JSON doesn't crash the server."""
-    crashed, response, has_error = await send_raw_jsonrpc_request("{invalid json")
-    assert_no_crash(crashed, response, has_error, "invalid_json")
+    @pytest.mark.e2e
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "test_name,request_data",
+        [
+            ("null_bytes", '{"jsonrpc": "2.0", "method": "test\\x00", "id": 1}'),
+            ("string_id", {"jsonrpc": "2.0", "method": "tools/list", "id": "string-id"}),
+            ("unicode_exploit", {"jsonrpc": "2.0", "method": "test\u202e\u202d", "id": 1}),
+            (
+                "batch_request",
+                [
+                    {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+                    {"jsonrpc": "2.0", "method": "tools/list", "id": 2},
+                ],
+            ),
+        ],
+    )
+    async def test_edge_case_no_crash(
+        self, skip_if_no_docker: Any, test_name: str, request_data: str | dict | list
+    ) -> None:
+        """Test that edge case requests don't crash the server (error optional)."""
+        crashed, response, _ = await send_raw_jsonrpc_request(request_data)
+        assert_no_crash_lenient(crashed, response, test_name)
 
+    @pytest.mark.e2e
+    @pytest.mark.asyncio
+    @pytest.mark.slow
+    async def test_deeply_nested_objects(self, skip_if_no_docker: Any) -> None:
+        """Test that deeply nested objects don't cause crash or DoS.
 
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_null_payload(skip_if_no_docker: Any) -> None:
-    """Test that null payload doesn't crash the server."""
-    crashed, response, has_error = await send_raw_jsonrpc_request("null")
-    assert_no_crash(crashed, response, has_error, "null_payload")
+        This tests protection against billion laughs / nested object attacks.
+        """
+        # Create deeply nested object (100 levels - more realistic for actual attacks)
+        nested: dict[str, Any] = {"a": "value"}
+        for _ in range(100):
+            nested = {"nested": nested}
 
+        request = {"jsonrpc": "2.0", "method": "test", "params": nested, "id": 1}
+        crashed, response, _ = await send_raw_jsonrpc_request(request)
+        assert_no_crash_lenient(crashed, response, "deeply_nested")
 
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_array_instead_of_object(skip_if_no_docker: Any) -> None:
-    """Test that array payload doesn't crash the server."""
-    crashed, response, has_error = await send_raw_jsonrpc_request("[]")
-    assert_no_crash(crashed, response, has_error, "array_payload")
+    @pytest.mark.e2e
+    @pytest.mark.asyncio
+    async def test_huge_string(self, skip_if_no_docker: Any) -> None:
+        """Test that extremely large strings are rejected gracefully.
 
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_missing_method(skip_if_no_docker: Any) -> None:
-    """Test that request without method doesn't crash the server."""
-    request = {"jsonrpc": "2.0", "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert_no_crash(crashed, response, has_error, "missing_method")
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_invalid_method_type(skip_if_no_docker: Any) -> None:
-    """Test that numeric method type doesn't crash the server."""
-    request = {"jsonrpc": "2.0", "method": 123, "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert_no_crash(crashed, response, has_error, "invalid_method_type")
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_missing_jsonrpc_version(skip_if_no_docker: Any) -> None:
-    """Test that request without jsonrpc version doesn't crash the server."""
-    request = {"method": "test", "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert_no_crash(crashed, response, has_error, "missing_jsonrpc_version")
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_invalid_jsonrpc_version(skip_if_no_docker: Any) -> None:
-    """Test that invalid jsonrpc version doesn't crash the server."""
-    request = {"jsonrpc": "1.0", "method": "test", "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert_no_crash(crashed, response, has_error, "invalid_jsonrpc_version")
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-@pytest.mark.slow
-async def test_deeply_nested_objects(skip_if_no_docker: Any) -> None:
-    """Test that deeply nested objects don't cause crash or DoS.
-
-    This tests protection against billion laughs / nested object attacks.
-    """
-    # Create deeply nested object (100 levels - more realistic for actual attacks)
-    nested: dict[str, Any] = {"a": "value"}
-    for _ in range(100):
-        nested = {"nested": nested}
-
-    request = {"jsonrpc": "2.0", "method": "test", "params": nested, "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-
-    # Should not crash - verify graceful handling
-    assert not crashed, f"deeply_nested: Server crashed. Response: {response[:200]}"
-    # Error indication is optional - deep nesting might be handled
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_null_bytes(skip_if_no_docker: Any) -> None:
-    """Test that null bytes in input are handled without crash."""
-    request_with_null = '{"jsonrpc": "2.0", "method": "test\\x00", "id": 1}'
-    crashed, response, has_error = await send_raw_jsonrpc_request(request_with_null)
-    assert not crashed, f"null_bytes: Server crashed. Response: {response[:200]}"
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_params_as_string(skip_if_no_docker: Any) -> None:
-    """Test that params as string (not object/array) doesn't crash server."""
-    request = {"jsonrpc": "2.0", "method": "test", "params": "invalid", "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert_no_crash(crashed, response, has_error, "params_as_string")
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_huge_string(skip_if_no_docker: Any) -> None:
-    """Test that extremely large strings are rejected gracefully.
-
-    This tests DoS protection against memory exhaustion attacks.
-    """
-    huge_string = "x" * (10 * 1024 * 1024)  # 10 MB string
-    request = {"jsonrpc": "2.0", "method": "test", "params": {"data": huge_string}, "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-
-    # Should not crash - verify graceful handling
-    assert not crashed, f"huge_string: Server crashed or hung. Response: {response[:200]}"
+        This tests DoS protection against memory exhaustion attacks.
+        """
+        huge_string = "x" * (10 * 1024 * 1024)  # 10 MB string
+        request = {"jsonrpc": "2.0", "method": "test", "params": {"data": huge_string}, "id": 1}
+        crashed, response, _ = await send_raw_jsonrpc_request(request)
+        assert_no_crash_lenient(crashed, response, "huge_string")
 
 
 # ============================================================================
-# Injection Tests (from mcp-testbench prompt injection tests)
+# Parameterized Injection Tests
 # ============================================================================
 
 
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_command_injection_attempt(skip_if_no_docker: Any) -> None:
-    """Test that command injection attempts in method names don't cause crashes."""
-    request = {"jsonrpc": "2.0", "method": "test; rm -rf /", "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    # Should not crash - method not found is fine
-    assert not crashed, f"command_injection: Server crashed. Response: {response[:200]}"
+class TestInjectionAttempts:
+    """Test that injection attempts don't cause crashes."""
 
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_path_traversal_in_method(skip_if_no_docker: Any) -> None:
-    """Test that path traversal attempts in method names don't cause crashes."""
-    request = {"jsonrpc": "2.0", "method": "../../../etc/passwd", "id": 1}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert not crashed, f"path_traversal: Server crashed. Response: {response[:200]}"
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_sql_injection_in_params(skip_if_no_docker: Any) -> None:
-    """Test that SQL injection attempts in params don't cause crashes."""
-    request = {
-        "jsonrpc": "2.0",
-        "method": "tools/list",
-        "params": {"query": "1' OR '1'='1"},
-        "id": 1,
-    }
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert not crashed, f"sql_injection: Server crashed. Response: {response[:200]}"
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_xss_payload_in_params(skip_if_no_docker: Any) -> None:
-    """Test that XSS payloads in params don't cause crashes."""
-    request = {
-        "jsonrpc": "2.0",
-        "method": "tools/list",
-        "params": {"data": "<script>alert('xss')</script>"},
-        "id": 1,
-    }
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert not crashed, f"xss_payload: Server crashed. Response: {response[:200]}"
-
-
-# ============================================================================
-# Edge Case Tests
-# ============================================================================
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_string_id_instead_of_number(skip_if_no_docker: Any) -> None:
-    """Test that string IDs are handled (JSON-RPC allows string or number IDs)."""
-    request = {"jsonrpc": "2.0", "method": "tools/list", "id": "string-id"}
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    # String IDs are valid in JSON-RPC 2.0, should not crash
-    assert not crashed, f"string_id: Server crashed. Response: {response[:200]}"
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_unicode_exploit(skip_if_no_docker: Any) -> None:
-    """Test that Unicode exploits are handled safely."""
-    request = {
-        "jsonrpc": "2.0",
-        "method": "test\u202e\u202d",  # Right-to-left override characters
-        "id": 1,
-    }
-    crashed, response, has_error = await send_raw_jsonrpc_request(request)
-    assert not crashed, f"unicode_exploit: Server crashed. Response: {response[:200]}"
-
-
-@pytest.mark.e2e
-@pytest.mark.asyncio
-async def test_multiple_requests_batch(skip_if_no_docker: Any) -> None:
-    """Test that batch requests are handled (or rejected) properly.
-
-    JSON-RPC 2.0 supports batch requests as an array of request objects.
-    """
-    batch_request = [
-        {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
-        {"jsonrpc": "2.0", "method": "tools/list", "id": 2},
-    ]
-    crashed, response, has_error = await send_raw_jsonrpc_request(batch_request)
-    # Either support batch or reject, but don't crash
-    assert not crashed, f"batch_request: Server crashed. Response: {response[:200]}"
+    @pytest.mark.e2e
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "test_name,request_data",
+        [
+            ("command_injection", {"jsonrpc": "2.0", "method": "test; rm -rf /", "id": 1}),
+            ("path_traversal", {"jsonrpc": "2.0", "method": "../../../etc/passwd", "id": 1}),
+            (
+                "sql_injection",
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/list",
+                    "params": {"query": "1' OR '1'='1"},
+                    "id": 1,
+                },
+            ),
+            (
+                "xss_payload",
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/list",
+                    "params": {"data": "<script>alert('xss')</script>"},
+                    "id": 1,
+                },
+            ),
+        ],
+    )
+    async def test_injection_no_crash(
+        self, skip_if_no_docker: Any, test_name: str, request_data: dict
+    ) -> None:
+        """Test that injection attempts don't crash the server."""
+        crashed, response, _ = await send_raw_jsonrpc_request(request_data)
+        assert_no_crash_lenient(crashed, response, test_name)

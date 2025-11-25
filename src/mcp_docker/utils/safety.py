@@ -5,9 +5,12 @@ from enum import Enum
 from typing import Any
 
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
+from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.validation import (
     sanitize_command as validate_command_structure,
 )
+
+logger = get_logger(__name__)
 
 
 class OperationSafety(str, Enum):
@@ -476,7 +479,7 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
                 "Command injection characters are not allowed in environment variables."
             )
 
-    # Warn about potentially sensitive variables
+    # Warn about potentially sensitive variables being passed to containers
     sensitive_patterns = [
         "PASSWORD",
         "SECRET",
@@ -486,7 +489,9 @@ def validate_environment_variable(key: str, value: Any) -> tuple[str, str]:
     ]
 
     if any(pattern in key.upper() for pattern in sensitive_patterns):
-        # This would log a warning in production
-        pass
+        logger.warning(
+            f"Environment variable '{key}' appears to contain sensitive data. "
+            "Consider using Docker secrets or a secrets manager instead."
+        )
 
     return key, value_str

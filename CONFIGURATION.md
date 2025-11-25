@@ -183,7 +183,7 @@ Some variables accept JSON arrays:
 ```bash
 # Correct formats
 SECURITY_ALLOWED_CLIENT_IPS='["127.0.0.1", "192.168.1.100"]'
-CORS_ALLOW_ORIGINS='["https://app1.com", "https://app2.com"]'
+CORS_ALLOWED_ORIGINS='["https://app1.com", "https://app2.com"]'
 HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "10.0.1.50"]'
 ```
 

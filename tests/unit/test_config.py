@@ -114,7 +114,6 @@ class TestSafetyConfig:
             assert config.allow_moderate_operations is True
             assert config.allow_destructive_operations is False
             assert config.allow_privileged_containers is False
-            assert config.require_confirmation_for_destructive is True
             assert config.max_concurrent_operations == 10
         finally:
             # Restore original value

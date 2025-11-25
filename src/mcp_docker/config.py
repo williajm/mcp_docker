@@ -177,10 +177,6 @@ class SafetyConfig(BaseSettings):
         default=False,
         description="Allow creating privileged containers",
     )
-    require_confirmation_for_destructive: bool = Field(
-        default=True,
-        description="Require explicit confirmation for destructive operations",
-    )
     max_concurrent_operations: int = Field(
         default=10,
         description="Maximum number of concurrent Docker operations",
@@ -206,16 +202,6 @@ class SafetyConfig(BaseSettings):
         description="Maximum number of items to return from list operations (0 = unlimited)",
         ge=0,
         le=10000,
-    )
-    truncate_inspect_output: bool = Field(
-        default=False,
-        description="Truncate large inspect output fields to prevent token limit issues",
-    )
-    max_inspect_field_bytes: int = Field(
-        default=65536,  # 64 KB
-        description="Maximum bytes for individual inspect output fields when truncation enabled",
-        ge=1024,  # 1 KB minimum
-        le=1048576,  # 1 MB maximum
     )
 
     # Tool filtering (works alongside safety level restrictions)
