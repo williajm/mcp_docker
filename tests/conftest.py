@@ -28,7 +28,6 @@ def safety_config() -> SafetyConfig:
         allow_moderate_operations=True,
         allow_destructive_operations=True,
         allow_privileged_containers=False,
-        require_confirmation_for_destructive=False,
     )
 
 
@@ -39,7 +38,6 @@ def read_only_safety_config() -> SafetyConfig:
         allow_moderate_operations=False,
         allow_destructive_operations=False,
         allow_privileged_containers=False,
-        require_confirmation_for_destructive=True,
     )
 
 
@@ -159,5 +157,4 @@ def integration_test_config() -> Config:
     test_config.safety.allow_moderate_operations = True
     test_config.safety.allow_destructive_operations = True
     test_config.safety.allow_privileged_containers = True
-    test_config.safety.require_confirmation_for_destructive = False
     return test_config

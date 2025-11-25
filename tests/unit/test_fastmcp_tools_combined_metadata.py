@@ -55,230 +55,92 @@ def safety_config():
     return SafetyConfig()
 
 
-# Container Lifecycle Tool Metadata Tests
+class TestToolMetadata:
+    """Test tool metadata for all tool modules."""
 
-
-def test_create_container_tool_metadata(mock_docker_client):
-    """Test docker_create_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_create_container_tool(
-        mock_docker_client, safety_config
+    @pytest.mark.parametrize(
+        "tool_creator,expected_name,expected_safety,needs_safety_config",
+        [
+            # Container lifecycle tools
+            (
+                create_create_container_tool,
+                "docker_create_container",
+                OperationSafety.MODERATE,
+                True,
+            ),
+            (
+                create_start_container_tool,
+                "docker_start_container",
+                OperationSafety.MODERATE,
+                False,
+            ),
+            (create_stop_container_tool, "docker_stop_container", OperationSafety.MODERATE, False),
+            (
+                create_restart_container_tool,
+                "docker_restart_container",
+                OperationSafety.MODERATE,
+                False,
+            ),
+            (
+                create_remove_container_tool,
+                "docker_remove_container",
+                OperationSafety.DESTRUCTIVE,
+                False,
+            ),
+            # Image tools
+            (create_list_images_tool, "docker_list_images", OperationSafety.SAFE, True),
+            (create_inspect_image_tool, "docker_inspect_image", OperationSafety.SAFE, False),
+            (create_image_history_tool, "docker_image_history", OperationSafety.SAFE, True),
+            (create_pull_image_tool, "docker_pull_image", OperationSafety.MODERATE, False),
+            (create_build_image_tool, "docker_build_image", OperationSafety.MODERATE, False),
+            (create_push_image_tool, "docker_push_image", OperationSafety.MODERATE, False),
+            (create_tag_image_tool, "docker_tag_image", OperationSafety.MODERATE, False),
+            (create_remove_image_tool, "docker_remove_image", OperationSafety.DESTRUCTIVE, False),
+            (create_prune_images_tool, "docker_prune_images", OperationSafety.DESTRUCTIVE, False),
+            # Network tools
+            (create_list_networks_tool, "docker_list_networks", OperationSafety.SAFE, True),
+            (create_inspect_network_tool, "docker_inspect_network", OperationSafety.SAFE, False),
+            (create_create_network_tool, "docker_create_network", OperationSafety.MODERATE, False),
+            (
+                create_connect_container_tool,
+                "docker_connect_container",
+                OperationSafety.MODERATE,
+                False,
+            ),
+            (
+                create_disconnect_container_tool,
+                "docker_disconnect_container",
+                OperationSafety.MODERATE,
+                False,
+            ),
+            (
+                create_remove_network_tool,
+                "docker_remove_network",
+                OperationSafety.DESTRUCTIVE,
+                False,
+            ),
+        ],
     )
-    assert name == "docker_create_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
+    def test_tool_metadata(  # noqa: PLR0913
+        self,
+        mock_docker_client,
+        safety_config,
+        tool_creator,
+        expected_name,
+        expected_safety,
+        needs_safety_config,
+    ):
+        """Test tool metadata for container lifecycle, image, and network tools."""
+        if needs_safety_config:
+            name, description, safety_level, idempotent, open_world, func = tool_creator(
+                mock_docker_client, safety_config
+            )
+        else:
+            name, description, safety_level, idempotent, open_world, func = tool_creator(
+                mock_docker_client
+            )
 
-
-def test_start_container_tool_metadata(mock_docker_client):
-    """Test docker_start_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_start_container_tool(
-        mock_docker_client
-    )
-    assert name == "docker_start_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_stop_container_tool_metadata(mock_docker_client):
-    """Test docker_stop_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_stop_container_tool(
-        mock_docker_client
-    )
-    assert name == "docker_stop_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_restart_container_tool_metadata(mock_docker_client):
-    """Test docker_restart_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_restart_container_tool(
-        mock_docker_client
-    )
-    assert name == "docker_restart_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_remove_container_tool_metadata(mock_docker_client):
-    """Test docker_remove_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_remove_container_tool(
-        mock_docker_client
-    )
-    assert name == "docker_remove_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.DESTRUCTIVE
-    assert callable(func)
-
-
-# Image Tool Metadata Tests
-
-
-def test_list_images_tool_metadata(mock_docker_client):
-    """Test docker_list_images tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_list_images_tool(
-        mock_docker_client, safety_config
-    )
-    assert name == "docker_list_images"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.SAFE
-    assert callable(func)
-
-
-def test_inspect_image_tool_metadata(mock_docker_client):
-    """Test docker_inspect_image tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_inspect_image_tool(
-        mock_docker_client
-    )
-    assert name == "docker_inspect_image"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.SAFE
-    assert callable(func)
-
-
-def test_image_history_tool_metadata(mock_docker_client):
-    """Test docker_image_history tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_image_history_tool(
-        mock_docker_client, safety_config
-    )
-    assert name == "docker_image_history"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.SAFE
-    assert callable(func)
-
-
-def test_pull_image_tool_metadata(mock_docker_client):
-    """Test docker_pull_image tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_pull_image_tool(
-        mock_docker_client
-    )
-    assert name == "docker_pull_image"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_build_image_tool_metadata(mock_docker_client):
-    """Test docker_build_image tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_build_image_tool(
-        mock_docker_client
-    )
-    assert name == "docker_build_image"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_push_image_tool_metadata(mock_docker_client):
-    """Test docker_push_image tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_push_image_tool(
-        mock_docker_client
-    )
-    assert name == "docker_push_image"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_tag_image_tool_metadata(mock_docker_client):
-    """Test docker_tag_image tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_tag_image_tool(
-        mock_docker_client
-    )
-    assert name == "docker_tag_image"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_remove_image_tool_metadata(mock_docker_client):
-    """Test docker_remove_image tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_remove_image_tool(
-        mock_docker_client
-    )
-    assert name == "docker_remove_image"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.DESTRUCTIVE
-    assert callable(func)
-
-
-def test_prune_images_tool_metadata(mock_docker_client):
-    """Test docker_prune_images tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_prune_images_tool(
-        mock_docker_client
-    )
-    assert name == "docker_prune_images"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.DESTRUCTIVE
-    assert callable(func)
-
-
-# Network Tool Metadata Tests
-
-
-def test_list_networks_tool_metadata(mock_docker_client):
-    """Test docker_list_networks tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_list_networks_tool(
-        mock_docker_client, safety_config
-    )
-    assert name == "docker_list_networks"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.SAFE
-    assert callable(func)
-
-
-def test_inspect_network_tool_metadata(mock_docker_client):
-    """Test docker_inspect_network tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_inspect_network_tool(
-        mock_docker_client
-    )
-    assert name == "docker_inspect_network"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.SAFE
-    assert callable(func)
-
-
-def test_create_network_tool_metadata(mock_docker_client):
-    """Test docker_create_network tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_create_network_tool(
-        mock_docker_client
-    )
-    assert name == "docker_create_network"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_connect_container_tool_metadata(mock_docker_client):
-    """Test docker_connect_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_connect_container_tool(
-        mock_docker_client
-    )
-    assert name == "docker_connect_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_disconnect_container_tool_metadata(mock_docker_client):
-    """Test docker_disconnect_container tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = (
-        create_disconnect_container_tool(mock_docker_client)
-    )
-    assert name == "docker_disconnect_container"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.MODERATE
-    assert callable(func)
-
-
-def test_remove_network_tool_metadata(mock_docker_client):
-    """Test docker_remove_network tool metadata."""
-    name, description, safety_level, idempotent, open_world, func = create_remove_network_tool(
-        mock_docker_client
-    )
-    assert name == "docker_remove_network"
-    assert isinstance(description, str) and len(description) > 0
-    assert safety_level == OperationSafety.DESTRUCTIVE
-    assert callable(func)
+        assert name == expected_name
+        assert isinstance(description, str) and len(description) > 0
+        assert safety_level == expected_safety
+        assert callable(func)

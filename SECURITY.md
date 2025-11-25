@@ -36,39 +36,33 @@ Claude Desktop uses stdio transport (local process). The server relies on OS-lev
 }
 ```
 
-### For Network Deployment (HTTP Stream Transport)
+### For Network Deployment (HTTP Transport)
 
-For production deployment using HTTP Stream Transport with security features:
-
-```bash
-# Start server with TLS, rate limiting, and audit logging
-# OAuth is DISABLED by default - edit script to enable
-./start-mcp-docker-httpstream.sh
-```
-
-**What's enabled:**
-- ✅ TLS/HTTPS (requires certificates in `~/.mcp-docker/certs/`)
-- ✅ Rate limiting (60 requests/minute)
-- ✅ Audit logging
-- ❌ OAuth/OIDC (disabled by default - see script comments to enable)
-
-See the HTTP Stream Transport Security, OAuth/OIDC Authentication, and TLS/HTTPS sections below for configuration details.
-
-### For Network Deployment (SSE Transport)
-
-For production deployment using SSE transport with security features:
+For production deployment using HTTP transport with security features:
 
 ```bash
-# Start server with TLS, rate limiting, and audit logging
-# OAuth is DISABLED by default - edit script to enable
-./start-mcp-docker-sse.sh
+# Start server with HTTP transport
+uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
+
+# Or use the example script
+./start_http_server.sh
 ```
 
-**What's enabled:**
-- ✅ TLS/HTTPS (requires certificates in `~/.mcp-docker/certs/`)
-- ✅ Rate limiting (60 requests/minute)
-- ✅ Audit logging
-- ❌ OAuth/OIDC (disabled by default - see script comments to enable)
+**Configure security via environment variables:**
+```bash
+export SECURITY_RATE_LIMIT_ENABLED=true
+export SECURITY_RATE_LIMIT_RPM=60
+export SECURITY_AUDIT_LOG_ENABLED=true
+export MCP_TLS_ENABLED=true
+export MCP_TLS_CERT_FILE=/path/to/cert.pem
+export MCP_TLS_KEY_FILE=/path/to/key.pem
+```
+
+**For production**, deploy behind a reverse proxy (NGINX, Caddy) that provides:
+- HTTPS/TLS termination
+- OAuth/authentication
+- Additional rate limiting
+- IP filtering
 
 See the OAuth/OIDC Authentication and TLS/HTTPS sections below for configuration details.
 
@@ -545,16 +539,16 @@ fetch('http://attacker.com:8000/', {headers: {'Host': 'attacker.com'}})
 ```bash
 # ✅ RECOMMENDED: Bind to localhost and use reverse proxy
 # Server binds to 127.0.0.1, nginx/Caddy handles public access
-./start-mcp-docker-httpstream.sh  # Bind to localhost only
+uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
 # Then configure nginx/Caddy to proxy requests
 
 # ✅ ALTERNATIVE: Bind to specific hostname/IP
 # Server binds to specific public interface
-./start-mcp-docker-httpstream.sh --host api.example.com
+uv run mcp-docker --transport http --host api.example.com --port 8000
 
 # ⚠️ WILDCARD BIND: Requires explicit configuration
 # Server refuses to start without HTTPSTREAM_ALLOWED_HOSTS
-./start-mcp-docker-httpstream.sh --host 0.0.0.0
+uv run mcp-docker --transport http --host 0.0.0.0 --port 8000
 # Must set: HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
 
 # ❌ AVOID: Wildcard bind without reverse proxy/firewall
@@ -597,7 +591,7 @@ Enhanced CORS configuration for browser-based MCP clients with strict security v
 ```bash
 # Enable CORS for browser clients
 CORS_ENABLED=true
-CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 CORS_ALLOW_CREDENTIALS=true
 ```
 
@@ -612,17 +606,17 @@ CORS_ALLOW_CREDENTIALS=true
 ```bash
 # ✅ GOOD: Explicit origin with credentials
 CORS_ENABLED=true
-CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 CORS_ALLOW_CREDENTIALS=true
 
 # ❌ BAD: Wildcard with credentials (rejected at startup)
 CORS_ENABLED=true
-CORS_ALLOW_ORIGINS='["*"]'
+CORS_ALLOWED_ORIGINS='["*"]'
 CORS_ALLOW_CREDENTIALS=true  # Configuration error!
 
 # ✅ OK: Wildcard without credentials (public API)
 CORS_ENABLED=true
-CORS_ALLOW_ORIGINS='["*"]'
+CORS_ALLOWED_ORIGINS='["*"]'
 CORS_ALLOW_CREDENTIALS=false
 ```
 
@@ -746,7 +740,7 @@ HTTPSTREAM_ALLOWED_HOSTS='["api.example.com"]'
 
 # CORS (if browser clients)
 CORS_ENABLED=true
-CORS_ALLOW_ORIGINS='["https://app.example.com"]'
+CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
 CORS_ALLOW_CREDENTIALS=true
 
 # OAuth Authentication
@@ -879,9 +873,9 @@ Before deploying to production:
 
 ### Deployment
 
-- [ ] Use the appropriate startup script:
-  - [ ] HTTP Stream Transport: `./start-mcp-docker-httpstream.sh`
-  - [ ] SSE Transport: `./start-mcp-docker-sse.sh`
+- [ ] Start server with appropriate transport:
+  - [ ] HTTP Transport: `uv run mcp-docker --transport http --host 127.0.0.1 --port 8000`
+  - [ ] stdio Transport (local): `uv run mcp-docker`
 - [ ] Verify all security warnings on startup
 - [ ] Confirm server binds to correct interface (not 0.0.0.0 unless intentional)
 - [ ] Test complete workflow end-to-end with production config

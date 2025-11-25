@@ -23,52 +23,191 @@ from mcp_docker.fastmcp_tools.image import (
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
 
 
+# Module-level fixtures to avoid duplication across test classes
+@pytest.fixture
+def mock_docker_client():
+    """Create a mock Docker client."""
+    client = Mock(spec=DockerClientWrapper)
+    client.client = Mock()
+    client.client.images = Mock()
+    client.client.containers = Mock()
+    return client
+
+
+@pytest.fixture
+def safety_config():
+    """Create safety config."""
+    return SafetyConfig()
+
+
 class TestBuildImageInputValidation:
     """Test BuildImageInput Pydantic model validation."""
 
-    def test_buildargs_json_string_parsing(self):
-        """Test that buildargs JSON string is parsed correctly."""
-        # JSON string should be parsed to dict
-        input_data = BuildImageInput(
-            path=".",
-            buildargs='{"NODE_VERSION": "18", "ENV": "prod"}',
-        )
-        assert input_data.buildargs == {"NODE_VERSION": "18", "ENV": "prod"}
+    @pytest.mark.parametrize(
+        "buildargs,expected",
+        [
+            ('{"NODE_VERSION": "18", "ENV": "prod"}', {"NODE_VERSION": "18", "ENV": "prod"}),
+            ({"NODE_VERSION": "18", "ENV": "prod"}, {"NODE_VERSION": "18", "ENV": "prod"}),
+            (None, None),
+        ],
+    )
+    def test_buildargs_parsing(self, buildargs, expected):
+        """Test that buildargs is parsed correctly from JSON string or passed through as dict."""
+        input_data = BuildImageInput(path=".", buildargs=buildargs)
+        assert input_data.buildargs == expected
 
-    def test_buildargs_dict_passthrough(self):
-        """Test that buildargs dict is passed through."""
-        # Dict should remain as dict
-        input_data = BuildImageInput(
-            path=".",
-            buildargs={"NODE_VERSION": "18", "ENV": "prod"},
-        )
-        assert input_data.buildargs == {"NODE_VERSION": "18", "ENV": "prod"}
 
-    def test_buildargs_none(self):
-        """Test that buildargs can be None."""
-        input_data = BuildImageInput(path=".")
-        assert input_data.buildargs is None
+class TestImageNotFoundErrors:
+    """Test image not found error handling across tools."""
+
+    @pytest.mark.parametrize(
+        "tool_creator,needs_safety_config,call_kwargs,error_type",
+        [
+            (create_inspect_image_tool, False, {"image_name": "nonexistent"}, DockerImageNotFound),
+            (create_inspect_image_tool, False, {"image_name": "nonexistent"}, NotFound),
+            (create_image_history_tool, True, {"image": "nonexistent"}, DockerImageNotFound),
+            (create_push_image_tool, False, {"image": "nonexistent"}, DockerImageNotFound),
+            (
+                create_tag_image_tool,
+                False,
+                {"image": "nonexistent", "repository": "myrepo"},
+                DockerImageNotFound,
+            ),
+            (create_remove_image_tool, False, {"image": "nonexistent"}, DockerImageNotFound),
+        ],
+    )
+    def test_image_not_found(  # noqa: PLR0913
+        self,
+        mock_docker_client,
+        safety_config,
+        tool_creator,
+        needs_safety_config,
+        call_kwargs,
+        error_type,
+    ):
+        """Test that ImageNotFound is raised when image doesn't exist."""
+        # Set up error on appropriate method based on tool
+        if tool_creator in (create_push_image_tool,):
+            mock_docker_client.client.images.push.side_effect = error_type("Image not found")
+        elif tool_creator in (create_remove_image_tool,):
+            mock_docker_client.client.images.remove.side_effect = error_type("Image not found")
+        else:
+            mock_docker_client.client.images.get.side_effect = error_type("Image not found")
+
+        if needs_safety_config:
+            *_, func = tool_creator(mock_docker_client, safety_config)
+        else:
+            *_, func = tool_creator(mock_docker_client)
+
+        with pytest.raises(ImageNotFound, match="Image not found"):
+            func(**call_kwargs)
+
+
+class TestAPIErrors:
+    """Test API error handling across tools."""
+
+    @pytest.mark.parametrize(
+        "tool_creator,needs_safety_config,call_kwargs,error_match,setup_error_on",
+        [
+            (create_list_images_tool, True, {}, "Failed to list images", "images.list"),
+            (
+                create_inspect_image_tool,
+                False,
+                {"image_name": "test"},
+                "Failed to inspect image",
+                "images.get",
+            ),
+            (
+                create_pull_image_tool,
+                False,
+                {"image": "ubuntu"},
+                "Failed to pull image",
+                "images.pull",
+            ),
+            (
+                create_build_image_tool,
+                False,
+                {"path": "."},
+                "Failed to build image",
+                "images.build",
+            ),
+            (
+                create_push_image_tool,
+                False,
+                {"image": "myrepo/app"},
+                "Failed to push image",
+                "images.push",
+            ),
+            (create_prune_images_tool, False, {}, "Failed to prune images", "images.prune"),
+        ],
+    )
+    def test_api_error(  # noqa: PLR0913
+        self,
+        mock_docker_client,
+        safety_config,
+        tool_creator,
+        needs_safety_config,
+        call_kwargs,
+        error_match,
+        setup_error_on,
+    ):
+        """Test that DockerOperationError is raised on API errors."""
+        # Set up the error on the right method
+        method_mapping = {
+            "images.list": mock_docker_client.client.images.list,
+            "images.get": mock_docker_client.client.images.get,
+            "images.pull": mock_docker_client.client.images.pull,
+            "images.build": mock_docker_client.client.images.build,
+            "images.push": mock_docker_client.client.images.push,
+            "images.prune": mock_docker_client.client.images.prune,
+        }
+        method_mapping[setup_error_on].side_effect = APIError("API failed")
+
+        if needs_safety_config:
+            *_, func = tool_creator(mock_docker_client, safety_config)
+        else:
+            *_, func = tool_creator(mock_docker_client)
+
+        with pytest.raises(DockerOperationError, match=error_match):
+            func(**call_kwargs)
+
+    def test_history_api_error(self, mock_docker_client, safety_config):
+        """Test image history API error after getting image."""
+        image = Mock()
+        image.history.side_effect = APIError("History failed")
+        mock_docker_client.client.images.get.return_value = image
+
+        *_, history_func = create_image_history_tool(mock_docker_client, safety_config)
+
+        with pytest.raises(DockerOperationError, match="Failed to get image history"):
+            history_func(image="ubuntu:22.04")
+
+    def test_tag_api_error(self, mock_docker_client):
+        """Test image tagging API error after getting image."""
+        image = Mock()
+        image.tag.side_effect = APIError("Tag failed")
+        mock_docker_client.client.images.get.return_value = image
+
+        *_, tag_func = create_tag_image_tool(mock_docker_client)
+
+        with pytest.raises(DockerOperationError, match="Failed to tag image"):
+            tag_func(image="ubuntu:22.04", repository="myrepo/ubuntu")
+
+    def test_remove_api_error(self, mock_docker_client):
+        """Test image removal API error."""
+        mock_docker_client.client.images.remove.side_effect = APIError("Remove failed")
+
+        *_, remove_func = create_remove_image_tool(mock_docker_client)
+
+        with pytest.raises(DockerOperationError, match="Failed to remove image"):
+            remove_func(image="ubuntu:22.04")
 
 
 class TestListImagesTool:
     """Test docker_list_images tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
-
     def test_list_images_success(self, mock_docker_client, safety_config):
         """Test successful image listing."""
-        # Mock image objects
         img1 = Mock()
         img1.id = "sha256:abc123"
         img1.short_id = "abc123"
@@ -85,54 +224,41 @@ class TestListImagesTool:
 
         mock_docker_client.client.images.list.return_value = [img1, img2]
 
-        # Get the list function
-        _, _, _, _, _, list_func = create_list_images_tool(mock_docker_client, safety_config)
-
-        # Execute
+        *_, list_func = create_list_images_tool(mock_docker_client, safety_config)
         result = list_func()
 
-        # Verify
         assert result["count"] == 2
         assert len(result["images"]) == 2
         assert result["images"][0]["id"] == "sha256:abc123"
         assert result["images"][0]["tags"] == ["ubuntu:22.04"]
         assert result["images"][1]["id"] == "sha256:def456"
 
-    def test_list_images_with_all_flag(self, mock_docker_client, safety_config):
-        """Test image listing with all flag."""
+    @pytest.mark.parametrize(
+        "kwargs,expected_call_kwargs",
+        [
+            ({"all": True}, {"all": True, "filters": None}),
+            (
+                {"filters": {"dangling": ["true"]}},
+                {"all": False, "filters": {"dangling": ["true"]}},
+            ),
+        ],
+    )
+    def test_list_images_with_options(
+        self, mock_docker_client, safety_config, kwargs, expected_call_kwargs
+    ):
+        """Test image listing with various options."""
         mock_docker_client.client.images.list.return_value = []
 
-        # Get the list function
-        _, _, _, _, _, list_func = create_list_images_tool(mock_docker_client, safety_config)
+        *_, list_func = create_list_images_tool(mock_docker_client, safety_config)
+        result = list_func(**kwargs)
 
-        # Execute with all flag
-        result = list_func(all=True)
-
-        # Verify all flag was passed
-        mock_docker_client.client.images.list.assert_called_once_with(all=True, filters=None)
-        assert result["count"] == 0
-
-    def test_list_images_with_filters(self, mock_docker_client, safety_config):
-        """Test image listing with filters."""
-        mock_docker_client.client.images.list.return_value = []
-
-        # Get the list function
-        _, _, _, _, _, list_func = create_list_images_tool(mock_docker_client, safety_config)
-
-        # Execute with filters
-        filters = {"dangling": ["true"]}
-        result = list_func(filters=filters)
-
-        # Verify filters were passed
-        mock_docker_client.client.images.list.assert_called_once_with(all=False, filters=filters)
+        mock_docker_client.client.images.list.assert_called_once_with(**expected_call_kwargs)
         assert result["count"] == 0
 
     def test_list_images_with_truncation(self, mock_docker_client):
         """Test image listing with output truncation."""
-        # Create safety config with limit
         safety_config = SafetyConfig(max_list_results=1)
 
-        # Mock multiple images
         img1 = Mock()
         img1.id = "sha256:abc123"
         img1.short_id = "abc123"
@@ -149,44 +275,20 @@ class TestListImagesTool:
 
         mock_docker_client.client.images.list.return_value = [img1, img2]
 
-        # Get the list function
-        _, _, _, _, _, list_func = create_list_images_tool(mock_docker_client, safety_config)
-
-        # Execute
+        *_, list_func = create_list_images_tool(mock_docker_client, safety_config)
         result = list_func()
 
-        # Verify truncation
-        assert result["count"] == 2  # Original count
-        assert len(result["images"]) == 1  # Truncated to 1
+        assert result["count"] == 2
+        assert len(result["images"]) == 1
         assert result["truncation_info"]["truncated"] is True
         assert "message" in result["truncation_info"]
-
-    def test_list_images_api_error(self, mock_docker_client, safety_config):
-        """Test image listing with API error."""
-        mock_docker_client.client.images.list.side_effect = APIError("List failed")
-
-        # Get the list function
-        _, _, _, _, _, list_func = create_list_images_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to list images"):
-            list_func()
 
 
 class TestInspectImageTool:
     """Test docker_inspect_image tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
     def test_inspect_image_success(self, mock_docker_client):
         """Test successful image inspection."""
-        # Mock image object
         image = Mock()
         image.attrs = {
             "Id": "sha256:abc123",
@@ -197,86 +299,30 @@ class TestInspectImageTool:
 
         mock_docker_client.client.images.get.return_value = image
 
-        # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_image_tool(mock_docker_client)
-
-        # Execute
+        *_, inspect_func = create_inspect_image_tool(mock_docker_client)
         result = inspect_func(image_name="ubuntu:22.04")
 
-        # Verify
         assert result["details"]["Id"] == "sha256:abc123"
         assert result["details"]["RepoTags"] == ["ubuntu:22.04"]
         mock_docker_client.client.images.get.assert_called_once_with("ubuntu:22.04")
-
-    def test_inspect_image_not_found(self, mock_docker_client):
-        """Test inspecting non-existent image."""
-        mock_docker_client.client.images.get.side_effect = DockerImageNotFound("Image not found")
-
-        # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ImageNotFound, match="Image not found"):
-            inspect_func(image_name="nonexistent")
-
-    def test_inspect_image_not_found_generic(self, mock_docker_client):
-        """Test inspecting image with generic NotFound error."""
-        mock_docker_client.client.images.get.side_effect = NotFound("Image not found")
-
-        # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ImageNotFound, match="Image not found"):
-            inspect_func(image_name="nonexistent")
-
-    def test_inspect_image_api_error(self, mock_docker_client):
-        """Test image inspection with API error."""
-        mock_docker_client.client.images.get.side_effect = APIError("Inspect failed")
-
-        # Get the inspect function
-        _, _, _, _, _, inspect_func = create_inspect_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to inspect image"):
-            inspect_func(image_name="ubuntu:22.04")
 
 
 class TestImageHistoryTool:
     """Test docker_image_history tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
-
     def test_image_history_success(self, mock_docker_client, safety_config):
         """Test successful image history retrieval."""
-        # Mock image object
         image = Mock()
         history_data = [
             {"Id": "layer1", "Created": 1234567890, "Size": 100},
             {"Id": "layer2", "Created": 1234567891, "Size": 200},
         ]
         image.history.return_value = history_data
-
         mock_docker_client.client.images.get.return_value = image
 
-        # Get the history function
-        _, _, _, _, _, history_func = create_image_history_tool(mock_docker_client, safety_config)
-
-        # Execute
+        *_, history_func = create_image_history_tool(mock_docker_client, safety_config)
         result = history_func(image="ubuntu:22.04")
 
-        # Verify
         assert len(result["history"]) == 2
         assert result["history"][0]["Id"] == "layer1"
         assert result["history"][1]["Id"] == "layer2"
@@ -284,320 +330,135 @@ class TestImageHistoryTool:
 
     def test_image_history_with_truncation(self, mock_docker_client):
         """Test image history with output truncation."""
-        # Create safety config with limit
         safety_config = SafetyConfig(max_list_results=1)
 
-        # Mock image object
         image = Mock()
         history_data = [
             {"Id": "layer1", "Created": 1234567890, "Size": 100},
             {"Id": "layer2", "Created": 1234567891, "Size": 200},
         ]
         image.history.return_value = history_data
-
         mock_docker_client.client.images.get.return_value = image
 
-        # Get the history function
-        _, _, _, _, _, history_func = create_image_history_tool(mock_docker_client, safety_config)
-
-        # Execute
+        *_, history_func = create_image_history_tool(mock_docker_client, safety_config)
         result = history_func(image="ubuntu:22.04")
 
-        # Verify truncation
-        assert len(result["history"]) == 1  # Truncated to 1
+        assert len(result["history"]) == 1
         assert result["truncation_info"]["truncated"] is True
         assert "message" in result["truncation_info"]
-
-    def test_image_history_not_found(self, mock_docker_client, safety_config):
-        """Test history of non-existent image."""
-        mock_docker_client.client.images.get.side_effect = DockerImageNotFound("Image not found")
-
-        # Get the history function
-        _, _, _, _, _, history_func = create_image_history_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(ImageNotFound, match="Image not found"):
-            history_func(image="nonexistent")
-
-    def test_image_history_api_error(self, mock_docker_client, safety_config):
-        """Test image history with API error."""
-        image = Mock()
-        image.history.side_effect = APIError("History failed")
-        mock_docker_client.client.images.get.return_value = image
-
-        # Get the history function
-        _, _, _, _, _, history_func = create_image_history_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to get image history"):
-            history_func(image="ubuntu:22.04")
 
 
 class TestPullImageTool:
     """Test docker_pull_image tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
     def test_pull_image_success(self, mock_docker_client):
         """Test successful image pull."""
-        # Mock image object
         image = Mock()
         image.id = "sha256:abc123"
         image.tags = ["ubuntu:22.04"]
-
         mock_docker_client.client.images.pull.return_value = image
 
-        # Get the pull function
-        _, _, _, _, _, pull_func = create_pull_image_tool(mock_docker_client)
-
-        # Execute
+        *_, pull_func = create_pull_image_tool(mock_docker_client)
         result = pull_func(image="ubuntu")
 
-        # Verify
         assert result["image"] == "ubuntu"
         assert result["id"] == "sha256:abc123"
         assert result["tags"] == ["ubuntu:22.04"]
         mock_docker_client.client.images.pull.assert_called_once_with(repository="ubuntu")
 
-    def test_pull_image_with_tag(self, mock_docker_client):
-        """Test image pull with specific tag."""
+    @pytest.mark.parametrize(
+        "kwargs,expected_call_kwargs",
+        [
+            ({"tag": "20.04"}, {"repository": "ubuntu", "tag": "20.04"}),
+            ({"all_tags": True}, {"repository": "ubuntu", "all_tags": True}),
+            ({"platform": "linux/amd64"}, {"repository": "ubuntu", "platform": "linux/amd64"}),
+        ],
+    )
+    def test_pull_image_with_options(self, mock_docker_client, kwargs, expected_call_kwargs):
+        """Test image pull with various options."""
         image = Mock()
         image.id = "sha256:abc123"
-        image.tags = ["ubuntu:20.04"]
-
+        image.tags = ["ubuntu:latest"]
         mock_docker_client.client.images.pull.return_value = image
 
-        # Get the pull function
-        _, _, _, _, _, pull_func = create_pull_image_tool(mock_docker_client)
+        *_, pull_func = create_pull_image_tool(mock_docker_client)
+        pull_func(image="ubuntu", **kwargs)
 
-        # Execute with tag
-        result = pull_func(image="ubuntu", tag="20.04")
-
-        # Verify tag was passed
-        mock_docker_client.client.images.pull.assert_called_once_with(
-            repository="ubuntu", tag="20.04"
-        )
-        assert result["tags"] == ["ubuntu:20.04"]
-
-    def test_pull_image_all_tags(self, mock_docker_client):
-        """Test pulling all tags."""
-        image = Mock()
-        image.id = "sha256:abc123"
-        image.tags = ["ubuntu:20.04", "ubuntu:22.04"]
-
-        mock_docker_client.client.images.pull.return_value = image
-
-        # Get the pull function
-        _, _, _, _, _, pull_func = create_pull_image_tool(mock_docker_client)
-
-        # Execute with all_tags
-        pull_func(image="ubuntu", all_tags=True)
-
-        # Verify all_tags was passed
-        mock_docker_client.client.images.pull.assert_called_once_with(
-            repository="ubuntu", all_tags=True
-        )
-
-    def test_pull_image_with_platform(self, mock_docker_client):
-        """Test pulling image for specific platform."""
-        image = Mock()
-        image.id = "sha256:abc123"
-        image.tags = ["ubuntu:22.04"]
-
-        mock_docker_client.client.images.pull.return_value = image
-
-        # Get the pull function
-        _, _, _, _, _, pull_func = create_pull_image_tool(mock_docker_client)
-
-        # Execute with platform
-        pull_func(image="ubuntu", platform="linux/amd64")
-
-        # Verify platform was passed
-        mock_docker_client.client.images.pull.assert_called_once_with(
-            repository="ubuntu", platform="linux/amd64"
-        )
-
-    def test_pull_image_api_error(self, mock_docker_client):
-        """Test image pull with API error."""
-        mock_docker_client.client.images.pull.side_effect = APIError("Pull failed")
-
-        # Get the pull function
-        _, _, _, _, _, pull_func = create_pull_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to pull image"):
-            pull_func(image="ubuntu")
+        mock_docker_client.client.images.pull.assert_called_once_with(**expected_call_kwargs)
 
 
 class TestBuildImageTool:
     """Test docker_build_image tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
     def test_build_image_success(self, mock_docker_client):
         """Test successful image build."""
-        # Mock image object and build logs
         image = Mock()
         image.id = "sha256:abc123"
         image.tags = ["myapp:latest"]
 
-        # Build logs as JSON strings (how Docker SDK actually returns them)
         build_logs = [
             '{"stream": "Step 1/2 : FROM ubuntu\\n"}\n',
             '{"stream": "Step 2/2 : RUN echo hello\\n"}\n',
         ]
-
         mock_docker_client.client.images.build.return_value = (image, build_logs)
 
-        # Get the build function
-        _, _, _, _, _, build_func = create_build_image_tool(mock_docker_client)
-
-        # Execute
+        *_, build_func = create_build_image_tool(mock_docker_client)
         result = build_func(path=".")
 
-        # Verify
         assert result["image_id"] == "sha256:abc123"
         assert result["tags"] == ["myapp:latest"]
         assert len(result["logs"]) == 2
         mock_docker_client.client.images.build.assert_called_once()
 
-    def test_build_image_with_tag(self, mock_docker_client):
-        """Test image build with tag."""
-        image = Mock()
-        image.id = "sha256:abc123"
-        image.tags = ["myapp:v1.0"]
-
-        mock_docker_client.client.images.build.return_value = (image, [])
-
-        # Get the build function
-        _, _, _, _, _, build_func = create_build_image_tool(mock_docker_client)
-
-        # Execute with tag
-        build_func(path=".", tag="myapp:v1.0")
-
-        # Verify tag was passed
-        call_kwargs = mock_docker_client.client.images.build.call_args.kwargs
-        assert call_kwargs["tag"] == "myapp:v1.0"
-
-    def test_build_image_with_buildargs(self, mock_docker_client):
-        """Test image build with build arguments."""
+    @pytest.mark.parametrize(
+        "extra_kwargs,expected_kwarg",
+        [
+            ({"tag": "myapp:v1.0"}, ("tag", "myapp:v1.0")),
+            ({"buildargs": {"NODE_VERSION": "18"}}, ("buildargs", {"NODE_VERSION": "18"})),
+            ({"dockerfile": "Dockerfile.dev"}, ("dockerfile", "Dockerfile.dev")),
+            ({"nocache": True}, ("nocache", True)),
+            ({"rm": False}, ("rm", False)),
+            ({"pull": True}, ("pull", True)),
+        ],
+    )
+    def test_build_image_with_options(self, mock_docker_client, extra_kwargs, expected_kwarg):
+        """Test image build with various options."""
         image = Mock()
         image.id = "sha256:abc123"
         image.tags = []
-
         mock_docker_client.client.images.build.return_value = (image, [])
 
-        # Get the build function
-        _, _, _, _, _, build_func = create_build_image_tool(mock_docker_client)
+        *_, build_func = create_build_image_tool(mock_docker_client)
+        build_func(path=".", **extra_kwargs)
 
-        # Execute with buildargs
-        buildargs = {"NODE_VERSION": "18", "ENV": "prod"}
-        build_func(path=".", buildargs=buildargs)
-
-        # Verify buildargs were passed
         call_kwargs = mock_docker_client.client.images.build.call_args.kwargs
-        assert call_kwargs["buildargs"] == buildargs
-
-    def test_build_image_with_all_options(self, mock_docker_client):
-        """Test image build with all options."""
-        image = Mock()
-        image.id = "sha256:abc123"
-        image.tags = ["myapp:dev"]
-
-        mock_docker_client.client.images.build.return_value = (image, [])
-
-        # Get the build function
-        _, _, _, _, _, build_func = create_build_image_tool(mock_docker_client)
-
-        # Execute with all options
-        build_func(
-            path="./app",
-            tag="myapp:dev",
-            dockerfile="Dockerfile.dev",
-            buildargs={"VERSION": "1.0"},
-            nocache=True,
-            rm=False,
-            pull=True,
-        )
-
-        # Verify all options were passed
-        call_kwargs = mock_docker_client.client.images.build.call_args.kwargs
-        assert call_kwargs["path"] == "./app"
-        assert call_kwargs["tag"] == "myapp:dev"
-        assert call_kwargs["dockerfile"] == "Dockerfile.dev"
-        assert call_kwargs["buildargs"] == {"VERSION": "1.0"}
-        assert call_kwargs["nocache"] is True
-        assert call_kwargs["rm"] is False
-        assert call_kwargs["pull"] is True
-
-    def test_build_image_api_error(self, mock_docker_client):
-        """Test image build with API error."""
-        mock_docker_client.client.images.build.side_effect = APIError("Build failed")
-
-        # Get the build function
-        _, _, _, _, _, build_func = create_build_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to build image"):
-            build_func(path=".")
+        key, value = expected_kwarg
+        assert call_kwargs[key] == value
 
 
 class TestPushImageTool:
     """Test docker_push_image tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
     def test_push_image_success(self, mock_docker_client):
         """Test successful image push."""
-        # Push stream as iterable of JSON strings (how Docker SDK actually returns them)
-        push_stream = [
-            '{"status": "Pushing"}\n',
-            '{"status": "Pushed"}\n',
-        ]
+        push_stream = ['{"status": "Pushing"}\n', '{"status": "Pushed"}\n']
         mock_docker_client.client.images.push.return_value = push_stream
 
-        # Get the push function
-        _, _, _, _, _, push_func = create_push_image_tool(mock_docker_client)
-
-        # Execute
+        *_, push_func = create_push_image_tool(mock_docker_client)
         result = push_func(image="myrepo/myapp")
 
-        # Verify
         assert result["image"] == "myrepo/myapp"
         assert result["status"] == "Pushed"
         mock_docker_client.client.images.push.assert_called_once_with(repository="myrepo/myapp")
 
     def test_push_image_with_tag(self, mock_docker_client):
         """Test pushing image with tag."""
-        # Push stream as iterable of JSON strings
         push_stream = ['{"status": "Pushed"}\n']
         mock_docker_client.client.images.push.return_value = push_stream
 
-        # Get the push function
-        _, _, _, _, _, push_func = create_push_image_tool(mock_docker_client)
-
-        # Execute with tag
+        *_, push_func = create_push_image_tool(mock_docker_client)
         push_func(image="myrepo/myapp", tag="v1.0")
 
-        # Verify tag was passed
         mock_docker_client.client.images.push.assert_called_once_with(
             repository="myrepo/myapp", tag="v1.0"
         )
@@ -607,10 +468,8 @@ class TestPushImageTool:
         push_stream = '{"status": "Pushing"}\n{"error": "Authentication required"}\n'
         mock_docker_client.client.images.push.return_value = push_stream
 
-        # Get the push function
-        _, _, _, _, _, push_func = create_push_image_tool(mock_docker_client)
+        *_, push_func = create_push_image_tool(mock_docker_client)
 
-        # Execute and expect error
         with pytest.raises(DockerOperationError, match="Authentication required"):
             push_func(image="myrepo/myapp")
 
@@ -619,202 +478,66 @@ class TestPushImageTool:
         push_stream = ""
         mock_docker_client.client.images.push.return_value = push_stream
 
-        # Get the push function
-        _, _, _, _, _, push_func = create_push_image_tool(mock_docker_client)
-
-        # Execute
+        *_, push_func = create_push_image_tool(mock_docker_client)
         result = push_func(image="myrepo/myapp")
 
-        # Verify default status
         assert result["status"] == "pushed"
-
-    def test_push_image_not_found(self, mock_docker_client):
-        """Test pushing non-existent image."""
-        mock_docker_client.client.images.push.side_effect = DockerImageNotFound("Image not found")
-
-        # Get the push function
-        _, _, _, _, _, push_func = create_push_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ImageNotFound, match="Image not found"):
-            push_func(image="nonexistent")
-
-    def test_push_image_api_error(self, mock_docker_client):
-        """Test image push with API error."""
-        mock_docker_client.client.images.push.side_effect = APIError("Push failed")
-
-        # Get the push function
-        _, _, _, _, _, push_func = create_push_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to push image"):
-            push_func(image="myrepo/myapp")
 
 
 class TestTagImageTool:
     """Test docker_tag_image tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
-    def test_tag_image_success(self, mock_docker_client):
-        """Test successful image tagging."""
-        # Mock image object
+    @pytest.mark.parametrize(
+        "tag,expected_target",
+        [
+            (None, "myrepo/ubuntu:latest"),
+            ("v1.0", "myrepo/ubuntu:v1.0"),
+        ],
+    )
+    def test_tag_image(self, mock_docker_client, tag, expected_target):
+        """Test image tagging with and without custom tag."""
         image = Mock()
         image.tag = Mock()
-
         mock_docker_client.client.images.get.return_value = image
 
-        # Get the tag function
-        _, _, _, _, _, tag_func = create_tag_image_tool(mock_docker_client)
+        *_, tag_func = create_tag_image_tool(mock_docker_client)
 
-        # Execute
-        result = tag_func(image="ubuntu:22.04", repository="myrepo/ubuntu")
+        kwargs = {"image": "ubuntu:22.04", "repository": "myrepo/ubuntu"}
+        if tag:
+            kwargs["tag"] = tag
 
-        # Verify
+        result = tag_func(**kwargs)
+
         assert result["source"] == "ubuntu:22.04"
-        assert result["target"] == "myrepo/ubuntu:latest"
+        assert result["target"] == expected_target
         mock_docker_client.client.images.get.assert_called_once_with("ubuntu:22.04")
-        image.tag.assert_called_once_with(repository="myrepo/ubuntu", tag="latest")
-
-    def test_tag_image_with_custom_tag(self, mock_docker_client):
-        """Test image tagging with custom tag."""
-        image = Mock()
-        image.tag = Mock()
-
-        mock_docker_client.client.images.get.return_value = image
-
-        # Get the tag function
-        _, _, _, _, _, tag_func = create_tag_image_tool(mock_docker_client)
-
-        # Execute with custom tag
-        result = tag_func(image="ubuntu:22.04", repository="myrepo/ubuntu", tag="v1.0")
-
-        # Verify custom tag
-        assert result["target"] == "myrepo/ubuntu:v1.0"
-        image.tag.assert_called_once_with(repository="myrepo/ubuntu", tag="v1.0")
-
-    def test_tag_image_not_found(self, mock_docker_client):
-        """Test tagging non-existent image."""
-        mock_docker_client.client.images.get.side_effect = DockerImageNotFound("Image not found")
-
-        # Get the tag function
-        _, _, _, _, _, tag_func = create_tag_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ImageNotFound, match="Image not found"):
-            tag_func(image="nonexistent", repository="myrepo/ubuntu")
-
-    def test_tag_image_api_error(self, mock_docker_client):
-        """Test image tagging with API error."""
-        image = Mock()
-        image.tag.side_effect = APIError("Tag failed")
-
-        mock_docker_client.client.images.get.return_value = image
-
-        # Get the tag function
-        _, _, _, _, _, tag_func = create_tag_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to tag image"):
-            tag_func(image="ubuntu:22.04", repository="myrepo/ubuntu")
+        image.tag.assert_called_once_with(repository="myrepo/ubuntu", tag=tag or "latest")
 
 
 class TestRemoveImageTool:
     """Test docker_remove_image tool."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
-
-    def test_remove_image_success(self, mock_docker_client):
-        """Test successful image removal."""
+    @pytest.mark.parametrize(
+        "kwargs,expected_call_kwargs",
+        [
+            ({}, {"image": "ubuntu:22.04", "force": False, "noprune": False}),
+            ({"force": True}, {"image": "ubuntu:22.04", "force": True, "noprune": False}),
+            ({"noprune": True}, {"image": "ubuntu:22.04", "force": False, "noprune": True}),
+        ],
+    )
+    def test_remove_image(self, mock_docker_client, kwargs, expected_call_kwargs):
+        """Test image removal with various options."""
         mock_docker_client.client.images.remove.return_value = None
 
-        # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_image_tool(mock_docker_client)
+        *_, remove_func = create_remove_image_tool(mock_docker_client)
+        result = remove_func(image="ubuntu:22.04", **kwargs)
 
-        # Execute
-        result = remove_func(image="ubuntu:22.04")
-
-        # Verify
         assert result["deleted"][0]["Deleted"] == "ubuntu:22.04"
-        mock_docker_client.client.images.remove.assert_called_once_with(
-            image="ubuntu:22.04", force=False, noprune=False
-        )
-
-    def test_remove_image_with_force(self, mock_docker_client):
-        """Test image removal with force flag."""
-        mock_docker_client.client.images.remove.return_value = None
-
-        # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_image_tool(mock_docker_client)
-
-        # Execute with force
-        remove_func(image="ubuntu:22.04", force=True)
-
-        # Verify force was used
-        mock_docker_client.client.images.remove.assert_called_once_with(
-            image="ubuntu:22.04", force=True, noprune=False
-        )
-
-    def test_remove_image_with_noprune(self, mock_docker_client):
-        """Test image removal with noprune flag."""
-        mock_docker_client.client.images.remove.return_value = None
-
-        # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_image_tool(mock_docker_client)
-
-        # Execute with noprune
-        remove_func(image="ubuntu:22.04", noprune=True)
-
-        # Verify noprune was used
-        mock_docker_client.client.images.remove.assert_called_once_with(
-            image="ubuntu:22.04", force=False, noprune=True
-        )
-
-    def test_remove_image_not_found(self, mock_docker_client):
-        """Test removing non-existent image."""
-        mock_docker_client.client.images.remove.side_effect = DockerImageNotFound("Image not found")
-
-        # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ImageNotFound, match="Image not found"):
-            remove_func(image="nonexistent")
-
-    def test_remove_image_api_error(self, mock_docker_client):
-        """Test image removal with API error."""
-        mock_docker_client.client.images.remove.side_effect = APIError("Remove failed")
-
-        # Get the remove function
-        _, _, _, _, _, remove_func = create_remove_image_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to remove image"):
-            remove_func(image="ubuntu:22.04")
+        mock_docker_client.client.images.remove.assert_called_once_with(**expected_call_kwargs)
 
 
 class TestPruneImagesTool:
     """Test docker_prune_images tool."""
-
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.images = Mock()
-        return client
 
     def test_prune_images_standard(self, mock_docker_client):
         """Test standard image prune (dangling only)."""
@@ -823,20 +546,28 @@ class TestPruneImagesTool:
             "SpaceReclaimed": 5000,
         }
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute standard prune
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         result = prune_func()
 
-        # Verify
         assert len(result["deleted"]) == 1
         assert result["space_reclaimed"] == 5000
         mock_docker_client.client.images.prune.assert_called_once_with(filters=None)
 
+    def test_prune_images_with_filters(self, mock_docker_client):
+        """Test pruning images with filters."""
+        mock_docker_client.client.images.prune.return_value = {
+            "ImagesDeleted": [],
+            "SpaceReclaimed": 0,
+        }
+
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
+        filters = {"until": ["24h"]}
+        prune_func(filters=filters)
+
+        mock_docker_client.client.images.prune.assert_called_once_with(filters=filters)
+
     def test_prune_images_all(self, mock_docker_client):
         """Test pruning all unused images using manual iteration."""
-        # Create mock images
         image1 = Mock()
         image1.id = "sha256:unused1"
         image1.attrs = {"Size": 1000}
@@ -845,7 +576,6 @@ class TestPruneImagesTool:
         image2.id = "sha256:inuse1"
         image2.attrs = {"Size": 2000}
 
-        # Create mock container using image2
         container = Mock()
         container.image = Mock()
         container.image.id = "sha256:inuse1"
@@ -853,13 +583,9 @@ class TestPruneImagesTool:
         mock_docker_client.client.images.list.return_value = [image1, image2]
         mock_docker_client.client.containers.list.return_value = [container]
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with all=True
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         result = prune_func(all=True)
 
-        # Verify only unused image was removed (always uses manual iteration)
         assert len(result["deleted"]) == 1
         assert result["deleted"][0] == {"Deleted": "sha256:unused1"}
         assert result["space_reclaimed"] == 1000
@@ -869,7 +595,6 @@ class TestPruneImagesTool:
 
     def test_prune_images_all_with_filters(self, mock_docker_client):
         """Test pruning all unused images with custom filters."""
-        # Create mock image
         image1 = Mock()
         image1.id = "sha256:unused1"
         image1.attrs = {"Size": 1500}
@@ -877,43 +602,31 @@ class TestPruneImagesTool:
         mock_docker_client.client.images.list.return_value = [image1]
         mock_docker_client.client.containers.list.return_value = []
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with all=True and custom filters
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         filters = {"label": ["env=test"]}
         result = prune_func(all=True, filters=filters)
 
-        # Verify manual iteration was used with filters
         mock_docker_client.client.images.list.assert_called_once_with(all=True, filters=filters)
         assert len(result["deleted"]) == 1
         assert result["space_reclaimed"] == 1500
 
     def test_prune_images_all_removes_tagged_but_unused(self, mock_docker_client):
-        """Regression test: Ensure all=True removes tagged-but-unused images.
-
-        This verifies the fix for the issue where all=True would only remove
-        dangling images if they existed, leaving tagged-but-unused images on disk.
-        """
-        # Create mock tagged image that is not in use
+        """Regression test: Ensure all=True removes tagged-but-unused images."""
         tagged_unused = Mock()
         tagged_unused.id = "sha256:tagged123"
         tagged_unused.tags = ["myapp:old"]
         tagged_unused.attrs = {"Size": 5000}
 
-        # Create dangling image (no tags)
         dangling = Mock()
         dangling.id = "sha256:dangling456"
         dangling.tags = []
         dangling.attrs = {"Size": 1000}
 
-        # Create image in use by a container
         in_use = Mock()
         in_use.id = "sha256:inuse789"
         in_use.tags = ["myapp:latest"]
         in_use.attrs = {"Size": 3000}
 
-        # Mock container using the in_use image
         container = Mock()
         container.image = Mock()
         container.image.id = "sha256:inuse789"
@@ -921,13 +634,9 @@ class TestPruneImagesTool:
         mock_docker_client.client.images.list.return_value = [tagged_unused, dangling, in_use]
         mock_docker_client.client.containers.list.return_value = [container]
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with all=True
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         result = prune_func(all=True)
 
-        # Should remove BOTH tagged-unused AND dangling, but NOT in-use
         assert len(result["deleted"]) == 2
         deleted_ids = [d["Deleted"] for d in result["deleted"]]
         assert "sha256:tagged123" in deleted_ids
@@ -937,7 +646,6 @@ class TestPruneImagesTool:
 
     def test_prune_images_all_with_removal_error(self, mock_docker_client):
         """Test manual iteration handles removal errors gracefully."""
-        # Create mock images
         image1 = Mock()
         image1.id = "sha256:error1"
         image1.attrs = {"Size": 1000}
@@ -949,44 +657,21 @@ class TestPruneImagesTool:
         mock_docker_client.client.images.list.return_value = [image1, image2]
         mock_docker_client.client.containers.list.return_value = []
 
-        # First removal fails, second succeeds
         def remove_side_effect(image_id, force):
             if image_id == "sha256:error1":
                 raise APIError("Removal failed")
 
         mock_docker_client.client.images.remove.side_effect = remove_side_effect
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with all=True
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         result = prune_func(all=True)
 
-        # Should continue after first failure
         assert len(result["deleted"]) == 1
         assert result["deleted"][0] == {"Deleted": "sha256:success1"}
         assert result["space_reclaimed"] == 2000
 
-    def test_prune_images_with_filters(self, mock_docker_client):
-        """Test pruning images with filters."""
-        mock_docker_client.client.images.prune.return_value = {
-            "ImagesDeleted": [],
-            "SpaceReclaimed": 0,
-        }
-
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with filters
-        filters = {"until": ["24h"]}
-        prune_func(filters=filters)
-
-        # Verify filters were passed
-        mock_docker_client.client.images.prune.assert_called_once_with(filters=filters)
-
     def test_prune_images_force_all(self, mock_docker_client):
         """Test force removing all images."""
-        # Create mock images with IDs and sizes
         image1 = Mock()
         image1.id = "sha256:abc123"
         image1.attrs = {"Size": 1000}
@@ -1000,26 +685,20 @@ class TestPruneImagesTool:
 
         mock_docker_client.client.images.list.return_value = [image1, image2, image3]
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with force_all=True
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         result = prune_func(force_all=True)
 
-        # Verify force removal was called for images with IDs
         assert len(result["deleted"]) == 2
         assert result["deleted"][0] == {"Deleted": "sha256:abc123"}
         assert result["deleted"][1] == {"Deleted": "sha256:def456"}
         assert result["space_reclaimed"] == 3000
 
-        # Verify remove was called with force=True
         assert mock_docker_client.client.images.remove.call_count == 2
         mock_docker_client.client.images.remove.assert_any_call("sha256:abc123", force=True)
         mock_docker_client.client.images.remove.assert_any_call("sha256:def456", force=True)
 
     def test_prune_images_force_all_with_errors(self, mock_docker_client):
         """Test force removing all images with some failures."""
-        # Create mock images
         image1 = Mock()
         image1.id = "sha256:abc123"
         image1.attrs = {"Size": 1000}
@@ -1030,32 +709,15 @@ class TestPruneImagesTool:
 
         mock_docker_client.client.images.list.return_value = [image1, image2]
 
-        # Make first image removal fail, second succeed
         def remove_side_effect(image_id, force):
             if image_id == "sha256:abc123":
                 raise APIError("Image in use")
-            # Second one succeeds (no exception)
 
         mock_docker_client.client.images.remove.side_effect = remove_side_effect
 
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute with force_all=True
+        *_, prune_func = create_prune_images_tool(mock_docker_client)
         result = prune_func(force_all=True)
 
-        # Should continue after first failure and remove second image
         assert len(result["deleted"]) == 1
         assert result["deleted"][0] == {"Deleted": "sha256:def456"}
         assert result["space_reclaimed"] == 2000
-
-    def test_prune_images_api_error(self, mock_docker_client):
-        """Test image prune with API error."""
-        mock_docker_client.client.images.prune.side_effect = APIError("Prune failed")
-
-        # Get the prune function
-        _, _, _, _, _, prune_func = create_prune_images_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to prune images"):
-            prune_func()

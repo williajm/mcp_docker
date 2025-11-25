@@ -297,7 +297,7 @@ SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 | **Audit Logging** | Manual setup | ✅ Built-in |
 | **Rate Limiting** | ❌ None | ✅ Configurable |
 | **Input Validation** | ❌ None | ✅ Pydantic schemas |
-| **Docker Coverage** | 100% (all features) | 36 core operations |
+| **Docker Coverage** | 100% (all features) | 33 core operations |
 | **Complexity** | Low (standard commands) | Medium (MCP protocol) |
 
 **When to use MCP Server:**
@@ -369,8 +369,8 @@ uv run pytest tests/integration/ -v -m integration
 # Run E2E tests (requires Docker, comprehensive)
 uv run pytest tests/e2e/ -v -m e2e
 
-# Run E2E tests excluding slow tests
-uv run pytest tests/e2e/ -v -m "e2e and not slow"
+# Run E2E tests excluding stress tests
+uv run pytest tests/e2e/ -v -m "e2e and not stress"
 
 # Run fuzz tests locally (requires atheris)
 python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
@@ -386,14 +386,16 @@ The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) fo
 mcp_docker/
 ├── src/
 │   └── mcp_docker/
-│       ├── __main__.py          # Entry point
-│       ├── server.py            # MCP server implementation
+│       ├── __main__.py          # Entry point (transport selection)
+│       ├── fastmcp_server.py    # MCP server implementation
 │       ├── config.py            # Configuration management
-│       ├── docker/              # Docker SDK wrapper
-│       ├── tools/               # MCP tool implementations
-│       ├── resources/           # MCP resource providers
-│       ├── prompts/             # MCP prompt templates
-│       └── utils/               # Utilities (logging, validation, safety)
+│       ├── docker_wrapper/      # Docker SDK wrapper
+│       ├── fastmcp_tools/       # MCP tool implementations
+│       ├── fastmcp_resources.py # MCP resource providers
+│       ├── fastmcp_prompts.py   # MCP prompt templates
+│       ├── middleware/          # Auth, safety, rate limiting
+│       ├── security/            # Audit logging, rate limiter
+│       └── utils/               # Validation, safety, errors
 ├── tests/                       # Test suite
 ├── docs/                        # Documentation
 └── pyproject.toml              # Project configuration

@@ -28,216 +28,335 @@ from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.safety import OperationSafety
 
 
+# Module-level fixtures to avoid duplication across test classes
+@pytest.fixture
+def mock_docker_client():
+    """Create a mock Docker client."""
+    client = Mock(spec=DockerClientWrapper)
+    client.client = Mock()
+    client.client.containers = Mock()
+    return client
+
+
+@pytest.fixture
+def safety_config():
+    """Create safety config."""
+    return SafetyConfig()
+
+
 class TestInputOutputModels:
     """Test Pydantic input/output models."""
 
-    def test_list_containers_input_defaults(self):
-        """Test ListContainersInput default values."""
-        input_model = ListContainersInput()
-        assert input_model.all is False
-        assert input_model.filters is None
-
-    def test_list_containers_input_with_filters(self):
-        """Test ListContainersInput with filters."""
-        filters = {"status": ["running"], "label": ["env=prod"]}
-        input_model = ListContainersInput(all=True, filters=filters)
-        assert input_model.all is True
-        assert input_model.filters == filters
-
-    def test_list_containers_output_structure(self):
-        """Test ListContainersOutput structure."""
-        output = ListContainersOutput(containers=[{"id": "abc123"}], count=1)
-        assert output.containers == [{"id": "abc123"}]
-        assert output.count == 1
-        assert output.truncation_info == {}
-
-    def test_inspect_container_input_validation(self):
-        """Test InspectContainerInput validation."""
-        input_model = InspectContainerInput(container_id="test-container")
-        assert input_model.container_id == "test-container"
-
-    def test_inspect_container_output_structure(self):
-        """Test InspectContainerOutput structure."""
-        info = {"Id": "abc123", "State": {"Status": "running"}}
-        output = InspectContainerOutput(container_info=info)
-        assert output.container_info == info
-        assert output.truncation_info == {}
-
-    def test_container_logs_input_defaults(self):
-        """Test ContainerLogsInput default values."""
-        input_model = ContainerLogsInput(container_id="test")
-        assert input_model.container_id == "test"
-        assert input_model.tail == "all"
-        assert input_model.since is None
-        assert input_model.until is None
-        assert input_model.timestamps is False
-        assert input_model.follow is False
-
-    def test_container_logs_input_with_params(self):
-        """Test ContainerLogsInput with all parameters."""
-        input_model = ContainerLogsInput(
-            container_id="test",
-            tail=100,
-            since="1h",
-            until="2024-01-01",
-            timestamps=True,
-            follow=True,
-        )
-        assert input_model.tail == 100
-        assert input_model.since == "1h"
-        assert input_model.until == "2024-01-01"
-        assert input_model.timestamps is True
-        assert input_model.follow is True
-
-    def test_container_logs_output_structure(self):
-        """Test ContainerLogsOutput structure."""
-        output = ContainerLogsOutput(logs="test logs", container_id="abc123")
-        assert output.logs == "test logs"
-        assert output.container_id == "abc123"
-        assert output.truncation_info == {}
-
-    def test_container_stats_input_validation(self):
-        """Test ContainerStatsInput validation."""
-        input_model = ContainerStatsInput(container_id="test", stream=False)
-        assert input_model.container_id == "test"
-        assert input_model.stream is False
-
-    def test_container_stats_output_structure(self):
-        """Test ContainerStatsOutput structure."""
-        stats = {"cpu_stats": {}, "memory_stats": {}}
-        output = ContainerStatsOutput(stats=stats, container_id="abc123")
-        assert output.stats == stats
-        assert output.container_id == "abc123"
-
-    def test_exec_command_input_validation(self):
-        """Test ExecCommandInput validation."""
-        input_model = ExecCommandInput(container_id="test", command=["ls", "-la"])
-        assert input_model.container_id == "test"
-        assert input_model.command == ["ls", "-la"]
-        assert input_model.workdir is None
-        assert input_model.user is None
-        assert input_model.environment is None
-        assert input_model.privileged is False
-
-    def test_exec_command_input_with_options(self):
-        """Test ExecCommandInput with all options."""
-        input_model = ExecCommandInput(
-            container_id="test",
-            command=["pwd"],
-            workdir="/app",
-            user="root",
-            environment={"FOO": "bar"},
-            privileged=True,
-        )
-        assert input_model.workdir == "/app"
-        assert input_model.user == "root"
-        assert input_model.environment == {"FOO": "bar"}
-        assert input_model.privileged is True
-
-    def test_exec_command_output_structure(self):
-        """Test ExecCommandOutput structure."""
-        output = ExecCommandOutput(exit_code=0, output="success")
-        assert output.exit_code == 0
-        assert output.output == "success"
-        assert output.truncation_info == {}
+    @pytest.mark.parametrize(
+        "model_class,kwargs,expected",
+        [
+            # ListContainersInput tests
+            (ListContainersInput, {}, {"all": False, "filters": None}),
+            (
+                ListContainersInput,
+                {"all": True, "filters": {"status": ["running"]}},
+                {"all": True, "filters": {"status": ["running"]}},
+            ),
+            # ListContainersOutput tests
+            (
+                ListContainersOutput,
+                {"containers": [{"id": "abc123"}], "count": 1},
+                {"containers": [{"id": "abc123"}], "count": 1, "truncation_info": {}},
+            ),
+            # InspectContainerInput tests
+            (
+                InspectContainerInput,
+                {"container_id": "test-container"},
+                {"container_id": "test-container"},
+            ),
+            # InspectContainerOutput tests
+            (
+                InspectContainerOutput,
+                {"container_info": {"Id": "abc123"}},
+                {"container_info": {"Id": "abc123"}, "truncation_info": {}},
+            ),
+            # ContainerLogsInput defaults
+            (
+                ContainerLogsInput,
+                {"container_id": "test"},
+                {
+                    "container_id": "test",
+                    "tail": "all",
+                    "since": None,
+                    "until": None,
+                    "timestamps": False,
+                    "follow": False,
+                },
+            ),
+            # ContainerLogsInput with all params
+            (
+                ContainerLogsInput,
+                {
+                    "container_id": "test",
+                    "tail": 100,
+                    "since": "1h",
+                    "until": "2024-01-01",
+                    "timestamps": True,
+                    "follow": True,
+                },
+                {
+                    "container_id": "test",
+                    "tail": 100,
+                    "since": "1h",
+                    "until": "2024-01-01",
+                    "timestamps": True,
+                    "follow": True,
+                },
+            ),
+            # ContainerLogsOutput tests
+            (
+                ContainerLogsOutput,
+                {"logs": "test logs", "container_id": "abc123"},
+                {"logs": "test logs", "container_id": "abc123", "truncation_info": {}},
+            ),
+            # ContainerStatsInput tests
+            (
+                ContainerStatsInput,
+                {"container_id": "test", "stream": False},
+                {"container_id": "test", "stream": False},
+            ),
+            # ContainerStatsOutput tests
+            (
+                ContainerStatsOutput,
+                {"stats": {"cpu_stats": {}}, "container_id": "abc123"},
+                {"stats": {"cpu_stats": {}}, "container_id": "abc123"},
+            ),
+            # ExecCommandInput defaults
+            (
+                ExecCommandInput,
+                {"container_id": "test", "command": ["ls", "-la"]},
+                {
+                    "container_id": "test",
+                    "command": ["ls", "-la"],
+                    "workdir": None,
+                    "user": None,
+                    "environment": None,
+                    "privileged": False,
+                },
+            ),
+            # ExecCommandInput with options
+            (
+                ExecCommandInput,
+                {
+                    "container_id": "test",
+                    "command": ["pwd"],
+                    "workdir": "/app",
+                    "user": "root",
+                    "environment": {"FOO": "bar"},
+                    "privileged": True,
+                },
+                {
+                    "container_id": "test",
+                    "command": ["pwd"],
+                    "workdir": "/app",
+                    "user": "root",
+                    "environment": {"FOO": "bar"},
+                    "privileged": True,
+                },
+            ),
+            # ExecCommandOutput tests
+            (
+                ExecCommandOutput,
+                {"exit_code": 0, "output": "success"},
+                {"exit_code": 0, "output": "success", "truncation_info": {}},
+            ),
+        ],
+    )
+    def test_model_structure(self, model_class, kwargs, expected):
+        """Test model structure and defaults."""
+        instance = model_class(**kwargs)
+        for field, expected_value in expected.items():
+            assert getattr(instance, field) == expected_value
 
 
 class TestToolMetadata:
     """Test tool metadata and registration."""
 
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        return client
+    @pytest.mark.parametrize(
+        "tool_creator,expected_name,expected_safety,idempotent,open_world,needs_safety_config",
+        [
+            (
+                create_list_containers_tool,
+                "docker_list_containers",
+                OperationSafety.SAFE,
+                True,
+                False,
+                True,
+            ),
+            (
+                create_inspect_container_tool,
+                "docker_inspect_container",
+                OperationSafety.SAFE,
+                True,
+                False,
+                False,
+            ),
+            (
+                create_container_logs_tool,
+                "docker_container_logs",
+                OperationSafety.SAFE,
+                True,
+                False,
+                True,
+            ),
+            (
+                create_container_stats_tool,
+                "docker_container_stats",
+                OperationSafety.SAFE,
+                True,
+                False,
+                False,
+            ),
+            (
+                create_exec_command_tool,
+                "docker_exec_command",
+                OperationSafety.MODERATE,
+                False,
+                True,
+                True,
+            ),
+        ],
+    )
+    def test_tool_metadata(  # noqa: PLR0913
+        self,
+        mock_docker_client,
+        safety_config,
+        tool_creator,
+        expected_name,
+        expected_safety,
+        idempotent,
+        open_world,
+        needs_safety_config,
+    ):
+        """Test tool metadata for container inspection tools."""
+        if needs_safety_config:
+            result = tool_creator(mock_docker_client, safety_config)
+        else:
+            result = tool_creator(mock_docker_client)
 
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
+        name, description, safety_level, is_idempotent, is_open_world, func = result
 
-    def test_list_containers_tool_metadata(self, mock_docker_client, safety_config):
-        """Test docker_list_containers tool metadata."""
-        name, description, safety_level, idempotent, open_world, func = create_list_containers_tool(
-            mock_docker_client, safety_config
-        )
-
-        assert name == "docker_list_containers"
-        assert "List Docker containers" in description
-        assert safety_level == OperationSafety.SAFE
-        assert idempotent is True
-        assert open_world is False
+        assert name == expected_name
+        assert isinstance(description, str) and len(description) > 0
+        assert safety_level == expected_safety
+        assert is_idempotent == idempotent
+        assert is_open_world == open_world
         assert callable(func)
 
-    def test_inspect_container_tool_metadata(self, mock_docker_client, safety_config):
-        """Test docker_inspect_container tool metadata."""
-        name, description, safety_level, idempotent, open_world, func = (
-            create_inspect_container_tool(mock_docker_client)
-        )
 
-        assert name == "docker_inspect_container"
-        assert description == "Get detailed information about a Docker container"
-        assert safety_level == OperationSafety.SAFE
-        assert idempotent is True
-        assert open_world is False
-        assert callable(func)
+class TestContainerNotFoundErrors:
+    """Test container not found error handling across tools."""
 
-    def test_logs_tool_metadata(self, mock_docker_client, safety_config):
-        """Test docker_container_logs tool metadata."""
-        name, description, safety_level, idempotent, open_world, func = create_container_logs_tool(
-            mock_docker_client, safety_config
-        )
+    @pytest.mark.parametrize(
+        "tool_creator,needs_safety_config,call_kwargs",
+        [
+            (create_inspect_container_tool, False, {"container_id": "nonexistent"}),
+            (create_container_logs_tool, True, {"container_id": "nonexistent"}),
+            (create_container_stats_tool, False, {"container_id": "nonexistent"}),
+            (
+                create_exec_command_tool,
+                True,
+                {"container_id": "nonexistent", "command": ["ls"]},
+            ),
+        ],
+    )
+    def test_container_not_found(
+        self,
+        mock_docker_client,
+        safety_config,
+        tool_creator,
+        needs_safety_config,
+        call_kwargs,
+    ):
+        """Test that ContainerNotFound is raised when container doesn't exist."""
+        mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
-        assert name == "docker_container_logs"
-        assert description == "Get logs from a Docker container"
-        assert safety_level == OperationSafety.SAFE
-        assert idempotent is True
-        assert open_world is False
-        assert callable(func)
+        if needs_safety_config:
+            *_, func = tool_creator(mock_docker_client, safety_config)
+        else:
+            *_, func = tool_creator(mock_docker_client)
 
-    def test_stats_tool_metadata(self, mock_docker_client, safety_config):
-        """Test docker_container_stats tool metadata."""
-        name, description, safety_level, idempotent, open_world, func = create_container_stats_tool(
-            mock_docker_client
-        )
+        with pytest.raises(ContainerNotFound):
+            func(**call_kwargs)
 
-        assert name == "docker_container_stats"
-        assert description == "Get resource usage statistics for a Docker container"
-        assert safety_level == OperationSafety.SAFE
-        assert idempotent is True
-        assert open_world is False
-        assert callable(func)
 
-    def test_exec_command_tool_metadata(self, mock_docker_client, safety_config):
-        """Test docker_exec_command tool metadata."""
-        name, description, safety_level, idempotent, open_world, func = create_exec_command_tool(
-            mock_docker_client, safety_config
-        )
+class TestAPIErrors:
+    """Test API error handling across tools."""
 
-        assert name == "docker_exec_command"
-        assert description == "Execute a command in a running Docker container"
-        assert safety_level == OperationSafety.MODERATE
-        assert idempotent is False
-        assert open_world is True  # Commands may access external networks/APIs
-        assert callable(func)
+    @pytest.mark.parametrize(
+        "tool_creator,needs_safety_config,call_kwargs,error_match,setup_error_on",
+        [
+            (
+                create_list_containers_tool,
+                True,
+                {},
+                "Failed to list containers",
+                "containers.list",
+            ),
+            (
+                create_inspect_container_tool,
+                False,
+                {"container_id": "test"},
+                "Failed to inspect container",
+                "containers.get",
+            ),
+        ],
+    )
+    def test_api_error(  # noqa: PLR0913
+        self,
+        mock_docker_client,
+        safety_config,
+        tool_creator,
+        needs_safety_config,
+        call_kwargs,
+        error_match,
+        setup_error_on,
+    ):
+        """Test that DockerOperationError is raised on API errors."""
+        # Set up the error on the right method
+        if setup_error_on == "containers.list":
+            mock_docker_client.client.containers.list.side_effect = APIError("API failed")
+        elif setup_error_on == "containers.get":
+            mock_docker_client.client.containers.get.side_effect = APIError("API failed")
+
+        if needs_safety_config:
+            *_, func = tool_creator(mock_docker_client, safety_config)
+        else:
+            *_, func = tool_creator(mock_docker_client)
+
+        with pytest.raises(DockerOperationError, match=error_match):
+            func(**call_kwargs)
+
+    def test_logs_api_error(self, mock_docker_client, safety_config):
+        """Test logs API error after getting container."""
+        mock_container = Mock()
+        mock_container.logs.side_effect = APIError("Logs failed")
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
+
+        with pytest.raises(DockerOperationError, match="Failed to get container logs"):
+            logs_func(container_id="test")
+
+    def test_exec_api_error(self, mock_docker_client, safety_config):
+        """Test exec API error after getting container."""
+        mock_container = Mock()
+        mock_container.exec_run.side_effect = APIError("Exec failed")
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, exec_func = create_exec_command_tool(mock_docker_client, safety_config)
+
+        with pytest.raises(DockerOperationError, match="Failed to execute command"):
+            exec_func(container_id="test", command=["ls"])
 
 
 class TestListContainersTool:
-    """Test docker_list_containers tool."""
-
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.containers = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
+    """Test docker_list_containers tool functionality."""
 
     def test_list_containers_success(self, mock_docker_client, safety_config):
         """Test successful container listing."""
@@ -257,13 +376,9 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        # Get the list function
         *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
-
-        # Execute
         result = list_func()
 
-        # Verify
         assert result["count"] == 1
         assert len(result["containers"]) == 1
         assert result["containers"][0]["id"] == "abc123"
@@ -275,177 +390,11 @@ class TestListContainersTool:
         """Test container listing with filters."""
         mock_docker_client.client.containers.list.return_value = []
 
-        # Get the list function
         *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
-
-        # Execute with filters
         filters = {"status": ["running"]}
         result = list_func(filters=filters)
 
-        # Verify filters were passed
         mock_docker_client.client.containers.list.assert_called_once_with(
             all=False, filters=filters
         )
         assert result["count"] == 0
-
-    def test_list_containers_api_error(self, mock_docker_client, safety_config):
-        """Test container listing with API error."""
-        mock_docker_client.client.containers.list.side_effect = APIError("List failed")
-
-        # Get the list function
-        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to list containers"):
-            list_func()
-
-
-class TestInspectContainerTool:
-    """Test docker_inspect_container tool."""
-
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.containers = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
-
-    def test_inspect_container_not_found(self, mock_docker_client, safety_config):
-        """Test inspecting non-existent container."""
-        mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
-
-        # Get the inspect function
-        *_, inspect_func = create_inspect_container_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ContainerNotFound):
-            inspect_func(container_id="nonexistent")
-
-    def test_inspect_container_api_error(self, mock_docker_client, safety_config):
-        """Test container inspection with API error."""
-        mock_docker_client.client.containers.get.side_effect = APIError("Inspect failed")
-
-        # Get the inspect function
-        *_, inspect_func = create_inspect_container_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to inspect container"):
-            inspect_func(container_id="test")
-
-
-class TestContainerLogsTool:
-    """Test docker_container_logs tool."""
-
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.containers = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
-
-    def test_logs_container_not_found(self, mock_docker_client, safety_config):
-        """Test logs for non-existent container."""
-        mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
-
-        # Get the logs function
-        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(ContainerNotFound):
-            logs_func(container_id="nonexistent")
-
-    def test_logs_api_error(self, mock_docker_client, safety_config):
-        """Test logs with API error."""
-        mock_container = Mock()
-        mock_container.logs.side_effect = APIError("Logs failed")
-
-        mock_docker_client.client.containers.get.return_value = mock_container
-
-        # Get the logs function
-        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to get container logs"):
-            logs_func(container_id="test")
-
-
-class TestContainerStatsTool:
-    """Test docker_container_stats tool."""
-
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.containers = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
-
-    def test_stats_container_not_found(self, mock_docker_client, safety_config):
-        """Test stats for non-existent container."""
-        mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
-
-        # Get the stats function
-        *_, stats_func = create_container_stats_tool(mock_docker_client)
-
-        # Execute and expect error
-        with pytest.raises(ContainerNotFound):
-            stats_func(container_id="nonexistent")
-
-
-class TestExecCommandTool:
-    """Test docker_exec_command tool."""
-
-    @pytest.fixture
-    def mock_docker_client(self):
-        """Create a mock Docker client."""
-        client = Mock(spec=DockerClientWrapper)
-        client.client = Mock()
-        client.client.containers = Mock()
-        return client
-
-    @pytest.fixture
-    def safety_config(self):
-        """Create safety config."""
-        return SafetyConfig()
-
-    def test_exec_container_not_found(self, mock_docker_client, safety_config):
-        """Test exec on non-existent container."""
-        mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
-
-        # Get the exec function
-        *_, exec_func = create_exec_command_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(ContainerNotFound):
-            exec_func(container_id="nonexistent", command=["ls"])
-
-    def test_exec_api_error(self, mock_docker_client, safety_config):
-        """Test exec with API error."""
-        mock_container = Mock()
-        mock_container.exec_run.side_effect = APIError("Exec failed")
-
-        mock_docker_client.client.containers.get.return_value = mock_container
-
-        # Get the exec function
-        *_, exec_func = create_exec_command_tool(mock_docker_client, safety_config)
-
-        # Execute and expect error
-        with pytest.raises(DockerOperationError, match="Failed to execute command"):
-            exec_func(container_id="test", command=["ls"])

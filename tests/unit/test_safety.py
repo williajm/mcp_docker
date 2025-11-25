@@ -631,3 +631,165 @@ class TestConstants:
         # Verify some patterns exist
         patterns_str = " ".join(DANGEROUS_COMMAND_PATTERNS)
         assert "rm" in patterns_str or "shutdown" in patterns_str
+
+
+class TestCommandEdgeCases:
+    """Edge case tests for command validation."""
+
+    def test_unicode_command_safe(self) -> None:
+        """Test that Unicode characters in safe commands are handled."""
+        # Unicode in commands should work (common in internationalized environments)
+        result = sanitize_command(["echo", "Hello 世界"])
+        assert result == ["echo", "Hello 世界"]
+
+        result = sanitize_command(["echo", "Привет мир"])
+        assert result == ["echo", "Привет мир"]
+
+    def test_unicode_command_dangerous_still_blocked(self) -> None:
+        """Test that dangerous patterns with Unicode are still detected."""
+        # Unicode shouldn't bypass safety checks
+        with pytest.raises(UnsafeOperationError):
+            sanitize_command("rm -rf / # 删除所有文件")
+
+    def test_very_long_command_handled(self) -> None:
+        """Test handling of very long commands."""
+        # Very long but safe command
+        long_arg = "x" * 10000
+        result = sanitize_command(["echo", long_arg])
+        assert result == ["echo", long_arg]
+
+    def test_many_arguments_handled(self) -> None:
+        """Test handling commands with many arguments."""
+        # Command with many arguments
+        args = ["echo"] + [f"arg{i}" for i in range(100)]
+        result = sanitize_command(args)
+        assert len(result) == 101
+
+    def test_empty_arguments_in_list(self) -> None:
+        """Test handling of empty arguments in list commands."""
+        # Empty strings in args list - should be preserved
+        result = sanitize_command(["echo", "", "hello"])
+        assert "" in result
+
+    def test_whitespace_only_arguments(self) -> None:
+        """Test handling of whitespace-only arguments."""
+        result = sanitize_command(["echo", "   ", "hello"])
+        assert "   " in result
+
+    def test_command_with_newlines_in_args(self) -> None:
+        """Test commands with newlines embedded in arguments."""
+        # Newlines in arguments should be preserved (not treated as command separators)
+        result = sanitize_command(["echo", "line1\nline2"])
+        assert result == ["echo", "line1\nline2"]
+
+    def test_command_with_tab_characters(self) -> None:
+        """Test commands with tab characters."""
+        result = sanitize_command(["echo", "col1\tcol2"])
+        assert result == ["echo", "col1\tcol2"]
+
+
+class TestPortBoundaryValues:
+    """Edge case tests for port validation boundary values."""
+
+    def test_port_zero_is_privileged(self) -> None:
+        """Test that port 0 is considered privileged (below 1024 boundary)."""
+        # Port 0 is below 1024 so it's treated as privileged
+        # (even though it has special meaning for ephemeral port selection)
+        with pytest.raises(UnsafeOperationError, match="Privileged port"):
+            validate_port_binding(0, allow_privileged_ports=False)
+
+    def test_port_one_is_privileged(self) -> None:
+        """Test that port 1 is privileged."""
+        with pytest.raises(UnsafeOperationError, match="Privileged port"):
+            validate_port_binding(1, allow_privileged_ports=False)
+
+    def test_port_1023_is_privileged(self) -> None:
+        """Test that port 1023 (just below boundary) is privileged."""
+        with pytest.raises(UnsafeOperationError, match="Privileged port"):
+            validate_port_binding(1023, allow_privileged_ports=False)
+
+    def test_port_1024_is_not_privileged(self) -> None:
+        """Test that port 1024 (the boundary) is not privileged."""
+        # Should not raise - 1024 is the first unprivileged port
+        validate_port_binding(1024, allow_privileged_ports=False)
+
+    def test_port_65535_is_valid(self) -> None:
+        """Test that maximum valid port 65535 is handled."""
+        validate_port_binding(65535, allow_privileged_ports=False)
+
+    def test_common_privileged_ports(self) -> None:
+        """Test common privileged ports are blocked when not allowed."""
+        privileged_ports = [22, 23, 25, 53, 80, 110, 143, 443, 993, 995]
+        for port in privileged_ports:
+            with pytest.raises(UnsafeOperationError, match="Privileged port"):
+                validate_port_binding(port, allow_privileged_ports=False)
+
+    def test_common_unprivileged_ports(self) -> None:
+        """Test common unprivileged ports are allowed."""
+        unprivileged_ports = [3000, 3306, 5432, 6379, 8000, 8080, 8443, 9000, 27017]
+        for port in unprivileged_ports:
+            validate_port_binding(port, allow_privileged_ports=False)
+
+
+class TestEnvironmentVariableEdgeCases:
+    """Edge case tests for environment variable validation."""
+
+    def test_unicode_key_and_value(self) -> None:
+        """Test environment variables with Unicode characters."""
+        key, value = validate_environment_variable("MY_VAR", "value with 日本語")
+        assert value == "value with 日本語"
+
+    def test_very_long_value(self) -> None:
+        """Test environment variable with very long value."""
+        long_value = "x" * 10000
+        key, value = validate_environment_variable("LONG_VAR", long_value)
+        assert len(value) == 10000
+
+    def test_value_with_equals_sign(self) -> None:
+        """Test environment variable value containing equals signs."""
+        key, value = validate_environment_variable("CONNECTION_STRING", "key1=val1&key2=val2")
+        assert value == "key1=val1&key2=val2"
+
+    def test_value_with_quotes(self) -> None:
+        """Test environment variable value containing quotes."""
+        key, value = validate_environment_variable("QUOTED", 'value with "quotes"')
+        assert value == 'value with "quotes"'
+
+        key, value = validate_environment_variable("QUOTED2", "value with 'quotes'")
+        assert value == "value with 'quotes'"
+
+    def test_value_with_brackets(self) -> None:
+        """Test environment variable value containing brackets."""
+        key, value = validate_environment_variable("JSON", '{"key": "value"}')
+        assert value == '{"key": "value"}'
+
+        key, value = validate_environment_variable("ARRAY", "[1, 2, 3]")
+        assert value == "[1, 2, 3]"
+
+    def test_key_with_underscores_and_numbers(self) -> None:
+        """Test environment variable keys with underscores and numbers."""
+        key, value = validate_environment_variable("MY_VAR_123", "value")
+        assert key == "MY_VAR_123"
+
+    def test_boolean_value_converted(self) -> None:
+        """Test that boolean values are converted to strings."""
+        key, value = validate_environment_variable("ENABLED", True)
+        assert value == "True"
+
+        key, value = validate_environment_variable("DISABLED", False)
+        assert value == "False"
+
+    def test_none_value_converted(self) -> None:
+        """Test that None value is converted to string."""
+        key, value = validate_environment_variable("EMPTY", None)
+        assert value == "None"
+
+    def test_float_value_converted(self) -> None:
+        """Test that float values are converted to strings."""
+        key, value = validate_environment_variable("RATIO", 3.14159)
+        assert value == "3.14159"
+
+    def test_value_with_percent_encoding(self) -> None:
+        """Test environment variable with URL percent encoding."""
+        key, value = validate_environment_variable("ENCODED", "hello%20world")
+        assert value == "hello%20world"

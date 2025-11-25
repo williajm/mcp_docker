@@ -111,18 +111,14 @@ class SafetyEnforcer:
             )
 
         # Check destructive operations
-        if safety_level == OperationSafety.DESTRUCTIVE:
-            if not self.config.allow_destructive_operations:
-                raise UnsafeOperationError(
-                    f"Destructive operation '{tool_name}' is not allowed. "
-                    "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
-                )
-
-            if self.config.require_confirmation_for_destructive:
-                logger.warning(
-                    f"Destructive operation '{tool_name}' requires confirmation. "
-                    "This would normally prompt for user confirmation."
-                )
+        if (
+            safety_level == OperationSafety.DESTRUCTIVE
+            and not self.config.allow_destructive_operations
+        ):
+            raise UnsafeOperationError(
+                f"Destructive operation '{tool_name}' is not allowed. "
+                "Set SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true to enable."
+            )
 
     def check_tool_allowed_and_safe(
         self,

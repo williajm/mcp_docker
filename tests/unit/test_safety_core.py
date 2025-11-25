@@ -92,17 +92,6 @@ class TestSafetyEnforcer:
         # Should not raise
         enforcer.check_operation_safety("docker_remove_container", OperationSafety.DESTRUCTIVE)
 
-    def test_check_operation_safety_destructive_with_confirmation(self):
-        """Test destructive operation with confirmation requirement."""
-        config = SafetyConfig(
-            allow_destructive_operations=True,
-            require_confirmation_for_destructive=True,
-        )
-        enforcer = SafetyEnforcer(config)
-
-        # Should not raise but log warning
-        enforcer.check_operation_safety("docker_remove_container", OperationSafety.DESTRUCTIVE)
-
     def test_check_operation_safety_safe_always_allowed(self):
         """Test safe operation always allowed."""
         config = SafetyConfig(
@@ -142,61 +131,33 @@ class TestSafetyEnforcer:
         # Should not raise
         enforcer.check_tool_allowed_and_safe("docker_list_containers", OperationSafety.SAFE)
 
-    def test_validate_privileged_mode_not_allowed(self):
-        """Test privileged mode validation when not allowed."""
+    def test_validate_privileged_mode_delegates_to_safety_module(self):
+        """Test that validate_privileged_mode correctly delegates to safety module."""
         config = SafetyConfig(allow_privileged_containers=False)
         enforcer = SafetyEnforcer(config)
 
+        # Should raise when privileged=True but not allowed
         with pytest.raises(UnsafeOperationError, match="Privileged mode is not allowed"):
             enforcer.validate_privileged_mode(True)
-
-    def test_validate_privileged_mode_allowed(self):
-        """Test privileged mode validation when allowed."""
-        config = SafetyConfig(allow_privileged_containers=True)
-        enforcer = SafetyEnforcer(config)
-
-        # Should not raise
-        enforcer.validate_privileged_mode(True)
-
-    def test_validate_privileged_mode_not_requested(self):
-        """Test privileged mode validation when not requested."""
-        config = SafetyConfig(allow_privileged_containers=False)
-        enforcer = SafetyEnforcer(config)
 
         # Should not raise when privileged=False
         enforcer.validate_privileged_mode(False)
 
-    def test_validate_mount_path_safe_blocked(self):
-        """Test mount path validation with blocked path."""
-        config = SafetyConfig(volume_mount_blocklist=["/etc", "/sys"])
+    def test_validate_mount_path_safe_delegates_to_safety_module(self):
+        """Test that validate_mount_path_safe correctly delegates to safety module."""
+        config = SafetyConfig(volume_mount_blocklist=["/etc"])
         enforcer = SafetyEnforcer(config)
 
         with pytest.raises(UnsafeOperationError, match="Mount path .* is blocked"):
             enforcer.validate_mount_path_safe("/etc/passwd")
 
-    def test_validate_mount_path_safe_allowed(self):
-        """Test mount path validation with allowed path."""
-        config = SafetyConfig(volume_mount_allowlist=["/data"])
-        enforcer = SafetyEnforcer(config)
-
-        # Should not raise
-        enforcer.validate_mount_path_safe("/data/test")
-
-    def test_validate_command_safe_dangerous_command(self):
-        """Test command validation with dangerous command."""
+    def test_validate_command_safe_delegates_to_safety_module(self):
+        """Test that validate_command_safe correctly delegates to safety module."""
         config = SafetyConfig()
         enforcer = SafetyEnforcer(config)
 
         with pytest.raises((ValidationError, UnsafeOperationError)):
             enforcer.validate_command_safe("rm -rf /")
-
-    def test_validate_command_safe_ok_command(self):
-        """Test command validation with safe command."""
-        config = SafetyConfig()
-        enforcer = SafetyEnforcer(config)
-
-        # Should not raise
-        enforcer.validate_command_safe("echo hello")
 
     def test_sanitize_and_validate_command_string(self):
         """Test command sanitization with string input."""
