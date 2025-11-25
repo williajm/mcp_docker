@@ -36,19 +36,19 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.0.0",  # FastMCP 2.0
+    "fastmcp>=2.13.1",
     "docker>=7.1.0",
     "pydantic>=2.12.4",
     "pydantic-settings>=2.12.0",
-    "loguru>=0.7.0",
+    "loguru>=0.7.3",
     "starlette>=0.50.0",
     "uvicorn>=0.38.0",
     "limits>=5.6.0",
-    "cachetools>=6.2.1",
+    "cachetools>=6.2.2",
     "secure>=1.0.1",
     "authlib>=1.6.5",
     "httpx>=0.28.1",
-    "typer>=0.9.0",
+    "typer>=0.20.0",
     "humanfriendly>=10.0",
 ]
 

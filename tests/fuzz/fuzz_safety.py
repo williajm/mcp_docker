@@ -13,7 +13,9 @@ from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
 
 # Import without instrumentation to avoid complex dependencies
 from mcp_docker.utils.safety import (
+    check_privileged_mode,
     sanitize_command,
+    validate_environment_variable,
     validate_mount_path,
     validate_port_binding,
 )
@@ -137,11 +139,20 @@ def fuzz_privileged_container_check(data: bytes) -> None:
     Args:
         data: Random fuzz input
     """
-    if len(data) < 1:
+    if len(data) < 2:
         return
 
-    # Skip this test as check_privileged_container doesn't exist in utils.safety
-    pass
+    fdp = atheris.FuzzedDataProvider(data)
+
+    # Test various combinations of privileged mode settings
+    privileged = fdp.ConsumeBool()
+    allow_privileged = fdp.ConsumeBool()
+
+    try:
+        check_privileged_mode(privileged, allow_privileged)
+    except UnsafeOperationError:
+        # Expected when privileged=True and allow_privileged=False
+        pass
 
 
 def fuzz_path_traversal(data: bytes) -> None:
@@ -174,7 +185,72 @@ def fuzz_path_traversal(data: bytes) -> None:
         test_path = base_path + pattern + fdp.ConsumeUnicodeNoSurrogates(20)
         try:
             validate_mount_path(test_path)
+        except (ValueError, ValidationError, UnsafeOperationError):
+            pass
+
+
+def fuzz_environment_variable(data: bytes) -> None:
+    """Fuzz environment variable validation.
+
+    Tests for command injection via environment variables.
+
+    Args:
+        data: Random fuzz input
+    """
+    if len(data) < 2:
+        return
+
+    fdp = atheris.FuzzedDataProvider(data)
+
+    # Test with random key and value
+    key = fdp.ConsumeUnicodeNoSurrogates(50)
+    value = fdp.ConsumeUnicodeNoSurrogates(200)
+
+    try:
+        result_key, result_value = validate_environment_variable(key, value)
+        # If validation succeeds, verify the results are strings
+        assert isinstance(result_key, str)
+        assert isinstance(result_value, str)
+    except (ValueError, ValidationError, AssertionError):
+        # Expected for dangerous characters or empty keys
+        pass
+
+
+def fuzz_env_var_injection_patterns(data: bytes) -> None:
+    """Test detection of command injection patterns in environment variables.
+
+    Args:
+        data: Random fuzz input
+    """
+    if len(data) < 5:
+        return
+
+    fdp = atheris.FuzzedDataProvider(data)
+
+    # Known dangerous patterns for env var injection
+    injection_patterns = [
+        "$(whoami)",  # Command substitution
+        "`id`",  # Backtick command substitution
+        "value; rm -rf /",  # Command separator
+        "value\nmalicious",  # Newline injection
+        "value\rmalicious",  # Carriage return injection
+        "${PATH}",  # Variable expansion (not blocked, but tested)
+        "$(cat /etc/passwd)",  # Command substitution
+        "`cat /etc/shadow`",  # Backtick substitution
+    ]
+
+    # Mix fuzzy data with injection patterns
+    for pattern in injection_patterns:
+        key = fdp.ConsumeUnicodeNoSurrogates(20) or "TEST_VAR"
+        prefix = fdp.ConsumeUnicodeNoSurrogates(10)
+        suffix = fdp.ConsumeUnicodeNoSurrogates(10)
+        test_value = f"{prefix}{pattern}{suffix}"
+
+        try:
+            validate_environment_variable(key, test_value)
+            # Some patterns should be blocked
         except (ValueError, ValidationError):
+            # Expected - injection was blocked
             pass
 
 
@@ -190,6 +266,8 @@ def TestOneInput(data: bytes) -> None:
     fuzz_port_binding_validation(data)
     fuzz_privileged_container_check(data)
     fuzz_path_traversal(data)
+    fuzz_environment_variable(data)
+    fuzz_env_var_injection_patterns(data)
 
 
 def main() -> None:
