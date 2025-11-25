@@ -105,7 +105,7 @@ def create_version_tool(
         try:
             logger.info("Getting Docker version information")
 
-            version_info = docker_client.client.version()  # type: ignore[no-untyped-call]
+            version_info = docker_client.client.version()
 
             # Extract key information
             output = VersionOutput(
@@ -169,7 +169,7 @@ def create_events_tool(
 
             # Get events from Docker API
             # Note: This returns a generator, so we need to decode and collect events
-            event_generator = docker_client.client.events(  # type: ignore[no-untyped-call]
+            event_generator = docker_client.client.events(
                 since=since,
                 until=until,
                 filters=filters,
