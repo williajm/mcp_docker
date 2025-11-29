@@ -1,6 +1,7 @@
 """Unit tests for rate limiter."""
 
 import asyncio
+import threading
 
 import pytest
 
@@ -272,3 +273,65 @@ class TestRateLimiter:
         # Now can acquire again
         await limiter.acquire_concurrent_slot()
         limiter.release_concurrent_slot()
+
+    def test_counter_lock_exists(self) -> None:
+        """Test that counter lock is initialized."""
+        limiter = RateLimiter(enabled=True, max_concurrent=3)
+
+        assert hasattr(limiter, "_counter_lock")
+        assert isinstance(limiter._counter_lock, type(threading.Lock()))
+
+    def test_get_stats_thread_safe(self) -> None:
+        """Test that get_stats uses lock for thread-safe counter access."""
+        limiter = RateLimiter(enabled=True, max_concurrent=10)
+
+        # Run get_stats from multiple threads concurrently
+        results = []
+
+        def get_stats_thread():
+            for _ in range(100):
+                stats = limiter.get_stats()
+                results.append(stats["concurrent_requests"])
+
+        threads = [threading.Thread(target=get_stats_thread) for _ in range(5)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # All results should be valid integers (0 in this case since no slots acquired)
+        assert all(r == 0 for r in results)
+        assert len(results) == 500
+
+    @pytest.mark.asyncio
+    async def test_counter_thread_safe_under_concurrent_access(self) -> None:
+        """Test counter accuracy under concurrent slot acquire/release."""
+        limiter = RateLimiter(enabled=True, max_concurrent=100)
+
+        # Acquire and release slots from multiple async tasks
+        async def acquire_release():
+            await limiter.acquire_concurrent_slot()
+            await asyncio.sleep(0.001)  # Simulate brief work
+            limiter.release_concurrent_slot()
+
+        # Run 50 concurrent acquire/release cycles
+        tasks = [acquire_release() for _ in range(50)]
+        await asyncio.gather(*tasks)
+
+        # Counter should be back to 0 after all releases
+        assert limiter._concurrent_count == 0
+        stats = limiter.get_stats()
+        assert stats["concurrent_requests"] == 0
+
+    def test_release_concurrent_slot_counter_floor(self) -> None:
+        """Test that release_concurrent_slot doesn't go below 0."""
+        limiter = RateLimiter(enabled=True, max_concurrent=3)
+
+        # Release without acquire - counter should stay at 0
+        limiter.release_concurrent_slot()
+        assert limiter._concurrent_count == 0
+
+        # Multiple releases - counter should never go negative
+        limiter.release_concurrent_slot()
+        limiter.release_concurrent_slot()
+        assert limiter._concurrent_count == 0

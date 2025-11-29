@@ -3,6 +3,7 @@
 This module contains read-only image tools migrated to FastMCP 2.0.
 """
 
+from pathlib import Path
 from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
@@ -13,13 +14,14 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
+    DESC_IMAGE_ID,
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
     apply_list_pagination,
 )
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
-from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
+from mcp_docker.utils.errors import DockerOperationError, ImageNotFound, ValidationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_IMAGE_NOT_FOUND
@@ -27,9 +29,6 @@ from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
-
-# Common field descriptions (avoid string duplication per SonarCloud S1192)
-DESC_IMAGE_ID = "Image name or ID"
 
 
 def _parse_build_logs_from_stream(build_logs: Any) -> list[str]:
@@ -48,6 +47,30 @@ def _parse_build_logs_from_stream(build_logs: Any) -> list[str]:
             if isinstance(stream_val, str):
                 log_messages.append(stream_val.strip())
     return log_messages
+
+
+def _validate_build_context_path(path: str) -> Path:
+    """Validate and resolve build context path for security.
+
+    Args:
+        path: Build context path string
+
+    Returns:
+        Resolved Path object
+
+    Raises:
+        ValidationError: If path is invalid or poses security risk
+    """
+    resolved_path = Path(path).resolve()
+
+    if str(resolved_path) == "/":
+        raise ValidationError("Cannot build from root directory '/'")
+    if not resolved_path.exists():
+        raise ValidationError(f"Build context path does not exist: {path}")
+    if not resolved_path.is_dir():
+        raise ValidationError(f"Build context path must be a directory: {path}")
+
+    return resolved_path
 
 
 def _parse_push_stream_for_status(push_stream: Any) -> tuple[str | None, str | None]:
@@ -605,10 +628,13 @@ def create_build_image_tool(
             if tag:
                 validate_image_name(tag)
 
-            logger.info(f"Building image from: {path}")
+            # Validate build context path for security
+            resolved_path = _validate_build_context_path(path)
+
+            logger.info(f"Building image from: {resolved_path}")
 
             kwargs: dict[str, Any] = {
-                "path": path,
+                "path": str(resolved_path),
                 "dockerfile": dockerfile,
                 "nocache": nocache,
                 "rm": rm,

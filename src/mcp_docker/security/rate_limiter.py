@@ -5,6 +5,7 @@ Concurrent request limiting uses asyncio.Semaphore (stdlib, battle-tested).
 """
 
 import asyncio
+import threading
 from typing import Any
 
 from limits import parse
@@ -69,6 +70,8 @@ class RateLimiter:
         # SECURITY: Uses stdlib semaphore, battle-tested for concurrency control
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._concurrent_count = 0
+        # Lock protects _concurrent_count for accurate stats (counter is informational only)
+        self._counter_lock = threading.Lock()
 
         if self.enabled:
             logger.info(
@@ -119,9 +122,11 @@ class RateLimiter:
                 f"Concurrent request limit exceeded: {self.max_concurrent}"
             ) from None
 
-        # Increment counter
-        self._concurrent_count += 1
-        logger.debug(f"Global concurrent requests: {self._concurrent_count}/{self.max_concurrent}")
+        # Increment counter (protected by lock for accurate stats)
+        with self._counter_lock:
+            self._concurrent_count += 1
+            count = self._concurrent_count
+        logger.debug(f"Global concurrent requests: {count}/{self.max_concurrent}")
 
     def release_concurrent_slot(self) -> None:
         """Release a global concurrent request slot."""
@@ -131,14 +136,14 @@ class RateLimiter:
         # Release semaphore slot
         self._semaphore.release()
 
-        # Decrement counter
-        if self._concurrent_count > 0:
-            self._concurrent_count -= 1
-            logger.debug(
-                f"Global concurrent requests: {self._concurrent_count}/{self.max_concurrent}"
-            )
-        else:
-            logger.debug("Global counter already at 0")
+        # Decrement counter (protected by lock for accurate stats)
+        with self._counter_lock:
+            if self._concurrent_count > 0:
+                self._concurrent_count -= 1
+                count = self._concurrent_count
+                logger.debug(f"Global concurrent requests: {count}/{self.max_concurrent}")
+            else:
+                logger.debug("Global counter already at 0")
 
     def get_stats(self) -> dict[str, Any]:
         """Get global rate limit statistics.
@@ -148,9 +153,11 @@ class RateLimiter:
         """
         # Note: limits library doesn't expose request counts directly
         # We just return the limits configuration and current concurrent count
+        with self._counter_lock:
+            concurrent_count = self._concurrent_count
         return {
             "rpm_limit": self.rpm,
-            "concurrent_requests": self._concurrent_count,
+            "concurrent_requests": concurrent_count,
             "concurrent_limit": self.max_concurrent,
         }
 

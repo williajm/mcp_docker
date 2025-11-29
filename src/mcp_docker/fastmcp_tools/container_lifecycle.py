@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.fastmcp_tools.common import DESC_CONTAINER_ID
 from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
@@ -33,9 +34,6 @@ logger = get_logger(__name__)
 
 # Constants
 DEFAULT_CONTAINER_TIMEOUT_SECONDS = 10  # Default timeout for stop/restart operations
-
-# Common field descriptions (avoid string duplication per SonarCloud S1192)
-DESC_CONTAINER_ID = "Container ID or name"
 
 TStatusOutput = TypeVar("TStatusOutput", bound="ContainerStatusOutput")
 

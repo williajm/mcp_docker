@@ -24,7 +24,7 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies:
-          - types-docker>=7.1.0.20251125
+          - types-docker>=7.1.0.20251129
           - types-cachetools>=6.2.0.20251022
           - humanfriendly>=10.0
           - pydantic>=2.0.0

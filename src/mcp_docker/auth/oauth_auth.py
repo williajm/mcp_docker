@@ -18,8 +18,6 @@ logger = get_logger(__name__)
 class OAuthAuthenticationError(Exception):
     """Raised when OAuth authentication fails."""
 
-    pass
-
 
 class OAuthAuthenticator:
     """OAuth/OIDC authenticator with JWT validation and JWKS caching.

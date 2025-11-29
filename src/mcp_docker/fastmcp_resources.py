@@ -120,8 +120,11 @@ def create_container_stats_resource(
             def _fetch_stats() -> dict[str, Any]:
                 container = docker_client.client.containers.get(container_id)
                 # Get stats (stream=False for single snapshot)
-                stats: dict[str, Any] = container.stats(stream=False)  # type: ignore[no-untyped-call]
-                return stats
+                stats_data = container.stats(stream=False)
+                # Handle union type - stream=False returns dict directly
+                if isinstance(stats_data, dict):
+                    return stats_data
+                return next(iter(stats_data))
 
             stats = await asyncio.to_thread(_fetch_stats)
 

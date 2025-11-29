@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
+    DESC_CONTAINER_ID,
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
@@ -111,8 +112,78 @@ def _apply_log_truncation(
     return logs_str, truncation_info
 
 
-# Common field descriptions (avoid string duplication per SonarCloud S1192)
-DESC_CONTAINER_ID = "Container ID or name"
+def _decode_static_logs(logs: bytes | str) -> str:
+    """Decode static logs (non-streaming mode).
+
+    Args:
+        logs: Raw logs as bytes or string
+
+    Returns:
+        Decoded log string
+    """
+    return logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
+
+
+def _collect_streaming_logs(logs: Any) -> str:
+    """Collect streaming logs with safety limits.
+
+    Args:
+        logs: Streaming log generator from Docker
+
+    Returns:
+        Collected log string, or error message on failure
+    """
+    log_lines = []
+    try:
+        for line in logs:
+            log_lines.append(line)
+            if len(log_lines) >= MAX_STREAMING_LOG_LINES:
+                logger.warning(
+                    f"Reached max line limit ({MAX_STREAMING_LOG_LINES}) for follow mode, "
+                    "stopping collection"
+                )
+                break
+        logs_bytes = b"".join(log_lines)
+        return logs_bytes.decode("utf-8")
+    except Exception as e:
+        logger.error(f"Error collecting logs in follow mode: {e}")
+        return f"Error collecting logs: {e}"
+
+
+def _retrieve_and_process_logs(  # noqa: PLR0913 - Docker API parameters
+    container: Any,
+    tail: int | str,
+    since: str | None,
+    until: str | None,
+    timestamps: bool,
+    follow: bool,
+) -> str:
+    """Retrieve logs from container and process based on mode.
+
+    Args:
+        container: Docker container object
+        tail: Number of lines to show from end
+        since: Show logs since timestamp
+        until: Show logs until timestamp
+        timestamps: Show timestamps
+        follow: Follow log output (streaming mode)
+
+    Returns:
+        Processed log string
+    """
+    kwargs = _build_logs_kwargs(tail, since, until, timestamps, follow)
+    logs = container.logs(**kwargs)
+
+    if follow:
+        # Streaming mode - ensure generator is closed to release connection
+        try:
+            return _collect_streaming_logs(logs)
+        finally:
+            if hasattr(logs, "close"):
+                logs.close()
+    else:
+        return _decode_static_logs(logs)
+
 
 # Input/Output Models (reused from legacy tools)
 
@@ -260,7 +331,11 @@ def create_list_containers_tool(
                     "id": c.id,
                     "short_id": c.short_id,
                     "name": c.name,
-                    "image": c.image.tags[0] if c.image.tags else c.image.id,
+                    "image": (
+                        c.image.tags[0]
+                        if c.image and c.image.tags
+                        else (c.image.id if c.image else "unknown")
+                    ),
                     "status": c.status,
                     "labels": c.labels,
                 }
@@ -376,28 +451,6 @@ def create_container_logs_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    def _decode_static_logs(logs: bytes | str) -> str:
-        """Decode static logs (non-streaming mode)."""
-        return logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
-
-    def _collect_streaming_logs(logs: Any) -> str:
-        """Collect streaming logs with safety limits."""
-        log_lines = []
-        try:
-            for line in logs:
-                log_lines.append(line)
-                if len(log_lines) >= MAX_STREAMING_LOG_LINES:
-                    logger.warning(
-                        f"Reached max line limit ({MAX_STREAMING_LOG_LINES}) for follow mode, "
-                        "stopping collection"
-                    )
-                    break
-            logs_bytes = b"".join(log_lines)
-            return logs_bytes.decode("utf-8")
-        except Exception as e:
-            logger.error(f"Error collecting logs in follow mode: {e}")
-            return f"Error collecting logs: {e}"
-
     def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
         container_id: str,
         tail: int | str = "all",
@@ -427,12 +480,8 @@ def create_container_logs_tool(
             logger.info(f"Getting logs for container: {container_id}")
             container = docker_client.client.containers.get(container_id)
 
-            # Prepare kwargs for logs
-            kwargs = _build_logs_kwargs(tail, since, until, timestamps, follow)
-            logs = container.logs(**kwargs)
-
-            # Handle different return types based on follow mode
-            logs_str = _collect_streaming_logs(logs) if follow else _decode_static_logs(logs)
+            # Retrieve and process logs (handles streaming vs static mode)
+            logs_str = _retrieve_and_process_logs(container, tail, since, until, timestamps, follow)
 
             # Apply output limits (non-streaming logs only)
             logs_str, truncation_info = _apply_log_truncation(logs_str, follow, safety_config)
@@ -500,14 +549,19 @@ def create_container_stats_tool(
 
             # Get stats - behavior differs based on stream parameter
             if stream:
-                # Get first stats snapshot from the stream
-                stats_gen = container.stats(stream=True, decode=True)  # type: ignore[no-untyped-call]
-                stats = next(stats_gen)
-                # Close the generator to avoid resource leaks
-                stats_gen.close()
+                # Get first stats snapshot from the stream, then close to release connection
+                stats_gen = container.stats(stream=True, decode=True)
+                try:
+                    stats: dict[str, Any] = next(iter(stats_gen))  # type: ignore[arg-type]
+                finally:
+                    # Close generator to release Docker API connection
+                    if hasattr(stats_gen, "close"):
+                        stats_gen.close()
             else:
                 # Returns a dict directly when stream=False
-                stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
+                stats_data = container.stats(stream=False)
+                # Handle union type - stream=False returns dict directly
+                stats = stats_data if isinstance(stats_data, dict) else next(iter(stats_data))
 
             logger.info(f"Successfully retrieved stats for container: {container_id}")
 

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2025-11-29
+
+### Security
+- **Fail-Closed Safety Middleware**: Changed default safety level for unknown tools from SAFE to DESTRUCTIVE
+  - Unknown tools now require `allow_destructive_operations=true` to execute
+  - Prevents potential bypass of safety controls for unregistered tools
+  - **Impact**: More restrictive default behavior for edge cases
+- **Thread-Safe Rate Limiter**: Added `threading.Lock` to protect counter operations
+  - Prevents race conditions in concurrent request scenarios
+  - Ensures accurate rate limit enforcement under load
+- **Path Validation in build_image**: Added validation for build context paths
+  - Blocks building from root directory `/`
+  - Validates path exists and is a directory
+  - Prevents potential security issues with malicious build contexts
+
+### Changed
+- **Dead Code Removal**: Removed 113 lines of unused code
+  - Removed 17 unused error message constants from `messages.py`
+  - Removed unused `is_error_safe_to_expose()` from `error_sanitizer.py`
+  - Removed unused `sanitize_and_validate_command()` and `get_operation_metadata()` from `safety/core.py`
+  - Removed unused `get_middleware_components()` from `fastmcp_server.py`
+  - Consolidated `DESC_*` field description constants to `common.py`
+- **Dependencies Updated**: Updated all dependencies to latest compatible versions
+  - `mcp`: 1.21.0 → 1.22.0
+  - `types-docker`: Updated with type annotation fixes
+  - Various other minor dependency updates
+
+### Fixed
+- **Type Annotations**: Fixed `container.stats()` return type handling after `types-docker` update
+  - Updated type handling in `container_inspection.py`, `fastmcp_resources.py`, `fastmcp_prompts.py`
+  - Properly handles union type `Iterator[dict] | dict` for stream parameter
+
+### Documentation
+- **CONFIGURATION.md**: Updated with missing configuration options
+  - Added `SAFETY_ALLOWED_PROMPTS`, `SAFETY_ALLOWED_RESOURCES`
+  - Added `SAFETY_YOLO_MODE`, `SAFETY_VOLUME_MOUNT_BLOCKLIST`, `SAFETY_VOLUME_MOUNT_ALLOWLIST`
+  - Removed obsolete options
+
+### Testing
+- **New Tests**: Added 10 tests for `docker_version` and `docker_events` tools
+- **Test Cleanup**: Removed tests for deleted code
+
 ## [1.2.1] - 2025-11-20
 
 ### Added

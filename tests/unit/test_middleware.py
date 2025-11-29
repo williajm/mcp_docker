@@ -119,8 +119,8 @@ class TestSafetyMiddleware:
         call_next.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_call_no_safety_level_defaults_to_safe(self):
-        """Test calling when tool_func has no safety level defaults to SAFE."""
+    async def test_call_no_safety_level_defaults_to_destructive(self):
+        """Test calling when tool_func has no safety level defaults to DESTRUCTIVE (fail closed)."""
         enforcer = Mock(spec=SafetyEnforcer)
         enforcer.enforce_all_checks = Mock(return_value=None)
 
@@ -147,16 +147,16 @@ class TestSafetyMiddleware:
         result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
-        # Should default to SAFE level
+        # SECURITY: Should default to DESTRUCTIVE level (fail closed)
         enforcer.enforce_all_checks.assert_called_once_with(
-            "docker_list_containers", OperationSafety.SAFE, {}
+            "docker_list_containers", OperationSafety.DESTRUCTIVE, {}
         )
         app.get_tool.assert_called_once_with("docker_list_containers")
         call_next.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_call_no_tool_func_defaults_to_safe(self):
-        """Test calling when get_tool fails defaults to SAFE."""
+    async def test_call_no_tool_func_defaults_to_destructive(self):
+        """Test calling when get_tool fails defaults to DESTRUCTIVE (fail closed)."""
         enforcer = Mock(spec=SafetyEnforcer)
         enforcer.enforce_all_checks = Mock(return_value=None)
 
@@ -180,9 +180,9 @@ class TestSafetyMiddleware:
         result = await middleware(context, call_next)
 
         assert result == {"status": "success"}
-        # Should default to SAFE level when tool lookup fails
+        # SECURITY: Should default to DESTRUCTIVE level when tool lookup fails (fail closed)
         enforcer.enforce_all_checks.assert_called_once_with(
-            "docker_list_containers", OperationSafety.SAFE, {"all": True}
+            "docker_list_containers", OperationSafety.DESTRUCTIVE, {"all": True}
         )
         app.get_tool.assert_called_once_with("docker_list_containers")
         call_next.assert_called_once()

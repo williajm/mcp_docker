@@ -112,21 +112,3 @@ def sanitize_error_for_client(error: Exception, operation: str) -> tuple[str, st
     # For unknown/unexpected errors, return completely generic message
     # The full error details are logged server-side for debugging
     return f"An unexpected error occurred during '{operation}'", "InternalError"
-
-
-def is_error_safe_to_expose(error: Exception) -> bool:
-    """Check if an error message is safe to expose to clients.
-
-    Args:
-        error: The exception to check
-
-    Returns:
-        True if the error message can be safely shown to clients
-    """
-    # These error types are designed with user-facing messages
-    safe_types = (
-        UnsafeOperationError,
-        ValidationError,
-    )
-
-    return isinstance(error, safe_types)

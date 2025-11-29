@@ -17,8 +17,6 @@ logger = get_logger(__name__)
 class AuthenticationError(Exception):
     """Raised when authentication fails."""
 
-    pass
-
 
 class AuthMiddleware:
     """Middleware that handles authentication for MCP server requests.

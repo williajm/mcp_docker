@@ -12,7 +12,12 @@ from mcp_docker.utils.output_limits import create_truncation_metadata
 
 logger = get_logger(__name__)
 
+# Shared field description constants (avoids duplication per SonarCloud S1192)
 DESC_TRUNCATION_INFO = "Information about output truncation if applied"
+DESC_CONTAINER_ID = "Container ID or name"
+DESC_IMAGE_ID = "Image name or ID"
+DESC_NETWORK_ID = "Network ID or name"
+DESC_VOLUME_NAME = "Volume name"
 
 
 class FiltersInput(BaseModel):

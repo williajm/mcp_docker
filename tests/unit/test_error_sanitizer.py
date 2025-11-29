@@ -2,10 +2,7 @@
 
 from pydantic import ValidationError as PydanticValidationError
 
-from mcp_docker.utils.error_sanitizer import (
-    is_error_safe_to_expose,
-    sanitize_error_for_client,
-)
+from mcp_docker.utils.error_sanitizer import sanitize_error_for_client
 from mcp_docker.utils.errors import (
     DockerConnectionError,
     DockerOperationError,
@@ -232,52 +229,6 @@ class TestSanitizeErrorForClient:
 
         assert message == "Destructive operation blocked"
         assert error_type == "PermissionDenied"
-
-
-class TestIsErrorSafeToExpose:
-    """Tests for is_error_safe_to_expose function."""
-
-    def test_unsafe_operation_error_is_safe(self) -> None:
-        """Test that UnsafeOperationError is safe to expose."""
-        error = UnsafeOperationError("This is a user-facing message")
-        assert is_error_safe_to_expose(error) is True
-
-    def test_validation_error_is_safe(self) -> None:
-        """Test that ValidationError is safe to expose."""
-        from pydantic import BaseModel, Field
-
-        class TestModel(BaseModel):
-            value: int = Field(ge=0)
-
-        try:
-            TestModel(value=-1)
-        except PydanticValidationError as e:
-            assert is_error_safe_to_expose(e) is True
-
-    def test_docker_connection_error_is_not_safe(self) -> None:
-        """Test that DockerConnectionError is not safe to expose."""
-        error = DockerConnectionError("Connection failed at /var/run/docker.sock")
-        assert is_error_safe_to_expose(error) is False
-
-    def test_docker_operation_error_is_not_safe(self) -> None:
-        """Test that DockerOperationError is not safe to expose."""
-        error = DockerOperationError("Operation failed with internal details")
-        assert is_error_safe_to_expose(error) is False
-
-    def test_generic_exception_is_not_safe(self) -> None:
-        """Test that generic exceptions are not safe to expose."""
-        error = Exception("Some unexpected error")
-        assert is_error_safe_to_expose(error) is False
-
-    def test_value_error_is_not_safe(self) -> None:
-        """Test that ValueError is not safe to expose (might have internal details)."""
-        error = ValueError("Invalid value for internal field 'secret_key'")
-        assert is_error_safe_to_expose(error) is False
-
-    def test_type_error_is_not_safe(self) -> None:
-        """Test that TypeError is not safe to expose."""
-        error = TypeError("Type mismatch in internal method")
-        assert is_error_safe_to_expose(error) is False
 
 
 class TestErrorSanitizationSecurity:
