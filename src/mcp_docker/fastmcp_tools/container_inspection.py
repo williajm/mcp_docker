@@ -434,7 +434,15 @@ def create_container_logs_tool(
             logs = container.logs(**kwargs)
 
             # Handle different return types based on follow mode
-            logs_str = _collect_streaming_logs(logs) if follow else _decode_static_logs(logs)
+            if follow:
+                # Streaming mode - ensure generator is closed to release connection
+                try:
+                    logs_str = _collect_streaming_logs(logs)
+                finally:
+                    if hasattr(logs, "close"):
+                        logs.close()
+            else:
+                logs_str = _decode_static_logs(logs)
 
             # Apply output limits (non-streaming logs only)
             logs_str, truncation_info = _apply_log_truncation(logs_str, follow, safety_config)
