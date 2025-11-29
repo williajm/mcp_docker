@@ -9,10 +9,7 @@ import sys
 
 import atheris
 
-from mcp_docker.utils.error_sanitizer import (
-    is_error_safe_to_expose,
-    sanitize_error_for_client,
-)
+from mcp_docker.utils.error_sanitizer import sanitize_error_for_client
 from mcp_docker.utils.errors import (
     DockerConnectionError,
     DockerOperationError,
@@ -142,35 +139,6 @@ def fuzz_sensitive_info_in_errors(data: bytes) -> None:
         assert pattern not in sanitized_msg
 
 
-def fuzz_is_error_safe(data: bytes) -> None:
-    """Fuzz the is_error_safe_to_expose function.
-
-    Args:
-        data: Random fuzz input
-    """
-    if len(data) < 5:
-        return
-
-    fdp = atheris.FuzzedDataProvider(data)
-    error_msg = fdp.ConsumeUnicodeNoSurrogates(200)
-
-    # Test with various exception types
-    # Note: PydanticValidationError requires complex initialization, so we skip it
-    # The error_sanitizer checks for pydantic.ValidationError, not our custom one
-    test_cases = [
-        (UnsafeOperationError(error_msg), True),  # Safe - designed for users
-        (ValueError(error_msg), False),  # Not safe - may leak info
-        (RuntimeError(error_msg), False),  # Not safe
-        (Exception(error_msg), False),  # Not safe
-        (DockerConnectionError(error_msg), False),  # Not in safe_types tuple
-        (DockerOperationError(error_msg), False),  # Not in safe_types tuple
-    ]
-
-    for error, expected_safe in test_cases:
-        result = is_error_safe_to_expose(error)
-        assert result == expected_safe
-
-
 def fuzz_error_type_names(data: bytes) -> None:
     """Fuzz with dynamically created exception class names.
 
@@ -205,7 +173,6 @@ def TestOneInput(data: bytes) -> None:
     fuzz_sanitize_error(data)
     fuzz_custom_exceptions(data)
     fuzz_sensitive_info_in_errors(data)
-    fuzz_is_error_safe(data)
     fuzz_error_type_names(data)
 
 
