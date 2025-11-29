@@ -502,9 +502,14 @@ def create_container_stats_tool(
 
             # Get stats - behavior differs based on stream parameter
             if stream:
-                # Get first stats snapshot from the stream
+                # Get first stats snapshot from the stream, then close to release connection
                 stats_gen = container.stats(stream=True, decode=True)
-                stats: dict[str, Any] = next(iter(stats_gen))  # type: ignore[arg-type]
+                try:
+                    stats: dict[str, Any] = next(iter(stats_gen))  # type: ignore[arg-type]
+                finally:
+                    # Close generator to release Docker API connection
+                    if hasattr(stats_gen, "close"):
+                        stats_gen.close()
             else:
                 # Returns a dict directly when stream=False
                 stats_data = container.stats(stream=False)
