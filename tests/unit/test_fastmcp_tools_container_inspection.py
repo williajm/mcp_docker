@@ -18,6 +18,9 @@ from mcp_docker.fastmcp_tools.container_inspection import (
     InspectContainerOutput,
     ListContainersInput,
     ListContainersOutput,
+    _collect_streaming_logs,
+    _decode_static_logs,
+    _retrieve_and_process_logs,
     create_container_logs_tool,
     create_container_stats_tool,
     create_exec_command_tool,
@@ -398,3 +401,249 @@ class TestListContainersTool:
             all=False, filters=filters
         )
         assert result["count"] == 0
+
+    def test_list_containers_with_none_image(self, mock_docker_client, safety_config):
+        """Test container listing when container.image is None."""
+        # Mock container with no image
+        mock_container = Mock()
+        mock_container.id = "abc123"
+        mock_container.name = "/orphan-container"
+        mock_container.short_id = "abc1"
+        mock_container.status = "exited"
+        mock_container.image = None
+        mock_container.labels = {}
+
+        mock_docker_client.client.containers.list.return_value = [mock_container]
+
+        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
+        result = list_func()
+
+        assert result["count"] == 1
+        assert result["containers"][0]["image"] == "unknown"
+
+    def test_list_containers_with_empty_image_tags(self, mock_docker_client, safety_config):
+        """Test container listing when container.image has no tags."""
+        mock_image = Mock()
+        mock_image.tags = []  # Empty tags list
+        mock_image.id = "sha256:abc123def456"
+
+        mock_container = Mock()
+        mock_container.id = "abc123"
+        mock_container.name = "/untagged-container"
+        mock_container.short_id = "abc1"
+        mock_container.status = "running"
+        mock_container.image = mock_image
+        mock_container.labels = {}
+
+        mock_docker_client.client.containers.list.return_value = [mock_container]
+
+        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
+        result = list_func()
+
+        assert result["count"] == 1
+        assert result["containers"][0]["image"] == "sha256:abc123def456"
+
+
+class TestLogHelperFunctions:
+    """Test module-level log helper functions."""
+
+    def test_decode_static_logs_bytes(self):
+        """Test decoding bytes logs."""
+        logs = b"test log line\n"
+        result = _decode_static_logs(logs)
+        assert result == "test log line\n"
+
+    def test_decode_static_logs_string(self):
+        """Test passing through string logs."""
+        logs = "already a string\n"
+        result = _decode_static_logs(logs)
+        assert result == "already a string\n"
+
+    def test_collect_streaming_logs_success(self):
+        """Test collecting streaming logs."""
+        # Simulate a generator of log lines
+        log_lines = [b"line 1\n", b"line 2\n", b"line 3\n"]
+        result = _collect_streaming_logs(iter(log_lines))
+        assert result == "line 1\nline 2\nline 3\n"
+
+    def test_collect_streaming_logs_error(self):
+        """Test error handling in streaming logs collection."""
+
+        def error_generator():
+            yield b"line 1\n"
+            raise RuntimeError("Connection lost")
+
+        result = _collect_streaming_logs(error_generator())
+        assert "Error collecting logs:" in result
+
+    def test_retrieve_and_process_logs_static_mode(self):
+        """Test log retrieval in static (non-follow) mode."""
+        mock_container = Mock()
+        mock_container.logs.return_value = b"static logs here\n"
+
+        result = _retrieve_and_process_logs(
+            mock_container,
+            tail="all",
+            since=None,
+            until=None,
+            timestamps=False,
+            follow=False,
+        )
+
+        assert result == "static logs here\n"
+        mock_container.logs.assert_called_once()
+
+    def test_retrieve_and_process_logs_follow_mode(self):
+        """Test log retrieval in follow (streaming) mode with generator cleanup."""
+        mock_logs_generator = Mock()
+        mock_logs_generator.__iter__ = Mock(return_value=iter([b"streaming line\n"]))
+        mock_logs_generator.close = Mock()
+
+        mock_container = Mock()
+        mock_container.logs.return_value = mock_logs_generator
+
+        result = _retrieve_and_process_logs(
+            mock_container,
+            tail="all",
+            since=None,
+            until=None,
+            timestamps=False,
+            follow=True,
+        )
+
+        assert result == "streaming line\n"
+        # Verify generator was closed to prevent resource leak
+        mock_logs_generator.close.assert_called_once()
+
+    def test_retrieve_and_process_logs_follow_mode_closes_on_error(self):
+        """Test that generator is closed even if collection fails."""
+
+        def failing_iterator():
+            yield b"line 1\n"
+            raise RuntimeError("Connection lost")
+
+        mock_logs_generator = Mock()
+        mock_logs_generator.__iter__ = Mock(return_value=failing_iterator())
+        mock_logs_generator.close = Mock()
+
+        mock_container = Mock()
+        mock_container.logs.return_value = mock_logs_generator
+
+        result = _retrieve_and_process_logs(
+            mock_container,
+            tail="all",
+            since=None,
+            until=None,
+            timestamps=False,
+            follow=True,
+        )
+
+        assert "Error collecting logs:" in result
+        # Verify generator was closed even after error
+        mock_logs_generator.close.assert_called_once()
+
+
+class TestContainerLogsTool:
+    """Test docker_container_logs tool functionality."""
+
+    def test_logs_follow_mode(self, mock_docker_client, safety_config):
+        """Test getting logs in follow (streaming) mode."""
+        mock_logs_generator = Mock()
+        mock_logs_generator.__iter__ = Mock(
+            return_value=iter([b"streaming log 1\n", b"streaming log 2\n"])
+        )
+        mock_logs_generator.close = Mock()
+
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_container.logs.return_value = mock_logs_generator
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
+        result = logs_func(container_id="test-container", follow=True)
+
+        assert "streaming log 1" in result["logs"]
+        assert "streaming log 2" in result["logs"]
+        assert result["container_id"] == "container123"
+        # Verify generator cleanup
+        mock_logs_generator.close.assert_called_once()
+
+    def test_logs_static_mode(self, mock_docker_client, safety_config):
+        """Test getting logs in static (non-follow) mode."""
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_container.logs.return_value = b"static log content\n"
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
+        result = logs_func(container_id="test-container", follow=False)
+
+        assert result["logs"] == "static log content\n"
+        assert result["container_id"] == "container123"
+
+
+class TestContainerStatsTool:
+    """Test docker_container_stats tool functionality."""
+
+    def test_stats_stream_mode(self, mock_docker_client):
+        """Test getting stats in stream mode with generator cleanup."""
+        stats_data = {"cpu_stats": {"cpu_usage": {"total_usage": 123456}}}
+
+        mock_stats_generator = Mock()
+        mock_stats_generator.__iter__ = Mock(return_value=iter([stats_data]))
+        mock_stats_generator.close = Mock()
+
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_container.stats.return_value = mock_stats_generator
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        result = stats_func(container_id="test-container", stream=True)
+
+        assert result["stats"]["cpu_stats"]["cpu_usage"]["total_usage"] == 123456
+        assert result["container_id"] == "container123"
+        # Verify generator was closed to prevent resource leak
+        mock_stats_generator.close.assert_called_once()
+
+    def test_stats_non_stream_mode_dict(self, mock_docker_client):
+        """Test getting stats in non-stream mode (returns dict directly)."""
+        stats_data = {"cpu_stats": {"cpu_usage": {"total_usage": 789}}}
+
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_container.stats.return_value = stats_data
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        result = stats_func(container_id="test-container", stream=False)
+
+        assert result["stats"]["cpu_stats"]["cpu_usage"]["total_usage"] == 789
+        assert result["container_id"] == "container123"
+
+    def test_stats_non_stream_mode_generator_fallback(self, mock_docker_client):
+        """Test stats non-stream mode when it returns a generator (fallback path)."""
+        stats_data = {"cpu_stats": {"cpu_usage": {"total_usage": 456}}}
+
+        # Simulate a generator being returned (edge case)
+        mock_container = Mock()
+        mock_container.id = "container123"
+        mock_container.stats.return_value = iter([stats_data])
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        result = stats_func(container_id="test-container", stream=False)
+
+        assert result["stats"]["cpu_stats"]["cpu_usage"]["total_usage"] == 456
+        assert result["container_id"] == "container123"
+
+    def test_stats_api_error(self, mock_docker_client):
+        """Test stats API error after getting container."""
+        mock_container = Mock()
+        mock_container.stats.side_effect = APIError("Stats failed")
+        mock_docker_client.client.containers.get.return_value = mock_container
+
+        *_, stats_func = create_container_stats_tool(mock_docker_client)
+
+        with pytest.raises(DockerOperationError, match="Failed to get container stats"):
+            stats_func(container_id="test")

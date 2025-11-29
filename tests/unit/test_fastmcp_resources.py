@@ -164,6 +164,40 @@ class TestCreateContainerStatsResource:
         with pytest.raises(MCPDockerError, match="Failed to get container stats"):
             await stats_func("test-container")
 
+    @pytest.mark.asyncio
+    async def test_get_stats_handles_generator_fallback(self, mock_docker_client):
+        """Test stats retrieval when stats() returns a generator instead of dict."""
+        stats_data = {
+            "cpu_stats": {
+                "cpu_usage": {"total_usage": 1000000},
+                "system_cpu_usage": 10000000,
+                "online_cpus": 4,
+            },
+            "precpu_stats": {
+                "cpu_usage": {"total_usage": 900000},
+                "system_cpu_usage": 9500000,
+            },
+            "memory_stats": {
+                "usage": 134217728,
+                "limit": 536870912,
+            },
+            "networks": {"eth0": {"rx_bytes": 1024, "tx_bytes": 2048}},
+            "blkio_stats": {"io_service_bytes_recursive": []},
+        }
+        mock_container = Mock()
+        # Return a generator instead of dict (edge case)
+        mock_container.stats = Mock(return_value=iter([stats_data]))
+        mock_docker_client.client.containers.get = Mock(return_value=mock_container)
+
+        _, stats_func = create_container_stats_resource(mock_docker_client)
+
+        result = await stats_func("test-container")
+
+        assert isinstance(result, str)
+        assert "Container Statistics" in result
+        assert "CPU:" in result
+        assert "Memory:" in result
+
 
 class TestRegisterAllResources:
     """Test register_all_resources."""

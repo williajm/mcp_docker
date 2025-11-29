@@ -112,6 +112,79 @@ def _apply_log_truncation(
     return logs_str, truncation_info
 
 
+def _decode_static_logs(logs: bytes | str) -> str:
+    """Decode static logs (non-streaming mode).
+
+    Args:
+        logs: Raw logs as bytes or string
+
+    Returns:
+        Decoded log string
+    """
+    return logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
+
+
+def _collect_streaming_logs(logs: Any) -> str:
+    """Collect streaming logs with safety limits.
+
+    Args:
+        logs: Streaming log generator from Docker
+
+    Returns:
+        Collected log string, or error message on failure
+    """
+    log_lines = []
+    try:
+        for line in logs:
+            log_lines.append(line)
+            if len(log_lines) >= MAX_STREAMING_LOG_LINES:
+                logger.warning(
+                    f"Reached max line limit ({MAX_STREAMING_LOG_LINES}) for follow mode, "
+                    "stopping collection"
+                )
+                break
+        logs_bytes = b"".join(log_lines)
+        return logs_bytes.decode("utf-8")
+    except Exception as e:
+        logger.error(f"Error collecting logs in follow mode: {e}")
+        return f"Error collecting logs: {e}"
+
+
+def _retrieve_and_process_logs(  # noqa: PLR0913 - Docker API parameters
+    container: Any,
+    tail: int | str,
+    since: str | None,
+    until: str | None,
+    timestamps: bool,
+    follow: bool,
+) -> str:
+    """Retrieve logs from container and process based on mode.
+
+    Args:
+        container: Docker container object
+        tail: Number of lines to show from end
+        since: Show logs since timestamp
+        until: Show logs until timestamp
+        timestamps: Show timestamps
+        follow: Follow log output (streaming mode)
+
+    Returns:
+        Processed log string
+    """
+    kwargs = _build_logs_kwargs(tail, since, until, timestamps, follow)
+    logs = container.logs(**kwargs)
+
+    if follow:
+        # Streaming mode - ensure generator is closed to release connection
+        try:
+            return _collect_streaming_logs(logs)
+        finally:
+            if hasattr(logs, "close"):
+                logs.close()
+    else:
+        return _decode_static_logs(logs)
+
+
 # Input/Output Models (reused from legacy tools)
 
 
@@ -378,28 +451,6 @@ def create_container_logs_tool(
         Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
-    def _decode_static_logs(logs: bytes | str) -> str:
-        """Decode static logs (non-streaming mode)."""
-        return logs.decode("utf-8") if isinstance(logs, bytes) else str(logs)
-
-    def _collect_streaming_logs(logs: Any) -> str:
-        """Collect streaming logs with safety limits."""
-        log_lines = []
-        try:
-            for line in logs:
-                log_lines.append(line)
-                if len(log_lines) >= MAX_STREAMING_LOG_LINES:
-                    logger.warning(
-                        f"Reached max line limit ({MAX_STREAMING_LOG_LINES}) for follow mode, "
-                        "stopping collection"
-                    )
-                    break
-            logs_bytes = b"".join(log_lines)
-            return logs_bytes.decode("utf-8")
-        except Exception as e:
-            logger.error(f"Error collecting logs in follow mode: {e}")
-            return f"Error collecting logs: {e}"
-
     def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
         container_id: str,
         tail: int | str = "all",
@@ -429,20 +480,8 @@ def create_container_logs_tool(
             logger.info(f"Getting logs for container: {container_id}")
             container = docker_client.client.containers.get(container_id)
 
-            # Prepare kwargs for logs
-            kwargs = _build_logs_kwargs(tail, since, until, timestamps, follow)
-            logs = container.logs(**kwargs)
-
-            # Handle different return types based on follow mode
-            if follow:
-                # Streaming mode - ensure generator is closed to release connection
-                try:
-                    logs_str = _collect_streaming_logs(logs)
-                finally:
-                    if hasattr(logs, "close"):
-                        logs.close()
-            else:
-                logs_str = _decode_static_logs(logs)
+            # Retrieve and process logs (handles streaming vs static mode)
+            logs_str = _retrieve_and_process_logs(container, tail, since, until, timestamps, follow)
 
             # Apply output limits (non-streaming logs only)
             logs_str, truncation_info = _apply_log_truncation(logs_str, follow, safety_config)
