@@ -109,14 +109,21 @@ class SafetyMiddleware:
                 logger.debug(f"Retrieved safety level for {tool_name}: {safety_level.value}")
                 return safety_level
 
-            # Default to SAFE if no metadata found
-            logger.warning(f"No safety level metadata found for {tool_name}, defaulting to SAFE")
-            return OperationSafety.SAFE
+            # SECURITY: Fail closed - default to DESTRUCTIVE if no metadata found
+            # This ensures unknown tools require explicit allow_destructive_operations=true
+            logger.warning(
+                f"No safety level metadata found for {tool_name}, "
+                "defaulting to DESTRUCTIVE (fail closed)"
+            )
+            return OperationSafety.DESTRUCTIVE
 
         except Exception as e:
-            # If we can't get the tool, log warning and default to SAFE
-            logger.warning(f"Failed to get safety level for {tool_name}: {e}, defaulting to SAFE")
-            return OperationSafety.SAFE
+            # SECURITY: Fail closed - if we can't determine safety level, treat as destructive
+            logger.warning(
+                f"Failed to get safety level for {tool_name}: {e}, "
+                "defaulting to DESTRUCTIVE (fail closed)"
+            )
+            return OperationSafety.DESTRUCTIVE
 
 
 def create_safety_middleware(enforcer: SafetyEnforcer, app: Any) -> SafetyMiddleware:

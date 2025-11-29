@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
+    DESC_NETWORK_ID,
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
@@ -61,9 +62,6 @@ def _build_connect_kwargs(
         kwargs["links"] = links
     return kwargs
 
-
-# Common field descriptions (avoid string duplication per SonarCloud S1192)
-DESC_NETWORK_ID = "Network ID or name"
 
 # Input/Output Models (reused from legacy tools)
 

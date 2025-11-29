@@ -6,7 +6,6 @@ use_fastmcp feature flag is enabled.
 """
 
 import asyncio
-from typing import Any
 
 from fastmcp import FastMCP
 
@@ -158,21 +157,3 @@ class FastMCPDockerServer:
             FastMCP application instance
         """
         return self.app
-
-    def get_middleware_components(self) -> dict[str, Any]:
-        """Get all middleware components for manual integration.
-
-        This is needed for transport-level integration where we need to
-        apply middleware before calling FastMCP tools.
-
-        Returns:
-            Dictionary with all middleware components
-        """
-        return {
-            "safety": self.safety_middleware,
-            "rate_limit": self.rate_limit_middleware,
-            "audit": self.audit_middleware,
-            "auth": self.auth_middleware,
-            "rate_limiter": self.rate_limiter,
-            "audit_logger": self.audit_logger,
-        }

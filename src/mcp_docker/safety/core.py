@@ -15,11 +15,6 @@ from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.safety import (
     OperationSafety,
     check_privileged_mode,
-    classify_operation,
-    is_destructive_operation,
-    is_moderate_operation,
-    is_privileged_operation,
-    sanitize_command,
     validate_command_safety,
     validate_mount_path,
 )
@@ -189,40 +184,6 @@ class SafetyEnforcer:
             UnsafeOperationError: If command contains dangerous patterns
         """
         validate_command_safety(command)
-
-    def sanitize_and_validate_command(self, command: str | list[str]) -> list[str]:
-        """Sanitize and validate a command for safe execution.
-
-        Args:
-            command: Command to sanitize
-
-        Returns:
-            Sanitized command as list
-
-        Raises:
-            ValidationError: If command structure is invalid
-            UnsafeOperationError: If command contains dangerous patterns
-        """
-        return sanitize_command(command)
-
-    def get_operation_metadata(self, tool_name: str) -> dict[str, Any]:
-        """Get metadata about an operation's safety classification.
-
-        Args:
-            tool_name: Name of the tool
-
-        Returns:
-            Dictionary with safety metadata
-        """
-        safety_level = classify_operation(tool_name)
-        return {
-            "tool_name": tool_name,
-            "safety_level": safety_level.value,
-            "is_destructive": is_destructive_operation(tool_name),
-            "is_moderate": is_moderate_operation(tool_name),
-            "is_privileged": is_privileged_operation(tool_name),
-            "allowed_by_config": self.is_tool_allowed(tool_name)[0],
-        }
 
     def enforce_all_checks(
         self,

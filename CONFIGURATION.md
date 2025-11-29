@@ -41,17 +41,22 @@ Controls which operations are allowed and safety limits.
 | `SAFETY_ALLOW_MODERATE_OPERATIONS` | `true` | Allow reversible operations (start/stop containers) |
 | `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS` | `false` | Allow permanent operations (delete containers/images) |
 | `SAFETY_ALLOW_PRIVILEGED_CONTAINERS` | `false` | Allow creating privileged containers |
-| `SAFETY_REQUIRE_CONFIRMATION_FOR_DESTRUCTIVE` | `true` | Require explicit confirmation for destructive ops |
 | `SAFETY_MAX_CONCURRENT_OPERATIONS` | `10` | Maximum concurrent Docker operations |
 | `SAFETY_MAX_LOG_LINES` | `10000` | Maximum log lines to return |
 | `SAFETY_MAX_EXEC_OUTPUT_BYTES` | `1048576` | Maximum exec command output (1 MB) |
 | `SAFETY_MAX_LIST_RESULTS` | `1000` | Maximum items in list results |
-| `SAFETY_TRUNCATE_INSPECT_OUTPUT` | `false` | Truncate large inspect responses |
-| `SAFETY_MAX_INSPECT_FIELD_BYTES` | `65536` | Maximum size of inspect fields (64 KB) |
-| `SAFETY_ALLOWED_TOOLS` | `[]` | Comma-separated list of allowed tools (empty = all)<br>Example: `docker_list_containers,docker_inspect_container` |
-| `SAFETY_DENIED_TOOLS` | `[]` | Comma-separated list of denied tools<br>Example: `docker_system_prune,docker_remove_container` |
+| `SAFETY_ALLOWED_TOOLS` | `null` | Comma-separated list of allowed tools (null = all based on safety level)<br>Example: `docker_list_containers,docker_inspect_container` |
+| `SAFETY_DENIED_TOOLS` | `null` | Comma-separated list of denied tools (takes precedence over allowed)<br>Example: `docker_system_prune,docker_remove_container` |
+| `SAFETY_ALLOWED_PROMPTS` | `null` | Comma-separated list of allowed prompts (null = all)<br>Example: `troubleshoot_container,optimize_container` |
+| `SAFETY_ALLOWED_RESOURCES` | `null` | Comma-separated list of allowed resources (null = all)<br>Example: `container_logs,container_info` |
+| `SAFETY_YOLO_MODE` | `false` | Bypass ALL safety checks (user takes full responsibility) |
+| `SAFETY_VOLUME_MOUNT_BLOCKLIST` | `/etc,/root,/var/run/docker.sock` | Blocked volume mount paths (prefix matching) |
+| `SAFETY_VOLUME_MOUNT_ALLOWLIST` | `[]` | Allowed volume mount paths (empty = allow all except blocked) |
 
-**Note**: `SAFETY_ALLOWED_TOOLS` and `SAFETY_DENIED_TOOLS` are mutually exclusive. Use one or the other.
+**Notes**:
+- `SAFETY_ALLOWED_TOOLS` and `SAFETY_DENIED_TOOLS` can be used together. Denied tools take precedence.
+- Setting a filtering option to empty string (`""`) blocks all items of that type.
+- Credential directories (`.ssh`, `.aws`, `.kube`, `.docker`) are always blocked regardless of volume settings.
 
 ---
 

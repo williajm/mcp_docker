@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.common import (
+    DESC_CONTAINER_ID,
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
@@ -110,9 +111,6 @@ def _apply_log_truncation(
 
     return logs_str, truncation_info
 
-
-# Common field descriptions (avoid string duplication per SonarCloud S1192)
-DESC_CONTAINER_ID = "Container ID or name"
 
 # Input/Output Models (reused from legacy tools)
 
@@ -260,7 +258,11 @@ def create_list_containers_tool(
                     "id": c.id,
                     "short_id": c.short_id,
                     "name": c.name,
-                    "image": c.image.tags[0] if c.image.tags else c.image.id,
+                    "image": (
+                        c.image.tags[0]
+                        if c.image and c.image.tags
+                        else (c.image.id if c.image else "unknown")
+                    ),
                     "status": c.status,
                     "labels": c.labels,
                 }
@@ -501,13 +503,13 @@ def create_container_stats_tool(
             # Get stats - behavior differs based on stream parameter
             if stream:
                 # Get first stats snapshot from the stream
-                stats_gen = container.stats(stream=True, decode=True)  # type: ignore[no-untyped-call]
-                stats = next(stats_gen)
-                # Close the generator to avoid resource leaks
-                stats_gen.close()
+                stats_gen = container.stats(stream=True, decode=True)
+                stats: dict[str, Any] = next(iter(stats_gen))  # type: ignore[arg-type]
             else:
                 # Returns a dict directly when stream=False
-                stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
+                stats_data = container.stats(stream=False)
+                # Handle union type - stream=False returns dict directly
+                stats = stats_data if isinstance(stats_data, dict) else next(iter(stats_data))
 
             logger.info(f"Successfully retrieved stats for container: {container_id}")
 

@@ -159,43 +159,6 @@ class TestSafetyEnforcer:
         with pytest.raises((ValidationError, UnsafeOperationError)):
             enforcer.validate_command_safe("rm -rf /")
 
-    def test_sanitize_and_validate_command_string(self):
-        """Test command sanitization with string input."""
-        config = SafetyConfig()
-        enforcer = SafetyEnforcer(config)
-
-        result = enforcer.sanitize_and_validate_command("echo hello world")
-
-        assert isinstance(result, list)
-        # String commands are returned as single-element list
-        assert len(result) == 1
-        assert "echo" in result[0]
-
-    def test_sanitize_and_validate_command_list(self):
-        """Test command sanitization with list input."""
-        config = SafetyConfig()
-        enforcer = SafetyEnforcer(config)
-
-        result = enforcer.sanitize_and_validate_command(["echo", "hello"])
-
-        assert isinstance(result, list)
-        assert result == ["echo", "hello"]
-
-    def test_get_operation_metadata(self):
-        """Test getting operation metadata."""
-        config = SafetyConfig()
-        enforcer = SafetyEnforcer(config)
-
-        metadata = enforcer.get_operation_metadata("docker_list_containers")
-
-        assert "tool_name" in metadata
-        assert "safety_level" in metadata
-        assert "is_destructive" in metadata
-        assert "is_moderate" in metadata
-        assert "is_privileged" in metadata
-        assert "allowed_by_config" in metadata
-        assert metadata["tool_name"] == "docker_list_containers"
-
     def test_enforce_all_checks_success(self):
         """Test enforce_all_checks with allowed operation."""
         config = SafetyConfig()

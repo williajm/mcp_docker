@@ -105,7 +105,9 @@ def create_optimize_container_prompt(
         def _fetch_data() -> dict[str, Any]:
             container = docker_client.client.containers.get(container_id)
             attrs = container.attrs
-            stats = container.stats(stream=False)  # type: ignore[no-untyped-call]
+            stats_data = container.stats(stream=False)
+            # Handle union type - stream=False returns dict directly
+            stats = stats_data if isinstance(stats_data, dict) else next(iter(stats_data))
             return {"attrs": attrs, "stats": stats}
 
         data = await asyncio.to_thread(_fetch_data)

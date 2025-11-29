@@ -328,49 +328,6 @@ class TestFastMCPDockerServer:
     @patch("mcp_docker.fastmcp_server.register_all_tools")
     @patch("mcp_docker.fastmcp_server.register_all_resources")
     @patch("mcp_docker.fastmcp_server.register_all_prompts")
-    def test_get_middleware_components(  # noqa: PLR0913
-        self,
-        mock_register_prompts,
-        mock_register_resources,
-        mock_register_tools,
-        mock_audit_logger,
-        mock_rate_limiter,
-        mock_auth_middleware,
-        mock_safety_enforcer,
-        mock_docker_wrapper,
-        mock_create_app,
-    ):
-        """Test get_middleware_components() method."""
-        # Setup mocks
-        mock_app = Mock()
-        mock_app.add_middleware = Mock()  # Mock middleware attachment
-        mock_create_app.return_value = mock_app
-        mock_register_tools.return_value = {"container": ["tool1"]}
-        mock_register_resources.return_value = {"container": ["resource1"]}
-        mock_register_prompts.return_value = {"docker": ["prompt1"]}
-
-        config = Config()
-        server = FastMCPDockerServer(config)
-
-        # Get middleware components
-        components = server.get_middleware_components()
-
-        assert "safety" in components
-        assert "rate_limit" in components
-        assert "audit" in components
-        assert "auth" in components
-        assert "rate_limiter" in components
-        assert "audit_logger" in components
-
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
     def test_wrap_tools_with_middleware(  # noqa: PLR0913
         self,
         mock_register_prompts,

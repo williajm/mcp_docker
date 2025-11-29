@@ -10,6 +10,7 @@ from mcp_docker.config import SafetyConfig
 from mcp_docker.docker_wrapper.client import DockerClientWrapper
 from mcp_docker.fastmcp_tools.image import (
     BuildImageInput,
+    _validate_build_context_path,
     create_build_image_tool,
     create_image_history_tool,
     create_inspect_image_tool,
@@ -20,7 +21,7 @@ from mcp_docker.fastmcp_tools.image import (
     create_remove_image_tool,
     create_tag_image_tool,
 )
-from mcp_docker.utils.errors import DockerOperationError, ImageNotFound
+from mcp_docker.utils.errors import DockerOperationError, ImageNotFound, ValidationError
 
 
 # Module-level fixtures to avoid duplication across test classes
@@ -434,6 +435,76 @@ class TestBuildImageTool:
         call_kwargs = mock_docker_client.client.images.build.call_args.kwargs
         key, value = expected_kwarg
         assert call_kwargs[key] == value
+
+
+class TestValidateBuildContextPath:
+    """Test _validate_build_context_path helper function."""
+
+    def test_rejects_root_directory(self):
+        """Test that root directory is rejected."""
+        with pytest.raises(ValidationError, match="Cannot build from root directory"):
+            _validate_build_context_path("/")
+
+    def test_rejects_nonexistent_path(self, tmp_path):
+        """Test that non-existent path is rejected."""
+        nonexistent = tmp_path / "does_not_exist"
+        with pytest.raises(ValidationError, match="does not exist"):
+            _validate_build_context_path(str(nonexistent))
+
+    def test_rejects_file_path(self, tmp_path):
+        """Test that file path (not directory) is rejected."""
+        file_path = tmp_path / "somefile.txt"
+        file_path.write_text("content")
+        with pytest.raises(ValidationError, match="must be a directory"):
+            _validate_build_context_path(str(file_path))
+
+    def test_accepts_valid_directory(self, tmp_path):
+        """Test that valid directory returns resolved path."""
+        result = _validate_build_context_path(str(tmp_path))
+        assert result == tmp_path.resolve()
+
+
+class TestBuildImagePathValidation:
+    """Test build_image path validation security checks."""
+
+    def test_build_image_rejects_root_directory(self, mock_docker_client):
+        """Test that building from root directory '/' is rejected."""
+        *_, build_func = create_build_image_tool(mock_docker_client)
+
+        with pytest.raises(ValidationError, match="Cannot build from root directory"):
+            build_func(path="/")
+
+    def test_build_image_rejects_nonexistent_path(self, mock_docker_client, tmp_path):
+        """Test that building from non-existent path is rejected."""
+        nonexistent = tmp_path / "does_not_exist"
+        *_, build_func = create_build_image_tool(mock_docker_client)
+
+        with pytest.raises(ValidationError, match="does not exist"):
+            build_func(path=str(nonexistent))
+
+    def test_build_image_rejects_file_path(self, mock_docker_client, tmp_path):
+        """Test that building from a file (not directory) is rejected."""
+        file_path = tmp_path / "Dockerfile"
+        file_path.write_text("FROM ubuntu")
+        *_, build_func = create_build_image_tool(mock_docker_client)
+
+        with pytest.raises(ValidationError, match="must be a directory"):
+            build_func(path=str(file_path))
+
+    def test_build_image_accepts_valid_directory(self, mock_docker_client, tmp_path):
+        """Test that valid directory path is accepted."""
+        image = Mock()
+        image.id = "sha256:abc123"
+        image.tags = ["test:latest"]
+        mock_docker_client.client.images.build.return_value = (image, [])
+
+        *_, build_func = create_build_image_tool(mock_docker_client)
+        result = build_func(path=str(tmp_path))
+
+        assert result["image_id"] == "sha256:abc123"
+        # Verify resolved path was used
+        call_kwargs = mock_docker_client.client.images.build.call_args.kwargs
+        assert call_kwargs["path"] == str(tmp_path.resolve())
 
 
 class TestPushImageTool:
