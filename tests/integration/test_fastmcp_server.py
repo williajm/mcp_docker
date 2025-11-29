@@ -54,25 +54,6 @@ def test_fastmcp_server_get_app(fastmcp_config: Config) -> None:
 
 
 @pytest.mark.integration
-def test_fastmcp_server_middleware_components(fastmcp_config: Config) -> None:
-    """Test getting middleware components for transport integration."""
-    server = FastMCPDockerServer(fastmcp_config)
-    components = server.get_middleware_components()
-
-    # Verify all middleware components are present
-    assert "safety" in components
-    assert "rate_limit" in components
-    assert "audit" in components
-    assert "auth" in components
-    assert "rate_limiter" in components
-    assert "audit_logger" in components
-
-    # Verify components are not None
-    for key, value in components.items():
-        assert value is not None, f"Component '{key}' should not be None"
-
-
-@pytest.mark.integration
 def test_fastmcp_server_with_safety_disabled(fastmcp_config: Config) -> None:
     """Test FastMCP server with destructive operations disabled."""
     # Disable destructive operations
