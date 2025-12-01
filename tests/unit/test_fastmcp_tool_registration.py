@@ -10,8 +10,8 @@ import pytest
 from fastmcp import FastMCP
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.registration import register_all_tools
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.registration import register_all_tools
 
 
 @pytest.fixture

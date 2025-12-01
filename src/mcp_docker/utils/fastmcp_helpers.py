@@ -7,7 +7,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from mcp_docker.utils.safety import OperationSafety
+from mcp_docker.services.safety import OperationSafety
 from mcp_docker.version import __version__
 
 

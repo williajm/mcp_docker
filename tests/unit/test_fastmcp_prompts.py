@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from mcp_docker.fastmcp_prompts import (
+from mcp_docker.server.prompts import (
     create_debug_networking_prompt,
     create_generate_compose_prompt,
     create_optimize_container_prompt,

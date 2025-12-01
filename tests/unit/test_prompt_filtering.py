@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_prompts import register_all_prompts
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.server.prompts import register_all_prompts
 
 
 class TestPromptFiltering:

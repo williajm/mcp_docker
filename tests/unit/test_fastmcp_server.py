@@ -5,21 +5,21 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from mcp_docker.config import Config
-from mcp_docker.fastmcp_server import FastMCPDockerServer
+from mcp_docker.server.server import FastMCPDockerServer
 
 
 class TestFastMCPDockerServer:
     """Test FastMCPDockerServer class."""
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     def test_init_basic(  # noqa: PLR0913
         self,
         mock_register_prompts,
@@ -60,15 +60,15 @@ class TestFastMCPDockerServer:
         calls = mock_app.add_middleware.call_args_list
         assert any(isinstance(call[0][0].__class__.__name__, str) for call in calls)
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     def test_init_with_destructive_operations_enabled(  # noqa: PLR0913
         self,
         mock_register_prompts,
@@ -100,15 +100,15 @@ class TestFastMCPDockerServer:
 
         assert server.config == config
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     @pytest.mark.asyncio
     async def test_start_healthy_docker(  # noqa: PLR0913
         self,
@@ -144,15 +144,15 @@ class TestFastMCPDockerServer:
         # Verify health check was called
         mock_docker_client.health_check.assert_called_once()
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     @pytest.mark.asyncio
     async def test_start_unhealthy_docker(  # noqa: PLR0913
         self,
@@ -188,15 +188,15 @@ class TestFastMCPDockerServer:
         # Verify health check was called
         mock_docker_client.health_check.assert_called_once()
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     @pytest.mark.asyncio
     async def test_start_docker_error(  # noqa: PLR0913
         self,
@@ -232,15 +232,15 @@ class TestFastMCPDockerServer:
         # Verify health check was called
         mock_docker_client.health_check.assert_called_once()
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     @pytest.mark.asyncio
     async def test_stop(  # noqa: PLR0913
         self,
@@ -281,15 +281,15 @@ class TestFastMCPDockerServer:
         mock_docker_client.close.assert_called_once()
         mock_auth.close.assert_called_once()
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     def test_get_app(  # noqa: PLR0913
         self,
         mock_register_prompts,
@@ -319,15 +319,15 @@ class TestFastMCPDockerServer:
 
         assert app == mock_app
 
-    @patch("mcp_docker.fastmcp_server.create_fastmcp_app")
-    @patch("mcp_docker.fastmcp_server.DockerClientWrapper")
-    @patch("mcp_docker.fastmcp_server.SafetyEnforcer")
-    @patch("mcp_docker.fastmcp_server.AuthMiddleware")
-    @patch("mcp_docker.fastmcp_server.RateLimiter")
-    @patch("mcp_docker.fastmcp_server.AuditLogger")
-    @patch("mcp_docker.fastmcp_server.register_all_tools")
-    @patch("mcp_docker.fastmcp_server.register_all_resources")
-    @patch("mcp_docker.fastmcp_server.register_all_prompts")
+    @patch("mcp_docker.server.server.create_fastmcp_app")
+    @patch("mcp_docker.server.server.DockerClientWrapper")
+    @patch("mcp_docker.server.server.SafetyEnforcer")
+    @patch("mcp_docker.server.server.AuthMiddleware")
+    @patch("mcp_docker.server.server.RateLimiter")
+    @patch("mcp_docker.server.server.AuditLogger")
+    @patch("mcp_docker.server.server.register_all_tools")
+    @patch("mcp_docker.server.server.register_all_resources")
+    @patch("mcp_docker.server.server.register_all_prompts")
     def test_wrap_tools_with_middleware(  # noqa: PLR0913
         self,
         mock_register_prompts,

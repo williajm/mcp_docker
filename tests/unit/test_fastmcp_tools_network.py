@@ -6,8 +6,8 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.network import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.network import (
     CreateNetworkInput,
     _build_connect_kwargs,
     create_connect_container_tool,

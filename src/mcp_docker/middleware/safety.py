@@ -9,9 +9,9 @@ from typing import Any
 from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.middleware.utils import get_operation_type
-from mcp_docker.safety.core import SafetyEnforcer
+from mcp_docker.services.safety import OperationSafety
+from mcp_docker.services.safety_enforcer import SafetyEnforcer
 from mcp_docker.utils.logger import get_logger
-from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 
@@ -140,7 +140,7 @@ def create_safety_middleware(enforcer: SafetyEnforcer, app: Any) -> SafetyMiddle
         ```python
         from fastmcp import FastMCP
         from mcp_docker.config import Config
-        from mcp_docker.safety import SafetyEnforcer
+        from mcp_docker.services import SafetyEnforcer
         from mcp_docker.middleware.safety import create_safety_middleware
 
         config = Config()

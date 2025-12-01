@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_resources import register_all_resources
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.server.resources import register_all_resources
 
 
 class TestResourceFiltering:

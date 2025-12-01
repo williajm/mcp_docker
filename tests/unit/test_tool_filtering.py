@@ -5,8 +5,8 @@ including the new behavior where None = allow all, [] = block all.
 """
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.fastmcp_tools.filters import should_register_tool
-from mcp_docker.safety.core import SafetyEnforcer
+from mcp_docker.services.safety_enforcer import SafetyEnforcer
+from mcp_docker.tools.filters import should_register_tool
 
 
 class TestToolFiltering:

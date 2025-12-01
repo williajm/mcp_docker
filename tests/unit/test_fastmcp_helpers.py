@@ -1,7 +1,7 @@
 """Tests for FastMCP helper utilities."""
 
+from mcp_docker.services.safety import OperationSafety
 from mcp_docker.utils.fastmcp_helpers import create_fastmcp_app, get_mcp_annotations
-from mcp_docker.utils.safety import OperationSafety
 from mcp_docker.version import __version__
 
 

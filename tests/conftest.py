@@ -8,7 +8,7 @@ import pytest
 from docker import DockerClient
 
 from mcp_docker.config import Config, DockerConfig, SafetyConfig, ServerConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.version import __version__
 
 

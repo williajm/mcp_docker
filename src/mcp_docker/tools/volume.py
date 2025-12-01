@@ -10,19 +10,19 @@ from docker.errors import APIError, DockerException, NotFound
 from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.common import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.services.safety import OperationSafety
+from mcp_docker.tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
     apply_list_pagination,
 )
-from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_VOLUME_NOT_FOUND
-from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 

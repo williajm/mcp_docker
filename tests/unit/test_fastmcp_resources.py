@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from mcp_docker.fastmcp_resources import (
+from mcp_docker.server.resources import (
     create_container_logs_resource,
     create_container_stats_resource,
     register_all_resources,

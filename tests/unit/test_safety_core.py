@@ -3,9 +3,9 @@
 import pytest
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.safety.core import SafetyEnforcer
+from mcp_docker.services.safety import OperationSafety
+from mcp_docker.services.safety_enforcer import SafetyEnforcer
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
-from mcp_docker.utils.safety import OperationSafety
 
 
 class TestSafetyEnforcer:

@@ -6,8 +6,8 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.volume import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.volume import (
     create_create_volume_tool,
     create_inspect_volume_tool,
     create_list_volumes_tool,

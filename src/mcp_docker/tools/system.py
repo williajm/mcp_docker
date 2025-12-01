@@ -9,11 +9,11 @@ from typing import Any
 from docker.errors import APIError
 from pydantic import BaseModel, Field
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.services.safety import OperationSafety
+from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.logger import get_logger
-from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 

@@ -6,13 +6,13 @@ This module handles registration of all FastMCP tools with the application.
 from typing import Any
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.container_inspection import register_container_inspection_tools
-from mcp_docker.fastmcp_tools.container_lifecycle import register_container_lifecycle_tools
-from mcp_docker.fastmcp_tools.image import register_image_tools
-from mcp_docker.fastmcp_tools.network import register_network_tools
-from mcp_docker.fastmcp_tools.system import register_system_tools
-from mcp_docker.fastmcp_tools.volume import register_volume_tools
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.container_inspection import register_container_inspection_tools
+from mcp_docker.tools.container_lifecycle import register_container_lifecycle_tools
+from mcp_docker.tools.image import register_image_tools
+from mcp_docker.tools.network import register_network_tools
+from mcp_docker.tools.system import register_system_tools
+from mcp_docker.tools.volume import register_volume_tools
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,8 +41,8 @@ def register_all_tools(
         ```python
         from fastmcp import FastMCP
         from mcp_docker.config import Config
-        from mcp_docker.docker_wrapper.client import DockerClientWrapper
-        from mcp_docker.fastmcp_tools import register_all_tools
+        from mcp_docker.docker.client import DockerClientWrapper
+        from mcp_docker.tools import register_all_tools
 
         config = Config()
         docker_client = DockerClientWrapper(config.docker)

@@ -6,8 +6,9 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.container_inspection import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.services.safety import OperationSafety
+from mcp_docker.tools.container_inspection import (
     ContainerLogsInput,
     ContainerLogsOutput,
     ContainerStatsInput,
@@ -28,7 +29,6 @@ from mcp_docker.fastmcp_tools.container_inspection import (
     create_list_containers_tool,
 )
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
-from mcp_docker.utils.safety import OperationSafety
 
 
 # Module-level fixtures to avoid duplication across test classes

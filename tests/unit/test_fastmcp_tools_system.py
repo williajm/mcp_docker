@@ -5,8 +5,8 @@ from unittest.mock import Mock
 import pytest
 from docker.errors import APIError
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.system import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.system import (
     create_events_tool,
     create_prune_system_tool,
     create_version_tool,
