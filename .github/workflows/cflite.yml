@@ -162,48 +162,6 @@ jobs:
         retention-days: 30
         if-no-files-found: ignore
 
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    # Only run on main branch and schedule
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'schedule'
-    permissions:
-      contents: read
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-
-    - name: Restore fuzz corpus cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-      with:
-        path: corpus
-        key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
-        restore-keys: |
-          fuzz-corpus-${{ runner.os }}-
-
-    - name: Build Fuzzers (coverage)
-      id: build
-      uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
-      with:
-        language: python
-        sanitizer: coverage
-
-    - name: Run Fuzzers (coverage)
-      id: run
-      uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        fuzz-seconds: 600  # 10 minutes for coverage
-        mode: 'coverage'
-        sanitizer: coverage
-
-    - name: Upload coverage report
-      if: always()
-      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
-      with:
-        name: fuzz-coverage-report-${{ github.run_number }}
-        path: |
-          build-out/coverage/
-          out/report/
-        retention-days: 30
-        if-no-files-found: ignore
+  # Note: Coverage job removed - ClusterFuzzLite's Python/atheris coverage mode
+  # doesn't produce useful HTML reports due to instrumentation limitations.
+  # Use pytest --cov for actual code coverage metrics.
