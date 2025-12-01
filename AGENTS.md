@@ -146,14 +146,14 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 ### Core Components
 
-1. **FastMCPDockerServer** (`src/mcp_docker/fastmcp_server.py`)
+1. **FastMCPDockerServer** (`src/mcp_docker/server/server.py`)
    - Main MCP server implementation using FastMCP 2.0
    - Wraps FastMCP app with middleware and configuration
    - Manages security (auth, rate limiting, audit logging) via middleware
    - Handles concurrency with semaphores in safety middleware
    - Coordinates tools, resources, prompts, and safety enforcement
 
-2. **Tool System** (`src/mcp_docker/fastmcp_tools/`)
+2. **Tool System** (`src/mcp_docker/tools/`)
    - **FastMCP 2.0 Decorator Pattern**: Tools use `@mcp.tool()` decorator
    - **registration.py**: Central registration of all tool categories
    - Six categories: container_inspection, container_lifecycle, image, network, volume, system
@@ -165,7 +165,7 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
      - `idempotent`: Tool can be safely retried with same parameters (e.g., start/stop/restart containers, pull images)
      - `openWorldInteraction`: Tool communicates with external systems (e.g., pull/push images from registries)
 
-3. **Safety System** (`src/mcp_docker/utils/safety.py`, `config.py`)
+3. **Safety System** (`src/mcp_docker/services/safety.py`, `config.py`)
    - **Three-tier classification**: SAFE/MODERATE/DESTRUCTIVE
    - **Tool filtering**: Allow/deny lists via `SAFETY_ALLOWED_TOOLS`/`SAFETY_DENIED_TOOLS`
    - **Operation gating**: `SAFETY_ALLOW_MODERATE_OPERATIONS`, `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS`
@@ -173,10 +173,10 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - **Concurrency limiting**: Max concurrent operations via semaphore
    - **Enforcement flow**: Safety level → Deny list → Allow list → Execute
 
-4. **Security Features** (`src/mcp_docker/security/`, `src/mcp_docker/auth/`)
-   - **IP Filtering** (`auth/middleware.py`): Network-level access control via IP allowlist
-   - **Rate Limiting** (`security/rate_limiter.py`): Per-client request throttling
-   - **Audit Logging** (`security/audit.py`): Operation tracking with client IPs
+4. **Security Features** (`src/mcp_docker/services/`, `src/mcp_docker/middleware/`)
+   - **IP Filtering** (`middleware/auth.py`): Network-level access control via IP allowlist
+   - **Rate Limiting** (`services/rate_limiter.py`): Per-client request throttling
+   - **Audit Logging** (`services/audit.py`): Operation tracking with client IPs
    - **Error Sanitization** (`utils/error_sanitizer.py`): Prevents information disclosure
    - **TLS/HTTPS**: Use reverse proxy (NGINX, Caddy) for production HTTP deployments
 
@@ -195,7 +195,7 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - **RateLimitMiddleware**: Request throttling to prevent abuse
    - Middleware executes in order: debug → audit → auth → safety → rate_limit
 
-7. **Docker Wrapper** (`src/mcp_docker/docker_wrapper/client.py`)
+7. **Docker Wrapper** (`src/mcp_docker/docker/client.py`)
    - Wraps Docker SDK with error handling and timeout management
    - Provides async-friendly interfaces to synchronous Docker SDK
    - Handles connection lifecycle and cleanup
@@ -211,7 +211,7 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 Tools use FastMCP 2.0's decorator pattern. To add a new tool:
 
-1. Add tool to appropriate module in `src/mcp_docker/fastmcp_tools/` (choose by category or safety level)
+1. Add tool to appropriate module in `src/mcp_docker/tools/` (choose by category or safety level)
 2. Define Pydantic input/output models for type safety
 3. Use `@mcp.tool()` decorator with annotations from `get_mcp_annotations()`
 4. Register in the category's `register_*_tools()` function
@@ -219,9 +219,9 @@ Tools use FastMCP 2.0's decorator pattern. To add a new tool:
 
 Example:
 ```python
-# In src/mcp_docker/fastmcp_tools/container_lifecycle.py
-from mcp_docker.fastmcp_tools.common import get_mcp_annotations
-from mcp_docker.utils.safety import OperationSafety
+# In src/mcp_docker/tools/container_lifecycle.py
+from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
+from mcp_docker.services.safety import OperationSafety
 
 def register_container_lifecycle_tools(
     mcp: Any,
@@ -323,8 +323,8 @@ async def docker_my_tool(params: MyToolParams) -> dict[str, Any]:
 
 ### Safety Annotations Pattern
 ```python
-from mcp_docker.fastmcp_tools.common import get_mcp_annotations
-from mcp_docker.utils.safety import OperationSafety
+from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
+from mcp_docker.services.safety import OperationSafety
 
 # SAFE tool (read-only)
 @mcp.tool(annotations=get_mcp_annotations(OperationSafety.SAFE))
@@ -410,7 +410,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options and common sc
 ## Common Tasks
 
 ### Adding a new Docker operation
-1. Choose appropriate category module in `src/mcp_docker/fastmcp_tools/`
+1. Choose appropriate category module in `src/mcp_docker/tools/`
    - `container_inspection.py`: SAFE (read-only) container tools
    - `container_lifecycle.py`: MODERATE container tools (start/stop/create)
    - `image.py`: Image management (pull/build/push/remove)

@@ -5,10 +5,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mcp_docker.auth.middleware import AuthenticationError, AuthMiddleware
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.auth.oauth_auth import OAuthAuthenticationError
 from mcp_docker.config import SecurityConfig
+from mcp_docker.middleware.auth import AuthenticationError, AuthMiddleware
 
 
 class TestAuthMiddleware:
@@ -148,7 +148,7 @@ class TestAuthMiddleware:
 class TestAuthMiddlewareOAuth:
     """Test OAuth authentication in middleware."""
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     def test_oauth_authenticator_initialization(self, mock_oauth_class: AsyncMock) -> None:
         """Test OAuth authenticator is initialized when oauth_enabled=True."""
         config = SecurityConfig(
@@ -172,7 +172,7 @@ class TestAuthMiddlewareOAuth:
         # Verify OAuth authenticator is None
         assert middleware.oauth_authenticator is None
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_bearer_token_required(self, mock_oauth_class: AsyncMock) -> None:
         """Test bearer token is required when OAuth is enabled."""
         config = SecurityConfig(
@@ -189,7 +189,7 @@ class TestAuthMiddlewareOAuth:
 
         assert "Bearer token required" in str(exc_info.value)
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_successful_authentication(self, mock_oauth_class: AsyncMock) -> None:
         """Test successful OAuth authentication with valid bearer token."""
         config = SecurityConfig(
@@ -233,7 +233,7 @@ class TestAuthMiddlewareOAuth:
         # Verify the token was validated
         mock_authenticator.authenticate_token.assert_called_once_with("valid_jwt_token")
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_authentication_failure(self, mock_oauth_class: AsyncMock) -> None:
         """Test OAuth authentication failure with invalid token."""
         config = SecurityConfig(
@@ -266,7 +266,7 @@ class TestAuthMiddlewareOAuth:
         # Verify the token was attempted to be validated
         mock_authenticator.authenticate_token.assert_called_once_with("invalid_jwt_token")
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_stdio_bypass(self, mock_oauth_class: AsyncMock) -> None:
         """Test stdio transport bypasses OAuth authentication."""
         config = SecurityConfig(
@@ -288,7 +288,7 @@ class TestAuthMiddlewareOAuth:
         # Verify OAuth authenticator was never called
         mock_oauth_class.return_value.authenticate_token.assert_not_called()
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_close_cleanup(self, mock_oauth_class: AsyncMock) -> None:
         """Test close() method cleans up OAuth authenticator."""
         config = SecurityConfig(
@@ -318,7 +318,7 @@ class TestAuthMiddlewareOAuth:
         # Close should not raise an error
         await middleware.close()
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_authenticator_not_initialized_error(
         self, mock_oauth_class: AsyncMock
     ) -> None:
@@ -343,7 +343,7 @@ class TestAuthMiddlewareOAuth:
 
         assert "OAuth authentication not available" in str(exc_info.value)
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_with_ip_allowlist_defense_in_depth(
         self, mock_oauth_class: AsyncMock
     ) -> None:
@@ -386,7 +386,7 @@ class TestAuthMiddlewareOAuth:
         # OAuth authentication should have been called first
         mock_authenticator.authenticate_token.assert_called_once_with("valid_jwt_token")
 
-    @patch("mcp_docker.auth.middleware.OAuthAuthenticator")
+    @patch("mcp_docker.middleware.auth.OAuthAuthenticator")
     async def test_oauth_with_ip_in_allowlist_succeeds(self, mock_oauth_class: AsyncMock) -> None:
         """Test defense-in-depth: valid OAuth token with IP in allowlist succeeds."""
         config = SecurityConfig(
@@ -494,7 +494,7 @@ class TestAuthMiddlewareCall:
             oauth_jwks_url="https://auth.example.com/.well-known/jwks.json",
         )
 
-        with patch("mcp_docker.auth.middleware.OAuthAuthenticator") as mock_oauth_class:
+        with patch("mcp_docker.middleware.auth.OAuthAuthenticator") as mock_oauth_class:
             # Mock the OAuthAuthenticator instance
             mock_authenticator = AsyncMock()
             mock_oauth_class.return_value = mock_authenticator

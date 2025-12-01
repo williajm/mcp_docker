@@ -7,9 +7,9 @@ Separated from registration.py to avoid circular imports.
 from typing import Any
 
 from mcp_docker.config import SafetyConfig
+from mcp_docker.services.safety import OperationSafety
 from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.utils.logger import get_logger
-from mcp_docker.utils.safety import OperationSafety
 
 logger = get_logger(__name__)
 

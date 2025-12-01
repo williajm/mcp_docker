@@ -9,7 +9,7 @@ from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.auth.models import ClientInfo
 from mcp_docker.middleware.utils import get_operation_name
-from mcp_docker.security.audit import AuditLogger
+from mcp_docker.services.audit import AuditLogger
 from mcp_docker.utils.http_helpers import extract_client_ip
 from mcp_docker.utils.logger import get_logger
 
@@ -26,7 +26,7 @@ class AuditMiddleware:
         ```python
         from fastmcp import FastMCP
         from mcp_docker.middleware import AuditMiddleware
-        from mcp_docker.security.audit import AuditLogger
+        from mcp_docker.services.audit import AuditLogger
 
         app = FastMCP("mcp-docker")
         audit_logger = AuditLogger(
@@ -210,7 +210,7 @@ def create_audit_middleware(audit_logger: AuditLogger) -> AuditMiddleware:
     Example:
         ```python
         from mcp_docker.config import Config
-        from mcp_docker.security.audit import AuditLogger
+        from mcp_docker.services.audit import AuditLogger
         from mcp_docker.middleware.audit import create_audit_middleware
 
         config = Config()

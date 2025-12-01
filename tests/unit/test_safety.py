@@ -2,8 +2,7 @@
 
 import pytest
 
-from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
-from mcp_docker.utils.safety import (
+from mcp_docker.services.safety import (
     DANGEROUS_COMMAND_PATTERNS,
     DESTRUCTIVE_OPERATIONS,
     MODERATE_OPERATIONS,
@@ -21,6 +20,7 @@ from mcp_docker.utils.safety import (
     validate_operation_allowed,
     validate_port_binding,
 )
+from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
 
 
 class TestOperationClassification:

@@ -10,14 +10,14 @@ This is the core safety abstraction created in Phase 2 of the FastMCP migration.
 from typing import Any
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.utils.errors import UnsafeOperationError
-from mcp_docker.utils.logger import get_logger
-from mcp_docker.utils.safety import (
+from mcp_docker.services.safety import (
     OperationSafety,
     check_privileged_mode,
     validate_command_safety,
     validate_mount_path,
 )
+from mcp_docker.utils.errors import UnsafeOperationError
+from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

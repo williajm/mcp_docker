@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceededError
+from mcp_docker.services.rate_limiter import RateLimiter, RateLimitExceededError
 
 
 class TestRateLimiter:

@@ -1,7 +1,7 @@
-"""FastMCP 2.0 tool implementations.
+"""Tool implementations for MCP Docker.
 
-This package contains FastMCP-based tool implementations that replace
-the class-based BaseTool implementations during the migration.
+This package contains tool implementations that expose Docker
+functionality through the MCP protocol.
 
 Organization:
 - container_inspection.py: SAFE tools for container inspection
@@ -12,6 +12,6 @@ Organization:
 - system.py: System-level operations
 """
 
-from mcp_docker.fastmcp_tools.registration import register_all_tools
+from mcp_docker.tools.registration import register_all_tools
 
 __all__ = ["register_all_tools"]

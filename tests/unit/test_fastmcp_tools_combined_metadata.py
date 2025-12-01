@@ -5,10 +5,11 @@ from unittest.mock import Mock
 import pytest
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.services.safety import OperationSafety
 
 # Container lifecycle imports
-from mcp_docker.fastmcp_tools.container_lifecycle import (
+from mcp_docker.tools.container_lifecycle import (
     create_create_container_tool,
     create_remove_container_tool,
     create_restart_container_tool,
@@ -17,7 +18,7 @@ from mcp_docker.fastmcp_tools.container_lifecycle import (
 )
 
 # Image imports
-from mcp_docker.fastmcp_tools.image import (
+from mcp_docker.tools.image import (
     create_build_image_tool,
     create_image_history_tool,
     create_inspect_image_tool,
@@ -30,7 +31,7 @@ from mcp_docker.fastmcp_tools.image import (
 )
 
 # Network imports
-from mcp_docker.fastmcp_tools.network import (
+from mcp_docker.tools.network import (
     create_connect_container_tool,
     create_create_network_tool,
     create_disconnect_container_tool,
@@ -38,7 +39,6 @@ from mcp_docker.fastmcp_tools.network import (
     create_list_networks_tool,
     create_remove_network_tool,
 )
-from mcp_docker.utils.safety import OperationSafety
 
 
 @pytest.fixture

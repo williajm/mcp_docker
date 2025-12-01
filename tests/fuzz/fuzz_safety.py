@@ -9,16 +9,15 @@ import sys
 
 import atheris
 
-from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
-
 # Import without instrumentation to avoid complex dependencies
-from mcp_docker.utils.safety import (
+from mcp_docker.services.safety import (
     check_privileged_mode,
     sanitize_command,
     validate_environment_variable,
     validate_mount_path,
     validate_port_binding,
 )
+from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
 
 # Instrument all code after imports
 atheris.instrument_all()

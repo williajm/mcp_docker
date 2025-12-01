@@ -11,7 +11,7 @@ This module provides Docker prompts using FastMCP's @mcp.prompt() decorator:
 import asyncio
 from typing import Any
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.stats_formatter import calculate_memory_usage
 

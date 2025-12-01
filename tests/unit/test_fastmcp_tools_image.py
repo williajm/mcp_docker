@@ -7,8 +7,8 @@ from docker.errors import APIError, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.image import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.image import (
     BuildImageInput,
     _validate_build_context_path,
     create_build_image_tool,

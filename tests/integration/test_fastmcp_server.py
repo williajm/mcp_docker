@@ -7,7 +7,7 @@ Docker client, middleware, and feature flag switching.
 import pytest
 
 from mcp_docker.config import Config
-from mcp_docker.fastmcp_server import FastMCPDockerServer
+from mcp_docker.server.server import FastMCPDockerServer
 
 
 @pytest.fixture

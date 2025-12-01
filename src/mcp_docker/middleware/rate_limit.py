@@ -8,7 +8,7 @@ from typing import Any
 from fastmcp.server.middleware import CallNext, MiddlewareContext
 
 from mcp_docker.middleware.utils import get_operation_name
-from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
+from mcp_docker.services.rate_limiter import RateLimiter, RateLimitExceeded
 from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ class RateLimitMiddleware:
         ```python
         from fastmcp import FastMCP
         from mcp_docker.middleware import RateLimitMiddleware
-        from mcp_docker.security.rate_limiter import RateLimiter
+        from mcp_docker.services.rate_limiter import RateLimiter
 
         app = FastMCP("mcp-docker")
         rate_limiter = RateLimiter(
@@ -107,7 +107,7 @@ def create_rate_limit_middleware(rate_limiter: RateLimiter) -> RateLimitMiddlewa
     Example:
         ```python
         from mcp_docker.config import Config
-        from mcp_docker.security.rate_limiter import RateLimiter
+        from mcp_docker.services.rate_limiter import RateLimiter
         from mcp_docker.middleware.rate_limit import create_rate_limit_middleware
 
         config = Config()

@@ -6,8 +6,8 @@ import pytest
 from docker.errors import APIError, NotFound
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.container_lifecycle import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.tools.container_lifecycle import (
     CreateContainerInput,
     _prepare_create_container_kwargs,
     _validate_create_container_inputs,

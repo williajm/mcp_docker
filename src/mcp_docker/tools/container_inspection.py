@@ -9,15 +9,20 @@ from docker.errors import APIError, NotFound
 from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_tools.common import (
+from mcp_docker.docker.client import DockerClientWrapper
+from mcp_docker.services.safety import (
+    OperationSafety,
+    validate_command_safety,
+    validate_environment_variable,
+)
+from mcp_docker.tools.common import (
     DESC_CONTAINER_ID,
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
     apply_list_pagination,
 )
-from mcp_docker.fastmcp_tools.filters import register_tools_with_filtering
+from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
@@ -26,11 +31,6 @@ from mcp_docker.utils.output_limits import (
     create_truncation_metadata,
     truncate_lines,
     truncate_text,
-)
-from mcp_docker.utils.safety import (
-    OperationSafety,
-    validate_command_safety,
-    validate_environment_variable,
 )
 from mcp_docker.utils.validation import validate_command
 

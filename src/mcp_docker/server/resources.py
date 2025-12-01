@@ -8,7 +8,7 @@ This module provides Docker resources using FastMCP's @mcp.resource() decorator:
 import asyncio
 from typing import Any
 
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
+from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.utils.errors import ContainerNotFound, MCPDockerError
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND

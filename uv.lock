@@ -872,7 +872,7 @@ wheels = [
 
 [[package]]
 name = "mcp-docker"
-version = "1.2.2"
+version = "1.2.3.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },

@@ -12,7 +12,7 @@ from typing import Any
 import typer
 
 from mcp_docker.config import Config
-from mcp_docker.fastmcp_server import FastMCPDockerServer
+from mcp_docker.server import FastMCPDockerServer
 from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__
 

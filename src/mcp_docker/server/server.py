@@ -9,21 +9,21 @@ import asyncio
 
 from fastmcp import FastMCP
 
-from mcp_docker.auth.middleware import AuthMiddleware
 from mcp_docker.config import Config
-from mcp_docker.docker_wrapper.client import DockerClientWrapper
-from mcp_docker.fastmcp_prompts import register_all_prompts
-from mcp_docker.fastmcp_resources import register_all_resources
-from mcp_docker.fastmcp_tools import register_all_tools
+from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.middleware import (
     AuditMiddleware,
+    AuthMiddleware,
     DebugLoggingMiddleware,
     RateLimitMiddleware,
     SafetyMiddleware,
 )
-from mcp_docker.safety import SafetyEnforcer
-from mcp_docker.security.audit import AuditLogger
-from mcp_docker.security.rate_limiter import RateLimiter
+from mcp_docker.server.prompts import register_all_prompts
+from mcp_docker.server.resources import register_all_resources
+from mcp_docker.services.audit import AuditLogger
+from mcp_docker.services.rate_limiter import RateLimiter
+from mcp_docker.services.safety_enforcer import SafetyEnforcer
+from mcp_docker.tools import register_all_tools
 from mcp_docker.utils.fastmcp_helpers import create_fastmcp_app
 from mcp_docker.utils.logger import get_logger
 

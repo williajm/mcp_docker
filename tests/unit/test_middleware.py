@@ -7,11 +7,11 @@ import pytest
 from mcp_docker.middleware.audit import AuditMiddleware, create_audit_middleware
 from mcp_docker.middleware.rate_limit import RateLimitMiddleware, create_rate_limit_middleware
 from mcp_docker.middleware.safety import SafetyMiddleware, create_safety_middleware
-from mcp_docker.safety import SafetyEnforcer
-from mcp_docker.security.audit import AuditLogger
-from mcp_docker.security.rate_limiter import RateLimiter, RateLimitExceeded
+from mcp_docker.services import SafetyEnforcer
+from mcp_docker.services.audit import AuditLogger
+from mcp_docker.services.rate_limiter import RateLimiter, RateLimitExceeded
+from mcp_docker.services.safety import OperationSafety
 from mcp_docker.utils.errors import UnsafeOperationError
-from mcp_docker.utils.safety import OperationSafety
 
 
 class TestSafetyMiddleware:

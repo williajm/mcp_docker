@@ -387,15 +387,13 @@ mcp_docker/
 ├── src/
 │   └── mcp_docker/
 │       ├── __main__.py          # Entry point (transport selection)
-│       ├── fastmcp_server.py    # MCP server implementation
 │       ├── config.py            # Configuration management
-│       ├── docker_wrapper/      # Docker SDK wrapper
-│       ├── fastmcp_tools/       # MCP tool implementations
-│       ├── fastmcp_resources.py # MCP resource providers
-│       ├── fastmcp_prompts.py   # MCP prompt templates
-│       ├── middleware/          # Auth, safety, rate limiting
-│       ├── security/            # Audit logging, rate limiter
-│       └── utils/               # Validation, safety, errors
+│       ├── server/              # MCP server, prompts, resources
+│       ├── tools/               # MCP tool implementations
+│       ├── docker/              # Docker SDK wrapper
+│       ├── services/            # Core services (audit, rate limiting, safety)
+│       ├── middleware/          # Auth, safety, rate limiting middleware
+│       └── utils/               # Validation, helpers, errors
 ├── tests/                       # Test suite
 ├── docs/                        # Documentation
 └── pyproject.toml              # Project configuration
