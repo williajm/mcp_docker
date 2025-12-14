@@ -37,9 +37,7 @@ SENSITIVE_FIELD_PATTERNS = [
 ]
 
 # Compiled regex for efficiency
-_SENSITIVE_PATTERN = re.compile(
-    "|".join(SENSITIVE_FIELD_PATTERNS), re.IGNORECASE
-)
+_SENSITIVE_PATTERN = re.compile("|".join(SENSITIVE_FIELD_PATTERNS), re.IGNORECASE)
 
 # Redaction placeholder
 REDACTED = "<REDACTED>"
