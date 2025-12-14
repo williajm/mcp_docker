@@ -41,7 +41,6 @@ Controls which operations are allowed and safety limits.
 | `SAFETY_ALLOW_MODERATE_OPERATIONS` | `true` | Allow reversible operations (start/stop containers) |
 | `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS` | `false` | Allow permanent operations (delete containers/images) |
 | `SAFETY_ALLOW_PRIVILEGED_CONTAINERS` | `false` | Allow creating privileged containers |
-| `SAFETY_MAX_CONCURRENT_OPERATIONS` | `10` | Maximum concurrent Docker operations |
 | `SAFETY_MAX_LOG_LINES` | `10000` | Maximum log lines to return |
 | `SAFETY_MAX_EXEC_OUTPUT_BYTES` | `1048576` | Maximum exec command output (1 MB) |
 | `SAFETY_MAX_LIST_RESULTS` | `1000` | Maximum items in list results |
@@ -106,7 +105,7 @@ For OAuth setup with popular identity providers (Auth0, Keycloak, Azure AD, AWS 
 
 ## Server Configuration
 
-Controls server behavior and TLS settings.
+Controls server behavior and logging.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -114,10 +113,9 @@ Controls server behavior and TLS settings.
 | `MCP_SERVER_VERSION` | (from package) | Server version |
 | `MCP_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `MCP_JSON_LOGGING` | `false` | Enable JSON-formatted logs |
-| `MCP_DEBUG_MODE` | `false` | Enable debug mode (verbose logging) |
-| `MCP_TLS_ENABLED` | `false` | Enable TLS/HTTPS for network transports |
-| `MCP_TLS_CERT_FILE` | `null` | Path to TLS certificate (required if TLS enabled) |
-| `MCP_TLS_KEY_FILE` | `null` | Path to TLS private key (required if TLS enabled) |
+| `MCP_DEBUG_MODE` | `false` | Enable debug mode (verbose MCP request/response logging) |
+
+**Note**: For HTTPS/TLS, deploy behind a reverse proxy (NGINX, Caddy) that handles TLS termination.
 
 ---
 
@@ -188,8 +186,7 @@ Some variables accept JSON arrays:
 ```bash
 # Correct formats
 SECURITY_ALLOWED_CLIENT_IPS='["127.0.0.1", "192.168.1.100"]'
-CORS_ALLOWED_ORIGINS='["https://app1.com", "https://app2.com"]'
-HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "10.0.1.50"]'
+SECURITY_TRUSTED_PROXIES='["10.0.0.1", "192.168.1.0/24"]'
 ```
 
 ### Comma-Separated Lists

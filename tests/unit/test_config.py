@@ -114,7 +114,6 @@ class TestSafetyConfig:
             assert config.allow_moderate_operations is True
             assert config.allow_destructive_operations is False
             assert config.allow_privileged_containers is False
-            assert config.max_concurrent_operations == 10
         finally:
             # Restore original value
             if old_destructive:
@@ -124,18 +123,10 @@ class TestSafetyConfig:
         """Test custom safety configuration."""
         config = SafetyConfig(
             allow_destructive_operations=True,
-            max_concurrent_operations=20,
+            allow_privileged_containers=True,
         )
         assert config.allow_destructive_operations is True
-        assert config.max_concurrent_operations == 20
-
-    def test_max_concurrent_validation(self) -> None:
-        """Test max_concurrent_operations validation."""
-        with pytest.raises(ValidationError):
-            SafetyConfig(max_concurrent_operations=0)
-
-        with pytest.raises(ValidationError):
-            SafetyConfig(max_concurrent_operations=101)
+        assert config.allow_privileged_containers is True
 
     def test_parse_tool_list_from_string(self) -> None:
         """Test parsing tool list from comma-separated string."""

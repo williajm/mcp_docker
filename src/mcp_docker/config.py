@@ -177,12 +177,6 @@ class SafetyConfig(BaseSettings):
         default=False,
         description="Allow creating privileged containers",
     )
-    max_concurrent_operations: int = Field(
-        default=10,
-        description="Maximum number of concurrent Docker operations",
-        gt=0,
-        le=100,
-    )
 
     # Output size limits (prevent resource exhaustion and token limit issues)
     max_log_lines: int = Field(

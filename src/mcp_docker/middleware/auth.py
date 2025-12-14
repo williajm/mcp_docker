@@ -67,6 +67,7 @@ class AuthMiddleware:
         """Extract IP address from HTTP request.
 
         Uses shared utility function from middleware.utils to avoid code duplication.
+        If trusted_proxies is configured, parses X-Forwarded-For header.
 
         Args:
             context: FastMCP middleware context
@@ -74,7 +75,10 @@ class AuthMiddleware:
         Returns:
             IP address string or None if not available
         """
-        return extract_client_ip(context)
+        # trusted_proxies is normalized to list[str] by Pydantic validator
+        trusted = self.config.trusted_proxies
+        proxies: list[str] = trusted if isinstance(trusted, list) else []
+        return extract_client_ip(context, trusted_proxies=proxies)
 
     def _is_http_transport(self, context: MiddlewareContext[Any]) -> bool:
         """Determine if this is an HTTP transport request.

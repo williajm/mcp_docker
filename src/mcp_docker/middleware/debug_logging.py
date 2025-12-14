@@ -15,9 +15,6 @@ from mcp_docker.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-# Log level constants (from Python logging module)
-DEBUG_LEVEL = 10  # DEBUG log level
-
 
 class DebugLoggingMiddleware:
     """FastMCP middleware for debug-level request/response logging.
@@ -26,10 +23,9 @@ class DebugLoggingMiddleware:
     prompts/list, tool calls, etc.) and their responses at DEBUG level only.
 
     Performance:
-    - When DEBUG logging is disabled (INFO or higher), the middleware returns
-      immediately without any JSON serialization or string formatting.
-    - Zero performance overhead for production deployments with INFO/WARNING levels.
-    - Only processes requests when at least one log handler accepts DEBUG messages.
+    - When debug_enabled=False, the middleware returns immediately without any
+      JSON serialization or string formatting.
+    - Zero performance overhead for production deployments.
 
     Example:
         ```python
@@ -37,22 +33,25 @@ class DebugLoggingMiddleware:
         from mcp_docker.middleware import DebugLoggingMiddleware
 
         app = FastMCP("mcp-docker")
-        middleware = DebugLoggingMiddleware()
+        middleware = DebugLoggingMiddleware(debug_enabled=True)
 
         # Register middleware (should be outermost for full visibility)
         app.add_middleware(middleware)
         ```
     """
 
-    def __init__(self) -> None:
+    def __init__(self, debug_enabled: bool = False) -> None:
         """Initialize debug logging middleware.
 
-        Note: This middleware checks the logger's minimum level and returns early
-        if DEBUG logging is disabled, avoiding any performance overhead from JSON
-        serialization or string formatting.
+        Args:
+            debug_enabled: Whether to enable debug logging. When False, the
+                middleware returns early without any processing overhead.
         """
-        logger.debug("DebugLoggingMiddleware initialized (will log MCP protocol at DEBUG level)")
-        logger.info("DebugLoggingMiddleware initialized")
+        self._debug_enabled = debug_enabled
+        if debug_enabled:
+            logger.info("DebugLoggingMiddleware initialized (debug logging ENABLED)")
+        else:
+            logger.info("DebugLoggingMiddleware initialized (debug logging disabled)")
 
     def _truncate_if_needed(self, data: Any, max_length: int = 5000) -> str:
         """Convert data to string and truncate if too long.
@@ -83,7 +82,7 @@ class DebugLoggingMiddleware:
     ) -> Any:
         """Log MCP protocol request and response at DEBUG level.
 
-        Early return if DEBUG logging is disabled to avoid performance overhead
+        Early return if debug logging is disabled to avoid performance overhead
         from JSON serialization and string formatting.
 
         Args:
@@ -93,9 +92,8 @@ class DebugLoggingMiddleware:
         Returns:
             Result from next handler
         """
-        # Early return if DEBUG logging is disabled (performance optimization)
-        # Access logger._core.min_level to check if any handler accepts DEBUG messages
-        if logger._core.min_level > DEBUG_LEVEL:
+        # Early return if debug logging is disabled (performance optimization)
+        if not self._debug_enabled:
             return await call_next(context)
 
         # Extract operation information (only when DEBUG is enabled)
@@ -131,8 +129,11 @@ class DebugLoggingMiddleware:
             raise
 
 
-def create_debug_logging_middleware() -> DebugLoggingMiddleware:
+def create_debug_logging_middleware(debug_enabled: bool = False) -> DebugLoggingMiddleware:
     """Factory function to create debug logging middleware.
+
+    Args:
+        debug_enabled: Whether to enable debug logging (default: False)
 
     Returns:
         Configured DebugLoggingMiddleware instance
@@ -141,8 +142,8 @@ def create_debug_logging_middleware() -> DebugLoggingMiddleware:
         ```python
         from mcp_docker.middleware.debug_logging import create_debug_logging_middleware
 
-        middleware = create_debug_logging_middleware()
+        middleware = create_debug_logging_middleware(debug_enabled=True)
         app.add_middleware(middleware)
         ```
     """
-    return DebugLoggingMiddleware()
+    return DebugLoggingMiddleware(debug_enabled=debug_enabled)
