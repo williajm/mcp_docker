@@ -7,15 +7,17 @@ This document describes the security features of the MCP Docker server and how t
 The MCP Docker server implements multiple layers of security:
 
 1. **OAuth/OIDC Authentication** - Industry-standard bearer token authentication (network transports only)
-2. **IP Filtering** - Network-level access control (optional, defense-in-depth with OAuth)
+2. **IP Filtering** - Network-level access control with X-Forwarded-For support for reverse proxies
 3. **Rate Limiting** - Prevent abuse and resource exhaustion
-4. **Audit Logging** - Track all operations with client IP tracking
-5. **TLS/HTTPS** - Encrypted transport for SSE and HTTP Stream Transport (required for production)
-6. **Security Headers** - HSTS, Cache-Control, X-Content-Type-Options
-7. **Error Sanitization** - Prevent information disclosure
-8. **Safety Controls** - Three-tier operation classification
-9. **HTTP Stream Transport Security** - Session management, DNS rebinding protection, CORS security
-10. **Secret Redaction** - Environment variable values redacted in prompts to prevent credential leakage to LLM APIs
+4. **Audit Logging** - Track all operations with client IP tracking and automatic secret redaction
+5. **Error Sanitization** - Prevent information disclosure
+6. **Safety Controls** - Three-tier operation classification (SAFE/MODERATE/DESTRUCTIVE)
+7. **Secret Redaction** - Sensitive values automatically redacted in prompts and audit logs
+
+**For production HTTP deployments**, use a reverse proxy (NGINX, Caddy) for:
+- HTTPS/TLS termination
+- Security headers (HSTS, CSP, etc.)
+- Additional rate limiting
 
 ## Quick Start
 
@@ -38,14 +40,11 @@ Claude Desktop uses stdio transport (local process). The server relies on OS-lev
 
 ### For Network Deployment (HTTP Transport)
 
-For production deployment using HTTP transport with security features:
+For production deployment using HTTP transport:
 
 ```bash
-# Start server with HTTP transport
+# Start server with HTTP transport (bind to localhost for reverse proxy)
 uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
-
-# Or use the example script
-./start_http_server.sh
 ```
 
 **Configure security via environment variables:**
@@ -53,18 +52,15 @@ uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
 export SECURITY_RATE_LIMIT_ENABLED=true
 export SECURITY_RATE_LIMIT_RPM=60
 export SECURITY_AUDIT_LOG_ENABLED=true
-export MCP_TLS_ENABLED=true
-export MCP_TLS_CERT_FILE=/path/to/cert.pem
-export MCP_TLS_KEY_FILE=/path/to/key.pem
 ```
 
 **For production**, deploy behind a reverse proxy (NGINX, Caddy) that provides:
 - HTTPS/TLS termination
-- OAuth/authentication
+- Security headers
 - Additional rate limiting
-- IP filtering
+- IP filtering at network level
 
-See the OAuth/OIDC Authentication and TLS/HTTPS sections below for configuration details.
+See the OAuth/OIDC Authentication section below for configuration details.
 
 ## OAuth/OIDC Authentication
 
@@ -185,15 +181,39 @@ SECURITY_ALLOWED_CLIENT_IPS=["127.0.0.1", "192.168.1.100"]
 
 Empty list (default) = allow all IPs.
 
-**Note**: IP filtering is only effective for SSE and HTTP Stream transports. The stdio transport doesn't expose client IPs.
+**Note**: IP filtering is only effective for HTTP transport. The stdio transport doesn't expose client IPs.
 
-**Client IP Extraction:**
+### X-Forwarded-For Support (Reverse Proxy)
 
-The server intelligently extracts client IPs supporting:
+When deploying behind a reverse proxy (NGINX, Caddy, etc.), configure trusted proxies to extract the real client IP from the `X-Forwarded-For` header:
 
-- Direct connections (ASGI scope)
-- Proxy deployments (`X-Forwarded-For` header)
-- Multiple proxy hops (first IP in comma-separated list)
+```bash
+# Trust specific proxy IPs
+SECURITY_TRUSTED_PROXIES=["10.0.0.1", "10.0.0.2"]
+
+# Trust a CIDR range (e.g., internal network)
+SECURITY_TRUSTED_PROXIES=["10.0.0.0/24", "192.168.1.0/24"]
+```
+
+**How it works:**
+
+1. If the direct connection IP is in `trusted_proxies`, the server reads `X-Forwarded-For`
+2. The leftmost non-trusted IP in the chain is used as the real client IP
+3. If direct IP is NOT trusted, `X-Forwarded-For` is ignored (prevents spoofing)
+
+**Example:**
+```
+X-Forwarded-For: 203.0.113.50, 10.0.0.1
+Direct connection from: 10.0.0.2
+
+If trusted_proxies=["10.0.0.1", "10.0.0.2"]:
+  → Real client IP: 203.0.113.50 (first non-trusted)
+
+If trusted_proxies=[]:
+  → Real client IP: 10.0.0.2 (direct connection, XFF ignored)
+```
+
+**Security Note:** Only add proxy IPs you control to `trusted_proxies`. An untrusted proxy can forge the `X-Forwarded-For` header.
 
 ## TLS/HTTPS (Network Transports)
 
@@ -203,33 +223,44 @@ The server intelligently extracts client IPs supporting:
 
 **With TLS**: All communication is encrypted end-to-end.
 
-### Configuration
+### Recommended Setup: Reverse Proxy
+
+For production deployments, use a reverse proxy (NGINX, Caddy, Traefik) to handle TLS:
 
 ```bash
-# Enable TLS in .env
-MCP_TLS_ENABLED=true
-MCP_TLS_CERT_FILE=/path/to/cert.pem
-MCP_TLS_KEY_FILE=/path/to/key.pem
+# Start MCP Docker on localhost (reverse proxy forwards requests here)
+uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
 ```
 
-### Certificate Options
+**NGINX example:**
+```nginx
+server {
+    listen 443 ssl;
+    server_name mcp-docker.example.com;
 
-**Development/Testing**: Use self-signed certificates (generate with `openssl` or similar tools)
+    ssl_certificate /etc/letsencrypt/live/mcp-docker.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mcp-docker.example.com/privkey.pem;
 
-**Production**: Use certificates from a trusted CA:
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $host;
+    }
+}
+```
 
-- Let's Encrypt (free, automated)
-- Commercial CA (DigiCert, GlobalSign, etc.)
-- Internal PKI/CA
+**Caddy example (automatic HTTPS):**
+```
+mcp-docker.example.com {
+    reverse_proxy 127.0.0.1:8000
+}
+```
 
-### Server Behavior
-
-When TLS is enabled:
-
-- Server listens on HTTPS instead of HTTP
-- Adds `Strict-Transport-Security` header (HSTS)
-- Certificate and key files are validated at startup
-- Server refuses to start if certificates are invalid
+**Benefits of reverse proxy approach:**
+- Automatic certificate management (Let's Encrypt)
+- Security headers (HSTS, CSP, X-Content-Type-Options)
+- Load balancing and horizontal scaling
+- Connection pooling and keep-alive
 
 ## Rate Limiting
 
@@ -337,42 +368,6 @@ Error sanitization is always enabled and cannot be disabled. Full error details 
 tail -f mcp_docker.log
 ```
 
-## Security Headers
-
-The server uses the `secure` library to automatically add OWASP-recommended security headers to all SSE transport responses:
-
-### Headers Added
-
-1. **Cache-Control**: `no-store, no-cache, must-revalidate`
-   - Prevents caching of sensitive data
-
-2. **X-Content-Type-Options**: `nosniff`
-   - Prevents MIME type sniffing attacks
-
-3. **X-Frame-Options**: `DENY`
-   - Prevents clickjacking attacks
-
-4. **Content-Security-Policy**: `default-src 'self'; ...`
-   - Prevents XSS and injection attacks
-
-5. **Referrer-Policy**: `strict-origin-when-cross-origin`
-   - Controls referrer information leakage
-
-6. **Permissions-Policy**: Restricts geolocation, camera, microphone, payment, USB
-   - Minimizes browser feature attack surface
-
-7. **Strict-Transport-Security** (when TLS enabled): `max-age=31536000; includeSubDomains; preload`
-   - Forces HTTPS for all future connections
-
-### Verification
-
-```bash
-# Check security headers
-curl -I -k https://localhost:8443/sse
-
-# Expected output includes all security headers above
-```
-
 ## Safety Controls
 
 The safety system classifies operations into three tiers:
@@ -456,307 +451,6 @@ The `generate_compose` prompt automatically **redacts environment variable value
 
 This protection is **always enabled** and cannot be disabled. If you need to inspect actual environment variable values, use `docker inspect` directly.
 
-## HTTP Stream Transport Security
-
-The HTTP Stream Transport is the modern MCP transport protocol with enhanced security features for network deployments.
-
-### Transport-Level Security
-
-**Single Unified Endpoint**: All MCP operations flow through `POST /`, eliminating the separate `/sse` and `/messages` endpoints of the legacy SSE transport.
-
-**Session Management**: Automatic session tracking via `mcp-session-id` header prevents session confusion and enables proper request correlation.
-
-**Stream Resumability**: Message history with `last-event-id` header allows clients to reconnect and replay missed events after network interruptions.
-
-### Host Header Injection Protection
-
-The MCP Docker server implements comprehensive protection against Host Header Injection attacks across all transports.
-
-**What is Host Header Injection?**
-
-Host Header Injection occurs when attackers manipulate the HTTP `Host` header to:
-- Bypass access controls (sending `Host: localhost` to public endpoints)
-- Perform DNS rebinding attacks (domain resolves to different IPs over time)
-- Trigger password reset poisoning (manipulating reset links)
-- Enable web cache poisoning (injecting malicious cached content)
-- Execute SSRF attacks (routing requests to internal systems)
-
-**How We Protect Against It:**
-
-1. **Host Header Validation**: Starlette's `TrustedHostMiddleware` validates the `Host` header on every request against an allowed list
-2. **No Dynamic Host Usage**: The server never uses the `Host` header value in application logic (no URL generation, no routing decisions)
-3. **No X-Forwarded-Host Support**: The server does not support or parse `X-Forwarded-Host` headers (common bypass technique)
-4. **Fail-Secure Policy**: Non-localhost binds require explicit `HTTPSTREAM_ALLOWED_HOSTS` configuration
-
-**Behavior (Same for Both Transports):**
-
-```python
-# Localhost bind (127.0.0.1, ::1, localhost)
-allowed_hosts = ['127.0.0.1', 'localhost', '::1']
-
-# Specific host bind (api.example.com)
-allowed_hosts = ['api.example.com']  # Only that host, no localhost variants!
-
-# Wildcard bind (0.0.0.0, ::) WITHOUT config
-# Server FAILS TO START - requires explicit HTTPSTREAM_ALLOWED_HOSTS
-
-# Wildcard bind (0.0.0.0, ::) WITH config
-# HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
-allowed_hosts = ['api.example.com', '192.0.2.1']  # Only configured hosts
-```
-
-**Security Properties:**
-
-- **Localhost binds**: Accept all localhost variants for convenience
-- **Specific host binds**: Only accept that specific host (prevents DNS rebinding via `Host: localhost`)
-- **Wildcard binds**: REQUIRE explicit `HTTPSTREAM_ALLOWED_HOSTS` configuration (fail-secure)
-
-**Example Attack Scenarios (All Prevented):**
-
-```bash
-# Scenario 1: DNS Rebinding via localhost bypass
-# Server binds to api.example.com (SSE or HTTP Stream)
-curl https://api.example.com/ -H "Host: localhost"
-# ❌ Blocked: "localhost" not in allowed hosts
-
-# Scenario 2: Host header spoofing
-# Server binds to 192.0.2.1 (specific IP)
-curl https://192.0.2.1:8000/ -H "Host: evil.com"
-# ❌ Blocked: "evil.com" not in allowed hosts
-
-# Scenario 3: X-Forwarded-Host bypass attempt
-curl https://api.example.com/ -H "X-Forwarded-Host: evil.com"
-# ✅ Ignored: Server doesn't parse X-Forwarded-Host
-
-# Scenario 4: DNS rebinding via malicious website
-# attacker.com initially resolves to attacker IP, then to 127.0.0.1
-fetch('http://attacker.com:8000/', {headers: {'Host': 'attacker.com'}})
-# ❌ Blocked: "attacker.com" not in allowed hosts (localhost-only deployment)
-```
-
-**Production Recommendations:**
-
-```bash
-# ✅ RECOMMENDED: Bind to localhost and use reverse proxy
-# Server binds to 127.0.0.1, nginx/Caddy handles public access
-uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
-# Then configure nginx/Caddy to proxy requests
-
-# ✅ ALTERNATIVE: Bind to specific hostname/IP
-# Server binds to specific public interface
-uv run mcp-docker --transport http --host api.example.com --port 8000
-
-# ⚠️ WILDCARD BIND: Requires explicit configuration
-# Server refuses to start without HTTPSTREAM_ALLOWED_HOSTS
-uv run mcp-docker --transport http --host 0.0.0.0 --port 8000
-# Must set: HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
-
-# ❌ AVOID: Wildcard bind without reverse proxy/firewall
-```
-
-### DNS Rebinding Protection
-
-DNS rebinding is a specific type of Host Header Injection where an attacker-controlled domain resolves to different IP addresses over time (first attacker's server, then victim's internal IP). HTTP Stream Transport includes built-in protection:
-
-```bash
-# Enable DNS rebinding protection (enabled by default)
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true
-
-# Configure allowed hosts for production
-HTTPSTREAM_ALLOWED_HOSTS='["api.example.com", "192.0.2.1"]'
-```
-
-**How DNS Rebinding Works:**
-
-1. Attacker sets up domain `attacker.com` with very short DNS TTL (0-10 seconds)
-2. User visits malicious website at `attacker.com` (resolves to attacker's IP initially)
-3. JavaScript on page makes request to `attacker.com:8000`
-4. DNS record changes to point to `127.0.0.1` (victim's localhost)
-5. Browser allows request because it's to the same domain
-6. Request hits victim's local MCP server (bypassing same-origin policy)
-
-**Our Protection (as documented in Host Header Injection section above):**
-
-The server validates the `Host` header against allowed hosts. Even if DNS rebinding causes the request to reach your server, the `Host: attacker.com` header will be rejected because `attacker.com` is not in your allowed hosts list.
-
-**Configuration:**
-
-- **Development**: Disable protection or allow localhost only
-- **Production**: Explicitly list all legitimate domains/IPs
-
-### CORS Security
-
-Enhanced CORS configuration for browser-based MCP clients with strict security validation:
-
-```bash
-# Enable CORS for browser clients
-CORS_ENABLED=true
-CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
-CORS_ALLOW_CREDENTIALS=true
-```
-
-**Security Validation:**
-
-- ❌ **Prevents insecure configuration**: Wildcard origin (`*`) with credentials is rejected
-- ✅ **Requires explicit origins**: Empty origins with credentials is rejected
-- ✅ **Credentials support**: Allows cookies and Authorization headers with explicit origins
-
-**Secure CORS Example:**
-
-```bash
-# ✅ GOOD: Explicit origin with credentials
-CORS_ENABLED=true
-CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
-CORS_ALLOW_CREDENTIALS=true
-
-# ❌ BAD: Wildcard with credentials (rejected at startup)
-CORS_ENABLED=true
-CORS_ALLOWED_ORIGINS='["*"]'
-CORS_ALLOW_CREDENTIALS=true  # Configuration error!
-
-# ✅ OK: Wildcard without credentials (public API)
-CORS_ENABLED=true
-CORS_ALLOWED_ORIGINS='["*"]'
-CORS_ALLOW_CREDENTIALS=false
-```
-
-### Session Hijacking Prevention
-
-HTTP Stream Transport sessions are protected against hijacking:
-
-**Session Isolation:**
-
-- Each session has a unique `mcp-session-id` (cryptographically random UUID)
-- Sessions are isolated in the event store
-- Events from one session cannot be replayed by another session
-- Session IDs are generated by the MCP SDK using secure random UUIDs
-
-**Message Replay Protection:**
-
-- Events are identified by unique event IDs
-- Replay only works with correct session ID + event ID combination
-- Expired events are automatically cleaned up (TTL)
-
-**Session Enumeration Protection:**
-
-Session IDs are cryptographically secure UUIDs (RFC 4122 v4), making enumeration attacks computationally infeasible:
-
-- **UUID Space**: 2^122 possible session IDs (~5.3 × 10^36)
-- **Brute Force**: Would require billions of years to enumerate 1% of space
-- **Rate Limiting**: 60 RPM default limit further protects against enumeration attempts
-
-**Treat session IDs as bearer tokens** - they provide authenticated access to event history:
-
-- Never log session IDs in plaintext
-- Always transmit over TLS/HTTPS
-- Rotate sessions periodically (close old connections)
-- Monitor for suspicious session access patterns in audit logs
-
-**Configuration:**
-
-```bash
-# Event store settings
-HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000     # Max events in history
-HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300     # 5 minute TTL (adjust for your needs)
-```
-
-**Best Practices:**
-
-- Use TLS/HTTPS to prevent session ID interception
-- Keep TTL short for sensitive operations (5-10 minutes)
-- Monitor audit logs for unusual session patterns
-- Clear event history regularly (automatic with TTL)
-- Never expose session IDs in URLs or public logs
-- Consider shorter TTL (60-120s) for high-security environments
-
-### OAuth Integration
-
-HTTP Stream Transport fully integrates with OAuth/OIDC authentication:
-
-```bash
-# HTTP Stream Transport with OAuth
-SECURITY_OAUTH_ENABLED=true
-SECURITY_OAUTH_ISSUER=https://auth.example.com
-SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
-SECURITY_OAUTH_AUDIENCE=mcp-docker-api
-```
-
-**Client Request:**
-
-```bash
-# Include Bearer token in Authorization header
-curl -X POST https://api.example.com/ \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
-```
-
-**Security Notes:**
-
-- OAuth is enforced on all HTTP Stream Transport requests
-- Sessions require valid authentication
-- Token validation occurs before session creation
-- Expired tokens cannot create or resume sessions
-
-### Stateless Mode for Scalability
-
-Disable session management for horizontally scaled deployments:
-
-```bash
-# Stateless mode (no session tracking)
-HTTPSTREAM_STATELESS_MODE=true
-HTTPSTREAM_RESUMABILITY_ENABLED=false
-```
-
-**Security Implications:**
-
-- ✅ Simpler to secure (no session state)
-- ✅ Easier horizontal scaling
-- ❌ No message replay (less reliable)
-- ❌ No resumability after disconnect
-
-**Use Case**: Load-balanced deployments with multiple server instances.
-
-### Production Configuration
-
-Complete HTTP Stream Transport security configuration:
-
-```bash
-# TLS/HTTPS (required for production)
-MCP_TLS_ENABLED=true
-MCP_TLS_CERT_FILE=/etc/mcp-docker/certs/cert.pem
-MCP_TLS_KEY_FILE=/etc/mcp-docker/certs/key.pem
-
-# HTTP Stream Transport
-HTTPSTREAM_JSON_RESPONSE_DEFAULT=false      # Streaming mode
-HTTPSTREAM_STATELESS_MODE=false             # Enable sessions
-HTTPSTREAM_RESUMABILITY_ENABLED=true        # Enable replay
-HTTPSTREAM_EVENT_STORE_MAX_EVENTS=1000
-HTTPSTREAM_EVENT_STORE_TTL_SECONDS=300
-
-# DNS Rebinding Protection
-HTTPSTREAM_DNS_REBINDING_PROTECTION=true
-HTTPSTREAM_ALLOWED_HOSTS='["api.example.com"]'
-
-# CORS (if browser clients)
-CORS_ENABLED=true
-CORS_ALLOWED_ORIGINS='["https://app.example.com"]'
-CORS_ALLOW_CREDENTIALS=true
-
-# OAuth Authentication
-SECURITY_OAUTH_ENABLED=true
-SECURITY_OAUTH_ISSUER=https://auth.example.com
-SECURITY_OAUTH_JWKS_URL=https://auth.example.com/.well-known/jwks.json
-SECURITY_OAUTH_AUDIENCE=mcp-docker-api
-
-# Rate Limiting
-SECURITY_RATE_LIMIT_ENABLED=true
-SECURITY_RATE_LIMIT_RPM=60
-
-# Audit Logging
-SECURITY_AUDIT_LOG_ENABLED=true
-```
-
 ## Production Deployment Checklist
 
 Before deploying to production:
@@ -771,7 +465,8 @@ Before deploying to production:
   - [ ] Test token validation with real OAuth tokens
   - [ ] Document token acquisition process for clients
 - [ ] **IP Allowlist** (optional, defense-in-depth with OAuth):
-  - [ ] Configure allowed client IPs if applicable
+  - [ ] Configure allowed client IPs: `SECURITY_ALLOWED_CLIENT_IPS`
+  - [ ] Configure trusted proxies if using reverse proxy: `SECURITY_TRUSTED_PROXIES`
   - [ ] Test with allowed and blocked IPs
   - [ ] Document IP allowlist for operators
 - [ ] Verify stdio transport bypasses authentication (expected behavior)
@@ -779,31 +474,11 @@ Before deploying to production:
 
 ### TLS/HTTPS (Network Transports)
 
-- [ ] Generate or obtain TLS certificates (use Let's Encrypt for production)
-- [ ] Configure TLS: `MCP_TLS_ENABLED=true`
-- [ ] Verify certificate paths are correct
-- [ ] Test HTTPS endpoint with real certificate
-- [ ] Configure HSTS if using reverse proxy
-
-### HTTP Stream Transport (if using httpstream transport)
-
-- [ ] **Host Header Injection Protection**:
-  - [ ] Bind to specific host (not 0.0.0.0) OR configure allowed hosts
-  - [ ] Configure DNS rebinding protection: `HTTPSTREAM_DNS_REBINDING_PROTECTION=true`
-  - [ ] Set allowed hosts: `HTTPSTREAM_ALLOWED_HOSTS='["api.example.com"]'`
-  - [ ] Test Host header validation (send invalid Host header, verify rejection)
-  - [ ] Verify X-Forwarded-Host is ignored (not used for routing/validation)
-- [ ] Configure event store TTL appropriately (default: 300s)
-- [ ] Enable resumability for reliability: `HTTPSTREAM_RESUMABILITY_ENABLED=true`
-- [ ] Test session management and reconnection
-- [ ] **CORS Configuration** (if browser clients):
-  - [ ] Enable CORS: `CORS_ENABLED=true`
-  - [ ] Set explicit allowed origins (never wildcard with credentials)
-  - [ ] Enable credentials if needed: `CORS_ALLOW_CREDENTIALS=true`
-  - [ ] Test preflight OPTIONS requests
-  - [ ] Verify CORS headers in browser console
-- [ ] Test stream resumability with `last-event-id` header
-- [ ] Review session isolation and event store cleanup
+- [ ] Deploy behind a reverse proxy (NGINX, Caddy) for TLS termination
+- [ ] Configure TLS certificates in reverse proxy
+- [ ] Configure reverse proxy to forward X-Forwarded-For
+- [ ] Add `SECURITY_TRUSTED_PROXIES` with your proxy IP(s)
+- [ ] Configure HSTS and security headers in reverse proxy
 
 ### Rate Limiting & Resource Controls
 
@@ -823,6 +498,7 @@ Before deploying to production:
   - Unusual client IP addresses
   - Error rate spikes
 - [ ] Review logs regularly for suspicious activity
+- [ ] Note: Sensitive values are automatically redacted in audit logs
 
 ### Safety Controls
 
@@ -835,23 +511,16 @@ Before deploying to production:
 
 - [ ] Restrict Docker socket/pipe permissions at OS level
 - [ ] Use firewall rules to restrict network access
-- [ ] If using reverse proxy, configure X-Forwarded-For handling
+- [ ] Configure reverse proxy to forward real client IPs (X-Forwarded-For)
 - [ ] Verify OAuth + IP allowlist work together (if both enabled)
 - [ ] Test authentication flow end-to-end
 
 ### Testing & Verification
 
-- [ ] **Host Header Injection Testing**:
-  - [ ] Test invalid Host header rejection: `curl -H "Host: evil.com" https://yourserver/`
-  - [ ] Test X-Forwarded-Host is ignored: `curl -H "X-Forwarded-Host: evil.com" https://yourserver/`
-  - [ ] Test localhost bypass on public endpoints: `curl -H "Host: localhost" https://api.example.com/`
-  - [ ] Verify wildcard binds require HTTPSTREAM_ALLOWED_HOSTS (server fails to start without it)
-  - [ ] Confirm only configured allowed hosts are accepted
 - [ ] Verify error messages are sanitized (no sensitive info leaked)
-- [ ] Verify security headers are present in responses
 - [ ] Test with security scanning tools (e.g., mcp-testbench)
 - [ ] Perform load testing with rate limiting enabled
-- [ ] Test TLS certificate validation
+- [ ] Test TLS certificate validation (via reverse proxy)
 
 ### Documentation & Procedures
 

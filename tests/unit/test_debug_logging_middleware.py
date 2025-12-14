@@ -219,35 +219,36 @@ class TestDebugLoggingMiddleware:
                 mock_truncate.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_processes_when_debug_enabled(self, middleware):
-        """Test that middleware processes normally when DEBUG logging is enabled.
+    async def test_processes_when_debug_enabled(self):
+        """Test that middleware processes normally when debug_enabled=True.
 
-        This test verifies that when DEBUG is enabled (min_level <= 10),
+        This test verifies that when debug_enabled=True is passed to the constructor,
         the middleware performs its normal logging operations.
         """
-        # Mock logger._core.min_level to simulate DEBUG level (10)
-        with patch("mcp_docker.middleware.debug_logging.logger._core.min_level", 10):
-            message = Mock()
-            message.name = "docker_list_containers"
-            message.arguments = {"all": True}
+        # Create middleware with debug_enabled=True
+        debug_middleware = DebugLoggingMiddleware(debug_enabled=True)
 
-            context = Mock()
-            context.message = message
-            context.fastmcp_context = None
+        message = Mock()
+        message.name = "docker_list_containers"
+        message.arguments = {"all": True}
 
-            mock_result = {"containers": [], "count": 0}
-            call_next = AsyncMock(return_value=mock_result)
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
 
-            # Spy on _truncate_if_needed to ensure it IS called when DEBUG enabled
-            with patch.object(
-                middleware, "_truncate_if_needed", return_value="truncated"
-            ) as mock_truncate:
-                result = await middleware(context, call_next)
+        mock_result = {"containers": [], "count": 0}
+        call_next = AsyncMock(return_value=mock_result)
 
-                # Verify result is returned correctly
-                assert result == mock_result
-                call_next.assert_called_once_with(context)
+        # Spy on _truncate_if_needed to ensure it IS called when debug is enabled
+        with patch.object(
+            debug_middleware, "_truncate_if_needed", return_value="truncated"
+        ) as mock_truncate:
+            result = await debug_middleware(context, call_next)
 
-                # Verify _truncate_if_needed was called (normal DEBUG operation)
-                # Should be called twice: once for arguments, once for result
-                assert mock_truncate.call_count == 2
+            # Verify result is returned correctly
+            assert result == mock_result
+            call_next.assert_called_once_with(context)
+
+            # Verify _truncate_if_needed was called (normal DEBUG operation)
+            # Should be called twice: once for arguments, once for result
+            assert mock_truncate.call_count == 2

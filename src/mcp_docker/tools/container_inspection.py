@@ -674,8 +674,8 @@ def _apply_exec_output_truncation(
         if was_truncated:
             truncation_info = create_truncation_metadata(
                 was_truncated=True,
-                original_count=original_bytes,
-                truncated_count=safety_config.max_exec_output_bytes,
+                original_size=original_bytes,
+                truncated_size=safety_config.max_exec_output_bytes,
             )
 
     return output_str, truncation_info

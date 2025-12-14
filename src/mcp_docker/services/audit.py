@@ -10,15 +10,83 @@ Benefits of using loguru instead of custom code:
 - Thread-safe async writing (enqueue=True)
 - JSON serialization (serialize=True)
 - No custom file I/O code to maintain
-- No custom sanitization needed (loguru handles large payloads)
+- Automatic redaction of sensitive fields (password, token, secret, etc.)
 """
 
+import re
 from pathlib import Path
 from typing import Any
 
 from loguru import logger as loguru_logger
 
 from mcp_docker.auth.models import ClientInfo
+
+# Patterns for sensitive field names (case-insensitive matching)
+SENSITIVE_FIELD_PATTERNS = [
+    r".*password.*",
+    r".*passwd.*",
+    r".*token.*",
+    r".*secret.*",
+    r".*credential.*",
+    r".*api_key.*",
+    r".*apikey.*",
+    r".*auth.*",
+    r".*private.*",
+    r".*jwt.*",
+    r".*bearer.*",
+]
+
+# Compiled regex for efficiency
+_SENSITIVE_PATTERN = re.compile(
+    "|".join(SENSITIVE_FIELD_PATTERNS), re.IGNORECASE
+)
+
+# Redaction placeholder
+REDACTED = "<REDACTED>"
+
+
+def _is_sensitive_key(key: str) -> bool:
+    """Check if a key name matches sensitive field patterns.
+
+    Args:
+        key: Field/key name to check
+
+    Returns:
+        True if the key matches a sensitive pattern
+    """
+    return bool(_SENSITIVE_PATTERN.match(key))
+
+
+def _redact_sensitive_values(data: Any, max_depth: int = 10) -> Any:
+    """Recursively redact sensitive values from data structures.
+
+    SECURITY: Redacts values where the key matches sensitive patterns.
+    This prevents credentials from being logged.
+
+    Args:
+        data: Data to redact (dict, list, or primitive)
+        max_depth: Maximum recursion depth to prevent infinite loops
+
+    Returns:
+        Data with sensitive values replaced by REDACTED
+    """
+    if max_depth <= 0:
+        return data
+
+    if isinstance(data, dict):
+        result = {}
+        for key, value in data.items():
+            if isinstance(key, str) and _is_sensitive_key(key):
+                result[key] = REDACTED
+            else:
+                result[key] = _redact_sensitive_values(value, max_depth - 1)
+        return result
+
+    if isinstance(data, list):
+        return [_redact_sensitive_values(item, max_depth - 1) for item in data]
+
+    # Primitive types - return as-is
+    return data
 
 
 class AuditLogger:
@@ -86,18 +154,24 @@ class AuditLogger:
     ) -> None:
         """Log a tool call operation using loguru structured logging.
 
+        SECURITY: Automatically redacts sensitive fields (password, token,
+        secret, credential, auth, etc.) from arguments and results.
+
         Args:
             client_info: Information about the client
             tool_name: Name of the tool called
-            arguments: Tool arguments
-            result: Result of the operation (if successful)
+            arguments: Tool arguments (sensitive values will be redacted)
+            result: Result of the operation (sensitive values will be redacted)
             error: Error message (if operation failed)
         """
         if not self.enabled:
             return
 
+        # SECURITY: Redact sensitive values before logging
+        redacted_arguments = _redact_sensitive_values(arguments)
+        redacted_result = _redact_sensitive_values(result) if result else None
+
         # Use loguru's structured logging (bind adds fields to JSON output)
-        # SECURITY: Loguru handles serialization, no custom JSON writing
         loguru_logger.bind(
             event_type="tool_call",
             client_id=client_info.client_id,
@@ -105,8 +179,8 @@ class AuditLogger:
             api_key_hash=client_info.api_key_hash,
             description=client_info.description,
             tool_name=tool_name,
-            arguments=arguments,
-            result=result,
+            arguments=redacted_arguments,
+            result=redacted_result,
             error=error,
         ).info(f"Tool call: {tool_name}")
 
