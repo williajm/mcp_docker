@@ -1,15 +1,14 @@
 """Tests for audit logging secret redaction."""
 
-import pytest
 from unittest.mock import Mock, patch
 
+from mcp_docker.auth.models import ClientInfo
 from mcp_docker.services.audit import (
     REDACTED,
+    AuditLogger,
     _is_sensitive_key,
     _redact_sensitive_values,
-    AuditLogger,
 )
-from mcp_docker.auth.models import ClientInfo
 
 
 class TestIsSensitiveKey:
@@ -105,7 +104,7 @@ class TestRedactSensitiveValues:
                 "env": {
                     "DATABASE_PASSWORD": "secret",
                     "APP_NAME": "myapp",
-                }
+                },
             }
         }
         result = _redact_sensitive_values(data)

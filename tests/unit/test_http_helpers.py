@@ -1,6 +1,5 @@
 """Tests for HTTP helper utilities."""
 
-import pytest
 from unittest.mock import MagicMock, Mock, patch
 
 from mcp_docker.utils.http_helpers import (
