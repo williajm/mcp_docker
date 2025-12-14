@@ -166,8 +166,9 @@ class AuditLogger:
             return
 
         # SECURITY: Redact sensitive values before logging
+        # Note: Use 'is not None' to preserve empty results ({}, []) in audit logs
         redacted_arguments = _redact_sensitive_values(arguments)
-        redacted_result = _redact_sensitive_values(result) if result else None
+        redacted_result = _redact_sensitive_values(result) if result is not None else None
 
         # Use loguru's structured logging (bind adds fields to JSON output)
         loguru_logger.bind(
