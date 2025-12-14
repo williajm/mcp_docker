@@ -90,6 +90,75 @@ def _parse_x_forwarded_for(
     return ips[0]
 
 
+def _extract_from_fastmcp_request() -> tuple[str | None, str | None]:
+    """Extract IP and XFF header using FastMCP's dependency injection.
+
+    Returns:
+        Tuple of (direct_ip, xff_header), both may be None
+    """
+    try:
+        request = get_http_request()
+    except (RuntimeError, LookupError):
+        logger.debug(
+            "get_http_request() unavailable (stdio transport or unit test), "
+            "falling back to context extraction"
+        )
+        return None, None
+
+    if not request:
+        return None, None
+
+    direct_ip = _get_host_from_client(getattr(request, "client", None))
+    xff_header = None
+    if hasattr(request, "headers"):
+        xff_header = request.headers.get("x-forwarded-for")
+
+    return direct_ip, xff_header
+
+
+def _get_host_from_client(client: Any) -> str | None:
+    """Extract host from a client object safely.
+
+    Args:
+        client: Client object that may have a host attribute
+
+    Returns:
+        Host string or None
+    """
+    if not client or not hasattr(client, "host"):
+        return None
+    host = client.host
+    return str(host) if host is not None else None
+
+
+def _extract_from_context(context: MiddlewareContext[Any]) -> tuple[str | None, str | None]:
+    """Extract IP and XFF header from FastMCP context (for unit tests).
+
+    Args:
+        context: FastMCP middleware context
+
+    Returns:
+        Tuple of (direct_ip, xff_header), both may be None
+    """
+    if not context.fastmcp_context or not hasattr(context.fastmcp_context, "request_context"):
+        return None, None
+
+    req_ctx = context.fastmcp_context.request_context
+    if not req_ctx or not hasattr(req_ctx, "request"):
+        return None, None
+
+    ctx_request = req_ctx.request
+    if not ctx_request:
+        return None, None
+
+    direct_ip = _get_host_from_client(getattr(ctx_request, "client", None))
+    xff_header = None
+    if hasattr(ctx_request, "headers"):
+        xff_header = ctx_request.headers.get("x-forwarded-for")
+
+    return direct_ip, xff_header
+
+
 def extract_client_ip(
     context: MiddlewareContext[Any],
     trusted_proxies: list[str] | None = None,
@@ -117,58 +186,17 @@ def extract_client_ip(
         code duplication. Both middlewares need to extract client IPs for
         authorization and audit logging respectively.
     """
-    direct_ip: str | None = None
-    xff_header: str | None = None
+    # Strategy 1: Try FastMCP's dependency injection
+    direct_ip, xff_header = _extract_from_fastmcp_request()
 
-    # Strategy 1: Try FastMCP's dependency injection (works during initialization)
-    try:
-        request = get_http_request()
-        if (
-            request
-            and hasattr(request, "client")
-            and request.client
-            and hasattr(request.client, "host")
-        ):
-            direct_ip = request.client.host
-
-            # Get X-Forwarded-For header if available
-            if hasattr(request, "headers"):
-                xff_header = request.headers.get("x-forwarded-for")
-    except (RuntimeError, LookupError):
-        # Expected: Not in HTTP context (stdio) or dependency injection unavailable (unit tests)
-        # Will fall back to context extraction below
-        logger.debug(
-            "get_http_request() unavailable (stdio transport or unit test), "
-            "falling back to context extraction"
-        )
-
-    # Strategy 2: Fall back to context extraction (for unit tests with mocked contexts)
+    # Strategy 2: Fall back to context extraction (for unit tests)
     if direct_ip is None:
-        if not (context.fastmcp_context and hasattr(context.fastmcp_context, "request_context")):
-            return None
-
-        req_ctx = context.fastmcp_context.request_context
-        if not (req_ctx and hasattr(req_ctx, "request")):
-            return None
-
-        ctx_request = req_ctx.request
-        if not (ctx_request and hasattr(ctx_request, "client")):
-            return None
-
-        client = ctx_request.client
-        if client and hasattr(client, "host"):
-            host = client.host
-            direct_ip = str(host) if host is not None else None
-
-            # Try to get XFF from context request headers
-            if hasattr(ctx_request, "headers"):
-                xff_header = ctx_request.headers.get("x-forwarded-for")
+        direct_ip, xff_header = _extract_from_context(context)
 
     if direct_ip is None:
         return None
 
-    # If trusted_proxies is configured and direct connection is from a trusted proxy,
-    # parse X-Forwarded-For header to get the real client IP
+    # Parse X-Forwarded-For if connection is from a trusted proxy
     if trusted_proxies and xff_header and _is_ip_in_trusted_proxies(direct_ip, trusted_proxies):
         real_ip = _parse_x_forwarded_for(xff_header, trusted_proxies, direct_ip)
         logger.debug(
