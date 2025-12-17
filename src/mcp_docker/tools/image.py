@@ -648,29 +648,16 @@ def create_pull_image_tool(
             # Run the blocking Docker pull in a thread
             chunks = await asyncio.to_thread(_pull_with_streaming)
 
-            # Report progress from the collected chunks
+            # Report progress and check for errors
             for chunk in chunks:
-                if "progressDetail" in chunk and chunk["progressDetail"]:
-                    detail = chunk["progressDetail"]
-                    current = detail.get("current", 0)
-                    total = detail.get("total", 0)
-                    layer_id = str(chunk.get("id", ""))[:12]
-                    status = str(chunk.get("status", ""))
-                    if total > 0:
-                        pct = int((current / total) * 100)
-                        cur_mb = current / 1024 / 1024
-                        tot_mb = total / 1024 / 1024
-                        msg = f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
-                        await progress.set_message(msg)
-                    elif layer_id:
-                        await progress.set_message(f"Layer {layer_id}: {status}")
-                elif "status" in chunk:
-                    layer_id = str(chunk.get("id", ""))[:12]
-                    status = str(chunk.get("status", ""))
-                    if layer_id:
-                        await progress.set_message(f"Layer {layer_id}: {status}")
-                    else:
-                        await progress.set_message(status)
+                # Check for errors first
+                if "error" in chunk and chunk["error"] is not None:
+                    error_msg = str(chunk["error"])
+                    logger.error(f"Failed to pull image: {error_msg}")
+                    raise DockerOperationError(f"Failed to pull image: {error_msg}")
+
+                # Report progress using helper
+                await _report_layer_progress(progress, chunk)
 
             # Get the final image object
             def _get_image() -> Any:
@@ -759,7 +746,6 @@ def create_build_image_tool(
 
             # Report progress from the collected build logs
             log_messages = []
-            step_count = 0
             for log_entry in build_logs:
                 if isinstance(log_entry, dict) and "stream" in log_entry:
                     stream_val = log_entry.get("stream")
@@ -769,7 +755,6 @@ def create_build_image_tool(
                             log_messages.append(msg)
                             # Report step progress
                             if msg.startswith("Step "):
-                                step_count += 1
                                 await progress.set_message(f"Build {msg}")
                             elif "Successfully built" in msg:
                                 await progress.set_message(msg)
