@@ -41,6 +41,22 @@ PROGRESS_THROTTLE_SECONDS = 0.1  # Max 10 updates per second
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 
+def _check_chunk_for_error(chunk: dict[str, Any], operation: str) -> None:
+    """Check if a chunk contains an error and raise if so.
+
+    Args:
+        chunk: Streaming chunk from Docker API
+        operation: Operation name for error message (e.g., "pull", "push", "build")
+
+    Raises:
+        DockerOperationError: If chunk contains an error
+    """
+    if "error" in chunk and chunk["error"] is not None:
+        error_msg = str(chunk["error"])
+        logger.error(f"Failed to {operation} image: {error_msg}")
+        raise DockerOperationError(f"Failed to {operation} image: {error_msg}")
+
+
 def _sanitize_progress_message(message: str) -> str:
     """Sanitize a progress message for safe display.
 
@@ -124,6 +140,41 @@ class ProgressThrottler:
         return False
 
 
+def _format_layer_message(chunk: dict[str, Any]) -> str | None:
+    """Format a progress message from a Docker streaming chunk.
+
+    Args:
+        chunk: Streaming chunk from Docker API
+
+    Returns:
+        Formatted message string or None if no message to report
+    """
+    raw_id = chunk.get("id")
+    layer_id = str(raw_id)[:12] if raw_id is not None else ""
+
+    raw_status = chunk.get("status")
+    status = str(raw_status) if raw_status is not None else ""
+
+    # Check for detailed progress info
+    detail = chunk.get("progressDetail")
+    if detail:
+        current = detail.get("current", 0) or 0
+        total = detail.get("total", 0) or 0
+        if total > 0:
+            pct = int((current / total) * 100)
+            cur_mb = current / 1024 / 1024
+            tot_mb = total / 1024 / 1024
+            return f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
+        if layer_id:
+            return f"Layer {layer_id}: {status}"
+        return None
+
+    # No detail, just format status
+    if not status:
+        return None
+    return f"Layer {layer_id}: {status}" if layer_id else status
+
+
 async def _report_layer_progress(
     progress: Progress,
     chunk: dict[str, Any],
@@ -139,36 +190,59 @@ async def _report_layer_progress(
     Returns:
         Status string if present, None otherwise
     """
-    # Safely extract values, handling None
-    raw_id = chunk.get("id")
-    layer_id = str(raw_id)[:12] if raw_id is not None else ""
+    msg = _format_layer_message(chunk)
 
-    raw_status = chunk.get("status")
-    status = str(raw_status) if raw_status is not None else ""
-
-    msg: str | None = None
-
-    if "progressDetail" in chunk and chunk["progressDetail"]:
-        detail = chunk["progressDetail"]
-        current = detail.get("current", 0) or 0
-        total = detail.get("total", 0) or 0
-        if total > 0:
-            pct = int((current / total) * 100)
-            cur_mb = current / 1024 / 1024
-            tot_mb = total / 1024 / 1024
-            msg = f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
-        elif layer_id:
-            msg = f"Layer {layer_id}: {status}"
-    elif status:
-        msg = f"Layer {layer_id}: {status}" if layer_id else status
-
-    # Send message if we have one and throttler allows it
     if msg:
         msg = _sanitize_progress_message(msg)
         if throttler is None or throttler.should_update(msg):
             await progress.set_message(msg)
 
-    return status if "status" in chunk else None
+    raw_status = chunk.get("status")
+    return str(raw_status) if raw_status is not None else None
+
+
+async def _process_streaming_queue(
+    chunk_queue: Queue[Any],
+    error_list: list[Exception],
+    progress: Progress,
+    throttler: ProgressThrottler,
+    operation: str,
+) -> str | None:
+    """Process chunks from a streaming queue with progress reporting.
+
+    Args:
+        chunk_queue: Queue containing streaming chunks (None signals completion)
+        error_list: List to check for errors from worker thread
+        progress: FastMCP Progress dependency
+        throttler: Throttler for progress updates
+        operation: Operation name for error messages (e.g., "pull", "push")
+
+    Returns:
+        Last status string or None
+
+    Raises:
+        DockerOperationError: If an error is found in a chunk
+    """
+    last_status: str | None = None
+
+    while True:
+        try:
+            chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
+        except Empty:
+            if error_list:
+                raise error_list[0] from error_list[0]
+            continue
+
+        if chunk is None:
+            break
+
+        if isinstance(chunk, dict):
+            _check_chunk_for_error(chunk, operation)
+            status = await _report_layer_progress(progress, chunk, throttler)
+            if status:
+                last_status = status
+
+    return last_status
 
 
 def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], int]:
@@ -718,36 +792,16 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             pull_task = asyncio.get_event_loop().run_in_executor(None, _pull_with_streaming)
 
             # Process chunks as they arrive (real-time progress)
-            throttler = ProgressThrottler()
-            while True:
-                try:
-                    # Non-blocking check with small timeout
-                    chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
-                except Empty:
-                    # Check if pull thread raised an error
-                    if pull_error:
-                        raise pull_error[0] from pull_error[0]
-                    continue
-
-                if chunk is None:
-                    # Stream complete
-                    break
-
-                # Check for errors in chunk
-                if "error" in chunk and chunk["error"] is not None:
-                    error_msg = str(chunk["error"])
-                    logger.error(f"Failed to pull image: {error_msg}")
-                    raise DockerOperationError(f"Failed to pull image: {error_msg}")
-
-                # Report progress using helper with throttling
-                await _report_layer_progress(progress, chunk, throttler)
+            await _process_streaming_queue(
+                chunk_queue, pull_error, progress, ProgressThrottler(), "pull"
+            )
 
             # Wait for pull thread to complete
             await pull_task
 
             # Check for any errors from the pull thread
             if pull_error:
-                raise pull_error[0]
+                raise pull_error[0] from pull_error[0]
 
             # Get the final image object
             def _get_image() -> Any:
@@ -914,18 +968,15 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
                         raise DockerOperationError(f"Failed to build image: {error_msg}")
 
                     # Report step progress
-                    if "stream" in chunk:
-                        stream_val = chunk.get("stream")
-                        if isinstance(stream_val, str):
-                            msg = stream_val.strip()
-                            if msg:
-                                sanitized_msg = _sanitize_progress_message(msg)
-                                # Report step progress with throttling
-                                if msg.startswith("Step ") or "Successfully" in msg:
-                                    # Always report step changes
-                                    await progress.set_message(f"Build: {sanitized_msg}")
-                                elif throttler.should_update(sanitized_msg):
-                                    await progress.set_message(f"Build: {sanitized_msg}")
+                    stream_val = chunk.get("stream")
+                    if isinstance(stream_val, str):
+                        msg = stream_val.strip()
+                        if msg:
+                            sanitized_msg = _sanitize_progress_message(msg)
+                            # Always report step changes; throttle other messages
+                            is_important = msg.startswith("Step ") or "Successfully" in msg
+                            if is_important or throttler.should_update(sanitized_msg):
+                                await progress.set_message(f"Build: {sanitized_msg}")
 
             # Wait for build thread to complete
             await build_task
@@ -1029,40 +1080,16 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             push_task = asyncio.get_event_loop().run_in_executor(None, _push_with_streaming)
 
             # Process chunks as they arrive (real-time progress)
-            throttler = ProgressThrottler()
-            last_status: str | None = None
-
-            while True:
-                try:
-                    # Non-blocking check with small timeout
-                    chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
-                except Empty:
-                    # Check if push thread raised an error
-                    if push_error:
-                        raise push_error[0] from push_error[0]
-                    continue
-
-                if chunk is None:
-                    # Stream complete
-                    break
-
-                # Check for errors in chunk
-                if "error" in chunk and chunk["error"] is not None:
-                    error_msg = str(chunk["error"])
-                    logger.error(f"Failed to push image: {error_msg}")
-                    raise DockerOperationError(f"Failed to push image: {error_msg}")
-
-                # Report progress using helper with throttling
-                status = await _report_layer_progress(progress, chunk, throttler)
-                if status:
-                    last_status = status
+            last_status = await _process_streaming_queue(
+                chunk_queue, push_error, progress, ProgressThrottler(), "push"
+            )
 
             # Wait for push thread to complete
             await push_task
 
             # Check for any errors from the push thread
             if push_error:
-                raise push_error[0]
+                raise push_error[0] from push_error[0]
 
             status = last_status if last_status else "pushed"
             logger.info(f"Successfully pushed image: {image}")
