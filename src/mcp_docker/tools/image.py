@@ -5,6 +5,7 @@ This module contains read-only image tools migrated to FastMCP 2.0.
 
 import asyncio
 import re
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -202,12 +203,13 @@ async def _report_layer_progress(
     return str(raw_status) if raw_status is not None else None
 
 
-async def _process_streaming_queue(
+async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs all parameters
     chunk_queue: Queue[Any],
     error_list: list[Exception],
     progress: Progress,
     throttler: ProgressThrottler,
     operation: str,
+    error_event: threading.Event | None = None,
 ) -> str | None:
     """Process chunks from a streaming queue with progress reporting.
 
@@ -217,12 +219,19 @@ async def _process_streaming_queue(
         progress: FastMCP Progress dependency
         throttler: Throttler for progress updates
         operation: Operation name for error messages (e.g., "pull", "push")
+        error_event: Optional threading.Event signaling an error occurred
 
     Returns:
         Last status string or None
 
     Raises:
         DockerOperationError: If an error is found in a chunk
+
+    Note:
+        Thread safety: The error_list is written to by the worker thread (single
+        append) and read by this async function. The error_event provides explicit
+        signaling when an error occurs. The worker sets the event before appending
+        to the list, ensuring the list is populated when the event is set.
     """
     last_status: str | None = None
 
@@ -230,7 +239,11 @@ async def _process_streaming_queue(
         try:
             chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
         except Empty:
-            if error_list:
+            # Check for errors using thread-safe event if available
+            if error_event is not None and error_event.is_set() and error_list:
+                raise error_list[0] from error_list[0]
+            if error_event is None and error_list:
+                # Fallback for backwards compatibility
                 raise error_list[0] from error_list[0]
             continue
 
@@ -277,6 +290,7 @@ async def _process_build_streaming_queue(
     error_list: list[Exception],
     progress: Progress,
     throttler: ProgressThrottler,
+    error_event: threading.Event | None = None,
 ) -> None:
     """Process build log chunks from a streaming queue with progress reporting.
 
@@ -285,15 +299,25 @@ async def _process_build_streaming_queue(
         error_list: List to check for errors from worker thread
         progress: FastMCP Progress dependency
         throttler: Throttler for progress updates
+        error_event: Optional threading.Event signaling an error occurred
 
     Raises:
         DockerOperationError: If an error is found in a chunk
+
+    Note:
+        Thread safety: The error_list is written to by the worker thread (single
+        append) and read by this async function. The error_event provides explicit
+        signaling when an error occurs.
     """
     while True:
         try:
             chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
         except Empty:
-            if error_list:
+            # Check for errors using thread-safe event if available
+            if error_event is not None and error_event.is_set() and error_list:
+                raise error_list[0] from error_list[0]
+            if error_event is None and error_list:
+                # Fallback for backwards compatibility
                 raise error_list[0] from error_list[0]
             continue
 
@@ -313,6 +337,7 @@ def _create_pull_streaming_worker(  # noqa: PLR0913 - Factory needs all pull par
     platform: str | None,
     chunk_queue: Queue[Any],
     error_list: list[Exception],
+    error_event: threading.Event | None = None,
 ) -> Callable[[], None]:
     """Create a worker function for streaming image pull.
 
@@ -324,6 +349,7 @@ def _create_pull_streaming_worker(  # noqa: PLR0913 - Factory needs all pull par
         platform: Platform specification
         chunk_queue: Queue to put chunks on
         error_list: List to append errors to
+        error_event: Optional threading.Event to signal errors
 
     Returns:
         Callable worker function
@@ -343,6 +369,8 @@ def _create_pull_streaming_worker(  # noqa: PLR0913 - Factory needs all pull par
                 chunk_queue.put(chunk)
         except Exception as e:
             error_list.append(e)
+            if error_event is not None:
+                error_event.set()
         finally:
             chunk_queue.put(None)
 
@@ -409,6 +437,7 @@ def _create_build_streaming_worker(  # noqa: PLR0913 - Factory needs all build p
     chunk_queue: Queue[Any],
     error_list: list[Exception],
     result_list: list[tuple[Any, list[str]]],
+    error_event: threading.Event | None = None,
 ) -> Callable[[], None]:
     """Create a worker function for streaming image build.
 
@@ -424,6 +453,7 @@ def _create_build_streaming_worker(  # noqa: PLR0913 - Factory needs all build p
         chunk_queue: Queue to put chunks on
         error_list: List to append errors to
         result_list: List to append (image, logs) result to
+        error_event: Optional threading.Event to signal errors
 
     Returns:
         Callable worker function
@@ -456,10 +486,54 @@ def _create_build_streaming_worker(  # noqa: PLR0913 - Factory needs all build p
             result_list.append((image_obj, log_messages))
         except Exception as e:
             error_list.append(e)
+            if error_event is not None:
+                error_event.set()
         finally:
             chunk_queue.put(None)
 
     return _build_with_streaming
+
+
+def _create_push_streaming_worker(  # noqa: PLR0913 - Factory needs all push parameters
+    docker_client: Any,
+    image: str,
+    tag: str | None,
+    chunk_queue: Queue[Any],
+    error_list: list[Exception],
+    error_event: threading.Event | None = None,
+) -> Callable[[], None]:
+    """Create a worker function for streaming image push.
+
+    Args:
+        docker_client: Docker client wrapper
+        image: Image name
+        tag: Optional tag
+        chunk_queue: Queue to put chunks on
+        error_list: List to append errors to
+        error_event: Optional threading.Event to signal errors
+
+    Returns:
+        Callable worker function
+    """
+
+    def _push_with_streaming() -> None:
+        try:
+            stream = docker_client.client.api.push(
+                repository=image,
+                tag=tag,
+                stream=True,
+                decode=True,
+            )
+            for chunk in stream:
+                chunk_queue.put(chunk)
+        except Exception as e:
+            error_list.append(e)
+            if error_event is not None:
+                error_event.set()
+        finally:
+            chunk_queue.put(None)
+
+    return _push_with_streaming
 
 
 def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], int]:
@@ -979,17 +1053,18 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         # Use a queue for real-time progress streaming
         chunk_queue: Queue[dict[str, Any] | None] = Queue()
         pull_error: list[Exception] = []
+        error_event = threading.Event()
 
         # Create and start the pull worker
         worker = _create_pull_streaming_worker(
-            docker_client, image, tag, all_tags, platform, chunk_queue, pull_error
+            docker_client, image, tag, all_tags, platform, chunk_queue, pull_error, error_event
         )
-        pull_task: asyncio.Future[None] = asyncio.get_event_loop().run_in_executor(None, worker)
+        pull_task: asyncio.Future[None] = asyncio.get_running_loop().run_in_executor(None, worker)
 
         try:
             # Process chunks as they arrive (real-time progress)
             await _process_streaming_queue(
-                chunk_queue, pull_error, progress, ProgressThrottler(), "pull"
+                chunk_queue, pull_error, progress, ProgressThrottler(), "pull", error_event
             )
 
             # Wait for pull thread to complete
@@ -1081,6 +1156,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         chunk_queue: Queue[Any] = Queue()
         build_error: list[Exception] = []
         build_result: list[tuple[Any, list[str]]] = []
+        error_event = threading.Event()
 
         # Create and start the build worker
         worker = _create_build_streaming_worker(
@@ -1095,13 +1171,14 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             chunk_queue,
             build_error,
             build_result,
+            error_event,
         )
-        build_task: asyncio.Future[None] = asyncio.get_event_loop().run_in_executor(None, worker)
+        build_task: asyncio.Future[None] = asyncio.get_running_loop().run_in_executor(None, worker)
 
         try:
             # Process chunks as they arrive (real-time progress)
             await _process_build_streaming_queue(
-                chunk_queue, build_error, progress, ProgressThrottler()
+                chunk_queue, build_error, progress, ProgressThrottler(), error_event
             )
 
             # Wait for build thread to complete
@@ -1178,36 +1255,20 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
 
             await progress.set_message(f"Starting push: {image}")
 
-            # Capture parameters for closure
-            push_tag = tag
-
             # Use a queue for real-time progress streaming
             chunk_queue: Queue[dict[str, Any] | None] = Queue()
             push_error: list[Exception] = []
+            error_event = threading.Event()
 
-            def _push_with_streaming() -> None:
-                """Push image using low-level API, putting chunks on queue."""
-                try:
-                    stream = docker_client.client.api.push(
-                        repository=image,
-                        tag=push_tag,
-                        stream=True,
-                        decode=True,
-                    )
-                    for chunk in stream:
-                        chunk_queue.put(chunk)
-                except Exception as e:
-                    push_error.append(e)
-                finally:
-                    # Signal completion
-                    chunk_queue.put(None)
-
-            # Start the push in a background thread
-            push_task = asyncio.get_event_loop().run_in_executor(None, _push_with_streaming)
+            # Create and start the push worker
+            worker = _create_push_streaming_worker(
+                docker_client, image, tag, chunk_queue, push_error, error_event
+            )
+            push_task = asyncio.get_running_loop().run_in_executor(None, worker)
 
             # Process chunks as they arrive (real-time progress)
             last_status = await _process_streaming_queue(
-                chunk_queue, push_error, progress, ProgressThrottler(), "push"
+                chunk_queue, push_error, progress, ProgressThrottler(), "push", error_event
             )
 
             # Wait for push thread to complete

@@ -376,6 +376,14 @@ class TestPullImageTool:
     """Test docker_pull_image tool."""
 
     @pytest.mark.asyncio
+    async def test_pull_image_rejects_duplicate_tag(self, mock_docker_client, mock_progress):
+        """Test that pull rejects image with tag when tag param also provided."""
+        *_, pull_func = create_pull_image_tool(mock_docker_client)
+
+        with pytest.raises(ValidationError, match="already contains a tag"):
+            await pull_func(image="ubuntu:22.04", tag="latest", progress=mock_progress)
+
+    @pytest.mark.asyncio
     async def test_pull_image_success(self, mock_docker_client, mock_progress):
         """Test successful image pull."""
         # Mock streaming response from api.pull
