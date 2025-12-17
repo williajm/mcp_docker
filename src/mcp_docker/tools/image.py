@@ -255,9 +255,9 @@ async def _cleanup_worker_task(
         await asyncio.wait_for(task, timeout=5.0)
     except TimeoutError:
         logger.warning("Worker thread did not complete within timeout")
-    except Exception:
-        # Worker may have already failed, that's ok
-        pass
+    except Exception as e:
+        # Worker may have already failed during streaming - log at debug level
+        logger.debug(f"Worker task cleanup: {type(e).__name__}: {e}")
 
 
 def _check_worker_error(
