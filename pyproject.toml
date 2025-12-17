@@ -36,7 +36,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.13.3",
+    "fastmcp>=2.14.1",
     "docker>=7.1.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
@@ -44,9 +44,9 @@ dependencies = [
     "starlette>=0.50.0",
     "uvicorn>=0.38.0",
     "limits>=5.6.0",
-    "cachetools>=6.2.2",
+    "cachetools>=6.2.4",
     "secure>=1.0.1",
-    "authlib>=1.6.5",
+    "authlib>=1.6.6",
     "httpx>=0.28.1",
     "typer>=0.20.0",
     "humanfriendly>=10.0",
@@ -58,13 +58,13 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "pytest-docker>=3.2.5",
     "pytest-cov>=7.0.0",
-    "mypy>=1.19.0",
-    "ruff>=0.14.8",
+    "mypy>=1.19.1",
+    "ruff>=0.14.9",
     "types-docker>=7.1.0",
     "httpx>=0.28.1",
-    "httpx-sse>=0.4.0",
+    "httpx-sse>=0.4.3",
     "hypothesis>=6.148.7",
-    "atheris>=2.3.0",  # Fuzzing with ClusterFuzzLite (Apache-2.0)
+    "atheris>=3.0.0",  # Fuzzing with ClusterFuzzLite (Apache-2.0)
 ]
 
 [project.urls]
@@ -271,18 +271,18 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
-    "atheris>=2.3.0",
-    "coverage>=7.11.0",
+    "atheris>=3.0.0",
+    "coverage>=7.13.0",
     "cryptography>=46.0.3",  # Needed for TLS certificate generation in E2E tests
     "hypothesis>=6.148.7",
-    "mypy>=1.19.0",
+    "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
     "pytest-docker>=3.2.5",
-    "ruff>=0.14.8",
+    "ruff>=0.14.9",
     "types-cachetools>=6.2.0.20251022",
-    "types-docker>=7.1.0.20251009",
+    "types-docker>=7.1.0.20251202",
     "types-paramiko>=4.0.0.20250822",
     "types-requests>=2.32.4.20250913",
 ]
