@@ -59,26 +59,35 @@ class TestToolMetadata:
     """Test tool metadata for all tool modules."""
 
     @pytest.mark.parametrize(
-        "tool_creator,expected_name,expected_safety,needs_safety_config",
+        "tool_creator,expected_name,expected_safety,needs_safety_config,expected_supports_task",
         [
-            # Container lifecycle tools
+            # Container lifecycle tools (none support background tasks)
             (
                 create_create_container_tool,
                 "docker_create_container",
                 OperationSafety.MODERATE,
                 True,
+                False,
             ),
             (
                 create_start_container_tool,
                 "docker_start_container",
                 OperationSafety.MODERATE,
                 False,
+                False,
             ),
-            (create_stop_container_tool, "docker_stop_container", OperationSafety.MODERATE, False),
+            (
+                create_stop_container_tool,
+                "docker_stop_container",
+                OperationSafety.MODERATE,
+                False,
+                False,
+            ),
             (
                 create_restart_container_tool,
                 "docker_restart_container",
                 OperationSafety.MODERATE,
+                False,
                 False,
             ),
             (
@@ -86,25 +95,99 @@ class TestToolMetadata:
                 "docker_remove_container",
                 OperationSafety.DESTRUCTIVE,
                 False,
+                False,
             ),
-            # Image tools
-            (create_list_images_tool, "docker_list_images", OperationSafety.SAFE, True),
-            (create_inspect_image_tool, "docker_inspect_image", OperationSafety.SAFE, False),
-            (create_image_history_tool, "docker_image_history", OperationSafety.SAFE, True),
-            (create_pull_image_tool, "docker_pull_image", OperationSafety.MODERATE, False),
-            (create_build_image_tool, "docker_build_image", OperationSafety.MODERATE, False),
-            (create_push_image_tool, "docker_push_image", OperationSafety.MODERATE, False),
-            (create_tag_image_tool, "docker_tag_image", OperationSafety.MODERATE, False),
-            (create_remove_image_tool, "docker_remove_image", OperationSafety.DESTRUCTIVE, False),
-            (create_prune_images_tool, "docker_prune_images", OperationSafety.DESTRUCTIVE, False),
-            # Network tools
-            (create_list_networks_tool, "docker_list_networks", OperationSafety.SAFE, True),
-            (create_inspect_network_tool, "docker_inspect_network", OperationSafety.SAFE, False),
-            (create_create_network_tool, "docker_create_network", OperationSafety.MODERATE, False),
+            # Image tools (pull, build, push support background tasks)
+            (
+                create_list_images_tool,
+                "docker_list_images",
+                OperationSafety.SAFE,
+                True,
+                False,
+            ),
+            (
+                create_inspect_image_tool,
+                "docker_inspect_image",
+                OperationSafety.SAFE,
+                False,
+                False,
+            ),
+            (
+                create_image_history_tool,
+                "docker_image_history",
+                OperationSafety.SAFE,
+                True,
+                False,
+            ),
+            (
+                create_pull_image_tool,
+                "docker_pull_image",
+                OperationSafety.MODERATE,
+                False,
+                True,  # supports_task=True for pull
+            ),
+            (
+                create_build_image_tool,
+                "docker_build_image",
+                OperationSafety.MODERATE,
+                False,
+                True,  # supports_task=True for build
+            ),
+            (
+                create_push_image_tool,
+                "docker_push_image",
+                OperationSafety.MODERATE,
+                False,
+                True,  # supports_task=True for push
+            ),
+            (
+                create_tag_image_tool,
+                "docker_tag_image",
+                OperationSafety.MODERATE,
+                False,
+                False,
+            ),
+            (
+                create_remove_image_tool,
+                "docker_remove_image",
+                OperationSafety.DESTRUCTIVE,
+                False,
+                False,
+            ),
+            (
+                create_prune_images_tool,
+                "docker_prune_images",
+                OperationSafety.DESTRUCTIVE,
+                False,
+                False,
+            ),
+            # Network tools (none support background tasks)
+            (
+                create_list_networks_tool,
+                "docker_list_networks",
+                OperationSafety.SAFE,
+                True,
+                False,
+            ),
+            (
+                create_inspect_network_tool,
+                "docker_inspect_network",
+                OperationSafety.SAFE,
+                False,
+                False,
+            ),
+            (
+                create_create_network_tool,
+                "docker_create_network",
+                OperationSafety.MODERATE,
+                False,
+                False,
+            ),
             (
                 create_connect_container_tool,
                 "docker_connect_container",
                 OperationSafety.MODERATE,
+                False,
                 False,
             ),
             (
@@ -112,11 +195,13 @@ class TestToolMetadata:
                 "docker_disconnect_container",
                 OperationSafety.MODERATE,
                 False,
+                False,
             ),
             (
                 create_remove_network_tool,
                 "docker_remove_network",
                 OperationSafety.DESTRUCTIVE,
+                False,
                 False,
             ),
         ],
@@ -129,6 +214,7 @@ class TestToolMetadata:
         expected_name,
         expected_safety,
         needs_safety_config,
+        expected_supports_task,
     ):
         """Test tool metadata for container lifecycle, image, and network tools."""
         if needs_safety_config:
@@ -143,4 +229,8 @@ class TestToolMetadata:
         assert name == expected_name
         assert isinstance(description, str) and len(description) > 0
         assert safety_level == expected_safety
+        assert supports_task == expected_supports_task, (
+            f"Tool {expected_name} has supports_task={supports_task}, "
+            f"expected {expected_supports_task}"
+        )
         assert callable(func)

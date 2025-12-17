@@ -323,7 +323,8 @@ def create_create_container_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def create_container(  # noqa: PLR0913 - Docker API requires these parameters
@@ -419,7 +420,8 @@ def create_start_container_tool(
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def start_container(
@@ -472,7 +474,8 @@ def create_stop_container_tool(
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def stop_container(
@@ -528,7 +531,8 @@ def create_restart_container_tool(
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def restart_container(
@@ -582,7 +586,8 @@ def create_remove_container_tool(
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def remove_container(

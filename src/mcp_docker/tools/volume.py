@@ -175,7 +175,8 @@ def create_list_volumes_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def list_volumes(
@@ -249,7 +250,8 @@ def create_inspect_volume_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def inspect_volume(

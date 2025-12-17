@@ -303,7 +303,8 @@ def create_list_containers_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def list_containers(
@@ -383,7 +384,8 @@ def create_inspect_container_tool(
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def inspect_container(
@@ -450,7 +452,8 @@ def create_container_logs_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
@@ -526,7 +529,8 @@ def create_container_stats_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def container_stats(
@@ -696,7 +700,8 @@ def create_exec_command_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def exec_command(  # noqa: PLR0913 - Docker API requires these parameters

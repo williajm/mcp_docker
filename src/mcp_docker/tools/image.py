@@ -4,12 +4,14 @@ This module contains read-only image tools migrated to FastMCP 2.0.
 """
 
 import asyncio
+import re
+import time
 from pathlib import Path
+from queue import Empty, Queue
 from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
-from docker.utils.json_stream import json_stream
 from fastmcp.dependencies import Progress
 from pydantic import BaseModel, Field, field_validator
 
@@ -32,23 +34,36 @@ from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
 
+# Constants for progress message sanitization
+MAX_PROGRESS_MESSAGE_LENGTH = 200
+PROGRESS_THROTTLE_SECONDS = 0.1  # Max 10 updates per second
+# Regex to strip ANSI escape sequences
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
-def _parse_build_logs_from_stream(build_logs: Any) -> list[str]:
-    """Parse build logs using Docker SDK's json_stream utility.
+
+def _sanitize_progress_message(message: str) -> str:
+    """Sanitize a progress message for safe display.
+
+    - Strips ANSI escape sequences
+    - Truncates to MAX_PROGRESS_MESSAGE_LENGTH
+    - Removes control characters
 
     Args:
-        build_logs: Raw build logs from Docker API
+        message: Raw progress message
 
     Returns:
-        List of log message strings
+        Sanitized message safe for display
     """
-    log_messages = []
-    for log_entry in json_stream(build_logs):
-        if isinstance(log_entry, dict) and "stream" in log_entry:
-            stream_val = log_entry.get("stream")
-            if isinstance(stream_val, str):
-                log_messages.append(stream_val.strip())
-    return log_messages
+    # Strip ANSI escape sequences
+    message = ANSI_ESCAPE_PATTERN.sub("", message)
+    # Remove other control characters (except newline/tab)
+    message = "".join(c for c in message if c.isprintable() or c in "\n\t")
+    # Strip whitespace
+    message = message.strip()
+    # Truncate if too long
+    if len(message) > MAX_PROGRESS_MESSAGE_LENGTH:
+        message = message[: MAX_PROGRESS_MESSAGE_LENGTH - 3] + "..."
+    return message
 
 
 def _validate_build_context_path(path: str) -> Path:
@@ -75,71 +90,83 @@ def _validate_build_context_path(path: str) -> Path:
     return resolved_path
 
 
-def _parse_push_stream_for_status(push_stream: Any) -> tuple[str | None, str | None]:
-    """Parse push stream using Docker SDK's json_stream utility.
+class ProgressThrottler:
+    """Throttle progress updates to avoid overwhelming clients."""
 
-    Args:
-        push_stream: Raw push stream from Docker API
+    def __init__(self, min_interval: float = PROGRESS_THROTTLE_SECONDS) -> None:
+        """Initialize throttler.
 
-    Returns:
-        Tuple of (last_status, error_message)
-    """
-    last_status: str | None = None
-    error_message: str | None = None
+        Args:
+            min_interval: Minimum seconds between updates
+        """
+        self.min_interval = min_interval
+        self.last_update_time: float = 0.0
+        self.last_message: str = ""
 
-    for status_entry in json_stream(push_stream):
-        if not isinstance(status_entry, dict):
-            continue
+    def should_update(self, message: str) -> bool:
+        """Check if we should send this progress update.
 
-        # Check for errors first (errors terminate the loop)
-        if "error" in status_entry:
-            error_val = status_entry["error"]
-            if error_val is not None:
-                error_message = str(error_val)
-            break
+        Args:
+            message: The message to potentially send
 
-        # Track last status
-        if "status" in status_entry:
-            status_val = status_entry["status"]
-            if status_val is not None:
-                last_status = str(status_val)
+        Returns:
+            True if update should be sent
+        """
+        now = time.monotonic()
+        # Always allow if message is different and enough time passed
+        time_elapsed = now - self.last_update_time >= self.min_interval
+        message_changed = message != self.last_message
 
-    return last_status, error_message
+        if time_elapsed or (message_changed and "complete" in message.lower()):
+            self.last_update_time = now
+            self.last_message = message
+            return True
+        return False
 
 
 async def _report_layer_progress(
     progress: Progress,
     chunk: dict[str, Any],
+    throttler: ProgressThrottler | None = None,
 ) -> str | None:
     """Report progress for a single layer chunk and return status if present.
 
     Args:
         progress: FastMCP Progress dependency
         chunk: Streaming chunk from Docker API
+        throttler: Optional throttler to limit update frequency
 
     Returns:
         Status string if present, None otherwise
     """
-    layer_id = str(chunk.get("id", ""))[:12]
-    status = str(chunk.get("status", ""))
+    # Safely extract values, handling None
+    raw_id = chunk.get("id")
+    layer_id = str(raw_id)[:12] if raw_id is not None else ""
+
+    raw_status = chunk.get("status")
+    status = str(raw_status) if raw_status is not None else ""
+
+    msg: str | None = None
 
     if "progressDetail" in chunk and chunk["progressDetail"]:
         detail = chunk["progressDetail"]
-        current = detail.get("current", 0)
-        total = detail.get("total", 0)
+        current = detail.get("current", 0) or 0
+        total = detail.get("total", 0) or 0
         if total > 0:
             pct = int((current / total) * 100)
             cur_mb = current / 1024 / 1024
             tot_mb = total / 1024 / 1024
             msg = f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
-            await progress.set_message(msg)
         elif layer_id:
-            await progress.set_message(f"Layer {layer_id}: {status}")
+            msg = f"Layer {layer_id}: {status}"
     elif status:
-        if layer_id:
-            await progress.set_message(f"Layer {layer_id}: {status}")
-        else:
-            await progress.set_message(status)
+        msg = f"Layer {layer_id}: {status}" if layer_id else status
+
+    # Send message if we have one and throttler allows it
+    if msg:
+        msg = _sanitize_progress_message(msg)
+        if throttler is None or throttler.should_update(msg):
+            await progress.set_message(msg)
 
     return status if "status" in chunk else None
 
@@ -609,20 +636,51 @@ def create_image_history_tool(
     )
 
 
-def create_pull_image_tool(
+def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
 ) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
-    """Create the pull_image FastMCP tool with background task support."""
+    """Create the pull_image FastMCP tool with background task support.
 
-    async def pull_image(
+    Args:
+        docker_client: Docker client wrapper
+
+    Returns:
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
+    """
+
+    async def pull_image(  # noqa: PLR0915 - Complex streaming logic
         image: str,
         tag: str | None = None,
         all_tags: bool = False,
         platform: str | None = None,
         progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
-        """Pull a Docker image from a registry with progress reporting."""
+        """Pull a Docker image from a registry with real-time progress reporting.
+
+        Args:
+            image: Image name (e.g., 'ubuntu:22.04')
+            tag: Optional tag (if not in image name)
+            all_tags: Pull all tags (note: output will show only the primary image)
+            platform: Platform (e.g., 'linux/amd64')
+            progress: FastMCP Progress dependency for real-time updates
+
+        Returns:
+            Dictionary with image name, ID, and tags
+
+        Raises:
+            ValidationError: If image name is invalid
+            ImageNotFound: If image cannot be found after pull
+            DockerOperationError: If pull fails
+        """
         try:
+            # Validate tag consistency: reject if both image contains tag AND tag param provided
+            if tag and ":" in image:
+                raise ValidationError(
+                    f"Image '{image}' already contains a tag. "
+                    "Do not specify both a tagged image and a separate tag parameter."
+                )
+
             validate_image_name(image)
             logger.info(f"Pulling image: {image}")
 
@@ -633,38 +691,75 @@ def create_pull_image_tool(
             pull_platform = platform
             pull_all_tags = all_tags
 
-            def _pull_with_streaming() -> list[dict[str, Any]]:
-                """Pull image using low-level API with streaming."""
-                stream = docker_client.client.api.pull(
-                    repository=image,
-                    tag=pull_tag,
-                    stream=True,
-                    decode=True,
-                    all_tags=pull_all_tags,
-                    platform=pull_platform,
-                )
-                return list(stream)
+            # Use a queue for real-time progress streaming
+            chunk_queue: Queue[dict[str, Any] | None] = Queue()
+            pull_error: list[Exception] = []
 
-            # Run the blocking Docker pull in a thread
-            chunks = await asyncio.to_thread(_pull_with_streaming)
+            def _pull_with_streaming() -> None:
+                """Pull image using low-level API, putting chunks on queue."""
+                try:
+                    stream = docker_client.client.api.pull(
+                        repository=image,
+                        tag=pull_tag,
+                        stream=True,
+                        decode=True,
+                        all_tags=pull_all_tags,
+                        platform=pull_platform,
+                    )
+                    for chunk in stream:
+                        chunk_queue.put(chunk)
+                except Exception as e:
+                    pull_error.append(e)
+                finally:
+                    # Signal completion
+                    chunk_queue.put(None)
 
-            # Report progress and check for errors
-            for chunk in chunks:
-                # Check for errors first
+            # Start the pull in a background thread
+            pull_task = asyncio.get_event_loop().run_in_executor(None, _pull_with_streaming)
+
+            # Process chunks as they arrive (real-time progress)
+            throttler = ProgressThrottler()
+            while True:
+                try:
+                    # Non-blocking check with small timeout
+                    chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
+                except Empty:
+                    # Check if pull thread raised an error
+                    if pull_error:
+                        raise pull_error[0] from pull_error[0]
+                    continue
+
+                if chunk is None:
+                    # Stream complete
+                    break
+
+                # Check for errors in chunk
                 if "error" in chunk and chunk["error"] is not None:
                     error_msg = str(chunk["error"])
                     logger.error(f"Failed to pull image: {error_msg}")
                     raise DockerOperationError(f"Failed to pull image: {error_msg}")
 
-                # Report progress using helper
-                await _report_layer_progress(progress, chunk)
+                # Report progress using helper with throttling
+                await _report_layer_progress(progress, chunk, throttler)
+
+            # Wait for pull thread to complete
+            await pull_task
+
+            # Check for any errors from the pull thread
+            if pull_error:
+                raise pull_error[0]
 
             # Get the final image object
             def _get_image() -> Any:
                 full_name = f"{image}:{tag}" if tag else image
                 return docker_client.client.images.get(full_name)
 
-            image_obj = await asyncio.to_thread(_get_image)
+            try:
+                image_obj = await asyncio.to_thread(_get_image)
+            except (DockerImageNotFound, NotFound) as e:
+                logger.error(f"Image not found after pull: {image}")
+                raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image)) from e
+
             logger.info(f"Successfully pulled image: {image}")
 
             await progress.set_message(f"Pull complete: {image}")
@@ -672,6 +767,9 @@ def create_pull_image_tool(
             output = PullImageOutput(image=image, id=str(image_obj.id), tags=image_obj.tags or [])
             return output.model_dump()
 
+        except (DockerImageNotFound, NotFound) as e:
+            logger.error(f"Image not found: {image}")
+            raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image)) from e
         except APIError as e:
             logger.error(f"Failed to pull image: {e}")
             raise DockerOperationError(f"Failed to pull image: {e}") from e
@@ -687,12 +785,20 @@ def create_pull_image_tool(
     )
 
 
-def create_build_image_tool(
+def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
 ) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
-    """Create the build_image FastMCP tool with background task support."""
+    """Create the build_image FastMCP tool with background task support.
 
-    async def build_image(  # noqa: PLR0913 - Docker API requires these parameters
+    Args:
+        docker_client: Docker client wrapper
+
+    Returns:
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
+    """
+
+    async def build_image(  # noqa: PLR0913, PLR0912, PLR0915 - Docker API requires these params
         path: str,
         tag: str | None = None,
         dockerfile: str = "Dockerfile",
@@ -702,7 +808,25 @@ def create_build_image_tool(
         pull: bool = False,
         progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
-        """Build a Docker image from a Dockerfile with progress reporting."""
+        """Build a Docker image from a Dockerfile with real-time progress reporting.
+
+        Args:
+            path: Path to build context
+            tag: Tag for the image
+            dockerfile: Path to Dockerfile
+            buildargs: Build arguments as key-value pairs
+            nocache: Do not use cache
+            rm: Remove intermediate containers
+            pull: Always pull newer base images
+            progress: FastMCP Progress dependency for real-time updates
+
+        Returns:
+            Dictionary with image_id, tags, and logs
+
+        Raises:
+            ValidationError: If path or tag is invalid
+            DockerOperationError: If build fails
+        """
         try:
             if tag:
                 validate_image_name(tag)
@@ -722,42 +846,98 @@ def create_build_image_tool(
             build_pull = pull
             build_buildargs = buildargs
 
-            def _build_with_streaming() -> tuple[Any, list[Any]]:
-                """Build image and collect streaming logs."""
-                kwargs: dict[str, Any] = {
-                    "path": str(resolved_path),
-                    "dockerfile": build_dockerfile,
-                    "nocache": build_nocache,
-                    "rm": build_rm,
-                    "pull": build_pull,
-                }
-                if build_tag:
-                    kwargs["tag"] = build_tag
-                if build_buildargs:
-                    kwargs["buildargs"] = build_buildargs
+            # Use a queue for real-time progress streaming
+            chunk_queue: Queue[Any] = Queue()
+            build_error: list[Exception] = []
+            build_result: list[tuple[Any, list[str]]] = []
 
-                image_obj, build_logs_gen = docker_client.client.images.build(**kwargs)
-                # Collect the streaming logs
-                build_logs = list(build_logs_gen)
-                return image_obj, build_logs
+            def _build_with_streaming() -> None:
+                """Build image, putting log chunks on queue."""
+                try:
+                    kwargs: dict[str, Any] = {
+                        "path": str(resolved_path),
+                        "dockerfile": build_dockerfile,
+                        "nocache": build_nocache,
+                        "rm": build_rm,
+                        "pull": build_pull,
+                    }
+                    if build_tag:
+                        kwargs["tag"] = build_tag
+                    if build_buildargs:
+                        kwargs["buildargs"] = build_buildargs
 
-            # Run the blocking Docker build in a thread
-            image_obj, build_logs = await asyncio.to_thread(_build_with_streaming)
+                    image_obj, build_logs_gen = docker_client.client.images.build(**kwargs)
 
-            # Report progress from the collected build logs
-            log_messages = []
-            for log_entry in build_logs:
-                if isinstance(log_entry, dict) and "stream" in log_entry:
-                    stream_val = log_entry.get("stream")
-                    if isinstance(stream_val, str):
-                        msg = stream_val.strip()
-                        if msg:
-                            log_messages.append(msg)
-                            # Report step progress
-                            if msg.startswith("Step "):
-                                await progress.set_message(f"Build {msg}")
-                            elif "Successfully built" in msg:
-                                await progress.set_message(msg)
+                    # Stream logs to queue while collecting them
+                    log_messages: list[str] = []
+                    for log_entry in build_logs_gen:
+                        chunk_queue.put(log_entry)
+                        # Also collect for return value
+                        if isinstance(log_entry, dict) and "stream" in log_entry:
+                            stream_val = log_entry.get("stream")
+                            if isinstance(stream_val, str):
+                                msg = stream_val.strip()
+                                if msg:
+                                    log_messages.append(msg)
+
+                    build_result.append((image_obj, log_messages))
+                except Exception as e:
+                    build_error.append(e)
+                finally:
+                    # Signal completion
+                    chunk_queue.put(None)
+
+            # Start the build in a background thread
+            build_task = asyncio.get_event_loop().run_in_executor(None, _build_with_streaming)
+
+            # Process chunks as they arrive (real-time progress)
+            throttler = ProgressThrottler()
+            while True:
+                try:
+                    # Non-blocking check with small timeout
+                    chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
+                except Empty:
+                    # Check if build thread raised an error
+                    if build_error:
+                        raise build_error[0] from build_error[0]
+                    continue
+
+                if chunk is None:
+                    # Stream complete
+                    break
+
+                # Check for errors in chunk
+                if isinstance(chunk, dict):
+                    if "error" in chunk and chunk["error"] is not None:
+                        error_msg = str(chunk["error"])
+                        logger.error(f"Failed to build image: {error_msg}")
+                        raise DockerOperationError(f"Failed to build image: {error_msg}")
+
+                    # Report step progress
+                    if "stream" in chunk:
+                        stream_val = chunk.get("stream")
+                        if isinstance(stream_val, str):
+                            msg = stream_val.strip()
+                            if msg:
+                                sanitized_msg = _sanitize_progress_message(msg)
+                                # Report step progress with throttling
+                                if msg.startswith("Step ") or "Successfully" in msg:
+                                    # Always report step changes
+                                    await progress.set_message(f"Build: {sanitized_msg}")
+                                elif throttler.should_update(sanitized_msg):
+                                    await progress.set_message(f"Build: {sanitized_msg}")
+
+            # Wait for build thread to complete
+            await build_task
+
+            # Check for any errors from the build thread
+            if build_error:
+                raise build_error[0]
+
+            if not build_result:
+                raise DockerOperationError("Build completed but no image was returned")
+
+            image_obj, log_messages = build_result[0]
 
             logger.info(f"Successfully built image: {image_obj.id}")
 
@@ -783,17 +963,38 @@ def create_build_image_tool(
     )
 
 
-def create_push_image_tool(
+def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
 ) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
-    """Create the push_image FastMCP tool with background task support."""
+    """Create the push_image FastMCP tool with background task support.
 
-    async def push_image(
+    Args:
+        docker_client: Docker client wrapper
+
+    Returns:
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
+    """
+
+    async def push_image(  # noqa: PLR0915 - Complex streaming logic
         image: str,
         tag: str | None = None,
         progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
-        """Push a Docker image to a registry with progress reporting."""
+        """Push a Docker image to a registry with real-time progress reporting.
+
+        Args:
+            image: Image name to push
+            tag: Optional tag
+            progress: FastMCP Progress dependency for real-time updates
+
+        Returns:
+            Dictionary with image name and status
+
+        Raises:
+            ImageNotFound: If image doesn't exist locally
+            DockerOperationError: If push fails
+        """
         try:
             validate_image_name(image)
             logger.info(f"Pushing image: {image}")
@@ -803,33 +1004,65 @@ def create_push_image_tool(
             # Capture parameters for closure
             push_tag = tag
 
-            def _push_with_streaming() -> list[dict[str, Any]]:
-                """Push image using low-level API with streaming."""
-                stream = docker_client.client.api.push(
-                    repository=image,
-                    tag=push_tag,
-                    stream=True,
-                    decode=True,
-                )
-                return list(stream)
+            # Use a queue for real-time progress streaming
+            chunk_queue: Queue[dict[str, Any] | None] = Queue()
+            push_error: list[Exception] = []
 
-            # Run the blocking Docker push in a thread
-            chunks = await asyncio.to_thread(_push_with_streaming)
+            def _push_with_streaming() -> None:
+                """Push image using low-level API, putting chunks on queue."""
+                try:
+                    stream = docker_client.client.api.push(
+                        repository=image,
+                        tag=push_tag,
+                        stream=True,
+                        decode=True,
+                    )
+                    for chunk in stream:
+                        chunk_queue.put(chunk)
+                except Exception as e:
+                    push_error.append(e)
+                finally:
+                    # Signal completion
+                    chunk_queue.put(None)
 
-            # Report progress and check for errors
+            # Start the push in a background thread
+            push_task = asyncio.get_event_loop().run_in_executor(None, _push_with_streaming)
+
+            # Process chunks as they arrive (real-time progress)
+            throttler = ProgressThrottler()
             last_status: str | None = None
 
-            for chunk in chunks:
-                # Check for errors first
+            while True:
+                try:
+                    # Non-blocking check with small timeout
+                    chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
+                except Empty:
+                    # Check if push thread raised an error
+                    if push_error:
+                        raise push_error[0] from push_error[0]
+                    continue
+
+                if chunk is None:
+                    # Stream complete
+                    break
+
+                # Check for errors in chunk
                 if "error" in chunk and chunk["error"] is not None:
                     error_msg = str(chunk["error"])
                     logger.error(f"Failed to push image: {error_msg}")
                     raise DockerOperationError(f"Failed to push image: {error_msg}")
 
-                # Report progress using helper
-                status = await _report_layer_progress(progress, chunk)
+                # Report progress using helper with throttling
+                status = await _report_layer_progress(progress, chunk, throttler)
                 if status:
                     last_status = status
+
+            # Wait for push thread to complete
+            await push_task
+
+            # Check for any errors from the push thread
+            if push_error:
+                raise push_error[0]
 
             status = last_status if last_status else "pushed"
             logger.info(f"Successfully pushed image: {image}")
