@@ -315,7 +315,7 @@ def _execute_container_action(
 def create_create_container_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the create_container FastMCP tool.
 
     Args:
@@ -405,13 +405,14 @@ def create_create_container_tool(
         OperationSafety.MODERATE,
         False,  # not idempotent (creates new container each time)
         False,  # not open_world
+        False,  # not supports_task
         create_container,
     )
 
 
 def create_start_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the start_container FastMCP tool.
 
     Args:
@@ -457,13 +458,14 @@ def create_start_container_tool(
         OperationSafety.MODERATE,
         True,  # idempotent - starting converges to running state
         False,  # not open_world
+        False,  # not supports_task
         start_container,
     )
 
 
 def create_stop_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the stop_container FastMCP tool.
 
     Args:
@@ -512,13 +514,14 @@ def create_stop_container_tool(
         OperationSafety.MODERATE,
         True,  # idempotent - stopping converges to stopped state
         False,  # not open_world
+        False,  # not supports_task
         stop_container,
     )
 
 
 def create_restart_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the restart_container FastMCP tool.
 
     Args:
@@ -565,13 +568,14 @@ def create_restart_container_tool(
         OperationSafety.MODERATE,
         True,  # idempotent - restart operation can be safely retried
         False,  # not open_world
+        False,  # not supports_task
         restart_container,
     )
 
 
 def create_remove_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the remove_container FastMCP tool.
 
     Args:
@@ -629,6 +633,7 @@ def create_remove_container_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (container is gone after first removal)
         False,  # not open_world
+        False,  # not supports_task
         remove_container,
     )
 

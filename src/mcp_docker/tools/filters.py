@@ -52,7 +52,7 @@ def should_register_tool(tool_name: str, safety_config: SafetyConfig) -> bool:
 
 def register_tools_with_filtering(
     app: Any,
-    tools: list[tuple[str, str, OperationSafety, bool, bool, Any]],
+    tools: list[tuple[str, str, OperationSafety, bool, bool, bool, Any]],
     safety_config: SafetyConfig | None,
 ) -> list[str]:
     """Register tools with filtering based on allow/deny lists.
@@ -61,7 +61,8 @@ def register_tools_with_filtering(
 
     Args:
         app: FastMCP application instance
-        tools: List of (name, description, safety_level, idempotent, open_world, func) tuples
+        tools: List of (name, description, safety_level, idempotent, open_world,
+               supports_task, func) tuples
         safety_config: Safety configuration (None to skip filtering)
 
     Returns:
@@ -69,7 +70,7 @@ def register_tools_with_filtering(
     """
     registered_names = []
 
-    for name, description, safety_level, idempotent, open_world, func in tools:
+    for name, description, safety_level, idempotent, open_world, supports_task, func in tools:
         # Check if tool should be registered based on allow/deny lists
         if safety_config and not should_register_tool(name, safety_config):
             continue
@@ -84,8 +85,13 @@ def register_tools_with_filtering(
         func._safety_level = safety_level  # pyright: ignore[reportAttributeAccessIssue]
         func._tool_name = name  # pyright: ignore[reportAttributeAccessIssue]
 
-        # Register with FastMCP
-        app.tool(name=name, description=description, annotations=annotations)(func)
+        # Register with FastMCP (task=True enables background task support)
+        app.tool(
+            name=name,
+            description=description,
+            annotations=annotations,
+            task=supports_task,
+        )(func)
 
         registered_names.append(name)
         logger.debug(f"Registered FastMCP tool: {name} (safety: {safety_level.value})")

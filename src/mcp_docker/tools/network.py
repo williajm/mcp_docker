@@ -190,7 +190,7 @@ class RemoveNetworkOutput(BaseModel):
 def create_list_networks_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the list_networks FastMCP tool.
 
     Args:
@@ -258,13 +258,14 @@ def create_list_networks_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
+        False,  # not supports_task
         list_networks,
     )
 
 
 def create_inspect_network_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the inspect_network FastMCP tool.
 
     Args:
@@ -323,13 +324,14 @@ def create_inspect_network_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
+        False,  # not supports_task
         inspect_network,
     )
 
 
 def create_create_network_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the create_network FastMCP tool."""
 
     def create_network(  # noqa: PLR0913 - Docker API requires these parameters
@@ -399,13 +401,14 @@ def create_create_network_tool(
         OperationSafety.MODERATE,
         False,  # not idempotent (creates different networks)
         False,  # not open_world
+        False,  # not supports_task
         create_network,
     )
 
 
 def create_connect_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the connect_container FastMCP tool."""
 
     def connect_container(  # noqa: PLR0913 - Docker API requires these parameters
@@ -492,13 +495,14 @@ def create_connect_container_tool(
         OperationSafety.MODERATE,
         False,  # not fully idempotent (can fail if config changes)
         False,  # not open_world
+        False,  # not supports_task
         connect_container,
     )
 
 
 def create_disconnect_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the disconnect_container FastMCP tool."""
 
     def disconnect_container(
@@ -579,13 +583,14 @@ def create_disconnect_container_tool(
         OperationSafety.MODERATE,
         True,  # idempotent (checks if already disconnected)
         False,  # not open_world
+        False,  # not supports_task
         disconnect_container,
     )
 
 
 def create_remove_network_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the remove_network FastMCP tool."""
 
     def remove_network(
@@ -627,6 +632,7 @@ def create_remove_network_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (network is gone after first removal)
         False,  # not open_world
+        False,  # not supports_task
         remove_network,
     )
 

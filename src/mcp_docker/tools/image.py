@@ -3,12 +3,14 @@
 This module contains read-only image tools migrated to FastMCP 2.0.
 """
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
 from docker.utils.json_stream import json_stream
+from fastmcp.dependencies import Progress
 from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
@@ -103,6 +105,43 @@ def _parse_push_stream_for_status(push_stream: Any) -> tuple[str | None, str | N
                 last_status = str(status_val)
 
     return last_status, error_message
+
+
+async def _report_layer_progress(
+    progress: Progress,
+    chunk: dict[str, Any],
+) -> str | None:
+    """Report progress for a single layer chunk and return status if present.
+
+    Args:
+        progress: FastMCP Progress dependency
+        chunk: Streaming chunk from Docker API
+
+    Returns:
+        Status string if present, None otherwise
+    """
+    layer_id = str(chunk.get("id", ""))[:12]
+    status = str(chunk.get("status", ""))
+
+    if "progressDetail" in chunk and chunk["progressDetail"]:
+        detail = chunk["progressDetail"]
+        current = detail.get("current", 0)
+        total = detail.get("total", 0)
+        if total > 0:
+            pct = int((current / total) * 100)
+            cur_mb = current / 1024 / 1024
+            tot_mb = total / 1024 / 1024
+            msg = f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
+            await progress.set_message(msg)
+        elif layer_id:
+            await progress.set_message(f"Layer {layer_id}: {status}")
+    elif status:
+        if layer_id:
+            await progress.set_message(f"Layer {layer_id}: {status}")
+        else:
+            await progress.set_message(status)
+
+    return status if "status" in chunk else None
 
 
 def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], int]:
@@ -364,7 +403,7 @@ class PruneImagesOutput(BaseModel):
 def create_list_images_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the list_images FastMCP tool.
 
     Args:
@@ -372,7 +411,8 @@ def create_list_images_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def list_images(
@@ -433,21 +473,22 @@ def create_list_images_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
+        False,  # not supports_task
         list_images,
     )
 
 
 def create_inspect_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the inspect_image FastMCP tool.
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def inspect_image(
@@ -498,6 +539,7 @@ def create_inspect_image_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
+        False,  # not supports_task
         inspect_image,
     )
 
@@ -505,7 +547,7 @@ def create_inspect_image_tool(
 def create_image_history_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the image_history FastMCP tool.
 
     Args:
@@ -513,7 +555,8 @@ def create_image_history_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
+        Tuple of (name, description, safety_level, idempotent, open_world,
+                 supports_task, function)
     """
 
     def image_history(
@@ -561,38 +604,85 @@ def create_image_history_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
+        False,  # not supports_task
         image_history,
     )
 
 
 def create_pull_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the pull_image FastMCP tool."""
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+    """Create the pull_image FastMCP tool with background task support."""
 
-    def pull_image(
+    async def pull_image(
         image: str,
         tag: str | None = None,
         all_tags: bool = False,
         platform: str | None = None,
+        progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
-        """Pull a Docker image from a registry."""
+        """Pull a Docker image from a registry with progress reporting."""
         try:
             validate_image_name(image)
             logger.info(f"Pulling image: {image}")
 
-            kwargs: dict[str, Any] = {"repository": image}
-            if tag:
-                kwargs["tag"] = tag
-            if all_tags:
-                kwargs["all_tags"] = all_tags
-            if platform:
-                kwargs["platform"] = platform
+            await progress.set_message(f"Starting pull: {image}")
 
-            image_obj = docker_client.client.images.pull(**kwargs)
+            # Build kwargs for the pull
+            pull_tag = tag
+            pull_platform = platform
+            pull_all_tags = all_tags
+
+            def _pull_with_streaming() -> list[dict[str, Any]]:
+                """Pull image using low-level API with streaming."""
+                stream = docker_client.client.api.pull(
+                    repository=image,
+                    tag=pull_tag,
+                    stream=True,
+                    decode=True,
+                    all_tags=pull_all_tags,
+                    platform=pull_platform,
+                )
+                return list(stream)
+
+            # Run the blocking Docker pull in a thread
+            chunks = await asyncio.to_thread(_pull_with_streaming)
+
+            # Report progress from the collected chunks
+            for chunk in chunks:
+                if "progressDetail" in chunk and chunk["progressDetail"]:
+                    detail = chunk["progressDetail"]
+                    current = detail.get("current", 0)
+                    total = detail.get("total", 0)
+                    layer_id = str(chunk.get("id", ""))[:12]
+                    status = str(chunk.get("status", ""))
+                    if total > 0:
+                        pct = int((current / total) * 100)
+                        cur_mb = current / 1024 / 1024
+                        tot_mb = total / 1024 / 1024
+                        msg = f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
+                        await progress.set_message(msg)
+                    elif layer_id:
+                        await progress.set_message(f"Layer {layer_id}: {status}")
+                elif "status" in chunk:
+                    layer_id = str(chunk.get("id", ""))[:12]
+                    status = str(chunk.get("status", ""))
+                    if layer_id:
+                        await progress.set_message(f"Layer {layer_id}: {status}")
+                    else:
+                        await progress.set_message(status)
+
+            # Get the final image object
+            def _get_image() -> Any:
+                full_name = f"{image}:{tag}" if tag else image
+                return docker_client.client.images.get(full_name)
+
+            image_obj = await asyncio.to_thread(_get_image)
             logger.info(f"Successfully pulled image: {image}")
 
-            output = PullImageOutput(image=image, id=str(image_obj.id), tags=image_obj.tags)
+            await progress.set_message(f"Pull complete: {image}")
+
+            output = PullImageOutput(image=image, id=str(image_obj.id), tags=image_obj.tags or [])
             return output.model_dump()
 
         except APIError as e:
@@ -605,16 +695,17 @@ def create_pull_image_tool(
         OperationSafety.MODERATE,
         True,  # idempotent
         True,  # open_world (pulls from registry)
+        True,  # supports_task (background task with progress)
         pull_image,
     )
 
 
 def create_build_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the build_image FastMCP tool."""
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+    """Create the build_image FastMCP tool with background task support."""
 
-    def build_image(  # noqa: PLR0913 - Docker API requires these parameters
+    async def build_image(  # noqa: PLR0913 - Docker API requires these parameters
         path: str,
         tag: str | None = None,
         dockerfile: str = "Dockerfile",
@@ -622,8 +713,9 @@ def create_build_image_tool(
         nocache: bool = False,
         rm: bool = True,
         pull: bool = False,
+        progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
-        """Build a Docker image from a Dockerfile."""
+        """Build a Docker image from a Dockerfile with progress reporting."""
         try:
             if tag:
                 validate_image_name(tag)
@@ -633,25 +725,61 @@ def create_build_image_tool(
 
             logger.info(f"Building image from: {resolved_path}")
 
-            kwargs: dict[str, Any] = {
-                "path": str(resolved_path),
-                "dockerfile": dockerfile,
-                "nocache": nocache,
-                "rm": rm,
-                "pull": pull,
-            }
-            if tag:
-                kwargs["tag"] = tag
-            if buildargs:
-                kwargs["buildargs"] = buildargs
+            await progress.set_message(f"Starting build from: {resolved_path}")
 
-            image_obj, build_logs = docker_client.client.images.build(**kwargs)
+            # Capture build parameters for closure
+            build_tag = tag
+            build_dockerfile = dockerfile
+            build_nocache = nocache
+            build_rm = rm
+            build_pull = pull
+            build_buildargs = buildargs
 
-            log_messages = _parse_build_logs_from_stream(build_logs)
+            def _build_with_streaming() -> tuple[Any, list[Any]]:
+                """Build image and collect streaming logs."""
+                kwargs: dict[str, Any] = {
+                    "path": str(resolved_path),
+                    "dockerfile": build_dockerfile,
+                    "nocache": build_nocache,
+                    "rm": build_rm,
+                    "pull": build_pull,
+                }
+                if build_tag:
+                    kwargs["tag"] = build_tag
+                if build_buildargs:
+                    kwargs["buildargs"] = build_buildargs
+
+                image_obj, build_logs_gen = docker_client.client.images.build(**kwargs)
+                # Collect the streaming logs
+                build_logs = list(build_logs_gen)
+                return image_obj, build_logs
+
+            # Run the blocking Docker build in a thread
+            image_obj, build_logs = await asyncio.to_thread(_build_with_streaming)
+
+            # Report progress from the collected build logs
+            log_messages = []
+            step_count = 0
+            for log_entry in build_logs:
+                if isinstance(log_entry, dict) and "stream" in log_entry:
+                    stream_val = log_entry.get("stream")
+                    if isinstance(stream_val, str):
+                        msg = stream_val.strip()
+                        if msg:
+                            log_messages.append(msg)
+                            # Report step progress
+                            if msg.startswith("Step "):
+                                step_count += 1
+                                await progress.set_message(f"Build {msg}")
+                            elif "Successfully built" in msg:
+                                await progress.set_message(msg)
 
             logger.info(f"Successfully built image: {image_obj.id}")
+
+            await progress.set_message(f"Build complete: {image_obj.id[:12]}")
+
             output = BuildImageOutput(
-                image_id=str(image_obj.id), tags=image_obj.tags, logs=log_messages
+                image_id=str(image_obj.id), tags=image_obj.tags or [], logs=log_messages
             )
             return output.model_dump()
 
@@ -665,38 +793,64 @@ def create_build_image_tool(
         OperationSafety.MODERATE,
         False,  # not idempotent (creates different images)
         True,  # open_world (may pull base images)
+        True,  # supports_task (background task with progress)
         build_image,
     )
 
 
 def create_push_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the push_image FastMCP tool."""
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+    """Create the push_image FastMCP tool with background task support."""
 
-    def push_image(
+    async def push_image(
         image: str,
         tag: str | None = None,
+        progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
-        """Push a Docker image to a registry."""
+        """Push a Docker image to a registry with progress reporting."""
         try:
             validate_image_name(image)
             logger.info(f"Pushing image: {image}")
 
-            kwargs: dict[str, Any] = {"repository": image}
-            if tag:
-                kwargs["tag"] = tag
+            await progress.set_message(f"Starting push: {image}")
 
-            push_stream = docker_client.client.images.push(**kwargs)
+            # Capture parameters for closure
+            push_tag = tag
 
-            last_status, error_message = _parse_push_stream_for_status(push_stream)
+            def _push_with_streaming() -> list[dict[str, Any]]:
+                """Push image using low-level API with streaming."""
+                stream = docker_client.client.api.push(
+                    repository=image,
+                    tag=push_tag,
+                    stream=True,
+                    decode=True,
+                )
+                return list(stream)
 
-            if error_message:
-                logger.error(f"Failed to push image: {error_message}")
-                raise DockerOperationError(f"Failed to push image: {error_message}")
+            # Run the blocking Docker push in a thread
+            chunks = await asyncio.to_thread(_push_with_streaming)
+
+            # Report progress and check for errors
+            last_status: str | None = None
+
+            for chunk in chunks:
+                # Check for errors first
+                if "error" in chunk and chunk["error"] is not None:
+                    error_msg = str(chunk["error"])
+                    logger.error(f"Failed to push image: {error_msg}")
+                    raise DockerOperationError(f"Failed to push image: {error_msg}")
+
+                # Report progress using helper
+                status = await _report_layer_progress(progress, chunk)
+                if status:
+                    last_status = status
 
             status = last_status if last_status else "pushed"
             logger.info(f"Successfully pushed image: {image}")
+
+            await progress.set_message(f"Push complete: {image}")
+
             output = PushImageOutput(image=image, status=status)
             return output.model_dump()
 
@@ -713,13 +867,14 @@ def create_push_image_tool(
         OperationSafety.MODERATE,
         False,  # not idempotent (may push to different registries)
         True,  # open_world (pushes to registry)
+        True,  # supports_task (background task with progress)
         push_image,
     )
 
 
 def create_tag_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the tag_image FastMCP tool."""
 
     def tag_image(
@@ -753,13 +908,14 @@ def create_tag_image_tool(
         OperationSafety.MODERATE,
         True,  # idempotent (tagging with same tag overwrites)
         False,  # not open_world
+        False,  # not supports_task
         tag_image,
     )
 
 
 def create_remove_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the remove_image FastMCP tool."""
 
     def remove_image(
@@ -789,13 +945,14 @@ def create_remove_image_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (image is gone after first removal)
         False,  # not open_world
+        False,  # not supports_task
         remove_image,
     )
 
 
 def create_prune_images_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the prune_images FastMCP tool."""
 
     def prune_images(
@@ -841,6 +998,7 @@ def create_prune_images_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (different images may be pruned each time)
         False,  # not open_world
+        False,  # not supports_task
         prune_images,
     )
 

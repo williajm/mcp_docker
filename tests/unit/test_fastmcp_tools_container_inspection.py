@@ -242,7 +242,15 @@ class TestToolMetadata:
         else:
             result = tool_creator(mock_docker_client)
 
-        name, description, safety_level, is_idempotent, is_open_world, func = result
+        (
+            name,
+            description,
+            safety_level,
+            is_idempotent,
+            is_open_world,
+            supports_task,
+            func,
+        ) = result
 
         assert name == expected_name
         assert isinstance(description, str) and len(description) > 0

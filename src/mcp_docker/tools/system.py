@@ -90,7 +90,7 @@ class SystemPruneOutput(BaseModel):
 
 def create_version_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the docker_version FastMCP tool."""
 
     def version() -> dict[str, Any]:
@@ -133,13 +133,14 @@ def create_version_tool(
         OperationSafety.SAFE,
         True,  # idempotent (always returns same info)
         False,  # not open_world
+        False,  # not supports_task
         version,
     )
 
 
 def create_events_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the docker_events FastMCP tool."""
 
     def events(
@@ -204,13 +205,14 @@ def create_events_tool(
         OperationSafety.SAFE,
         False,  # not idempotent (events change over time)
         False,  # not open_world
+        False,  # not supports_task
         events,
     )
 
 
 def create_prune_system_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
     """Create the prune_system FastMCP tool."""
 
     def prune_system(
@@ -288,6 +290,7 @@ def create_prune_system_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (different resources may be pruned each time)
         False,  # not open_world
+        False,  # not supports_task
         prune_system,
     )
 
