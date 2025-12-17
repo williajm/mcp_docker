@@ -203,6 +203,30 @@ async def _report_layer_progress(
     return str(raw_status) if raw_status is not None else None
 
 
+def _check_worker_error(
+    error_list: list[Exception],
+    error_event: threading.Event | None,
+) -> None:
+    """Check for errors from worker thread and raise if found.
+
+    Args:
+        error_list: List containing errors from worker thread
+        error_event: Optional threading.Event signaling an error occurred
+
+    Raises:
+        Exception: Re-raises the first error from error_list if error detected
+    """
+    # Use thread-safe event if available
+    if error_event is not None:
+        if error_event.is_set() and error_list:
+            raise error_list[0] from error_list[0]
+        return
+
+    # Fallback for backwards compatibility (no event provided)
+    if error_list:
+        raise error_list[0] from error_list[0]
+
+
 async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs all parameters
     chunk_queue: Queue[Any],
     error_list: list[Exception],
@@ -239,12 +263,7 @@ async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs
         try:
             chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
         except Empty:
-            # Check for errors using thread-safe event if available
-            if error_event is not None and error_event.is_set() and error_list:
-                raise error_list[0] from error_list[0]
-            if error_event is None and error_list:
-                # Fallback for backwards compatibility
-                raise error_list[0] from error_list[0]
+            _check_worker_error(error_list, error_event)
             continue
 
         if chunk is None:
@@ -313,12 +332,7 @@ async def _process_build_streaming_queue(
         try:
             chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
         except Empty:
-            # Check for errors using thread-safe event if available
-            if error_event is not None and error_event.is_set() and error_list:
-                raise error_list[0] from error_list[0]
-            if error_event is None and error_list:
-                # Fallback for backwards compatibility
-                raise error_list[0] from error_list[0]
+            _check_worker_error(error_list, error_event)
             continue
 
         if chunk is None:
