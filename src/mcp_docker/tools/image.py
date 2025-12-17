@@ -379,6 +379,89 @@ async def _get_pulled_image(
         raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image)) from e
 
 
+def _collect_build_log_message(log_entry: Any) -> str | None:
+    """Extract a log message from a build log entry.
+
+    Args:
+        log_entry: Build log entry from Docker API
+
+    Returns:
+        Stripped message string or None
+    """
+    if not isinstance(log_entry, dict):
+        return None
+    stream_val = log_entry.get("stream")
+    if not isinstance(stream_val, str):
+        return None
+    msg = stream_val.strip()
+    return msg if msg else None
+
+
+def _create_build_streaming_worker(  # noqa: PLR0913 - Factory needs all build parameters
+    docker_client: Any,
+    resolved_path: str,
+    tag: str | None,
+    dockerfile: str,
+    nocache: bool,
+    rm: bool,
+    pull: bool,
+    buildargs: dict[str, str] | None,
+    chunk_queue: Queue[Any],
+    error_list: list[Exception],
+    result_list: list[tuple[Any, list[str]]],
+) -> Callable[[], None]:
+    """Create a worker function for streaming image build.
+
+    Args:
+        docker_client: Docker client wrapper
+        resolved_path: Resolved build context path
+        tag: Optional image tag
+        dockerfile: Dockerfile path
+        nocache: No cache flag
+        rm: Remove intermediate containers flag
+        pull: Pull base images flag
+        buildargs: Build arguments
+        chunk_queue: Queue to put chunks on
+        error_list: List to append errors to
+        result_list: List to append (image, logs) result to
+
+    Returns:
+        Callable worker function
+    """
+
+    def _build_with_streaming() -> None:
+        try:
+            kwargs: dict[str, Any] = {
+                "path": resolved_path,
+                "dockerfile": dockerfile,
+                "nocache": nocache,
+                "rm": rm,
+                "pull": pull,
+            }
+            if tag:
+                kwargs["tag"] = tag
+            if buildargs:
+                kwargs["buildargs"] = buildargs
+
+            image_obj, build_logs_gen = docker_client.client.images.build(**kwargs)
+
+            # Stream logs to queue while collecting them
+            log_messages: list[str] = []
+            for log_entry in build_logs_gen:
+                chunk_queue.put(log_entry)
+                msg = _collect_build_log_message(log_entry)
+                if msg:
+                    log_messages.append(msg)
+
+            result_list.append((image_obj, log_messages))
+        except Exception as e:
+            error_list.append(e)
+        finally:
+            chunk_queue.put(None)
+
+    return _build_with_streaming
+
+
 def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], int]:
     """Force remove ALL images (extremely destructive).
 
@@ -985,69 +1068,37 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             ValidationError: If path or tag is invalid
             DockerOperationError: If build fails
         """
+        if tag:
+            validate_image_name(tag)
+
+        # Validate build context path for security
+        resolved_path = _validate_build_context_path(path)
+
+        logger.info(f"Building image from: {resolved_path}")
+        await progress.set_message(f"Starting build from: {resolved_path}")
+
+        # Use a queue for real-time progress streaming
+        chunk_queue: Queue[Any] = Queue()
+        build_error: list[Exception] = []
+        build_result: list[tuple[Any, list[str]]] = []
+
+        # Create and start the build worker
+        worker = _create_build_streaming_worker(
+            docker_client,
+            str(resolved_path),
+            tag,
+            dockerfile,
+            nocache,
+            rm,
+            pull,
+            buildargs,
+            chunk_queue,
+            build_error,
+            build_result,
+        )
+        build_task: asyncio.Future[None] = asyncio.get_event_loop().run_in_executor(None, worker)
+
         try:
-            if tag:
-                validate_image_name(tag)
-
-            # Validate build context path for security
-            resolved_path = _validate_build_context_path(path)
-
-            logger.info(f"Building image from: {resolved_path}")
-
-            await progress.set_message(f"Starting build from: {resolved_path}")
-
-            # Capture build parameters for closure
-            build_tag = tag
-            build_dockerfile = dockerfile
-            build_nocache = nocache
-            build_rm = rm
-            build_pull = pull
-            build_buildargs = buildargs
-
-            # Use a queue for real-time progress streaming
-            chunk_queue: Queue[Any] = Queue()
-            build_error: list[Exception] = []
-            build_result: list[tuple[Any, list[str]]] = []
-
-            def _build_with_streaming() -> None:
-                """Build image, putting log chunks on queue."""
-                try:
-                    kwargs: dict[str, Any] = {
-                        "path": str(resolved_path),
-                        "dockerfile": build_dockerfile,
-                        "nocache": build_nocache,
-                        "rm": build_rm,
-                        "pull": build_pull,
-                    }
-                    if build_tag:
-                        kwargs["tag"] = build_tag
-                    if build_buildargs:
-                        kwargs["buildargs"] = build_buildargs
-
-                    image_obj, build_logs_gen = docker_client.client.images.build(**kwargs)
-
-                    # Stream logs to queue while collecting them
-                    log_messages: list[str] = []
-                    for log_entry in build_logs_gen:
-                        chunk_queue.put(log_entry)
-                        # Also collect for return value
-                        if isinstance(log_entry, dict) and "stream" in log_entry:
-                            stream_val = log_entry.get("stream")
-                            if isinstance(stream_val, str):
-                                msg = stream_val.strip()
-                                if msg:
-                                    log_messages.append(msg)
-
-                    build_result.append((image_obj, log_messages))
-                except Exception as e:
-                    build_error.append(e)
-                finally:
-                    # Signal completion
-                    chunk_queue.put(None)
-
-            # Start the build in a background thread
-            build_task = asyncio.get_event_loop().run_in_executor(None, _build_with_streaming)
-
             # Process chunks as they arrive (real-time progress)
             await _process_build_streaming_queue(
                 chunk_queue, build_error, progress, ProgressThrottler()
