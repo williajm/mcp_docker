@@ -6,6 +6,7 @@ This module contains read-only image tools migrated to FastMCP 2.0.
 import asyncio
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Any
@@ -243,6 +244,139 @@ async def _process_streaming_queue(
                 last_status = status
 
     return last_status
+
+
+async def _report_build_progress(
+    progress: Progress,
+    chunk: dict[str, Any],
+    throttler: ProgressThrottler,
+) -> None:
+    """Report progress for a build log chunk.
+
+    Args:
+        progress: FastMCP Progress dependency
+        chunk: Build log chunk from Docker API
+        throttler: Throttler for progress updates
+    """
+    stream_val = chunk.get("stream")
+    if not isinstance(stream_val, str):
+        return
+
+    msg = stream_val.strip()
+    if not msg:
+        return
+
+    sanitized_msg = _sanitize_progress_message(msg)
+    is_important = msg.startswith("Step ") or "Successfully" in msg
+    if is_important or throttler.should_update(sanitized_msg):
+        await progress.set_message(f"Build: {sanitized_msg}")
+
+
+async def _process_build_streaming_queue(
+    chunk_queue: Queue[Any],
+    error_list: list[Exception],
+    progress: Progress,
+    throttler: ProgressThrottler,
+) -> None:
+    """Process build log chunks from a streaming queue with progress reporting.
+
+    Args:
+        chunk_queue: Queue containing build log chunks (None signals completion)
+        error_list: List to check for errors from worker thread
+        progress: FastMCP Progress dependency
+        throttler: Throttler for progress updates
+
+    Raises:
+        DockerOperationError: If an error is found in a chunk
+    """
+    while True:
+        try:
+            chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
+        except Empty:
+            if error_list:
+                raise error_list[0] from error_list[0]
+            continue
+
+        if chunk is None:
+            break
+
+        if isinstance(chunk, dict):
+            _check_chunk_for_error(chunk, "build")
+            await _report_build_progress(progress, chunk, throttler)
+
+
+def _create_pull_streaming_worker(  # noqa: PLR0913 - Factory needs all pull parameters
+    docker_client: Any,
+    image: str,
+    tag: str | None,
+    all_tags: bool,
+    platform: str | None,
+    chunk_queue: Queue[Any],
+    error_list: list[Exception],
+) -> Callable[[], None]:
+    """Create a worker function for streaming image pull.
+
+    Args:
+        docker_client: Docker client wrapper
+        image: Image name
+        tag: Optional tag
+        all_tags: Pull all tags
+        platform: Platform specification
+        chunk_queue: Queue to put chunks on
+        error_list: List to append errors to
+
+    Returns:
+        Callable worker function
+    """
+
+    def _pull_with_streaming() -> None:
+        try:
+            stream = docker_client.client.api.pull(
+                repository=image,
+                tag=tag,
+                stream=True,
+                decode=True,
+                all_tags=all_tags,
+                platform=platform,
+            )
+            for chunk in stream:
+                chunk_queue.put(chunk)
+        except Exception as e:
+            error_list.append(e)
+        finally:
+            chunk_queue.put(None)
+
+    return _pull_with_streaming
+
+
+async def _get_pulled_image(
+    docker_client: Any,
+    image: str,
+    tag: str | None,
+) -> Any:
+    """Get the image object after a successful pull.
+
+    Args:
+        docker_client: Docker client wrapper
+        image: Image name
+        tag: Optional tag
+
+    Returns:
+        Docker image object
+
+    Raises:
+        ImageNotFound: If image not found after pull
+    """
+    full_name = f"{image}:{tag}" if tag else image
+
+    def _get() -> Any:
+        return docker_client.client.images.get(full_name)
+
+    try:
+        return await asyncio.to_thread(_get)
+    except (DockerImageNotFound, NotFound) as e:
+        logger.error(f"Image not found after pull: {image}")
+        raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image)) from e
 
 
 def _force_remove_all_images(docker_client: Any) -> tuple[list[dict[str, Any]], int]:
@@ -747,50 +881,29 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             ImageNotFound: If image cannot be found after pull
             DockerOperationError: If pull fails
         """
+        # Validate tag consistency: reject if both image contains tag AND tag param provided
+        if tag and ":" in image:
+            raise ValidationError(
+                f"Image '{image}' already contains a tag. "
+                "Do not specify both a tagged image and a separate tag parameter."
+            )
+
+        validate_image_name(image)
+        logger.info(f"Pulling image: {image}")
+
+        await progress.set_message(f"Starting pull: {image}")
+
+        # Use a queue for real-time progress streaming
+        chunk_queue: Queue[dict[str, Any] | None] = Queue()
+        pull_error: list[Exception] = []
+
+        # Create and start the pull worker
+        worker = _create_pull_streaming_worker(
+            docker_client, image, tag, all_tags, platform, chunk_queue, pull_error
+        )
+        pull_task: asyncio.Future[None] = asyncio.get_event_loop().run_in_executor(None, worker)
+
         try:
-            # Validate tag consistency: reject if both image contains tag AND tag param provided
-            if tag and ":" in image:
-                raise ValidationError(
-                    f"Image '{image}' already contains a tag. "
-                    "Do not specify both a tagged image and a separate tag parameter."
-                )
-
-            validate_image_name(image)
-            logger.info(f"Pulling image: {image}")
-
-            await progress.set_message(f"Starting pull: {image}")
-
-            # Build kwargs for the pull
-            pull_tag = tag
-            pull_platform = platform
-            pull_all_tags = all_tags
-
-            # Use a queue for real-time progress streaming
-            chunk_queue: Queue[dict[str, Any] | None] = Queue()
-            pull_error: list[Exception] = []
-
-            def _pull_with_streaming() -> None:
-                """Pull image using low-level API, putting chunks on queue."""
-                try:
-                    stream = docker_client.client.api.pull(
-                        repository=image,
-                        tag=pull_tag,
-                        stream=True,
-                        decode=True,
-                        all_tags=pull_all_tags,
-                        platform=pull_platform,
-                    )
-                    for chunk in stream:
-                        chunk_queue.put(chunk)
-                except Exception as e:
-                    pull_error.append(e)
-                finally:
-                    # Signal completion
-                    chunk_queue.put(None)
-
-            # Start the pull in a background thread
-            pull_task = asyncio.get_event_loop().run_in_executor(None, _pull_with_streaming)
-
             # Process chunks as they arrive (real-time progress)
             await _process_streaming_queue(
                 chunk_queue, pull_error, progress, ProgressThrottler(), "pull"
@@ -804,18 +917,9 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
                 raise pull_error[0] from pull_error[0]
 
             # Get the final image object
-            def _get_image() -> Any:
-                full_name = f"{image}:{tag}" if tag else image
-                return docker_client.client.images.get(full_name)
-
-            try:
-                image_obj = await asyncio.to_thread(_get_image)
-            except (DockerImageNotFound, NotFound) as e:
-                logger.error(f"Image not found after pull: {image}")
-                raise ImageNotFound(ERROR_IMAGE_NOT_FOUND.format(image)) from e
+            image_obj = await _get_pulled_image(docker_client, image, tag)
 
             logger.info(f"Successfully pulled image: {image}")
-
             await progress.set_message(f"Pull complete: {image}")
 
             output = PullImageOutput(image=image, id=str(image_obj.id), tags=image_obj.tags or [])
@@ -945,45 +1049,16 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             build_task = asyncio.get_event_loop().run_in_executor(None, _build_with_streaming)
 
             # Process chunks as they arrive (real-time progress)
-            throttler = ProgressThrottler()
-            while True:
-                try:
-                    # Non-blocking check with small timeout
-                    chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
-                except Empty:
-                    # Check if build thread raised an error
-                    if build_error:
-                        raise build_error[0] from build_error[0]
-                    continue
-
-                if chunk is None:
-                    # Stream complete
-                    break
-
-                # Check for errors in chunk
-                if isinstance(chunk, dict):
-                    if "error" in chunk and chunk["error"] is not None:
-                        error_msg = str(chunk["error"])
-                        logger.error(f"Failed to build image: {error_msg}")
-                        raise DockerOperationError(f"Failed to build image: {error_msg}")
-
-                    # Report step progress
-                    stream_val = chunk.get("stream")
-                    if isinstance(stream_val, str):
-                        msg = stream_val.strip()
-                        if msg:
-                            sanitized_msg = _sanitize_progress_message(msg)
-                            # Always report step changes; throttle other messages
-                            is_important = msg.startswith("Step ") or "Successfully" in msg
-                            if is_important or throttler.should_update(sanitized_msg):
-                                await progress.set_message(f"Build: {sanitized_msg}")
+            await _process_build_streaming_queue(
+                chunk_queue, build_error, progress, ProgressThrottler()
+            )
 
             # Wait for build thread to complete
             await build_task
 
             # Check for any errors from the build thread
             if build_error:
-                raise build_error[0]
+                raise build_error[0] from build_error[0]
 
             if not build_result:
                 raise DockerOperationError("Build completed but no image was returned")
