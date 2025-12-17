@@ -32,7 +32,7 @@ jobs:
 
     - name: Restore PyInstaller build cache
       id: cache-restore
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: build-out
         key: fuzz-builds-${{ runner.os }}-${{ hashFiles('tests/fuzz/*.py', 'src/**/*.py', 'pyproject.toml', '.clusterfuzzlite/build.sh') }}
@@ -40,7 +40,7 @@ jobs:
           fuzz-builds-${{ runner.os }}-
 
     - name: Restore fuzz corpus cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: corpus
         key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
@@ -57,7 +57,7 @@ jobs:
         keep-unaffected-fuzz-targets: true
 
     - name: Save PyInstaller build cache
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       if: always() && steps.build.conclusion == 'success'
       with:
         path: build-out
@@ -110,7 +110,7 @@ jobs:
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Restore fuzz corpus cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: corpus
         key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
@@ -137,7 +137,7 @@ jobs:
 
     - name: Save fuzz corpus cache
       if: always()
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: corpus
         key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
