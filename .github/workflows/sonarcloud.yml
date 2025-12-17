@@ -25,7 +25,7 @@ jobs:
         fetch-depth: 0  # Shallow clones should be disabled for better analysis
 
     - name: Install uv
-      uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v7.1.5
+      uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
       with:
         version: "latest"
 
@@ -44,7 +44,7 @@ jobs:
           --cov-report=term-missing
 
     - name: Cache SonarCloud packages
-      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: ~/.sonar/cache
         key: sonar-${{ runner.os }}-${{ github.sha }}

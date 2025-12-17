@@ -32,7 +32,7 @@ jobs:
 
     - name: Restore PyInstaller build cache
       id: cache-restore
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: build-out
         key: fuzz-builds-${{ runner.os }}-${{ hashFiles('tests/fuzz/*.py', 'src/**/*.py', 'pyproject.toml', '.clusterfuzzlite/build.sh') }}
@@ -40,7 +40,7 @@ jobs:
           fuzz-builds-${{ runner.os }}-
 
     - name: Restore fuzz corpus cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: corpus
         key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
@@ -57,7 +57,7 @@ jobs:
         keep-unaffected-fuzz-targets: true
 
     - name: Save PyInstaller build cache
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       if: always() && steps.build.conclusion == 'success'
       with:
         path: build-out
@@ -76,14 +76,14 @@ jobs:
 
     - name: Upload SARIF results
       if: always() && steps.run.outputs.sarif != ''
-      uses: github/codeql-action/upload-sarif@cf1bb45a277cb3c205638b2cd5c984db1c46a412 # v4.31.7
+      uses: github/codeql-action/upload-sarif@1b168cd39490f61582a9beae412bb7057a6b2c4e # v4.31.8
       with:
         sarif_file: ${{ steps.run.outputs.sarif }}
         category: clusterfuzzlite-${{ matrix.sanitizer }}
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-crashes-pr-${{ matrix.sanitizer }}-${{ github.run_number }}
         path: |
@@ -110,7 +110,7 @@ jobs:
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Restore fuzz corpus cache
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/restore@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: corpus
         key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
@@ -137,14 +137,14 @@ jobs:
 
     - name: Save fuzz corpus cache
       if: always()
-      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      uses: actions/cache/save@9255dc7a253b0ccc959486e2bca901246202afeb # v5.0.1
       with:
         path: corpus
         key: fuzz-corpus-${{ runner.os }}-${{ github.sha }}
 
     - name: Upload crash artifacts
       if: failure()
-      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-crashes-batch-${{ matrix.sanitizer }}-${{ github.run_number }}
         path: |
@@ -155,7 +155,7 @@ jobs:
 
     - name: Upload corpus artifact
       if: always()
-      uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: fuzz-corpus-${{ matrix.sanitizer }}-${{ github.run_number }}
         path: corpus/
