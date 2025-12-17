@@ -1,6 +1,13 @@
-"""FastMCP image tools (SAFE operations).
+"""FastMCP image tools.
 
-This module contains read-only image tools migrated to FastMCP 2.0.
+This module contains Docker image management tools using FastMCP 2.0.
+Includes operations across all safety levels:
+- SAFE: list, inspect, history (read-only)
+- MODERATE: pull, build, push, tag (reversible)
+- DESTRUCTIVE: remove, prune (permanent)
+
+Long-running operations (pull, build, push) support background tasks
+with real-time progress reporting.
 """
 
 import asyncio
@@ -82,6 +89,24 @@ def _sanitize_progress_message(message: str) -> str:
     if len(message) > MAX_PROGRESS_MESSAGE_LENGTH:
         message = message[: MAX_PROGRESS_MESSAGE_LENGTH - 3] + "..."
     return message
+
+
+def _image_has_tag(image: str) -> bool:
+    """Check if an image reference already contains a tag.
+
+    Handles registry hosts with ports like localhost:5000/myimg correctly
+    by only checking for ':' after the last '/'.
+
+    Args:
+        image: Image reference string
+
+    Returns:
+        True if the image contains a tag (colon after last slash)
+    """
+    # Get the part after the last slash (or the whole string if no slash)
+    name_part = image.rsplit("/", 1)[-1]
+    # Check if that part contains a colon (indicating a tag)
+    return ":" in name_part
 
 
 def _validate_build_context_path(path: str) -> Path:
@@ -201,6 +226,38 @@ async def _report_layer_progress(
 
     raw_status = chunk.get("status")
     return str(raw_status) if raw_status is not None else None
+
+
+async def _cleanup_worker_task(
+    task: asyncio.Future[None],
+    chunk_queue: Queue[Any],
+) -> None:
+    """Clean up a worker task by draining its queue and awaiting completion.
+
+    This ensures the worker thread can terminate even if an error occurred
+    during processing, preventing memory leaks and thread hangs.
+
+    Args:
+        task: The executor future running the worker
+        chunk_queue: The queue the worker is writing to
+    """
+    # Drain the queue to unblock the worker if it's trying to put
+    while True:
+        try:
+            chunk = chunk_queue.get_nowait()
+            if chunk is None:
+                break
+        except Empty:
+            break
+
+    # Wait for the worker to finish (it should complete quickly now)
+    try:
+        await asyncio.wait_for(task, timeout=5.0)
+    except TimeoutError:
+        logger.warning("Worker thread did not complete within timeout")
+    except Exception:
+        # Worker may have already failed, that's ok
+        pass
 
 
 def _check_worker_error(
@@ -1053,7 +1110,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             DockerOperationError: If pull fails
         """
         # Validate tag consistency: reject if both image contains tag AND tag param provided
-        if tag and ":" in image:
+        if tag and _image_has_tag(image):
             raise ValidationError(
                 f"Image '{image}' already contains a tag. "
                 "Do not specify both a tagged image and a separate tag parameter."
@@ -1103,6 +1160,9 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         except APIError as e:
             logger.error(f"Failed to pull image: {e}")
             raise DockerOperationError(f"Failed to pull image: {e}") from e
+        finally:
+            # Ensure worker thread is cleaned up even on error
+            await _cleanup_worker_task(pull_task, chunk_queue)
 
     return (
         "docker_pull_image",
@@ -1219,6 +1279,9 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         except APIError as e:
             logger.error(f"Failed to build image: {e}")
             raise DockerOperationError(f"Failed to build image: {e}") from e
+        finally:
+            # Ensure worker thread is cleaned up even on error
+            await _cleanup_worker_task(build_task, chunk_queue)
 
     return (
         "docker_build_image",
@@ -1263,23 +1326,23 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             ImageNotFound: If image doesn't exist locally
             DockerOperationError: If push fails
         """
+        validate_image_name(image)
+        logger.info(f"Pushing image: {image}")
+
+        await progress.set_message(f"Starting push: {image}")
+
+        # Use a queue for real-time progress streaming
+        chunk_queue: Queue[dict[str, Any] | None] = Queue()
+        push_error: list[Exception] = []
+        error_event = threading.Event()
+
+        # Create and start the push worker
+        worker = _create_push_streaming_worker(
+            docker_client, image, tag, chunk_queue, push_error, error_event
+        )
+        push_task = asyncio.get_running_loop().run_in_executor(None, worker)
+
         try:
-            validate_image_name(image)
-            logger.info(f"Pushing image: {image}")
-
-            await progress.set_message(f"Starting push: {image}")
-
-            # Use a queue for real-time progress streaming
-            chunk_queue: Queue[dict[str, Any] | None] = Queue()
-            push_error: list[Exception] = []
-            error_event = threading.Event()
-
-            # Create and start the push worker
-            worker = _create_push_streaming_worker(
-                docker_client, image, tag, chunk_queue, push_error, error_event
-            )
-            push_task = asyncio.get_running_loop().run_in_executor(None, worker)
-
             # Process chunks as they arrive (real-time progress)
             last_status = await _process_streaming_queue(
                 chunk_queue, push_error, progress, ProgressThrottler(), "push", error_event
@@ -1306,6 +1369,9 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         except APIError as e:
             logger.error(f"Failed to push image: {e}")
             raise DockerOperationError(f"Failed to push image: {e}") from e
+        finally:
+            # Ensure worker thread is cleaned up even on error
+            await _cleanup_worker_task(push_task, chunk_queue)
 
     return (
         "docker_push_image",

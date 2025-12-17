@@ -384,6 +384,34 @@ class TestPullImageTool:
             await pull_func(image="ubuntu:22.04", tag="latest", progress=mock_progress)
 
     @pytest.mark.asyncio
+    async def test_pull_image_accepts_registry_with_port(self, mock_docker_client, mock_progress):
+        """Test that pull accepts registry:port/image with separate tag param."""
+        # Mock streaming response from api.pull
+        mock_docker_client.client.api.pull.return_value = iter(
+            [{"status": "Pulling from localhost:5000/myimg"}, {"status": "Pull complete"}]
+        )
+        # Mock the final image
+        mock_image = Mock()
+        mock_image.id = "sha256:registry123"
+        mock_image.tags = ["localhost:5000/myimg:v1"]
+        mock_docker_client.client.images.get.return_value = mock_image
+
+        *_, pull_func = create_pull_image_tool(mock_docker_client)
+
+        # This should NOT raise - registry port should not be confused with tag
+        result = await pull_func(image="localhost:5000/myimg", tag="v1", progress=mock_progress)
+
+        assert result["image"] == "localhost:5000/myimg"
+        mock_docker_client.client.api.pull.assert_called_once_with(
+            repository="localhost:5000/myimg",
+            tag="v1",
+            stream=True,
+            decode=True,
+            all_tags=False,
+            platform=None,
+        )
+
+    @pytest.mark.asyncio
     async def test_pull_image_success(self, mock_docker_client, mock_progress):
         """Test successful image pull."""
         # Mock streaming response from api.pull
