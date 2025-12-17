@@ -237,7 +237,6 @@ mcp_audit.*.log.zip
 *_TEST_RESULTS.md
 development-plan-*.md
 plan*.md
-codex_*.md
 security_review_*.md
 *_validation_proposal.md
 

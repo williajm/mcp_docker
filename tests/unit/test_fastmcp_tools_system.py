@@ -139,9 +139,15 @@ class TestPruneSystemTool:
 
     def test_create_prune_system_tool_metadata(self, mock_docker_client):
         """Test tool metadata is correct."""
-        name, description, safety_level, idempotent, open_world, func = create_prune_system_tool(
-            mock_docker_client
-        )
+        (
+            name,
+            description,
+            safety_level,
+            idempotent,
+            open_world,
+            supports_task,
+            func,
+        ) = create_prune_system_tool(mock_docker_client)
 
         assert name == "docker_prune_system"
         assert "Prune all unused Docker resources" in description
@@ -207,9 +213,15 @@ class TestVersionTool:
 
     def test_create_version_tool_metadata(self, mock_docker_client):
         """Test tool metadata is correct."""
-        name, description, safety_level, idempotent, open_world, func = create_version_tool(
-            mock_docker_client
-        )
+        (
+            name,
+            description,
+            safety_level,
+            idempotent,
+            open_world,
+            supports_task,
+            func,
+        ) = create_version_tool(mock_docker_client)
 
         assert name == "docker_version"
         assert "Docker version" in description
@@ -294,9 +306,15 @@ class TestEventsTool:
 
     def test_create_events_tool_metadata(self, mock_docker_client):
         """Test tool metadata is correct."""
-        name, description, safety_level, idempotent, open_world, func = create_events_tool(
-            mock_docker_client
-        )
+        (
+            name,
+            description,
+            safety_level,
+            idempotent,
+            open_world,
+            supports_task,
+            func,
+        ) = create_events_tool(mock_docker_client)
 
         assert name == "docker_events"
         assert "events" in description.lower()
