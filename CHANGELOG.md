@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2025-12-21
+
+### Added
+- **Background Task Support**: Long-running Docker operations now report real-time progress (#169)
+  - `docker_pull_image`: Layer-by-layer progress with download percentages and MB sizes
+  - `docker_build_image`: Build step progress (Step 1/N, Step 2/N, etc.)
+  - `docker_push_image`: Layer-by-layer push progress with upload percentages
+  - Requires FastMCP 2.14.0+
+
+### Security
+- **X-Forwarded-For Support**: Proper trusted proxy handling for reverse proxy deployments (#159)
+  - Parses XFF header only when direct connection is from a trusted proxy
+  - Supports CIDR notation (e.g., `10.0.0.0/24`)
+  - Walks XFF chain right-to-left to find first non-trusted IP
+- **Audit Log Secret Redaction**: Automatically redacts sensitive fields before logging (#159)
+  - Redacts values for keys matching: password, token, secret, credential, auth, jwt, bearer, etc.
+- **filelock CVE-2025-68146**: Updated filelock 3.20.0 → 3.20.1 to fix TOCTOU race condition
+  - Prevents symlink attacks during lock file creation in pre-commit dependencies
+
+### Changed
+- **Package Structure Reorganized**: Cleaner module organization for clarity (#145)
+  - `server/` - MCP server, prompts, resources
+  - `tools/` - All tool implementations
+  - `services/` - Core services (safety, audit, rate limiting)
+  - `docker/` - Docker SDK wrapper
+  - `middleware/` - Auth middleware
+- **GitHub Actions Updated**:
+  - `github/codeql-action` 4.31.8 → 4.31.9
+  - `anthropics/claude-code-action` 1.0.23 → 1.0.25
+  - `actions/checkout` 6.0.0 → 6.0.1
+  - `actions/stale` 10.1.0 → 10.1.1
+  - `astral-sh/setup-uv` 7.1.4 → 7.1.5
+- **Dependencies Updated**: Python dependencies updated to latest versions (#158, #168)
+- **Removed Unused Config**: Removed `max_concurrent_operations` from SafetyConfig (#159)
+
+### Fixed
+- **Exec Truncation Metadata**: Changed `original_count/truncated_count` to `original_size/truncated_size` (#159)
+- **Loguru Private API**: Replaced `logger._core.min_level` with explicit `debug_enabled` parameter (#159)
+- **Circular Import Chain**: Fixed import cycle affecting ClusterFuzzLite fuzzing (#146)
+
+### Documentation
+- Updated SECURITY.md to accurately reflect implemented features (#159)
+- Removed claims about unimplemented TLS/CORS/security headers (use reverse proxy)
+- Added comprehensive X-Forwarded-For documentation with examples
+
 ## [1.2.2] - 2025-11-29
 
 ### Security

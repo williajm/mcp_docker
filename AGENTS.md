@@ -448,3 +448,45 @@ explorer.exe htmlcov/index.html
 # See missing lines
 uv run pytest tests/unit/ --cov=mcp_docker --cov-report=term-missing
 ```
+
+### Preparing a Release
+
+**Files to update before releasing a new version:**
+
+1. **`pyproject.toml`** - Remove `.dev0` suffix from version (e.g., `1.2.3.dev0` → `1.2.3`)
+
+2. **`CHANGELOG.md`** - Add release section with:
+   - New version header with date: `## [X.Y.Z] - YYYY-MM-DD`
+   - Review git log since last release: `git log v{last_version}..HEAD --oneline`
+   - Categorize changes: Added, Changed, Fixed, Security, Documentation, Deprecated, Removed
+
+3. **`docs/index.md`** - Update footer:
+   - `**Version**: X.Y.Z`
+   - `**Last Updated**: YYYY-MM-DD`
+
+4. **README.md** - Update if tool/prompt/resource counts changed
+
+**Release checklist:**
+```bash
+# 1. Check commits since last release
+git log v1.2.2..HEAD --oneline
+
+# 2. Update all files above
+
+# 3. Run quality checks
+uv run ruff check src/ tests/
+uv run ruff format --check src/ tests/
+uv run mypy src/mcp_docker/
+uv run pytest tests/unit/ -v
+
+# 4. Commit and create PR
+git add -A
+git commit -m "chore: Prepare vX.Y.Z release"
+
+# 5. After merge, tag the release
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+
+# 6. Immediately bump to next dev version
+# Edit pyproject.toml: version = "X.Y.(Z+1).dev0"
+```
