@@ -95,7 +95,7 @@ Command-line options: `--transport` (stdio/http), `--host`, `--port`
 
 ## Security
 
-The MCP Docker server provides enterprise-grade security for production deployments with OAuth authentication, TLS encryption, rate limiting, audit logging, and safety controls.
+The MCP Docker server provides security for production deployments with rate limiting, audit logging, and safety controls.
 
 **⚠️ Important**: Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for threat model and mitigations.
 
