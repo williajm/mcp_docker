@@ -271,7 +271,6 @@ def create_inspect_network_tool(
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world,
@@ -297,11 +296,7 @@ def create_inspect_network_tool(
             logger.info(f"Inspecting network: {network_id}")
             network = docker_client.client.networks.get(network_id)
             details = network.attrs
-
-            # Apply output limits (truncate large fields)
             truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
 
             logger.info(f"Successfully inspected network: {network_id}")
 

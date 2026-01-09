@@ -973,11 +973,7 @@ def create_inspect_image_tool(
             logger.info(f"Inspecting image: {image_name}")
             image = docker_client.client.images.get(image_name)
             details = image.attrs
-
-            # Apply output limits (truncate large fields)
             truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
 
             logger.info(f"Successfully inspected image: {image_name}")
 

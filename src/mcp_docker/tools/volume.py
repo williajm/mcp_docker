@@ -247,7 +247,6 @@ def create_inspect_volume_tool(
 
     Args:
         docker_client: Docker client wrapper
-        safety_config: Safety configuration
 
     Returns:
         Tuple of (name, description, safety_level, idempotent, open_world,
@@ -273,11 +272,7 @@ def create_inspect_volume_tool(
             logger.info(f"Inspecting volume: {volume_name}")
             volume = docker_client.client.volumes.get(volume_name)
             details = volume.attrs
-
-            # Apply output limits (truncate large fields)
             truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
 
             logger.info(f"Successfully inspected volume: {volume_name}")
 
