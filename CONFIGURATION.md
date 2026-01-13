@@ -75,8 +75,11 @@ Controls authentication, authorization, and audit logging.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SECURITY_RATE_LIMIT_ENABLED` | `true` | Enable global rate limiting |
-| `SECURITY_RATE_LIMIT_RPM` | `60` | Maximum requests per minute (global) |
+| `SECURITY_PRE_AUTH_RATE_LIMIT_RPM` | `10` | Max requests/min per IP before auth (0 = disable). Applies to ALL HTTP requests to prevent brute-force attacks. |
+| `SECURITY_RATE_LIMIT_RPM` | `60` | Maximum requests per minute (global, post-auth) |
 | `SECURITY_RATE_LIMIT_CONCURRENT` | `3` | Maximum concurrent requests (global) |
+
+**Note:** Pre-auth rate limiting applies to all HTTP requests regardless of authentication status. This may limit authenticated clients to the pre-auth limit if they share an IP. Increase `SECURITY_PRE_AUTH_RATE_LIMIT_RPM` if legitimate traffic exceeds 10 RPM from a single IP.
 
 ### IP Filtering
 

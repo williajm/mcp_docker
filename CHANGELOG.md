@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `PreAuthRateLimiter`: IP-based rate limiting before authentication (default: 10 RPM per IP)
   - `PreAuthRateLimitMiddleware`: Applies pre-auth limits in middleware chain
   - New config: `SECURITY_PRE_AUTH_RATE_LIMIT_RPM` (set to 0 to disable)
-  - Post-auth rate limiting unchanged (default: 60 RPM per client)
+  - Post-auth rate limiting unchanged (default: 60 RPM global)
+  - Note: Pre-auth applies to ALL HTTP requests, not just failed auth
 - **Error Sanitization Middleware**: New `ErrorHandlerMiddleware` sanitizes errors for clients
   - Uses existing `error_sanitizer.py` (previously unused)
   - Hides internal details when `debug_mode=False`

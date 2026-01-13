@@ -29,7 +29,8 @@ def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
     if value is None or value == "":
         return []
     if isinstance(value, list):
-        return value
+        # Filter empty strings and strip whitespace
+        return [item.strip() for item in value if item and item.strip()]
     if isinstance(value, str):
         # Try to parse as JSON first
         value_stripped = value.strip()
@@ -336,23 +337,8 @@ class SafetyConfig(BaseSettings):
         if value == "":
             # Explicitly set to empty string - return [] to indicate "block all"
             return []
-        if isinstance(value, str):
-            # Try to parse as JSON array first (same as _parse_comma_separated_list)
-            value_stripped = value.strip()
-            if value_stripped.startswith("[") and value_stripped.endswith("]"):
-                try:
-                    parsed = json.loads(value_stripped)
-                    if isinstance(parsed, list):
-                        return [str(item) for item in parsed]
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, fall back to comma-separated parsing below
-                    pass
-            # Fall back to comma-separated parsing
-            return [item.strip() for item in value.split(",") if item.strip()]
-        if isinstance(value, list):
-            # Already a list, just filter empty strings and strip
-            return [item.strip() for item in value if item and item.strip()]
-        return None
+        # Delegate to shared parsing function for JSON/comma-separated handling
+        return _parse_comma_separated_list(value)
 
 
 class SecurityConfig(BaseSettings):
@@ -381,7 +367,7 @@ class SecurityConfig(BaseSettings):
     )
     rate_limit_rpm: int = Field(
         default=60,
-        description="Maximum requests per minute per client AFTER authentication (post-auth)",
+        description="Maximum global requests per minute AFTER authentication (post-auth)",
         gt=0,
         le=1000,
     )

@@ -5,6 +5,7 @@ information disclosure. Uses the error_sanitizer utility which maps internal
 errors to safe, generic messages.
 """
 
+import asyncio
 from typing import Any
 
 from fastmcp.server.middleware import CallNext, MiddlewareContext
@@ -63,6 +64,10 @@ class ErrorHandlerMiddleware:
         """
         try:
             return await call_next(context)
+        except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
+            # CRITICAL: Never swallow cancellation/shutdown exceptions
+            # These must propagate for proper async cleanup and shutdown
+            raise
         except Exception as e:
             # In debug mode, let errors pass through for debugging
             if self.debug_mode:

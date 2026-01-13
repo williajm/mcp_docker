@@ -203,8 +203,9 @@ def register_all_resources(
 
     registered: dict[str, list[str]] = {"container": []}
 
-    # Get output limits from safety config (use defaults if not provided)
-    max_log_lines = safety_config.max_log_lines if safety_config else 100
+    # Get output limits from safety config (use SafetyConfig defaults if not provided)
+    # SafetyConfig.max_log_lines defaults to 10000
+    max_log_lines = safety_config.max_log_lines if safety_config else SafetyConfig().max_log_lines
 
     # Define all available resources with their names
     all_resources = [

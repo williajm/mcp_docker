@@ -68,7 +68,7 @@ class FastMCPDockerServer:
             requests_per_minute=config.security.pre_auth_rate_limit_rpm,
         )
 
-        # Post-auth rate limiter (client-based, higher limits, prevents abuse)
+        # Post-auth rate limiter (global, higher limits, prevents abuse)
         self.rate_limiter = RateLimiter(
             enabled=config.security.rate_limit_enabled,
             requests_per_minute=config.security.rate_limit_rpm,
@@ -105,7 +105,7 @@ class FastMCPDockerServer:
         # - PreAuthRateLimitMiddleware: IP-based limit BEFORE auth (prevents brute force)
         # - AuthMiddleware: Validates OAuth/IP allowlist
         # - SafetyMiddleware: Validates operations against safety policies
-        # - RateLimitMiddleware: INNERMOST - client-based limit after auth (prevents abuse)
+        # - RateLimitMiddleware: INNERMOST - global limit after auth (prevents abuse)
         logger.info("Attaching middleware to FastMCP app")
         # NOTE: Middleware classes are protocol-compatible but don't inherit from base class
         self.app.add_middleware(self.debug_middleware)  # type: ignore[arg-type]

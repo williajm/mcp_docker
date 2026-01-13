@@ -1,5 +1,6 @@
 """Unit tests for ErrorHandlerMiddleware."""
 
+import asyncio
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -182,4 +183,68 @@ class TestErrorHandlerMiddleware:
 
         # The sanitizer may wrap it again, but it should still be MCPDockerError
         assert isinstance(exc_info.value, MCPDockerError)
+        call_next.assert_called_once_with(context)
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_propagates(self):
+        """Test that asyncio.CancelledError is re-raised without sanitization.
+
+        CRITICAL: Swallowing CancelledError can cause subtle shutdown/timeout bugs.
+        This test ensures cancellation exceptions propagate correctly.
+        """
+        middleware = ErrorHandlerMiddleware(debug_mode=False)
+
+        # Mock next middleware raising CancelledError (simulating task cancellation)
+        call_next = AsyncMock(side_effect=asyncio.CancelledError())
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        context = Mock()
+        context.message = message
+
+        # Call middleware should re-raise CancelledError without sanitization
+        with pytest.raises(asyncio.CancelledError):
+            await middleware(context, call_next)
+
+        call_next.assert_called_once_with(context)
+
+    @pytest.mark.asyncio
+    async def test_keyboard_interrupt_propagates(self):
+        """Test that KeyboardInterrupt is re-raised without sanitization."""
+        middleware = ErrorHandlerMiddleware(debug_mode=False)
+
+        # Mock next middleware raising KeyboardInterrupt
+        call_next = AsyncMock(side_effect=KeyboardInterrupt())
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        context = Mock()
+        context.message = message
+
+        # Call middleware should re-raise KeyboardInterrupt without sanitization
+        with pytest.raises(KeyboardInterrupt):
+            await middleware(context, call_next)
+
+        call_next.assert_called_once_with(context)
+
+    @pytest.mark.asyncio
+    async def test_system_exit_propagates(self):
+        """Test that SystemExit is re-raised without sanitization."""
+        middleware = ErrorHandlerMiddleware(debug_mode=False)
+
+        # Mock next middleware raising SystemExit
+        call_next = AsyncMock(side_effect=SystemExit(0))
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        context = Mock()
+        context.message = message
+
+        # Call middleware should re-raise SystemExit without sanitization
+        with pytest.raises(SystemExit):
+            await middleware(context, call_next)
+
         call_next.assert_called_once_with(context)
