@@ -5,7 +5,7 @@ import platform
 import warnings
 from pathlib import Path
 
-from pydantic import Field, HttpUrl, field_validator, model_validator
+from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
@@ -305,13 +305,21 @@ class SafetyConfig(BaseSettings):
     )
     @classmethod
     def parse_filtering_list(cls, value: str | list[str] | None) -> list[str] | None:
-        """Parse list from comma-separated string or list, preserving None for defaults.
+        """Parse list from comma-separated string, JSON array, or list.
+
+        Preserves None for defaults.
 
         For all filtering lists (tools, prompts, resources), None means "allow all" (default),
         while empty list means "block all" (explicit).
 
+        Supports multiple input formats:
+        - JSON array: '["value1","value2"]' or '["value1", "value2"]'
+        - Comma-separated: 'value1,value2' or 'value1, value2'
+        - Already a list: ['value1', 'value2']
+        - None or empty string: special handling
+
         Args:
-            value: List as string (comma-separated), list, or None
+            value: List as string (comma-separated or JSON), list, or None
 
         Returns:
             Normalized list of strings, empty list for explicit empty string, or None
@@ -320,6 +328,7 @@ class SafetyConfig(BaseSettings):
             - Not set (None) → None → Allow all (default)
             - Set to "" → [] → Block all (explicit)
             - Set to "foo,bar" → ['foo', 'bar'] → Allow only those
+            - Set to '["foo","bar"]' → ['foo', 'bar'] → Allow only those (JSON format)
         """
         if value is None:
             # Not set - return None to indicate "allow all" (default behavior)
@@ -328,7 +337,17 @@ class SafetyConfig(BaseSettings):
             # Explicitly set to empty string - return [] to indicate "block all"
             return []
         if isinstance(value, str):
-            # Split by comma, strip whitespace, filter empty strings
+            # Try to parse as JSON array first (same as _parse_comma_separated_list)
+            value_stripped = value.strip()
+            if value_stripped.startswith("[") and value_stripped.endswith("]"):
+                try:
+                    parsed = json.loads(value_stripped)
+                    if isinstance(parsed, list):
+                        return [str(item) for item in parsed]
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, fall back to comma-separated parsing below
+                    pass
+            # Fall back to comma-separated parsing
             return [item.strip() for item in value.split(",") if item.strip()]
         if isinstance(value, list):
             # Already a list, just filter empty strings and strip
@@ -351,9 +370,18 @@ class SecurityConfig(BaseSettings):
         default=True,
         description="Enable global rate limiting",
     )
+    pre_auth_rate_limit_rpm: int = Field(
+        default=10,
+        description=(
+            "Maximum requests per minute per IP BEFORE authentication (pre-auth). "
+            "Lower limit to prevent brute-force attacks. Set to 0 to disable pre-auth limiting."
+        ),
+        ge=0,
+        le=100,
+    )
     rate_limit_rpm: int = Field(
         default=60,
-        description="Maximum requests per minute (global)",
+        description="Maximum requests per minute per client AFTER authentication (post-auth)",
         gt=0,
         le=1000,
     )
@@ -430,7 +458,7 @@ class SecurityConfig(BaseSettings):
         default=None,
         description="OAuth client ID for token introspection (optional)",
     )
-    oauth_client_secret: str | None = Field(
+    oauth_client_secret: SecretStr | None = Field(
         default=None,
         description="OAuth client secret for token introspection (optional, sensitive)",
     )

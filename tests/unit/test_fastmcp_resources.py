@@ -3,6 +3,7 @@
 from unittest.mock import Mock
 
 import pytest
+from docker.errors import NotFound
 
 from mcp_docker.server.resources import (
     create_container_logs_resource,
@@ -79,7 +80,10 @@ class TestCreateContainerLogsResource:
     @pytest.mark.asyncio
     async def test_get_logs_container_not_found(self, mock_docker_client):
         """Test log retrieval when container doesn't exist."""
-        error = Exception("404 Client Error: Not Found")
+        # Use proper Docker SDK NotFound exception
+        mock_response = Mock()
+        mock_response.status_code = 404
+        error = NotFound("Container not found", response=mock_response)
         mock_docker_client.client.containers.get = Mock(side_effect=error)
 
         _, logs_func = create_container_logs_resource(mock_docker_client)
@@ -145,7 +149,10 @@ class TestCreateContainerStatsResource:
     @pytest.mark.asyncio
     async def test_get_stats_container_not_found(self, mock_docker_client):
         """Test stats retrieval when container doesn't exist."""
-        error = Exception("404 Client Error: Not Found")
+        # Use proper Docker SDK NotFound exception
+        mock_response = Mock()
+        mock_response.status_code = 404
+        error = NotFound("Container not found", response=mock_response)
         mock_docker_client.client.containers.get = Mock(side_effect=error)
 
         _, stats_func = create_container_stats_resource(mock_docker_client)

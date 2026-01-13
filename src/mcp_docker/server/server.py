@@ -15,13 +15,15 @@ from mcp_docker.middleware import (
     AuditMiddleware,
     AuthMiddleware,
     DebugLoggingMiddleware,
+    ErrorHandlerMiddleware,
+    PreAuthRateLimitMiddleware,
     RateLimitMiddleware,
     SafetyMiddleware,
 )
 from mcp_docker.server.prompts import register_all_prompts
 from mcp_docker.server.resources import register_all_resources
 from mcp_docker.services.audit import AuditLogger
-from mcp_docker.services.rate_limiter import RateLimiter
+from mcp_docker.services.rate_limiter import PreAuthRateLimiter, RateLimiter
 from mcp_docker.services.safety_enforcer import SafetyEnforcer
 from mcp_docker.tools import register_all_tools
 from mcp_docker.utils.fastmcp_helpers import create_fastmcp_app
@@ -56,6 +58,17 @@ class FastMCPDockerServer:
 
         # Create security components (shared with middleware)
         self.auth_middleware = AuthMiddleware(config.security)
+
+        # Pre-auth rate limiter (IP-based, lower limits, prevents brute force)
+        pre_auth_enabled = (
+            config.security.rate_limit_enabled and config.security.pre_auth_rate_limit_rpm > 0
+        )
+        self.pre_auth_rate_limiter = PreAuthRateLimiter(
+            enabled=pre_auth_enabled,
+            requests_per_minute=config.security.pre_auth_rate_limit_rpm,
+        )
+
+        # Post-auth rate limiter (client-based, higher limits, prevents abuse)
         self.rate_limiter = RateLimiter(
             enabled=config.security.rate_limit_enabled,
             requests_per_minute=config.security.rate_limit_rpm,
@@ -66,40 +79,59 @@ class FastMCPDockerServer:
             enabled=config.security.audit_log_enabled,
         )
 
+        # Get trusted proxies for IP extraction
+        trusted_proxies = (
+            config.security.trusted_proxies
+            if isinstance(config.security.trusted_proxies, list)
+            else []
+        )
+
         # Create middleware instances
         self.debug_middleware = DebugLoggingMiddleware(debug_enabled=config.server.debug_mode)
+        self.error_handler_middleware = ErrorHandlerMiddleware(debug_mode=config.server.debug_mode)
         self.safety_middleware = SafetyMiddleware(self.safety_enforcer, self.app)
+        self.pre_auth_rate_limit_middleware = PreAuthRateLimitMiddleware(
+            self.pre_auth_rate_limiter, trusted_proxies=trusted_proxies
+        )
         self.rate_limit_middleware = RateLimitMiddleware(self.rate_limiter)
         self.audit_middleware = AuditMiddleware(self.audit_logger)
 
         # CRITICAL: Attach middleware to FastMCP app
         # Middleware execution order: first added = outermost wrapper
+        # SECURITY: Split rate limiting - prevents brute force + allows higher limits post-auth
         # - DebugLoggingMiddleware: OUTERMOST - logs MCP requests/responses at DEBUG level
+        # - ErrorHandlerMiddleware: Sanitizes errors before client sees them (when debug_mode=False)
         # - AuditMiddleware: Logs all requests (including blocked ones) for audit trail
-        # - AuthMiddleware: Validates OAuth/IP allowlist before tool execution
+        # - PreAuthRateLimitMiddleware: IP-based limit BEFORE auth (prevents brute force)
+        # - AuthMiddleware: Validates OAuth/IP allowlist
         # - SafetyMiddleware: Validates operations against safety policies
-        # - RateLimitMiddleware: INNERMOST - prevents abuse via request throttling
+        # - RateLimitMiddleware: INNERMOST - client-based limit after auth (prevents abuse)
         logger.info("Attaching middleware to FastMCP app")
         # NOTE: Middleware classes are protocol-compatible but don't inherit from base class
         self.app.add_middleware(self.debug_middleware)  # type: ignore[arg-type]
+        self.app.add_middleware(self.error_handler_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.audit_middleware)  # type: ignore[arg-type]
+        self.app.add_middleware(self.pre_auth_rate_limit_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.auth_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.safety_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.rate_limit_middleware)  # type: ignore[arg-type]
-        logger.info("Middleware attached successfully (debug, audit, auth, safety, rate_limit)")
+        logger.info(
+            "Middleware attached successfully "
+            "(debug, error_handler, audit, pre_auth_rate_limit, auth, safety, rate_limit)"
+        )
 
         # Register all tools with middleware integration
         registered_tools = register_all_tools(self.app, self.docker_client, config.safety)
         total_tools = sum(len(tools) for tools in registered_tools.values())
 
-        # Register resources with optional filtering
+        # Register resources with optional filtering and safety limits
         allowed_resources = (
             config.safety.allowed_resources
             if isinstance(config.safety.allowed_resources, list)
             else None
         )
         registered_resources = register_all_resources(
-            self.app, self.docker_client, allowed_resources
+            self.app, self.docker_client, allowed_resources, safety_config=config.safety
         )
         total_resources = sum(len(resources) for resources in registered_resources.values())
 
@@ -147,6 +179,8 @@ class FastMCPDockerServer:
     async def stop(self) -> None:
         """Stop the FastMCP server and cleanup resources."""
         logger.info("Stopping FastMCP Docker server")
+        # SECURITY: Close audit logger first to flush any pending logs (uses enqueue=True)
+        self.audit_logger.close()
         await asyncio.to_thread(self.docker_client.close)
         await self.auth_middleware.close()
 

@@ -47,13 +47,14 @@ def setup_logger(config: ServerConfig, log_file: Path | None = None) -> None:
             )
     else:
         # Human-readable logging for development
+        # SECURITY: diagnose exposes local variables in tracebacks - only enable in debug mode
         logger.add(
             sys.stderr,
             format=config.log_format,
             level=config.log_level,
             colorize=True,
             backtrace=True,
-            diagnose=True,
+            diagnose=config.debug_mode,
         )
 
         if log_file:
@@ -65,7 +66,7 @@ def setup_logger(config: ServerConfig, log_file: Path | None = None) -> None:
                 retention="7 days",
                 compression="zip",
                 backtrace=True,
-                diagnose=True,
+                diagnose=config.debug_mode,
             )
 
     logger.info(f"Logger initialized with level: {config.log_level}")

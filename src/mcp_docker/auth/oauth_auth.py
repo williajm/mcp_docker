@@ -286,9 +286,11 @@ class OAuthAuthenticator:
             logger.debug("Introspecting opaque token")
 
             # Call introspection endpoint
+            # SECURITY: Use get_secret_value() to extract the actual secret from SecretStr
+            client_secret = self.config.oauth_client_secret.get_secret_value()
             response = await self.http_client.post(
                 str(self.config.oauth_introspection_url),
-                auth=(self.config.oauth_client_id, self.config.oauth_client_secret),
+                auth=(self.config.oauth_client_id, client_secret),
                 data={"token": token},
             )
             response.raise_for_status()

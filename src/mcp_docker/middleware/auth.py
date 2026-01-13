@@ -183,6 +183,7 @@ class AuthMiddleware:
             client_info = await self.authenticate_request(
                 ip_address=ip_address,
                 bearer_token=bearer_token,
+                is_http=is_http,
             )
 
             logger.debug(
@@ -205,11 +206,12 @@ class AuthMiddleware:
         self,
         ip_address: str | None = None,
         bearer_token: str | None = None,
+        is_http: bool = False,
     ) -> ClientInfo:
         """Authenticate an incoming request.
 
         Authentication flow:
-        1. stdio transport (ip_address=None): Always allowed, no authentication
+        1. stdio transport (ip_address=None, is_http=False): Always allowed, no authentication
         2. Network transport with OAuth enabled: Require and validate bearer token,
            then check IP allowlist (if configured) for defense-in-depth
         3. Network transport with OAuth disabled: Check IP allowlist
@@ -217,6 +219,7 @@ class AuthMiddleware:
         Args:
             ip_address: IP address of the client (None for stdio transport)
             bearer_token: Bearer token from Authorization header (network transports only)
+            is_http: Whether this is an HTTP transport request
 
         Returns:
             ClientInfo for the authenticated client
@@ -224,6 +227,16 @@ class AuthMiddleware:
         Raises:
             AuthenticationError: If authentication fails (invalid token or blocked IP)
         """
+        # SECURITY: Fail closed if HTTP transport but IP extraction failed
+        # This prevents bypassing auth when IP extraction has issues
+        if is_http and ip_address is None:
+            logger.error(
+                "HTTP transport detected but could not determine client IP - failing closed"
+            )
+            raise AuthenticationError(
+                "Could not determine client IP for HTTP transport - access denied"
+            )
+
         # stdio transport always bypasses authentication
         if ip_address is None:
             logger.debug("Request from stdio transport, bypassing authentication")
