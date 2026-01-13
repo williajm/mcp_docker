@@ -125,6 +125,7 @@ MIT License - see [LICENSE](https://github.com/williajm/mcp_docker/blob/main/LIC
 - **Issues**: [GitHub Issues](https://github.com/williajm/mcp_docker/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/williajm/mcp_docker/discussions)
 - **MCP Documentation**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
+- **PyPI Download Stats**: [pypi.kopdog.com](https://pypi.kopdog.com/package/?name=mcp-docker)
 
 ---
 
