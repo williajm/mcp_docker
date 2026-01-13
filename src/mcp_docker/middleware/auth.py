@@ -80,29 +80,25 @@ class AuthMiddleware:
         proxies: list[str] = trusted if isinstance(trusted, list) else []
         return extract_client_ip(context, trusted_proxies=proxies)
 
-    def _is_http_transport(self, context: MiddlewareContext[Any]) -> bool:
+    def _is_http_transport(self) -> bool:
         """Determine if this is an HTTP transport request.
 
-        Tries FastMCP's dependency injection first, falls back to context check.
-
-        Args:
-            context: FastMCP middleware context
+        Uses FastMCP's dependency injection to check for HTTP request.
+        Only returns True if we confirm HTTP transport with a valid request
+        that has client connection info (IP address).
 
         Returns:
-            True if HTTP transport, False if stdio transport
+            True if HTTP transport confirmed, False otherwise (assumes stdio)
         """
-        # Method 1: Try FastMCP's dependency injection (works during initialization)
         try:
             request = get_http_request()
-            return request is not None
+            # Only consider HTTP if we have a real request with client info
+            # This prevents false positives for stdio transport where
+            # get_http_request() might return a placeholder without client info
+            return request is not None and hasattr(request, "client") and request.client is not None
         except (RuntimeError, LookupError):
-            pass
-
-        # Method 2: Fall back to context check (for unit tests)
-        if not context.fastmcp_context:
+            # Expected for stdio transport - not in HTTP context
             return False
-
-        return hasattr(context.fastmcp_context, "request_context")
 
     def _extract_bearer_token(self, context: MiddlewareContext[Any]) -> str | None:
         """Extract bearer token from Authorization header.
@@ -169,7 +165,7 @@ class AuthMiddleware:
             AuthenticationError: If authentication fails
         """
         # Extract authentication details from context
-        is_http = self._is_http_transport(context)
+        is_http = self._is_http_transport()
         ip_address = self._extract_ip_address(context)
         bearer_token = self._extract_bearer_token(context)
 

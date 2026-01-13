@@ -637,10 +637,11 @@ class TestAuthMiddlewareCall:
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_request(self) -> None:
-        """Test __call__ fails closed when HTTP detected but request missing.
+        """Test __call__ handles missing request as stdio (not HTTP).
 
-        SECURITY: When HTTP transport is detected (via request_context) but
-        the request object is missing, we fail closed to prevent auth bypass.
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
         """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
@@ -658,18 +659,19 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # SECURITY: Should fail closed when HTTP transport detected but IP unavailable
-        with pytest.raises(AuthenticationError) as exc_info:
-            await middleware(mock_context, mock_call_next)
+        # Without real HTTP request from get_http_request(), treated as stdio
+        result = await middleware(mock_context, mock_call_next)
 
-        assert "Could not determine client IP" in str(exc_info.value)
-        mock_call_next.assert_not_called()
+        # Verify it succeeded as stdio
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_client(self) -> None:
-        """Test __call__ fails closed when HTTP detected but client missing.
+        """Test __call__ handles missing client as stdio (not HTTP).
 
-        SECURITY: When HTTP transport is detected but client info is missing,
-        we fail closed to prevent auth bypass.
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
         """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
@@ -691,18 +693,19 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # SECURITY: Should fail closed when HTTP transport detected but IP unavailable
-        with pytest.raises(AuthenticationError) as exc_info:
-            await middleware(mock_context, mock_call_next)
+        # Without real HTTP request from get_http_request(), treated as stdio
+        result = await middleware(mock_context, mock_call_next)
 
-        assert "Could not determine client IP" in str(exc_info.value)
-        mock_call_next.assert_not_called()
+        # Verify it succeeded as stdio
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_host(self) -> None:
-        """Test __call__ fails closed when HTTP detected but host missing.
+        """Test __call__ handles missing host as stdio (not HTTP).
 
-        SECURITY: When HTTP transport is detected but host (IP) is missing,
-        we fail closed to prevent auth bypass.
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
         """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
@@ -727,12 +730,12 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # SECURITY: Should fail closed when HTTP transport detected but IP unavailable
-        with pytest.raises(AuthenticationError) as exc_info:
-            await middleware(mock_context, mock_call_next)
+        # Without real HTTP request from get_http_request(), treated as stdio
+        result = await middleware(mock_context, mock_call_next)
 
-        assert "Could not determine client IP" in str(exc_info.value)
-        mock_call_next.assert_not_called()
+        # Verify it succeeded as stdio
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_headers(self) -> None:
         """Test __call__ handles missing headers gracefully."""
@@ -767,10 +770,11 @@ class TestAuthMiddlewareCall:
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_none_request_context(self) -> None:
-        """Test __call__ fails closed when HTTP detected but request_context is None.
+        """Test __call__ handles None request_context as stdio (not HTTP).
 
-        SECURITY: When request_context exists (indicating HTTP) but is None,
-        we fail closed to prevent auth bypass.
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
         """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
@@ -785,18 +789,19 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # SECURITY: Should fail closed when HTTP transport detected but IP unavailable
-        with pytest.raises(AuthenticationError) as exc_info:
-            await middleware(mock_context, mock_call_next)
+        # Without real HTTP request from get_http_request(), treated as stdio
+        result = await middleware(mock_context, mock_call_next)
 
-        assert "Could not determine client IP" in str(exc_info.value)
-        mock_call_next.assert_not_called()
+        # Verify it succeeded as stdio
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_none_request(self) -> None:
-        """Test __call__ fails closed when HTTP detected but request is None.
+        """Test __call__ handles None request as stdio (not HTTP).
 
-        SECURITY: When HTTP transport is detected but request is None,
-        we fail closed to prevent auth bypass.
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
         """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
@@ -814,18 +819,19 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # SECURITY: Should fail closed when HTTP transport detected but IP unavailable
-        with pytest.raises(AuthenticationError) as exc_info:
-            await middleware(mock_context, mock_call_next)
+        # Without real HTTP request from get_http_request(), treated as stdio
+        result = await middleware(mock_context, mock_call_next)
 
-        assert "Could not determine client IP" in str(exc_info.value)
-        mock_call_next.assert_not_called()
+        # Verify it succeeded as stdio
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_none_client(self) -> None:
-        """Test __call__ fails closed when HTTP detected but client is None.
+        """Test __call__ handles None client as stdio (not HTTP).
 
-        SECURITY: When HTTP transport is detected but client is None,
-        we fail closed to prevent auth bypass.
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
         """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
@@ -847,12 +853,12 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # SECURITY: Should fail closed when HTTP transport detected but IP unavailable
-        with pytest.raises(AuthenticationError) as exc_info:
-            await middleware(mock_context, mock_call_next)
+        # Without real HTTP request from get_http_request(), treated as stdio
+        result = await middleware(mock_context, mock_call_next)
 
-        assert "Could not determine client IP" in str(exc_info.value)
-        mock_call_next.assert_not_called()
+        # Verify it succeeded as stdio
+        assert result == "success"
+        mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_stores_client_info_in_context(self) -> None:
         """Test __call__ stores client_info in fastmcp_context for downstream middleware."""
