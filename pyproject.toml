@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.2.4.dev0"
+version = "1.2.4"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,7 +36,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "fastmcp>=2.14.1",
+    "fastmcp>=2.14.3",
     "docker>=7.1.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
