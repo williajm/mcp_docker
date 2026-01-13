@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-01-13
+
+### Security
+- **authlib CVE-2025-68158**: Updated authlib 1.6.5 → 1.6.6 in ClusterFuzzLite requirements (#182)
+  - Fixes 1-click Account Takeover vulnerability in cache-backed OAuth state storage
+
+### Changed
+- **FastMCP 2.14.1 → 2.14.3**: Upgraded for critical bug fixes (#183)
+  - Fixed HTTP transport timeout defaulting to 5s instead of MCP's 30s standard
+  - Fixed pydocket worker cleanup race conditions affecting background tasks
+  - Fixed OAuth token storage TTL handling
+  - Fixed ContextVar propagation for ASGI-mounted servers
+  - MCP spec compliance fixes for outputSchema $ref and enum schemas
+- **GitHub Actions Updated**:
+  - `anthropics/claude-code-action` 1.0.27 → 1.0.29
+  - `astral-sh/setup-uv` 7.1.6 → 7.2.0
+  - `github/codeql-action` 4.31.9 → 4.31.10
+
 ## [1.2.3] - 2025-12-21
 
 ### Added
