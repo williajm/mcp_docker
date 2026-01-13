@@ -206,6 +206,76 @@ class TestCreateContainerStatsResource:
         assert "Memory:" in result
 
 
+class TestCreateContainerLogsResourceApiError:
+    """Test create_container_logs_resource APIError handling."""
+
+    @pytest.mark.asyncio
+    async def test_get_logs_api_error(self, mock_docker_client):
+        """Test log retrieval when Docker API returns an error."""
+        from docker.errors import APIError
+
+        # Create APIError with mock response
+        mock_response = Mock()
+        mock_response.status_code = 500
+        error = APIError("Internal server error", response=mock_response)
+        mock_docker_client.client.containers.get = Mock(side_effect=error)
+
+        _, logs_func = create_container_logs_resource(mock_docker_client)
+
+        with pytest.raises(MCPDockerError, match="Failed to get container logs"):
+            await logs_func("test-container")
+
+
+class TestCreateContainerStatsResourceApiError:
+    """Test create_container_stats_resource APIError handling."""
+
+    @pytest.mark.asyncio
+    async def test_get_stats_api_error(self, mock_docker_client):
+        """Test stats retrieval when Docker API returns an error."""
+        from docker.errors import APIError
+
+        # Create APIError with mock response
+        mock_response = Mock()
+        mock_response.status_code = 500
+        error = APIError("Internal server error", response=mock_response)
+        mock_docker_client.client.containers.get = Mock(side_effect=error)
+
+        _, stats_func = create_container_stats_resource(mock_docker_client)
+
+        with pytest.raises(MCPDockerError, match="Failed to get container stats"):
+            await stats_func("test-container")
+
+
+class TestContainerLogsMaxLines:
+    """Test container logs max_log_lines limit."""
+
+    @pytest.mark.asyncio
+    async def test_logs_with_max_lines_limit(self, mock_docker_client, mock_container):
+        """Test that max_log_lines limit is passed to Docker."""
+        mock_docker_client.client.containers.get = Mock(return_value=mock_container)
+
+        # Create resource with custom max_log_lines
+        _, logs_func = create_container_logs_resource(mock_docker_client, max_log_lines=50)
+
+        await logs_func("test-container")
+
+        # Verify logs was called with the correct tail limit
+        mock_container.logs.assert_called_once_with(tail=50, follow=False)
+
+    @pytest.mark.asyncio
+    async def test_logs_with_zero_max_lines_is_unlimited(self, mock_docker_client, mock_container):
+        """Test that max_log_lines=0 means unlimited (uses 'all')."""
+        mock_docker_client.client.containers.get = Mock(return_value=mock_container)
+
+        # Create resource with max_log_lines=0 (unlimited)
+        _, logs_func = create_container_logs_resource(mock_docker_client, max_log_lines=0)
+
+        await logs_func("test-container")
+
+        # Verify logs was called with tail="all" for unlimited
+        mock_container.logs.assert_called_once_with(tail="all", follow=False)
+
+
 class TestRegisterAllResources:
     """Test register_all_resources."""
 
@@ -223,3 +293,41 @@ class TestRegisterAllResources:
 
         # Verify app.resource was called twice
         assert app.resource.call_count == 2
+
+    def test_registers_with_safety_config(self, mock_docker_client):
+        """Test that safety_config max_log_lines is used."""
+        from mcp_docker.config import SafetyConfig
+
+        app = Mock()
+        app.resource = Mock(return_value=lambda f: f)
+
+        safety_config = SafetyConfig(max_log_lines=500)
+
+        registered = register_all_resources(app, mock_docker_client, safety_config=safety_config)
+
+        assert len(registered["container"]) == 2
+
+    def test_registers_with_allowed_resources_filter(self, mock_docker_client):
+        """Test that allowed_resources filters registered resources."""
+        app = Mock()
+        app.resource = Mock(return_value=lambda f: f)
+
+        # Only allow container_logs
+        registered = register_all_resources(
+            app, mock_docker_client, allowed_resources=["container_logs"]
+        )
+
+        assert len(registered["container"]) == 1
+        assert "container://logs/{container_id}" in registered["container"]
+        assert "container://stats/{container_id}" not in registered["container"]
+
+    def test_registers_with_empty_allowed_resources_blocks_all(self, mock_docker_client):
+        """Test that empty allowed_resources list blocks all resources."""
+        app = Mock()
+        app.resource = Mock(return_value=lambda f: f)
+
+        # Empty list means block all
+        registered = register_all_resources(app, mock_docker_client, allowed_resources=[])
+
+        assert len(registered["container"]) == 0
+        assert app.resource.call_count == 0
