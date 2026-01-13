@@ -483,10 +483,11 @@ uv run pytest tests/unit/ -v
 git add -A
 git commit -m "chore: Prepare vX.Y.Z release"
 
-# 5. After merge, tag the release
+# 5. After merge, tag and create GitHub release
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
+gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes "Release notes here"
 
-# 6. Immediately bump to next dev version
+# 6. Immediately bump to next dev version (via PR, not direct to main)
 # Edit pyproject.toml: version = "X.Y.(Z+1).dev0"
 ```
