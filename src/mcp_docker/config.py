@@ -5,7 +5,7 @@ import platform
 import warnings
 from pathlib import Path
 
-from pydantic import Field, HttpUrl, field_validator, model_validator
+from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from mcp_docker.version import __version__
@@ -29,7 +29,8 @@ def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
     if value is None or value == "":
         return []
     if isinstance(value, list):
-        return value
+        # Filter empty strings and strip whitespace
+        return [item.strip() for item in value if item and item.strip()]
     if isinstance(value, str):
         # Try to parse as JSON first
         value_stripped = value.strip()
@@ -305,13 +306,21 @@ class SafetyConfig(BaseSettings):
     )
     @classmethod
     def parse_filtering_list(cls, value: str | list[str] | None) -> list[str] | None:
-        """Parse list from comma-separated string or list, preserving None for defaults.
+        """Parse list from comma-separated string, JSON array, or list.
+
+        Preserves None for defaults.
 
         For all filtering lists (tools, prompts, resources), None means "allow all" (default),
         while empty list means "block all" (explicit).
 
+        Supports multiple input formats:
+        - JSON array: '["value1","value2"]' or '["value1", "value2"]'
+        - Comma-separated: 'value1,value2' or 'value1, value2'
+        - Already a list: ['value1', 'value2']
+        - None or empty string: special handling
+
         Args:
-            value: List as string (comma-separated), list, or None
+            value: List as string (comma-separated or JSON), list, or None
 
         Returns:
             Normalized list of strings, empty list for explicit empty string, or None
@@ -320,6 +329,7 @@ class SafetyConfig(BaseSettings):
             - Not set (None) → None → Allow all (default)
             - Set to "" → [] → Block all (explicit)
             - Set to "foo,bar" → ['foo', 'bar'] → Allow only those
+            - Set to '["foo","bar"]' → ['foo', 'bar'] → Allow only those (JSON format)
         """
         if value is None:
             # Not set - return None to indicate "allow all" (default behavior)
@@ -327,13 +337,8 @@ class SafetyConfig(BaseSettings):
         if value == "":
             # Explicitly set to empty string - return [] to indicate "block all"
             return []
-        if isinstance(value, str):
-            # Split by comma, strip whitespace, filter empty strings
-            return [item.strip() for item in value.split(",") if item.strip()]
-        if isinstance(value, list):
-            # Already a list, just filter empty strings and strip
-            return [item.strip() for item in value if item and item.strip()]
-        return None
+        # Delegate to shared parsing function for JSON/comma-separated handling
+        return _parse_comma_separated_list(value)
 
 
 class SecurityConfig(BaseSettings):
@@ -351,9 +356,18 @@ class SecurityConfig(BaseSettings):
         default=True,
         description="Enable global rate limiting",
     )
+    pre_auth_rate_limit_rpm: int = Field(
+        default=10,
+        description=(
+            "Maximum requests per minute per IP BEFORE authentication (pre-auth). "
+            "Lower limit to prevent brute-force attacks. Set to 0 to disable pre-auth limiting."
+        ),
+        ge=0,
+        le=100,
+    )
     rate_limit_rpm: int = Field(
         default=60,
-        description="Maximum requests per minute (global)",
+        description="Maximum global requests per minute AFTER authentication (post-auth)",
         gt=0,
         le=1000,
     )
@@ -430,7 +444,7 @@ class SecurityConfig(BaseSettings):
         default=None,
         description="OAuth client ID for token introspection (optional)",
     )
-    oauth_client_secret: str | None = Field(
+    oauth_client_secret: SecretStr | None = Field(
         default=None,
         description="OAuth client secret for token introspection (optional, sensitive)",
     )

@@ -637,7 +637,12 @@ class TestAuthMiddlewareCall:
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_request(self) -> None:
-        """Test __call__ handles missing request gracefully."""
+        """Test __call__ handles missing request as stdio (not HTTP).
+
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
+        """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
 
@@ -654,15 +659,20 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # Call the middleware (should treat as stdio)
+        # Without real HTTP request from get_http_request(), treated as stdio
         result = await middleware(mock_context, mock_call_next)
 
-        # Verify it succeeded
+        # Verify it succeeded as stdio
         assert result == "success"
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_client(self) -> None:
-        """Test __call__ handles missing client gracefully."""
+        """Test __call__ handles missing client as stdio (not HTTP).
+
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
+        """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
 
@@ -683,15 +693,20 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # Call the middleware (should treat as stdio)
+        # Without real HTTP request from get_http_request(), treated as stdio
         result = await middleware(mock_context, mock_call_next)
 
-        # Verify it succeeded
+        # Verify it succeeded as stdio
         assert result == "success"
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_partial_context_no_host(self) -> None:
-        """Test __call__ handles missing host gracefully."""
+        """Test __call__ handles missing host as stdio (not HTTP).
+
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
+        """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
 
@@ -715,10 +730,10 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # Call the middleware (should treat as stdio)
+        # Without real HTTP request from get_http_request(), treated as stdio
         result = await middleware(mock_context, mock_call_next)
 
-        # Verify it succeeded
+        # Verify it succeeded as stdio
         assert result == "success"
         mock_call_next.assert_called_once_with(mock_context)
 
@@ -755,7 +770,12 @@ class TestAuthMiddlewareCall:
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_none_request_context(self) -> None:
-        """Test __call__ handles None request_context."""
+        """Test __call__ handles None request_context as stdio (not HTTP).
+
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
+        """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
 
@@ -769,15 +789,20 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # Call the middleware (should treat as stdio)
+        # Without real HTTP request from get_http_request(), treated as stdio
         result = await middleware(mock_context, mock_call_next)
 
-        # Verify it succeeded
+        # Verify it succeeded as stdio
         assert result == "success"
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_none_request(self) -> None:
-        """Test __call__ handles None request."""
+        """Test __call__ handles None request as stdio (not HTTP).
+
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
+        """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
 
@@ -794,15 +819,20 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # Call the middleware (should treat as stdio)
+        # Without real HTTP request from get_http_request(), treated as stdio
         result = await middleware(mock_context, mock_call_next)
 
-        # Verify it succeeded
+        # Verify it succeeded as stdio
         assert result == "success"
         mock_call_next.assert_called_once_with(mock_context)
 
     async def test_call_with_none_client(self) -> None:
-        """Test __call__ handles None client."""
+        """Test __call__ handles None client as stdio (not HTTP).
+
+        SECURITY: Transport detection relies solely on FastMCP's get_http_request().
+        When that fails (unit test context), we treat it as stdio which is safe
+        because an attacker can't fake get_http_request() - it's internal to FastMCP.
+        """
         config = SecurityConfig(allowed_client_ips=[])
         middleware = AuthMiddleware(config)
 
@@ -823,10 +853,10 @@ class TestAuthMiddlewareCall:
         # Mock call_next
         mock_call_next = AsyncMock(return_value="success")
 
-        # Call the middleware (should treat as stdio)
+        # Without real HTTP request from get_http_request(), treated as stdio
         result = await middleware(mock_context, mock_call_next)
 
-        # Verify it succeeded
+        # Verify it succeeded as stdio
         assert result == "success"
         mock_call_next.assert_called_once_with(mock_context)
 

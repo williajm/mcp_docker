@@ -330,3 +330,88 @@ class TestSecurityConfigOAuthParsing:
         config = SecurityConfig()
         assert config.oauth_audience == []
         assert config.oauth_required_scopes == []
+
+
+class TestSafetyConfigJsonParsing:
+    """Test SafetyConfig JSON array parsing for filtering lists."""
+
+    def test_allowed_tools_json_array(self) -> None:
+        """Test allowed_tools with JSON array format."""
+        config = SafetyConfig(allowed_tools='["docker_list_containers", "docker_inspect"]')
+        assert config.allowed_tools == ["docker_list_containers", "docker_inspect"]
+
+    def test_allowed_tools_json_array_compact(self) -> None:
+        """Test allowed_tools with compact JSON array format (no spaces)."""
+        config = SafetyConfig(allowed_tools='["docker_list_containers","docker_inspect"]')
+        assert config.allowed_tools == ["docker_list_containers", "docker_inspect"]
+
+    def test_denied_tools_json_array(self) -> None:
+        """Test denied_tools with JSON array format."""
+        config = SafetyConfig(denied_tools='["docker_remove_container", "docker_prune_images"]')
+        assert config.denied_tools == ["docker_remove_container", "docker_prune_images"]
+
+    def test_allowed_prompts_json_array(self) -> None:
+        """Test allowed_prompts with JSON array format."""
+        config = SafetyConfig(allowed_prompts='["troubleshoot_container", "optimize_container"]')
+        assert config.allowed_prompts == ["troubleshoot_container", "optimize_container"]
+
+    def test_allowed_resources_json_array(self) -> None:
+        """Test allowed_resources with JSON array format."""
+        config = SafetyConfig(allowed_resources='["container_logs", "container_stats"]')
+        assert config.allowed_resources == ["container_logs", "container_stats"]
+
+    def test_json_array_with_whitespace(self) -> None:
+        """Test JSON array with surrounding whitespace."""
+        config = SafetyConfig(allowed_tools='  ["docker_list_containers"]  ')
+        assert config.allowed_tools == ["docker_list_containers"]
+
+    def test_malformed_json_falls_back_to_comma_separated(self) -> None:
+        """Test that malformed JSON falls back to comma-separated parsing."""
+        # Missing closing bracket - should fall back to comma parsing
+        config = SafetyConfig(allowed_tools='["docker_list_containers"')
+        # Falls back to comma-separated, treating as single value with brackets
+        assert len(config.allowed_tools) > 0
+
+    def test_pre_auth_rate_limit_rpm_config(self) -> None:
+        """Test pre_auth_rate_limit_rpm configuration."""
+        config = SecurityConfig(pre_auth_rate_limit_rpm=20)
+        assert config.pre_auth_rate_limit_rpm == 20
+
+    def test_pre_auth_rate_limit_rpm_default(self) -> None:
+        """Test pre_auth_rate_limit_rpm default value."""
+        config = SecurityConfig()
+        assert config.pre_auth_rate_limit_rpm == 10
+
+    def test_pre_auth_rate_limit_rpm_zero_disables(self) -> None:
+        """Test pre_auth_rate_limit_rpm=0 disables pre-auth rate limiting."""
+        config = SecurityConfig(pre_auth_rate_limit_rpm=0)
+        assert config.pre_auth_rate_limit_rpm == 0
+
+
+class TestSecretStrRedaction:
+    """Test SecretStr redaction in config."""
+
+    def test_oauth_client_secret_is_secret_str(self) -> None:
+        """Test that oauth_client_secret uses SecretStr type."""
+        from pydantic import SecretStr
+
+        config = SecurityConfig(oauth_client_secret="super_secret_value")
+        assert isinstance(config.oauth_client_secret, SecretStr)
+
+    def test_oauth_client_secret_redacted_in_repr(self) -> None:
+        """Test that oauth_client_secret is redacted in repr."""
+        config = SecurityConfig(oauth_client_secret="super_secret_value")
+        repr_str = repr(config)
+        # SecretStr should show '**********' not the actual value
+        assert "super_secret_value" not in repr_str
+
+    def test_oauth_client_secret_get_secret_value(self) -> None:
+        """Test that oauth_client_secret can be retrieved with get_secret_value()."""
+        config = SecurityConfig(oauth_client_secret="super_secret_value")
+        assert config.oauth_client_secret is not None
+        assert config.oauth_client_secret.get_secret_value() == "super_secret_value"
+
+    def test_oauth_client_secret_none_by_default(self) -> None:
+        """Test that oauth_client_secret is None by default."""
+        config = SecurityConfig()
+        assert config.oauth_client_secret is None

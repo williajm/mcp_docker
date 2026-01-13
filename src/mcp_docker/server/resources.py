@@ -6,8 +6,11 @@ This module provides Docker resources using FastMCP's @mcp.resource() decorator:
 """
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 
+from docker.errors import APIError, NotFound
+
+from mcp_docker.config import SafetyConfig
 from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.utils.errors import ContainerNotFound, MCPDockerError
 from mcp_docker.utils.logger import get_logger
@@ -45,11 +48,13 @@ def _decode_docker_logs(logs: bytes | Any) -> str:
 
 def create_container_logs_resource(
     docker_client: DockerClientWrapper,
+    max_log_lines: int = 100,
 ) -> tuple[str, Any]:
     """Create the container logs FastMCP resource.
 
     Args:
         docker_client: Docker client wrapper
+        max_log_lines: Maximum number of log lines to return (from SafetyConfig)
 
     Returns:
         Tuple of (uri_template, async_function)
@@ -70,21 +75,29 @@ def create_container_logs_resource(
         """
         try:
             # Offload blocking Docker I/O to thread pool
+            # Apply max_log_lines limit from SafetyConfig (0 = unlimited)
+            # Type: Literal["all"] | int to match Docker SDK expectations
+            tail_limit: int | Literal["all"] = max_log_lines if max_log_lines > 0 else "all"
+
             def _fetch_logs() -> str:
                 container = docker_client.client.containers.get(container_id)
-                logs = container.logs(tail=100, follow=False)
+                logs = container.logs(tail=tail_limit, follow=False)
                 return _decode_docker_logs(logs)
 
             log_text = await asyncio.to_thread(_fetch_logs)
 
-            logger.debug(f"Retrieved logs for container {container_id}")
+            logger.debug(f"Retrieved logs for container {container_id} (limit={tail_limit})")
             return log_text
 
+        except NotFound as e:
+            # SECURITY: Use proper Docker SDK exception instead of string matching
+            error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id)
+            raise ContainerNotFound(error_msg) from e
+        except APIError as e:
+            logger.error(f"Docker API error getting logs for container {container_id}: {e}")
+            raise MCPDockerError(f"Failed to get container logs: {e}") from e
         except Exception as e:
-            if "404" in str(e):
-                error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id)
-                raise ContainerNotFound(error_msg) from e
-            logger.error(f"Failed to get logs for container {container_id}: {e}")
+            logger.error(f"Unexpected error getting logs for container {container_id}: {e}")
             raise MCPDockerError(f"Failed to get container logs: {e}") from e
 
     return ("container://logs/{container_id}", get_container_logs)
@@ -155,11 +168,15 @@ Block I/O:
             logger.debug(f"Retrieved stats for container {container_id}")
             return stats_text
 
+        except NotFound as e:
+            # SECURITY: Use proper Docker SDK exception instead of string matching
+            error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id)
+            raise ContainerNotFound(error_msg) from e
+        except APIError as e:
+            logger.error(f"Docker API error getting stats for container {container_id}: {e}")
+            raise MCPDockerError(f"Failed to get container stats: {e}") from e
         except Exception as e:
-            if "404" in str(e):
-                error_msg = ERROR_CONTAINER_NOT_FOUND.format(container_id)
-                raise ContainerNotFound(error_msg) from e
-            logger.error(f"Failed to get stats for container {container_id}: {e}")
+            logger.error(f"Unexpected error getting stats for container {container_id}: {e}")
             raise MCPDockerError(f"Failed to get container stats: {e}") from e
 
     return ("container://stats/{container_id}", get_container_stats)
@@ -169,6 +186,7 @@ def register_all_resources(
     app: Any,
     docker_client: DockerClientWrapper,
     allowed_resources: list[str] | None = None,
+    safety_config: SafetyConfig | None = None,
 ) -> dict[str, list[str]]:
     """Register all Docker resources with FastMCP.
 
@@ -176,6 +194,7 @@ def register_all_resources(
         app: FastMCP application instance
         docker_client: Docker client wrapper
         allowed_resources: Optional list of allowed resource names (None = allow all)
+        safety_config: Optional safety configuration for output limits
 
     Returns:
         Dictionary mapping category names to lists of registered resource URIs
@@ -184,9 +203,13 @@ def register_all_resources(
 
     registered: dict[str, list[str]] = {"container": []}
 
+    # Get output limits from safety config (use SafetyConfig defaults if not provided)
+    # SafetyConfig.max_log_lines defaults to 10000
+    max_log_lines = safety_config.max_log_lines if safety_config else SafetyConfig().max_log_lines
+
     # Define all available resources with their names
     all_resources = [
-        ("container_logs", create_container_logs_resource(docker_client)),
+        ("container_logs", create_container_logs_resource(docker_client, max_log_lines)),
         ("container_stats", create_container_stats_resource(docker_client)),
     ]
 

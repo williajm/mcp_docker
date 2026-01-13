@@ -169,3 +169,63 @@ class RateLimiter:
         """
         # NO-OP: limits library handles cleanup automatically via TTL
         pass
+
+
+class PreAuthRateLimiter:
+    """IP-based rate limiter for pre-authentication requests.
+
+    SECURITY: Prevents brute-force attacks by limiting requests per IP address
+    before authentication occurs. Uses lower limits than post-auth rate limiting
+    since this runs before client identity is verified.
+
+    This is separate from the post-auth RateLimiter which uses higher limits
+    for authenticated clients.
+    """
+
+    def __init__(
+        self,
+        enabled: bool = True,
+        requests_per_minute: int = 10,
+    ) -> None:
+        """Initialize pre-auth rate limiter.
+
+        Args:
+            enabled: Whether pre-auth rate limiting is enabled
+            requests_per_minute: Maximum requests per minute per IP (lower than post-auth)
+        """
+        self.enabled = enabled
+        self.rpm = requests_per_minute
+
+        # Initialize limits library for per-IP RPM tracking
+        # SECURITY: Uses battle-tested limits library with per-IP tracking
+        self.rpm_limit = parse(f"{requests_per_minute} per 1 minute")
+        self.storage = MemoryStorage()
+        self.limiter = MovingWindowRateLimiter(self.storage)
+
+        if self.enabled:
+            logger.info(f"Pre-auth rate limiting enabled: {self.rpm} RPM per IP")
+        else:
+            logger.warning("Pre-auth rate limiting DISABLED")
+
+    async def check_rate_limit(self, ip_address: str | None) -> None:
+        """Check if pre-auth rate limit has been exceeded for this IP.
+
+        Args:
+            ip_address: Client IP address (None for stdio transport)
+
+        Raises:
+            RateLimitExceeded: If rate limit has been exceeded
+        """
+        if not self.enabled:
+            return
+
+        # stdio transport (ip_address=None) bypasses pre-auth rate limiting
+        if ip_address is None:
+            return
+
+        # Test and increment using limits library (per-IP tracking)
+        if not await self.limiter.hit(self.rpm_limit, ip_address):
+            logger.warning(f"Pre-auth rate limit exceeded for IP: {ip_address}")
+            raise RateLimitExceeded(
+                f"Pre-auth rate limit exceeded: {self.rpm} requests per minute per IP"
+            )

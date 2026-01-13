@@ -829,3 +829,126 @@ class TestAuditMiddleware:
 
         assert isinstance(middleware, AuditMiddleware)
         assert middleware.audit_logger == audit_logger
+
+
+class TestPreAuthRateLimitMiddleware:
+    """Test PreAuthRateLimitMiddleware."""
+
+    def test_init(self):
+        """Test PreAuthRateLimitMiddleware initialization."""
+        from mcp_docker.middleware.rate_limit import PreAuthRateLimitMiddleware
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        pre_auth_limiter = Mock(spec=PreAuthRateLimiter)
+        pre_auth_limiter.enabled = True
+        pre_auth_limiter.rpm = 10
+        middleware = PreAuthRateLimitMiddleware(pre_auth_limiter)
+
+        assert middleware.pre_auth_limiter == pre_auth_limiter
+        assert middleware.trusted_proxies == []
+
+    def test_init_with_trusted_proxies(self):
+        """Test PreAuthRateLimitMiddleware initialization with trusted proxies."""
+        from mcp_docker.middleware.rate_limit import PreAuthRateLimitMiddleware
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        pre_auth_limiter = Mock(spec=PreAuthRateLimiter)
+        pre_auth_limiter.enabled = True
+        pre_auth_limiter.rpm = 10
+        middleware = PreAuthRateLimitMiddleware(
+            pre_auth_limiter, trusted_proxies=["10.0.0.1", "10.0.0.2"]
+        )
+
+        assert middleware.trusted_proxies == ["10.0.0.1", "10.0.0.2"]
+
+    @pytest.mark.asyncio
+    async def test_call_within_limit(self):
+        """Test calling when within pre-auth rate limit."""
+        from mcp_docker.middleware.rate_limit import PreAuthRateLimitMiddleware
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        pre_auth_limiter = Mock(spec=PreAuthRateLimiter)
+        pre_auth_limiter.enabled = True
+        pre_auth_limiter.rpm = 10
+        pre_auth_limiter.check_rate_limit = AsyncMock(return_value=None)
+
+        middleware = PreAuthRateLimitMiddleware(pre_auth_limiter)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
+
+        # Call middleware
+        result = await middleware(context, call_next)
+
+        assert result == {"status": "success"}
+        pre_auth_limiter.check_rate_limit.assert_called_once()
+        call_next.assert_called_once_with(context)
+
+    @pytest.mark.asyncio
+    async def test_call_rate_limited(self):
+        """Test calling when pre-auth rate limit exceeded."""
+        from mcp_docker.middleware.rate_limit import PreAuthRateLimitMiddleware
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        pre_auth_limiter = Mock(spec=PreAuthRateLimiter)
+        pre_auth_limiter.enabled = True
+        pre_auth_limiter.rpm = 10
+        pre_auth_limiter.check_rate_limit = AsyncMock(
+            side_effect=RateLimitExceeded("Pre-auth rate limit exceeded")
+        )
+
+        middleware = PreAuthRateLimitMiddleware(pre_auth_limiter)
+
+        # Mock next middleware
+        call_next = AsyncMock()
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
+
+        # Call middleware should raise
+        with pytest.raises(RateLimitExceeded, match="Pre-auth rate limit exceeded"):
+            await middleware(context, call_next)
+
+        # Next middleware should not be called
+        call_next.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_call_disabled(self):
+        """Test calling when pre-auth rate limiting is disabled."""
+        from mcp_docker.middleware.rate_limit import PreAuthRateLimitMiddleware
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        pre_auth_limiter = Mock(spec=PreAuthRateLimiter)
+        pre_auth_limiter.enabled = False
+        pre_auth_limiter.rpm = 10
+
+        middleware = PreAuthRateLimitMiddleware(pre_auth_limiter)
+
+        # Mock next middleware
+        call_next = AsyncMock(return_value={"status": "success"})
+
+        # Create FastMCP 2.0 middleware context
+        message = Mock()
+        message.name = "docker_list_containers"
+        context = Mock()
+        context.message = message
+        context.fastmcp_context = None
+
+        # Call middleware
+        result = await middleware(context, call_next)
+
+        assert result == {"status": "success"}
+        # check_rate_limit should not be called when disabled
+        pre_auth_limiter.check_rate_limit.assert_not_called()
+        call_next.assert_called_once_with(context)

@@ -335,3 +335,124 @@ class TestRateLimiter:
         limiter.release_concurrent_slot()
         limiter.release_concurrent_slot()
         assert limiter._concurrent_count == 0
+
+
+class TestPreAuthRateLimiter:
+    """Tests for PreAuthRateLimiter (IP-based pre-authentication rate limiting)."""
+
+    @pytest.mark.asyncio
+    async def test_init_enabled(self) -> None:
+        """Test initializing pre-auth rate limiter when enabled."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True, requests_per_minute=10)
+
+        assert limiter.enabled is True
+        assert limiter.rpm == 10
+
+    @pytest.mark.asyncio
+    async def test_init_disabled(self) -> None:
+        """Test initializing pre-auth rate limiter when disabled."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=False)
+
+        assert limiter.enabled is False
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_disabled(self) -> None:
+        """Test rate limit check when disabled."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=False)
+
+        # Should not raise error even with many requests
+        for _ in range(100):
+            await limiter.check_rate_limit("192.168.1.100")
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_none_ip_bypasses(self) -> None:
+        """Test that None IP (stdio transport) bypasses rate limiting."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True, requests_per_minute=1)
+
+        # Should not raise error even with many requests (stdio bypasses)
+        for _ in range(100):
+            await limiter.check_rate_limit(None)
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_within_limit(self) -> None:
+        """Test rate limit check when within limit."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True, requests_per_minute=10)
+
+        # Should not raise error for first 10 requests from same IP
+        for _ in range(10):
+            await limiter.check_rate_limit("192.168.1.100")
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_exceeded(self) -> None:
+        """Test rate limit check when limit is exceeded."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True, requests_per_minute=5)
+
+        # First 5 requests should succeed
+        for _ in range(5):
+            await limiter.check_rate_limit("192.168.1.100")
+
+        # 6th request should fail
+        with pytest.raises(RateLimitExceededError, match="Pre-auth rate limit exceeded"):
+            await limiter.check_rate_limit("192.168.1.100")
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_per_ip(self) -> None:
+        """Test that rate limits are tracked per IP address."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True, requests_per_minute=3)
+
+        # IP 1 uses its 3 requests
+        for _ in range(3):
+            await limiter.check_rate_limit("192.168.1.100")
+
+        # IP 1 is now rate limited
+        with pytest.raises(RateLimitExceededError):
+            await limiter.check_rate_limit("192.168.1.100")
+
+        # IP 2 still has its quota
+        for _ in range(3):
+            await limiter.check_rate_limit("192.168.1.101")
+
+        # IP 2 is now rate limited
+        with pytest.raises(RateLimitExceededError):
+            await limiter.check_rate_limit("192.168.1.101")
+
+    @pytest.mark.asyncio
+    async def test_check_rate_limit_ipv6(self) -> None:
+        """Test rate limiting works with IPv6 addresses."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True, requests_per_minute=3)
+
+        ipv6_addr = "2001:db8::1"
+
+        # First 3 requests should succeed
+        for _ in range(3):
+            await limiter.check_rate_limit(ipv6_addr)
+
+        # 4th request should fail
+        with pytest.raises(RateLimitExceededError):
+            await limiter.check_rate_limit(ipv6_addr)
+
+    @pytest.mark.asyncio
+    async def test_default_rpm(self) -> None:
+        """Test default requests per minute value."""
+        from mcp_docker.services.rate_limiter import PreAuthRateLimiter
+
+        limiter = PreAuthRateLimiter(enabled=True)
+
+        # Default should be 10 RPM
+        assert limiter.rpm == 10

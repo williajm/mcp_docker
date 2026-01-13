@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.5] - 2026-01-13
+
+### Security
+- **Auth Fail-Closed Fix**: HTTP transport now fails closed when client IP cannot be determined
+  - Prevents authentication bypass when IP extraction fails on HTTP requests
+  - Added `is_http` parameter to `authenticate_request()` for explicit transport detection
+- **SecretStr for OAuth Secret**: `oauth_client_secret` now uses Pydantic's `SecretStr`
+  - Automatically redacts secret in logs and `repr()` output
+  - Prevents accidental credential exposure in error messages
+- **Audit Logger Cleanup**: `audit_logger.close()` now called during server shutdown
+  - Ensures pending audit logs are flushed before process exit (uses `enqueue=True`)
+- **Logger Diagnose Flag**: `diagnose` option now tied to `debug_mode` setting
+  - Prevents local variable exposure in production tracebacks
+  - Only enables detailed diagnostics when `MCP_DEBUG_MODE=true`
+
+### Added
+- **Split Rate Limiting**: New pre-auth rate limiter prevents brute-force attacks
+  - `PreAuthRateLimiter`: IP-based rate limiting before authentication (default: 10 RPM per IP)
+  - `PreAuthRateLimitMiddleware`: Applies pre-auth limits in middleware chain
+  - New config: `SECURITY_PRE_AUTH_RATE_LIMIT_RPM` (set to 0 to disable)
+  - Post-auth rate limiting unchanged (default: 60 RPM global)
+  - Note: Pre-auth applies to ALL HTTP requests, not just failed auth
+- **Error Sanitization Middleware**: New `ErrorHandlerMiddleware` sanitizes errors for clients
+  - Uses existing `error_sanitizer.py` (previously unused)
+  - Hides internal details when `debug_mode=False`
+  - Logs full errors server-side for debugging
+
+### Changed
+- **Middleware Order Updated**: New order ensures security-first processing
+  - Debug → ErrorHandler → Audit → PreAuthRateLimit → Auth → Safety → RateLimit
+- **Resources Error Handling**: Replaced fragile string-based error detection
+  - Now catches `docker.errors.NotFound` and `docker.errors.APIError` directly
+  - Applies `max_log_lines` limit from SafetyConfig to log resources
+- **Config Parsing Consistency**: `SAFETY_ALLOWED_*` env vars now support JSON arrays
+  - Both `'foo,bar'` and `'["foo","bar"]'` formats work consistently
+
 ## [1.2.4] - 2026-01-13
 
 ### Security

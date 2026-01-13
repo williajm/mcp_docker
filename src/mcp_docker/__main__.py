@@ -192,7 +192,13 @@ def main(  # noqa: B008
     logger.info("=" * 60)
     logger.info(f"MCP Docker Server v{__version__} (FastMCP 2.0)")
     logger.info("=" * 60)
-    logger.info(f"Configuration: {config}")
+    # SECURITY: Log only non-sensitive config summary (secrets are redacted via SecretStr)
+    logger.info(
+        f"Config: docker_url={config.docker.base_url}, "
+        f"safety_destructive={config.safety.allow_destructive_operations}, "
+        f"oauth_enabled={config.security.oauth_enabled}, "
+        f"rate_limit_enabled={config.security.rate_limit_enabled}"
+    )
 
     # Initialize FastMCP server
     logger.info("Initializing FastMCP 2.0 server")
