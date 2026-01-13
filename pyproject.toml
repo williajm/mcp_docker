@@ -74,6 +74,7 @@ Repository = "https://github.com/williajm/mcp_docker"
 PyPI = "https://pypi.org/project/mcp-docker/"
 Issues = "https://github.com/williajm/mcp_docker/issues"
 Changelog = "https://github.com/williajm/mcp_docker/releases"
+Stats = "https://pypi.kopdog.com/package/?name=mcp-docker"
 
 [project.scripts]
 mcp-docker = "mcp_docker.__main__:app"
