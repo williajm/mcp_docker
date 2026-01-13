@@ -426,8 +426,9 @@ mcp_docker/
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## Links
 
+- [PyPI Download Stats](https://pypi.kopdog.com/package/?name=mcp-docker)
 - Built with the [Model Context Protocol](https://modelcontextprotocol.io) by Anthropic
 - Uses the official [Docker SDK for Python](https://docker-py.readthedocs.io/)
 - Powered by modern Python tooling: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
