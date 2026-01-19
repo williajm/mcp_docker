@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.6] - 2026-01-19
+
+### Security
+- **urllib3 CVE-2026-21441**: Updated urllib3 2.6.1 → 2.6.3 (HIGH severity)
+  - Fixes decompression-bomb safeguards bypass when following HTTP redirects (streaming API)
+- **filelock CVE**: Updated filelock 3.20.1 → 3.20.3
+  - Fixes Time-of-Check-Time-of-Use (TOCTOU) symlink vulnerability
+- **virtualenv CVE**: Updated virtualenv 20.35.4 → 20.36.1
+  - Fixes TOCTOU vulnerabilities in directory creation
+
+### Changed
+- **GitHub Actions Updated**:
+  - `actions/cache` 5.0.1 → 5.0.2
+  - `anthropics/claude-code-action` 1.0.29 → 1.0.30
+- **Dependabot Security-Only**: Version update PRs disabled (`open-pull-requests-limit: 0`); security PRs still created automatically
+
 ## [1.2.5] - 2026-01-13
 
 ### Security
