@@ -50,6 +50,7 @@ dependencies = [
     "httpx>=0.28.1",
     "typer>=0.20.0",
     "humanfriendly>=10.0",
+    "python-multipart>=0.0.22",  # CVE-2026-24486: Path traversal fix
 ]
 
 [project.optional-dependencies]
