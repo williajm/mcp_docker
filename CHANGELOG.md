@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.7] - 2026-02-11
+
+### Security
+- **cryptography CVE-2026-26007**: Updated cryptography 46.0.3 → 46.0.5 (HIGH severity)
+  - Fixes subgroup attack due to missing subgroup validation for SECT curves
+  - Could leak private key bits (ECDH) or enable signature forgery (ECDSA)
+- **python-multipart CVE-2026-24486**: Updated python-multipart to fix path traversal vulnerability
+
 ## [1.2.6] - 2026-01-19
 
 ### Security

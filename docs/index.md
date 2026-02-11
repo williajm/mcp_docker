@@ -129,7 +129,7 @@ MIT License - see [LICENSE](https://github.com/williajm/mcp_docker/blob/main/LIC
 
 ---
 
-**Version**: 1.2.6
-**Last Updated**: 2026-01-19
+**Version**: 1.2.7
+**Last Updated**: 2026-02-11
 **Python**: 3.11+
 **Docker**: API version 1.41+
