@@ -1069,7 +1069,7 @@ def create_image_history_tool(
 def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the pull_image FastMCP tool with background task support.
+    """Create the pull_image FastMCP tool with progress reporting.
 
     Args:
         docker_client: Docker client wrapper
@@ -1170,7 +1170,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
 def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the build_image FastMCP tool with background task support.
+    """Create the build_image FastMCP tool with progress reporting.
 
     Args:
         docker_client: Docker client wrapper
@@ -1287,7 +1287,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
 def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
 ) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the push_image FastMCP tool with background task support.
+    """Create the push_image FastMCP tool with progress reporting.
 
     Args:
         docker_client: Docker client wrapper

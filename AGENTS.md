@@ -8,7 +8,7 @@ This is an MCP (Model Context Protocol) server that exposes Docker functionality
 
 **Key Technologies:**
 - Python 3.11+ with strict type checking (mypy)
-- FastMCP 2.0 for MCP protocol implementation
+- FastMCP 3.x for MCP protocol implementation
 - Docker SDK for Python (>=7.1.0)
 - Pydantic for validation and settings
 - uv for package management
@@ -147,14 +147,14 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 ### Core Components
 
 1. **FastMCPDockerServer** (`src/mcp_docker/server/server.py`)
-   - Main MCP server implementation using FastMCP 2.0
+   - Main MCP server implementation using FastMCP 3.x
    - Wraps FastMCP app with middleware and configuration
    - Manages security (auth, rate limiting, audit logging) via middleware
    - Handles concurrency with semaphores in safety middleware
    - Coordinates tools, resources, prompts, and safety enforcement
 
 2. **Tool System** (`src/mcp_docker/tools/`)
-   - **FastMCP 2.0 Decorator Pattern**: Tools use `@mcp.tool()` decorator
+   - **FastMCP Decorator Pattern**: Tools use `@mcp.tool()` decorator
    - **registration.py**: Central registration of all tool categories
    - Six categories: container_inspection, container_lifecycle, image, network, volume, system
    - Each tool has a safety level: SAFE (read-only), MODERATE (reversible), DESTRUCTIVE (permanent)
@@ -202,14 +202,14 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 8. **Transport Implementations** (`src/mcp_docker/__main__.py`)
    - **stdio**: Local process-to-process communication (default, no network)
-   - **HTTP**: FastMCP 2.0 native HTTP transport
+   - **HTTP**: FastMCP native HTTP transport
      - Plain HTTP (use reverse proxy for HTTPS in production)
      - Single unified endpoint
      - Built-in session management
 
 ### Adding New Tools
 
-Tools use FastMCP 2.0's decorator pattern. To add a new tool:
+Tools use FastMCP's decorator pattern. To add a new tool:
 
 1. Add tool to appropriate module in `src/mcp_docker/tools/` (choose by category or safety level)
 2. Define Pydantic input/output models for type safety
