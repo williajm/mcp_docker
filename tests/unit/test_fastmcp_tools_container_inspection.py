@@ -248,7 +248,6 @@ class TestToolMetadata:
             safety_level,
             is_idempotent,
             is_open_world,
-            supports_task,
             func,
         ) = result
 

@@ -1,13 +1,15 @@
 """FastMCP image tools.
 
-This module contains Docker image management tools using FastMCP 2.0.
+This module contains Docker image management tools using FastMCP 3.x.
 Includes operations across all safety levels:
 - SAFE: list, inspect, history (read-only)
 - MODERATE: pull, build, push, tag (reversible)
 - DESTRUCTIVE: remove, prune (permanent)
 
-Long-running operations (pull, build, push) support background tasks
-with real-time progress reporting.
+Long-running operations (pull, build, push) use both MCP protocol
+channels for real-time progress reporting:
+- Context.info() for human-readable log messages (notifications/message)
+- Context.report_progress() for structured progress (notifications/progress)
 """
 
 import asyncio
@@ -21,7 +23,7 @@ from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
-from fastmcp.dependencies import Progress
+from fastmcp import Context
 from pydantic import BaseModel, Field, field_validator
 
 from mcp_docker.config import SafetyConfig
@@ -203,14 +205,19 @@ def _format_layer_message(chunk: dict[str, Any]) -> str | None:
 
 
 async def _report_layer_progress(
-    progress: Progress,
+    ctx: Context,
     chunk: dict[str, Any],
     throttler: ProgressThrottler | None = None,
 ) -> str | None:
     """Report progress for a single layer chunk and return status if present.
 
+    Uses both MCP protocol channels:
+    - ctx.info() for human-readable log messages (notifications/message)
+    - ctx.report_progress() for structured progress when byte counts
+      are available (notifications/progress)
+
     Args:
-        progress: FastMCP Progress dependency
+        ctx: FastMCP Context for progress reporting
         chunk: Streaming chunk from Docker API
         throttler: Optional throttler to limit update frequency
 
@@ -222,7 +229,15 @@ async def _report_layer_progress(
     if msg:
         msg = _sanitize_progress_message(msg)
         if throttler is None or throttler.should_update(msg):
-            await progress.set_message(msg)
+            await ctx.info(msg)
+
+    # Send structured progress when byte-level detail is available
+    detail = chunk.get("progressDetail")
+    if detail:
+        current = detail.get("current", 0) or 0
+        total = detail.get("total", 0) or 0
+        if total > 0:
+            await ctx.report_progress(current, total)
 
     raw_status = chunk.get("status")
     return str(raw_status) if raw_status is not None else None
@@ -287,7 +302,7 @@ def _check_worker_error(
 async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs all parameters
     chunk_queue: Queue[Any],
     error_list: list[Exception],
-    progress: Progress,
+    ctx: Context,
     throttler: ProgressThrottler,
     operation: str,
     error_event: threading.Event | None = None,
@@ -297,7 +312,7 @@ async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs
     Args:
         chunk_queue: Queue containing streaming chunks (None signals completion)
         error_list: List to check for errors from worker thread
-        progress: FastMCP Progress dependency
+        ctx: FastMCP Context for progress reporting
         throttler: Throttler for progress updates
         operation: Operation name for error messages (e.g., "pull", "push")
         error_event: Optional threading.Event signaling an error occurred
@@ -328,7 +343,7 @@ async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs
 
         if isinstance(chunk, dict):
             _check_chunk_for_error(chunk, operation)
-            status = await _report_layer_progress(progress, chunk, throttler)
+            status = await _report_layer_progress(ctx, chunk, throttler)
             if status:
                 last_status = status
 
@@ -336,14 +351,19 @@ async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs
 
 
 async def _report_build_progress(
-    progress: Progress,
+    ctx: Context,
     chunk: dict[str, Any],
     throttler: ProgressThrottler,
 ) -> None:
     """Report progress for a build log chunk.
 
+    Uses both MCP protocol channels:
+    - ctx.info() for human-readable log messages (notifications/message)
+    - ctx.report_progress() for structured progress when build steps
+      are parseable (notifications/progress)
+
     Args:
-        progress: FastMCP Progress dependency
+        ctx: FastMCP Context for progress reporting
         chunk: Build log chunk from Docker API
         throttler: Throttler for progress updates
     """
@@ -358,13 +378,21 @@ async def _report_build_progress(
     sanitized_msg = _sanitize_progress_message(msg)
     is_important = msg.startswith("Step ") or "Successfully" in msg
     if is_important or throttler.should_update(sanitized_msg):
-        await progress.set_message(f"Build: {sanitized_msg}")
+        await ctx.info(f"Build: {sanitized_msg}")
+
+    # Send structured progress for "Step N/M" lines
+    if msg.startswith("Step "):
+        match = re.match(r"Step (\d+)/(\d+)", msg)
+        if match:
+            step = int(match.group(1))
+            total = int(match.group(2))
+            await ctx.report_progress(step, total)
 
 
 async def _process_build_streaming_queue(
     chunk_queue: Queue[Any],
     error_list: list[Exception],
-    progress: Progress,
+    ctx: Context,
     throttler: ProgressThrottler,
     error_event: threading.Event | None = None,
 ) -> None:
@@ -373,7 +401,7 @@ async def _process_build_streaming_queue(
     Args:
         chunk_queue: Queue containing build log chunks (None signals completion)
         error_list: List to check for errors from worker thread
-        progress: FastMCP Progress dependency
+        ctx: FastMCP Context for progress reporting
         throttler: Throttler for progress updates
         error_event: Optional threading.Event signaling an error occurred
 
@@ -397,7 +425,7 @@ async def _process_build_streaming_queue(
 
         if isinstance(chunk, dict):
             _check_chunk_for_error(chunk, "build")
-            await _report_build_progress(progress, chunk, throttler)
+            await _report_build_progress(ctx, chunk, throttler)
 
 
 def _create_pull_streaming_worker(  # noqa: PLR0913 - Factory needs all pull parameters
@@ -866,7 +894,7 @@ class PruneImagesOutput(BaseModel):
 def create_list_images_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the list_images FastMCP tool.
 
     Args:
@@ -874,8 +902,7 @@ def create_list_images_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def list_images(
@@ -936,22 +963,20 @@ def create_list_images_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         list_images,
     )
 
 
 def create_inspect_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_image FastMCP tool.
 
     Args:
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def inspect_image(
@@ -1002,7 +1027,6 @@ def create_inspect_image_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         inspect_image,
     )
 
@@ -1010,7 +1034,7 @@ def create_inspect_image_tool(
 def create_image_history_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the image_history FastMCP tool.
 
     Args:
@@ -1018,8 +1042,7 @@ def create_image_history_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def image_history(
@@ -1067,30 +1090,28 @@ def create_image_history_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         image_history,
     )
 
 
 def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
-    """Create the pull_image FastMCP tool with background task support.
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+    """Create the pull_image FastMCP tool with progress reporting.
 
     Args:
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     async def pull_image(  # noqa: PLR0915 - Complex streaming logic
+        ctx: Context,
         image: str,
         tag: str | None = None,
         all_tags: bool = False,
         platform: str | None = None,
-        progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
         """Pull a Docker image from a registry with real-time progress reporting.
 
@@ -1099,7 +1120,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             tag: Optional tag (if not in image name)
             all_tags: Pull all tags (note: output will show only the primary image)
             platform: Platform (e.g., 'linux/amd64')
-            progress: FastMCP Progress dependency for real-time updates
+            ctx: FastMCP Context (injected by framework) for progress reporting
 
         Returns:
             Dictionary with image name, ID, and tags
@@ -1119,7 +1140,8 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         validate_image_name(image)
         logger.info(f"Pulling image: {image}")
 
-        await progress.set_message(f"Starting pull: {image}")
+        await ctx.report_progress(0, 1)
+        await ctx.info(f"Starting pull: {image}")
 
         # Use a queue for real-time progress streaming
         chunk_queue: Queue[dict[str, Any] | None] = Queue()
@@ -1135,7 +1157,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         try:
             # Process chunks as they arrive (real-time progress)
             await _process_streaming_queue(
-                chunk_queue, pull_error, progress, ProgressThrottler(), "pull", error_event
+                chunk_queue, pull_error, ctx, ProgressThrottler(), "pull", error_event
             )
 
             # Wait for pull thread to complete
@@ -1149,7 +1171,8 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             image_obj = await _get_pulled_image(docker_client, image, tag)
 
             logger.info(f"Successfully pulled image: {image}")
-            await progress.set_message(f"Pull complete: {image}")
+            await ctx.report_progress(1, 1)
+            await ctx.info(f"Pull complete: {image}")
 
             output = PullImageOutput(image=image, id=str(image_obj.id), tags=image_obj.tags or [])
             return output.model_dump()
@@ -1170,25 +1193,24 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         OperationSafety.MODERATE,
         True,  # idempotent
         True,  # open_world (pulls from registry)
-        True,  # supports_task (background task with progress)
         pull_image,
     )
 
 
 def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
-    """Create the build_image FastMCP tool with background task support.
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+    """Create the build_image FastMCP tool with progress reporting.
 
     Args:
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     async def build_image(  # noqa: PLR0913, PLR0912, PLR0915 - Docker API requires these params
+        ctx: Context,
         path: str,
         tag: str | None = None,
         dockerfile: str = "Dockerfile",
@@ -1196,7 +1218,6 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         nocache: bool = False,
         rm: bool = True,
         pull: bool = False,
-        progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
         """Build a Docker image from a Dockerfile with real-time progress reporting.
 
@@ -1208,7 +1229,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             nocache: Do not use cache
             rm: Remove intermediate containers
             pull: Always pull newer base images
-            progress: FastMCP Progress dependency for real-time updates
+            ctx: FastMCP Context (injected by framework) for progress reporting
 
         Returns:
             Dictionary with image_id, tags, and logs
@@ -1224,7 +1245,8 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         resolved_path = _validate_build_context_path(path)
 
         logger.info(f"Building image from: {resolved_path}")
-        await progress.set_message(f"Starting build from: {resolved_path}")
+        await ctx.report_progress(0, 1)
+        await ctx.info(f"Starting build from: {resolved_path}")
 
         # Use a queue for real-time progress streaming
         chunk_queue: Queue[Any] = Queue()
@@ -1252,7 +1274,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         try:
             # Process chunks as they arrive (real-time progress)
             await _process_build_streaming_queue(
-                chunk_queue, build_error, progress, ProgressThrottler(), error_event
+                chunk_queue, build_error, ctx, ProgressThrottler(), error_event
             )
 
             # Wait for build thread to complete
@@ -1268,8 +1290,8 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             image_obj, log_messages = build_result[0]
 
             logger.info(f"Successfully built image: {image_obj.id}")
-
-            await progress.set_message(f"Build complete: {image_obj.id[:12]}")
+            await ctx.report_progress(1, 1)
+            await ctx.info(f"Build complete: {image_obj.id[:12]}")
 
             output = BuildImageOutput(
                 image_id=str(image_obj.id), tags=image_obj.tags or [], logs=log_messages
@@ -1289,35 +1311,33 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         OperationSafety.MODERATE,
         False,  # not idempotent (creates different images)
         True,  # open_world (may pull base images)
-        True,  # supports_task (background task with progress)
         build_image,
     )
 
 
 def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
-    """Create the push_image FastMCP tool with background task support.
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
+    """Create the push_image FastMCP tool with progress reporting.
 
     Args:
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     async def push_image(  # noqa: PLR0915 - Complex streaming logic
+        ctx: Context,
         image: str,
         tag: str | None = None,
-        progress: Progress = Progress(),  # noqa: B008 - FastMCP dependency injection
     ) -> dict[str, Any]:
         """Push a Docker image to a registry with real-time progress reporting.
 
         Args:
             image: Image name to push
             tag: Optional tag
-            progress: FastMCP Progress dependency for real-time updates
+            ctx: FastMCP Context (injected by framework) for progress reporting
 
         Returns:
             Dictionary with image name and status
@@ -1329,7 +1349,8 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         validate_image_name(image)
         logger.info(f"Pushing image: {image}")
 
-        await progress.set_message(f"Starting push: {image}")
+        await ctx.report_progress(0, 1)
+        await ctx.info(f"Starting push: {image}")
 
         # Use a queue for real-time progress streaming
         chunk_queue: Queue[dict[str, Any] | None] = Queue()
@@ -1345,7 +1366,7 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         try:
             # Process chunks as they arrive (real-time progress)
             last_status = await _process_streaming_queue(
-                chunk_queue, push_error, progress, ProgressThrottler(), "push", error_event
+                chunk_queue, push_error, ctx, ProgressThrottler(), "push", error_event
             )
 
             # Wait for push thread to complete
@@ -1357,8 +1378,8 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
 
             status = last_status if last_status else "pushed"
             logger.info(f"Successfully pushed image: {image}")
-
-            await progress.set_message(f"Push complete: {image}")
+            await ctx.report_progress(1, 1)
+            await ctx.info(f"Push complete: {image}")
 
             output = PushImageOutput(image=image, status=status)
             return output.model_dump()
@@ -1379,14 +1400,13 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         OperationSafety.MODERATE,
         False,  # not idempotent (may push to different registries)
         True,  # open_world (pushes to registry)
-        True,  # supports_task (background task with progress)
         push_image,
     )
 
 
 def create_tag_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the tag_image FastMCP tool."""
 
     def tag_image(
@@ -1420,14 +1440,13 @@ def create_tag_image_tool(
         OperationSafety.MODERATE,
         True,  # idempotent (tagging with same tag overwrites)
         False,  # not open_world
-        False,  # not supports_task
         tag_image,
     )
 
 
 def create_remove_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_image FastMCP tool."""
 
     def remove_image(
@@ -1457,14 +1476,13 @@ def create_remove_image_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (image is gone after first removal)
         False,  # not open_world
-        False,  # not supports_task
         remove_image,
     )
 
 
 def create_prune_images_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_images FastMCP tool."""
 
     def prune_images(
@@ -1510,7 +1528,6 @@ def create_prune_images_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (different images may be pruned each time)
         False,  # not open_world
-        False,  # not supports_task
         prune_images,
     )
 

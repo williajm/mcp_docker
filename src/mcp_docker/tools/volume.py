@@ -167,7 +167,7 @@ class PruneVolumesOutput(BaseModel):
 def create_list_volumes_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the list_volumes FastMCP tool.
 
     Args:
@@ -175,8 +175,7 @@ def create_list_volumes_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def list_volumes(
@@ -235,14 +234,13 @@ def create_list_volumes_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         list_volumes,
     )
 
 
 def create_inspect_volume_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_volume FastMCP tool.
 
     Args:
@@ -250,8 +248,7 @@ def create_inspect_volume_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def inspect_volume(
@@ -302,14 +299,13 @@ def create_inspect_volume_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         inspect_volume,
     )
 
 
 def create_create_volume_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the create_volume FastMCP tool."""
 
     def create_volume(
@@ -365,14 +361,13 @@ def create_create_volume_tool(
         OperationSafety.MODERATE,
         False,  # not idempotent (creates different volumes)
         False,  # not open_world
-        False,  # not supports_task
         create_volume,
     )
 
 
 def create_remove_volume_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the remove_volume FastMCP tool."""
 
     def remove_volume(
@@ -415,14 +410,13 @@ def create_remove_volume_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (volume is gone after first removal)
         False,  # not open_world
-        False,  # not supports_task
         remove_volume,
     )
 
 
 def create_prune_volumes_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the prune_volumes FastMCP tool."""
 
     def prune_volumes(
@@ -471,7 +465,6 @@ def create_prune_volumes_tool(
         OperationSafety.DESTRUCTIVE,
         False,  # not idempotent (different volumes may be pruned each time)
         False,  # not open_world
-        False,  # not supports_task
         prune_volumes,
     )
 

@@ -145,7 +145,6 @@ class TestPruneSystemTool:
             safety_level,
             idempotent,
             open_world,
-            supports_task,
             func,
         ) = create_prune_system_tool(mock_docker_client)
 
@@ -219,7 +218,6 @@ class TestVersionTool:
             safety_level,
             idempotent,
             open_world,
-            supports_task,
             func,
         ) = create_version_tool(mock_docker_client)
 
@@ -312,7 +310,6 @@ class TestEventsTool:
             safety_level,
             idempotent,
             open_world,
-            supports_task,
             func,
         ) = create_events_tool(mock_docker_client)
 
