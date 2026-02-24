@@ -6,8 +6,10 @@ Includes operations across all safety levels:
 - MODERATE: pull, build, push, tag (reversible)
 - DESTRUCTIVE: remove, prune (permanent)
 
-Long-running operations (pull, build, push) use Context.info() for
-real-time progress reporting.
+Long-running operations (pull, build, push) use both MCP protocol
+channels for real-time progress reporting:
+- Context.info() for human-readable log messages (notifications/message)
+- Context.report_progress() for structured progress (notifications/progress)
 """
 
 import asyncio
@@ -209,6 +211,11 @@ async def _report_layer_progress(
 ) -> str | None:
     """Report progress for a single layer chunk and return status if present.
 
+    Uses both MCP protocol channels:
+    - ctx.info() for human-readable log messages (notifications/message)
+    - ctx.report_progress() for structured progress when byte counts
+      are available (notifications/progress)
+
     Args:
         ctx: FastMCP Context for progress reporting
         chunk: Streaming chunk from Docker API
@@ -223,6 +230,14 @@ async def _report_layer_progress(
         msg = _sanitize_progress_message(msg)
         if throttler is None or throttler.should_update(msg):
             await ctx.info(msg)
+
+    # Send structured progress when byte-level detail is available
+    detail = chunk.get("progressDetail")
+    if detail:
+        current = detail.get("current", 0) or 0
+        total = detail.get("total", 0) or 0
+        if total > 0:
+            await ctx.report_progress(current, total)
 
     raw_status = chunk.get("status")
     return str(raw_status) if raw_status is not None else None
@@ -342,6 +357,11 @@ async def _report_build_progress(
 ) -> None:
     """Report progress for a build log chunk.
 
+    Uses both MCP protocol channels:
+    - ctx.info() for human-readable log messages (notifications/message)
+    - ctx.report_progress() for structured progress when build steps
+      are parseable (notifications/progress)
+
     Args:
         ctx: FastMCP Context for progress reporting
         chunk: Build log chunk from Docker API
@@ -359,6 +379,14 @@ async def _report_build_progress(
     is_important = msg.startswith("Step ") or "Successfully" in msg
     if is_important or throttler.should_update(sanitized_msg):
         await ctx.info(f"Build: {sanitized_msg}")
+
+    # Send structured progress for "Step N/M" lines
+    if msg.startswith("Step "):
+        match = re.match(r"Step (\d+)/(\d+)", msg)
+        if match:
+            step = int(match.group(1))
+            total = int(match.group(2))
+            await ctx.report_progress(step, total)
 
 
 async def _process_build_streaming_queue(
@@ -1112,6 +1140,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         validate_image_name(image)
         logger.info(f"Pulling image: {image}")
 
+        await ctx.report_progress(0, 1)
         await ctx.info(f"Starting pull: {image}")
 
         # Use a queue for real-time progress streaming
@@ -1142,6 +1171,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             image_obj = await _get_pulled_image(docker_client, image, tag)
 
             logger.info(f"Successfully pulled image: {image}")
+            await ctx.report_progress(1, 1)
             await ctx.info(f"Pull complete: {image}")
 
             output = PullImageOutput(image=image, id=str(image_obj.id), tags=image_obj.tags or [])
@@ -1215,6 +1245,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         resolved_path = _validate_build_context_path(path)
 
         logger.info(f"Building image from: {resolved_path}")
+        await ctx.report_progress(0, 1)
         await ctx.info(f"Starting build from: {resolved_path}")
 
         # Use a queue for real-time progress streaming
@@ -1259,7 +1290,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             image_obj, log_messages = build_result[0]
 
             logger.info(f"Successfully built image: {image_obj.id}")
-
+            await ctx.report_progress(1, 1)
             await ctx.info(f"Build complete: {image_obj.id[:12]}")
 
             output = BuildImageOutput(
@@ -1318,6 +1349,7 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         validate_image_name(image)
         logger.info(f"Pushing image: {image}")
 
+        await ctx.report_progress(0, 1)
         await ctx.info(f"Starting push: {image}")
 
         # Use a queue for real-time progress streaming
@@ -1346,7 +1378,7 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
 
             status = last_status if last_status else "pushed"
             logger.info(f"Successfully pushed image: {image}")
-
+            await ctx.report_progress(1, 1)
             await ctx.info(f"Push complete: {image}")
 
             output = PushImageOutput(image=image, status=status)

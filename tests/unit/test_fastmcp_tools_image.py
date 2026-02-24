@@ -473,8 +473,11 @@ class TestPullImageTool:
         *_, pull_func = create_pull_image_tool(mock_docker_client)
         await pull_func(image="ubuntu", ctx=mock_context)
 
-        # Verify progress messages were set
+        # Verify log messages were sent (notifications/message)
         assert mock_context.info.call_count >= 1
+        # Verify structured progress was sent (notifications/progress)
+        # Includes start (0,1), byte-level from progressDetail, and completion (1,1)
+        assert mock_context.report_progress.call_count >= 2
 
 
 class TestBuildImageTool:
@@ -500,6 +503,8 @@ class TestBuildImageTool:
         assert result["tags"] == ["myapp:latest"]
         assert len(result["logs"]) == 2
         mock_docker_client.client.images.build.assert_called_once()
+        # Verify structured progress: start (0,1), Step 1/2, Step 2/2, completion (1,1)
+        assert mock_context.report_progress.call_count >= 3
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -625,6 +630,8 @@ class TestPushImageTool:
         assert result["image"] == "myrepo/myapp"
         assert result["status"] == "Pushed"
         mock_docker_client.client.api.push.assert_called_once()
+        # Verify structured progress: start (0,1) and completion (1,1)
+        assert mock_context.report_progress.call_count >= 2
 
     @pytest.mark.asyncio
     async def test_push_image_with_tag(self, mock_docker_client, mock_context):

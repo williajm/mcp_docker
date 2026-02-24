@@ -1,6 +1,6 @@
 """Helper functions for FastMCP integration.
 
-This module provides utility functions for working with FastMCP 2.0.
+This module provides utility functions for working with FastMCP 3.x.
 """
 
 from typing import Any
