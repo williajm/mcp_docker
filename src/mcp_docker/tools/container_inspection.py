@@ -295,7 +295,7 @@ class ExecCommandOutput(BaseModel):
 def create_list_containers_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the list_containers FastMCP tool.
 
     Args:
@@ -303,8 +303,7 @@ def create_list_containers_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def list_containers(
@@ -370,22 +369,20 @@ def create_list_containers_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         list_containers,
     )
 
 
 def create_inspect_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the inspect_container FastMCP tool.
 
     Args:
         docker_client: Docker client wrapper
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def inspect_container(
@@ -436,7 +433,6 @@ def create_inspect_container_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         inspect_container,
     )
 
@@ -444,7 +440,7 @@ def create_inspect_container_tool(
 def create_container_logs_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the container_logs FastMCP tool.
 
     Args:
@@ -452,8 +448,7 @@ def create_container_logs_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
@@ -514,14 +509,13 @@ def create_container_logs_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         container_logs,
     )
 
 
 def create_container_stats_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the container_stats FastMCP tool.
 
     Args:
@@ -529,8 +523,7 @@ def create_container_stats_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def container_stats(
@@ -589,7 +582,6 @@ def create_container_stats_tool(
         OperationSafety.SAFE,
         True,  # idempotent
         False,  # not open_world
-        False,  # not supports_task
         container_stats,
     )
 
@@ -692,7 +684,7 @@ def _apply_exec_output_truncation(
 def create_exec_command_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, bool, Any]:
+) -> tuple[str, str, OperationSafety, bool, bool, Any]:
     """Create the exec_command FastMCP tool.
 
     Args:
@@ -700,8 +692,7 @@ def create_exec_command_tool(
         safety_config: Safety configuration
 
     Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world,
-                 supports_task, function)
+        Tuple of (name, description, safety_level, idempotent, open_world, function)
     """
 
     def exec_command(  # noqa: PLR0913 - Docker API requires these parameters
@@ -779,7 +770,6 @@ def create_exec_command_tool(
         OperationSafety.MODERATE,
         False,  # not idempotent (same command may have different effects)
         True,  # open_world (commands may access external networks/APIs)
-        False,  # not supports_task
         exec_command,
     )
 

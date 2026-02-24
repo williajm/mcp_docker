@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from docker.errors import APIError, NotFound
 from docker.errors import ImageNotFound as DockerImageNotFound
-from fastmcp.dependencies import Progress
+from fastmcp import Context
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker.client import DockerClientWrapper
@@ -26,11 +26,12 @@ from mcp_docker.utils.errors import DockerOperationError, ImageNotFound, Validat
 
 
 @pytest.fixture
-def mock_progress():
-    """Create a mock Progress dependency."""
-    progress = Mock(spec=Progress)
-    progress.set_message = AsyncMock()
-    return progress
+def mock_context():
+    """Create a mock Context for progress reporting."""
+    ctx = Mock(spec=Context)
+    ctx.info = AsyncMock()
+    ctx.report_progress = AsyncMock()
+    return ctx
 
 
 # Module-level fixtures to avoid duplication across test classes
@@ -111,14 +112,14 @@ class TestImageNotFoundErrors:
             func(**call_kwargs)
 
     @pytest.mark.asyncio
-    async def test_push_image_not_found(self, mock_docker_client, mock_progress):
+    async def test_push_image_not_found(self, mock_docker_client, mock_context):
         """Test that ImageNotFound is raised when image doesn't exist during push."""
         mock_docker_client.client.api.push.side_effect = NotFound("Image not found")
 
         *_, func = create_push_image_tool(mock_docker_client)
 
         with pytest.raises(ImageNotFound, match="Image not found"):
-            await func(image="nonexistent", progress=mock_progress)
+            await func(image="nonexistent", ctx=mock_context)
 
 
 class TestAPIErrors:
@@ -166,34 +167,34 @@ class TestAPIErrors:
             func(**call_kwargs)
 
     @pytest.mark.asyncio
-    async def test_pull_api_error(self, mock_docker_client, mock_progress):
+    async def test_pull_api_error(self, mock_docker_client, mock_context):
         """Test that DockerOperationError is raised on pull API errors."""
         mock_docker_client.client.api.pull.side_effect = APIError("API failed")
 
         *_, func = create_pull_image_tool(mock_docker_client)
 
         with pytest.raises(DockerOperationError, match="Failed to pull image"):
-            await func(image="ubuntu", progress=mock_progress)
+            await func(image="ubuntu", ctx=mock_context)
 
     @pytest.mark.asyncio
-    async def test_build_api_error(self, mock_docker_client, mock_progress, tmp_path):
+    async def test_build_api_error(self, mock_docker_client, mock_context, tmp_path):
         """Test that DockerOperationError is raised on build API errors."""
         mock_docker_client.client.images.build.side_effect = APIError("API failed")
 
         *_, func = create_build_image_tool(mock_docker_client)
 
         with pytest.raises(DockerOperationError, match="Failed to build image"):
-            await func(path=str(tmp_path), progress=mock_progress)
+            await func(path=str(tmp_path), ctx=mock_context)
 
     @pytest.mark.asyncio
-    async def test_push_api_error(self, mock_docker_client, mock_progress):
+    async def test_push_api_error(self, mock_docker_client, mock_context):
         """Test that DockerOperationError is raised on push API errors."""
         mock_docker_client.client.api.push.side_effect = APIError("API failed")
 
         *_, func = create_push_image_tool(mock_docker_client)
 
         with pytest.raises(DockerOperationError, match="Failed to push image"):
-            await func(image="myrepo/app", progress=mock_progress)
+            await func(image="myrepo/app", ctx=mock_context)
 
     def test_history_api_error(self, mock_docker_client, safety_config):
         """Test image history API error after getting image."""
@@ -376,15 +377,15 @@ class TestPullImageTool:
     """Test docker_pull_image tool."""
 
     @pytest.mark.asyncio
-    async def test_pull_image_rejects_duplicate_tag(self, mock_docker_client, mock_progress):
+    async def test_pull_image_rejects_duplicate_tag(self, mock_docker_client, mock_context):
         """Test that pull rejects image with tag when tag param also provided."""
         *_, pull_func = create_pull_image_tool(mock_docker_client)
 
         with pytest.raises(ValidationError, match="already contains a tag"):
-            await pull_func(image="ubuntu:22.04", tag="latest", progress=mock_progress)
+            await pull_func(image="ubuntu:22.04", tag="latest", ctx=mock_context)
 
     @pytest.mark.asyncio
-    async def test_pull_image_accepts_registry_with_port(self, mock_docker_client, mock_progress):
+    async def test_pull_image_accepts_registry_with_port(self, mock_docker_client, mock_context):
         """Test that pull accepts registry:port/image with separate tag param."""
         # Mock streaming response from api.pull
         mock_docker_client.client.api.pull.return_value = iter(
@@ -399,7 +400,7 @@ class TestPullImageTool:
         *_, pull_func = create_pull_image_tool(mock_docker_client)
 
         # This should NOT raise - registry port should not be confused with tag
-        result = await pull_func(image="localhost:5000/myimg", tag="v1", progress=mock_progress)
+        result = await pull_func(image="localhost:5000/myimg", tag="v1", ctx=mock_context)
 
         assert result["image"] == "localhost:5000/myimg"
         mock_docker_client.client.api.pull.assert_called_once_with(
@@ -412,7 +413,7 @@ class TestPullImageTool:
         )
 
     @pytest.mark.asyncio
-    async def test_pull_image_success(self, mock_docker_client, mock_progress):
+    async def test_pull_image_success(self, mock_docker_client, mock_context):
         """Test successful image pull."""
         # Mock streaming response from api.pull
         mock_docker_client.client.api.pull.return_value = iter(
@@ -426,7 +427,7 @@ class TestPullImageTool:
         mock_docker_client.client.images.get.return_value = image
 
         *_, pull_func = create_pull_image_tool(mock_docker_client)
-        result = await pull_func(image="ubuntu", progress=mock_progress)
+        result = await pull_func(image="ubuntu", ctx=mock_context)
 
         assert result["image"] == "ubuntu"
         assert result["id"] == "sha256:abc123"
@@ -434,7 +435,7 @@ class TestPullImageTool:
         mock_docker_client.client.api.pull.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_pull_image_with_tag(self, mock_docker_client, mock_progress):
+    async def test_pull_image_with_tag(self, mock_docker_client, mock_context):
         """Test image pull with tag."""
         mock_docker_client.client.api.pull.return_value = iter([{"status": "Pull complete"}])
 
@@ -444,14 +445,14 @@ class TestPullImageTool:
         mock_docker_client.client.images.get.return_value = image
 
         *_, pull_func = create_pull_image_tool(mock_docker_client)
-        await pull_func(image="ubuntu", tag="20.04", progress=mock_progress)
+        await pull_func(image="ubuntu", tag="20.04", ctx=mock_context)
 
         call_kwargs = mock_docker_client.client.api.pull.call_args.kwargs
         assert call_kwargs["repository"] == "ubuntu"
         assert call_kwargs["tag"] == "20.04"
 
     @pytest.mark.asyncio
-    async def test_pull_image_with_progress(self, mock_docker_client, mock_progress):
+    async def test_pull_image_with_progress(self, mock_docker_client, mock_context):
         """Test image pull reports progress."""
         mock_docker_client.client.api.pull.return_value = iter(
             [
@@ -470,17 +471,17 @@ class TestPullImageTool:
         mock_docker_client.client.images.get.return_value = image
 
         *_, pull_func = create_pull_image_tool(mock_docker_client)
-        await pull_func(image="ubuntu", progress=mock_progress)
+        await pull_func(image="ubuntu", ctx=mock_context)
 
         # Verify progress messages were set
-        assert mock_progress.set_message.call_count >= 1
+        assert mock_context.info.call_count >= 1
 
 
 class TestBuildImageTool:
     """Test docker_build_image tool."""
 
     @pytest.mark.asyncio
-    async def test_build_image_success(self, mock_docker_client, mock_progress, tmp_path):
+    async def test_build_image_success(self, mock_docker_client, mock_context, tmp_path):
         """Test successful image build."""
         image = Mock()
         image.id = "sha256:abc123"
@@ -493,7 +494,7 @@ class TestBuildImageTool:
         mock_docker_client.client.images.build.return_value = (image, build_logs)
 
         *_, build_func = create_build_image_tool(mock_docker_client)
-        result = await build_func(path=str(tmp_path), progress=mock_progress)
+        result = await build_func(path=str(tmp_path), ctx=mock_context)
 
         assert result["image_id"] == "sha256:abc123"
         assert result["tags"] == ["myapp:latest"]
@@ -513,7 +514,7 @@ class TestBuildImageTool:
         ],
     )
     async def test_build_image_with_options(
-        self, mock_docker_client, mock_progress, tmp_path, extra_kwargs, expected_kwarg
+        self, mock_docker_client, mock_context, tmp_path, extra_kwargs, expected_kwarg
     ):
         """Test image build with various options."""
         image = Mock()
@@ -522,7 +523,7 @@ class TestBuildImageTool:
         mock_docker_client.client.images.build.return_value = (image, [])
 
         *_, build_func = create_build_image_tool(mock_docker_client)
-        await build_func(path=str(tmp_path), progress=mock_progress, **extra_kwargs)
+        await build_func(path=str(tmp_path), ctx=mock_context, **extra_kwargs)
 
         call_kwargs = mock_docker_client.client.images.build.call_args.kwargs
         key, value = expected_kwarg
@@ -560,37 +561,37 @@ class TestBuildImagePathValidation:
     """Test build_image path validation security checks."""
 
     @pytest.mark.asyncio
-    async def test_build_image_rejects_root_directory(self, mock_docker_client, mock_progress):
+    async def test_build_image_rejects_root_directory(self, mock_docker_client, mock_context):
         """Test that building from root directory '/' is rejected."""
         *_, build_func = create_build_image_tool(mock_docker_client)
 
         with pytest.raises(ValidationError, match="Cannot build from root directory"):
-            await build_func(path="/", progress=mock_progress)
+            await build_func(path="/", ctx=mock_context)
 
     @pytest.mark.asyncio
     async def test_build_image_rejects_nonexistent_path(
-        self, mock_docker_client, mock_progress, tmp_path
+        self, mock_docker_client, mock_context, tmp_path
     ):
         """Test that building from non-existent path is rejected."""
         nonexistent = tmp_path / "does_not_exist"
         *_, build_func = create_build_image_tool(mock_docker_client)
 
         with pytest.raises(ValidationError, match="does not exist"):
-            await build_func(path=str(nonexistent), progress=mock_progress)
+            await build_func(path=str(nonexistent), ctx=mock_context)
 
     @pytest.mark.asyncio
-    async def test_build_image_rejects_file_path(self, mock_docker_client, mock_progress, tmp_path):
+    async def test_build_image_rejects_file_path(self, mock_docker_client, mock_context, tmp_path):
         """Test that building from a file (not directory) is rejected."""
         file_path = tmp_path / "Dockerfile"
         file_path.write_text("FROM ubuntu")
         *_, build_func = create_build_image_tool(mock_docker_client)
 
         with pytest.raises(ValidationError, match="must be a directory"):
-            await build_func(path=str(file_path), progress=mock_progress)
+            await build_func(path=str(file_path), ctx=mock_context)
 
     @pytest.mark.asyncio
     async def test_build_image_accepts_valid_directory(
-        self, mock_docker_client, mock_progress, tmp_path
+        self, mock_docker_client, mock_context, tmp_path
     ):
         """Test that valid directory path is accepted."""
         image = Mock()
@@ -599,7 +600,7 @@ class TestBuildImagePathValidation:
         mock_docker_client.client.images.build.return_value = (image, [])
 
         *_, build_func = create_build_image_tool(mock_docker_client)
-        result = await build_func(path=str(tmp_path), progress=mock_progress)
+        result = await build_func(path=str(tmp_path), ctx=mock_context)
 
         assert result["image_id"] == "sha256:abc123"
         # Verify resolved path was used
@@ -611,7 +612,7 @@ class TestPushImageTool:
     """Test docker_push_image tool."""
 
     @pytest.mark.asyncio
-    async def test_push_image_success(self, mock_docker_client, mock_progress):
+    async def test_push_image_success(self, mock_docker_client, mock_context):
         """Test successful image push."""
         # Mock streaming response from api.push
         mock_docker_client.client.api.push.return_value = iter(
@@ -619,26 +620,26 @@ class TestPushImageTool:
         )
 
         *_, push_func = create_push_image_tool(mock_docker_client)
-        result = await push_func(image="myrepo/myapp", progress=mock_progress)
+        result = await push_func(image="myrepo/myapp", ctx=mock_context)
 
         assert result["image"] == "myrepo/myapp"
         assert result["status"] == "Pushed"
         mock_docker_client.client.api.push.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_push_image_with_tag(self, mock_docker_client, mock_progress):
+    async def test_push_image_with_tag(self, mock_docker_client, mock_context):
         """Test pushing image with tag."""
         mock_docker_client.client.api.push.return_value = iter([{"status": "Pushed"}])
 
         *_, push_func = create_push_image_tool(mock_docker_client)
-        await push_func(image="myrepo/myapp", tag="v1.0", progress=mock_progress)
+        await push_func(image="myrepo/myapp", tag="v1.0", ctx=mock_context)
 
         call_kwargs = mock_docker_client.client.api.push.call_args.kwargs
         assert call_kwargs["repository"] == "myrepo/myapp"
         assert call_kwargs["tag"] == "v1.0"
 
     @pytest.mark.asyncio
-    async def test_push_image_with_error_in_stream(self, mock_docker_client, mock_progress):
+    async def test_push_image_with_error_in_stream(self, mock_docker_client, mock_context):
         """Test pushing image with error in stream."""
         mock_docker_client.client.api.push.return_value = iter(
             [{"status": "Pushing"}, {"error": "Authentication required"}]
@@ -647,15 +648,15 @@ class TestPushImageTool:
         *_, push_func = create_push_image_tool(mock_docker_client)
 
         with pytest.raises(DockerOperationError, match="Authentication required"):
-            await push_func(image="myrepo/myapp", progress=mock_progress)
+            await push_func(image="myrepo/myapp", ctx=mock_context)
 
     @pytest.mark.asyncio
-    async def test_push_image_no_status(self, mock_docker_client, mock_progress):
+    async def test_push_image_no_status(self, mock_docker_client, mock_context):
         """Test pushing image with no status in stream."""
         mock_docker_client.client.api.push.return_value = iter([])
 
         *_, push_func = create_push_image_tool(mock_docker_client)
-        result = await push_func(image="myrepo/myapp", progress=mock_progress)
+        result = await push_func(image="myrepo/myapp", ctx=mock_context)
 
         assert result["status"] == "pushed"
 
