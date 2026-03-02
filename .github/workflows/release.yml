@@ -87,8 +87,8 @@ jobs:
     - name: Upload Release Assets
       env:
         GH_TOKEN: ${{ github.token }}
+        TAG: ${{ github.event.release.tag_name || inputs.tag }}
       run: |
-        TAG="${{ github.event.release.tag_name || inputs.tag }}"
         echo "Uploading assets for release $TAG..."
 
         # Upload all built artifacts
@@ -110,10 +110,12 @@ jobs:
         echo "✅ All assets uploaded successfully"
 
     - name: Generate Release Summary
+      env:
+        TAG: ${{ github.event.release.tag_name || inputs.tag }}
       run: |
         echo "## 📦 Release Build Complete" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Tag**: ${{ github.event.release.tag_name || inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Tag**: $TAG" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Built Artifacts" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
