@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **authlib CVE-2026-28802**: Updated authlib 1.6.6 → 1.6.9 (HIGH severity)
+  - Fixes `alg: none` JWT signature verification bypass
+  - Forged tokens with `alg: none` and empty signature could bypass signature verification
+  - Our code was mitigated by explicit algorithm restriction, but upgraded for defense in depth
+  - Added regression test for alg:none bypass
+  - Also includes authlib 1.6.8 (EdDSA default) and 1.6.9 (header jwk, cek fixes)
+
 ## [1.2.7] - 2026-02-11
 
 ### Security

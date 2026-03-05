@@ -1323,3 +1323,53 @@ class TestOAuthSecurityVulnerabilities:
                 await authenticator.authenticate_token(token.decode())
 
             await authenticator.close()
+
+    async def test_alg_none_signature_bypass_rejected(
+        self,
+        test_key_pair: tuple[dict, dict],
+        jwks_response: dict,
+    ) -> None:
+        """Regression test for CVE-2026-28802: alg:none signature bypass.
+
+        A forged JWT with alg:none and an empty signature must be rejected.
+        authlib <= 1.6.6 accepted these tokens, bypassing signature verification.
+        """
+        import base64
+        import json
+
+        config = SecurityConfig(
+            oauth_enabled=True,
+            oauth_issuer="https://auth.example.com/",
+            oauth_jwks_url="https://auth.example.com/.well-known/jwks.json/",
+            oauth_audience=["mcp-docker-api"],
+            oauth_required_scopes=[],
+        )
+
+        # Craft a forged token with alg: none and empty signature
+        forged_header = {"alg": "none"}
+        forged_payload = {
+            "sub": "attacker",
+            "role": "admin",
+            "iss": "https://auth.example.com/",
+            "aud": ["mcp-docker-api"],
+            "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
+            "iat": int(datetime.now(UTC).timestamp()),
+        }
+
+        header_b64 = base64.urlsafe_b64encode(json.dumps(forged_header).encode()).rstrip(b"=")
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(forged_payload).encode()).rstrip(b"=")
+        forged_token = (header_b64 + b"." + payload_b64 + b".").decode()
+
+        with patch("httpx.AsyncClient.get") as mock_get:
+            mock_response = MagicMock()
+            mock_response.json.return_value = jwks_response
+            mock_response.raise_for_status = MagicMock()
+            mock_get.return_value = mock_response
+
+            authenticator = OAuthAuthenticator(config)
+
+            # Must reject alg:none tokens
+            with pytest.raises(OAuthAuthenticationError):
+                await authenticator.authenticate_token(forged_token)
+
+            await authenticator.close()
