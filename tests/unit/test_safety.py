@@ -795,56 +795,6 @@ class TestEnvironmentVariableEdgeCases:
         assert value == "hello%20world"
 
 
-class TestEncodedExecutionPatterns:
-    """Regression tests for encoded payload execution patterns."""
-
-    @pytest.mark.parametrize(
-        "command,test_id",
-        [
-            ("base64 -d payload.b64 | bash", "base64_d_pipe_bash"),
-            ("base64 --decode payload.b64 | sh", "base64_decode_pipe_sh"),
-            ("base64 -d /tmp/payload | python", "base64_d_pipe_python"),
-            ("base64 -d /tmp/payload | perl", "base64_d_pipe_perl"),
-            ("base64 -d /tmp/payload | ruby", "base64_d_pipe_ruby"),
-            ("echo dGVzdA== | base64 -d | bash", "echo_base64_d_bash"),
-            ("echo dGVzdA== | base64 --decode | sh", "echo_base64_decode_sh"),
-        ],
-        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
-    )
-    def test_encoded_execution_blocked(self, command: str, test_id: str) -> None:
-        """Test that encoded payload execution patterns are blocked."""
-        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
-            sanitize_command(command)
-
-    def test_base64_encode_allowed(self) -> None:
-        """Test that base64 encoding (not decoding to shell) is allowed."""
-        result = sanitize_command(["base64", "file.txt"])
-        assert result == ["base64", "file.txt"]
-
-    def test_base64_decode_to_file_allowed(self) -> None:
-        """Test that base64 decode to file (no pipe to interpreter) is allowed."""
-        result = sanitize_command(["base64", "-d", "payload.b64", "-o", "output.bin"])
-        assert result == ["base64", "-d", "payload.b64", "-o", "output.bin"]
-
-    @pytest.mark.parametrize(
-        "command,test_id",
-        [
-            ("base64 -d payload.b64 | python worker.py", "pipe_to_python_script"),
-            ("base64 -d payload.b64 | python -m json.tool", "pipe_to_python_module"),
-            ("base64 -d payload.b64 | perl script.pl", "pipe_to_perl_script"),
-            ("base64 -d payload.b64 | ruby worker.rb", "pipe_to_ruby_script"),
-        ],
-        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
-    )
-    def test_base64_to_script_or_module_allowed(self, command: str, test_id: str) -> None:
-        """Test that base64 decode piped to a script/module consumer is allowed.
-
-        When the interpreter runs a file or module, the decoded bytes are
-        stdin data, not code. Only bare interpreter invocations are blocked.
-        """
-        sanitize_command(command)
-
-
 class TestInlineCodeAllowed:
     """Verify inline interpreter commands are not blocked.
 

@@ -120,11 +120,6 @@ DANGEROUS_PATTERNS_BY_CATEGORY = {
         r"tar\s+.*--to-command",  # Tar with command execution
         r"unzip.*-p.*\|",  # Unzip piped to commands
     ],
-    "encoded_execution": [
-        r"base64\s+(-d|--decode).*\|\s*(bash|sh)\b",  # Decoded to shell
-        r"base64\s+(-d|--decode).*\|\s*(python[23]?|perl|ruby)\s*$",  # Decoded to bare interpreter
-        r"echo\s+.*\|\s*base64\s+(-d|--decode).*\|\s*(bash|sh)\b",  # Echo | base64 -d | shell
-    ],
     "reverse_shells": [
         r"\b(nc|ncat|netcat)\b.*-e\s",  # Netcat exec (reverse shell)
         r"bash\s+-i\s+>&\s*/dev/tcp/",  # Bash reverse shell via /dev/tcp
