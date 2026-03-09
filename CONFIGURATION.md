@@ -49,13 +49,13 @@ Controls which operations are allowed and safety limits.
 | `SAFETY_ALLOWED_PROMPTS` | `null` | Comma-separated list of allowed prompts (null = all)<br>Example: `troubleshoot_container,optimize_container` |
 | `SAFETY_ALLOWED_RESOURCES` | `null` | Comma-separated list of allowed resources (null = all)<br>Example: `container_logs,container_info` |
 | `SAFETY_YOLO_MODE` | `false` | Bypass ALL safety checks (user takes full responsibility) |
-| `SAFETY_VOLUME_MOUNT_BLOCKLIST` | `/etc,/root,/var/run/docker.sock` | Blocked volume mount paths (prefix matching) |
+| `SAFETY_VOLUME_MOUNT_BLOCKLIST` | `/etc,/root,/var/run/docker.sock,/run/docker.sock,/var/run/docker,/run/docker` | Blocked volume mount paths (segment-boundary prefix matching) |
 | `SAFETY_VOLUME_MOUNT_ALLOWLIST` | `[]` | Allowed volume mount paths (empty = allow all except blocked) |
 
 **Notes**:
 - `SAFETY_ALLOWED_TOOLS` and `SAFETY_DENIED_TOOLS` can be used together. Denied tools take precedence.
 - Setting a filtering option to empty string (`""`) blocks all items of that type.
-- Credential directories (`.ssh`, `.aws`, `.kube`, `.docker`) are always blocked regardless of volume settings.
+- Credential directories (`.ssh`, `.aws`, `.kube`, `.docker`, `.dockercfg`, `.gnupg`, `.config/gcloud`, `.azure`, `.config/gh`) are always blocked regardless of volume settings.
 
 ---
 

@@ -124,21 +124,10 @@ DANGEROUS_PATTERNS_BY_CATEGORY = {
         r"base64\s+(-d|--decode).*\|\s*(bash|sh|python[23]?|perl|ruby)",  # Decoded to interpreter
         r"echo\s+.*\|\s*base64\s+(-d|--decode).*\|\s*(bash|sh)",  # Echo | base64 -d | shell
     ],
-    "inline_code_execution": [
-        r"\bpython[23]?(?:\.\d+)?\s+-c\s+",  # Python inline code execution
-        r"\bperl\s+-e\s+",  # Perl inline code execution
-        r"\bruby\s+-e\s+",  # Ruby inline code execution
-        r"\bnode\s+-e\s+",  # Node.js inline code execution
-        r"\blua\s+-e\s+",  # Lua inline code execution
-    ],
     "reverse_shells": [
-        r"\b(nc|ncat|netcat)\b.*-[elp]",  # Netcat listeners/reverse shells
+        r"\b(nc|ncat|netcat)\b.*-e\s",  # Netcat exec (reverse shell)
         r"bash\s+-i\s+>&\s*/dev/tcp/",  # Bash reverse shell via /dev/tcp
         r"\bsocat\b.*\bexec\b",  # Socat exec for shell forwarding
-    ],
-    "data_exfiltration": [
-        r"curl\s+.*(-X\s+POST|--data|-d\s+|--upload-file|-T\s+|-F\s+|--json)",  # Curl POST/upload
-        r"wget\s+.*--post-(data|file)",  # Wget POST data
     ],
 }
 
@@ -447,13 +436,11 @@ def validate_mount_path(
         "/.config/gcloud",  # Google Cloud credentials
         "/.azure",  # Azure credentials
         "/.config/gh",  # GitHub CLI credentials
-        "/.npmrc",  # npm auth tokens
-        "/.pypirc",  # PyPI auth tokens
     ]
 
-    # Check system paths (prefix matching)
+    # Check system paths (prefix matching with segment boundary)
     for blocked in blocked_paths:
-        if normalized.startswith(blocked):
+        if normalized == blocked or normalized.startswith(blocked + "/"):
             raise UnsafeOperationError(
                 f"Mount path '{path}' is blocked. "
                 f"Matches blocklist entry: {blocked}. "

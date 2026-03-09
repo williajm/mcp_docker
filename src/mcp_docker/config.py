@@ -259,9 +259,10 @@ class SafetyConfig(BaseSettings):
             "/run/docker",  # Docker runtime directory (alternate)
         ],
         description=(
-            "Blocked volume mount paths (prefix matching, Linux-focused). "
-            "Note: Credential directories (.ssh, .aws, .kube, .docker) are "
-            "always blocked via substring matching regardless of this list. "
+            "Blocked volume mount paths (segment-boundary prefix matching). "
+            "Note: Credential directories (.ssh, .aws, .kube, .docker, .dockercfg, "
+            ".gnupg, .config/gcloud, .azure, .config/gh) are always blocked via "
+            "substring matching regardless of this list. "
             "Can be set via SAFETY_VOLUME_MOUNT_BLOCKLIST as comma-separated string."
         ),
     )
