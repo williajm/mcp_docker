@@ -826,6 +826,24 @@ class TestEncodedExecutionPatterns:
         result = sanitize_command(["base64", "-d", "payload.b64", "-o", "output.bin"])
         assert result == ["base64", "-d", "payload.b64", "-o", "output.bin"]
 
+    @pytest.mark.parametrize(
+        "command,test_id",
+        [
+            ("base64 -d payload.b64 | python worker.py", "pipe_to_python_script"),
+            ("base64 -d payload.b64 | python -m json.tool", "pipe_to_python_module"),
+            ("base64 -d payload.b64 | perl script.pl", "pipe_to_perl_script"),
+            ("base64 -d payload.b64 | ruby worker.rb", "pipe_to_ruby_script"),
+        ],
+        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
+    )
+    def test_base64_to_script_or_module_allowed(self, command: str, test_id: str) -> None:
+        """Test that base64 decode piped to a script/module consumer is allowed.
+
+        When the interpreter runs a file or module, the decoded bytes are
+        stdin data, not code. Only bare interpreter invocations are blocked.
+        """
+        sanitize_command(command)
+
 
 class TestInlineCodeAllowed:
     """Verify inline interpreter commands are not blocked.
@@ -976,6 +994,26 @@ class TestDockerSocketBlocklist:
         subpaths of it must not be blocked (e.g., /run/dockerized-app).
         """
         validate_mount_path(path)
+
+    @pytest.mark.parametrize(
+        "blocked,path,test_id",
+        [
+            ("/etc/", "/etc/passwd", "etc_trailing_slash"),
+            ("/root/", "/root/.bashrc", "root_trailing_slash"),
+            ("/var/run/docker/", "/var/run/docker/containerd", "docker_trailing_slash"),
+        ],
+        ids=lambda x: x[2] if isinstance(x, tuple) and len(x) == 3 else str(x),
+    )
+    def test_blocklist_trailing_slash_still_blocks(
+        self, blocked: str, path: str, test_id: str
+    ) -> None:
+        """Test that blocklist entries with trailing slashes still block paths.
+
+        Regression: segment boundary fix must normalize trailing slashes
+        so that user-configured entries like '/etc/' still work.
+        """
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path(path, blocked_paths=[blocked])
 
     # --- Vuln 2: config default blocklist must include new paths ---
 

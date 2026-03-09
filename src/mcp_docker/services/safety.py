@@ -121,8 +121,9 @@ DANGEROUS_PATTERNS_BY_CATEGORY = {
         r"unzip.*-p.*\|",  # Unzip piped to commands
     ],
     "encoded_execution": [
-        r"base64\s+(-d|--decode).*\|\s*(bash|sh|python[23]?|perl|ruby)",  # Decoded to interpreter
-        r"echo\s+.*\|\s*base64\s+(-d|--decode).*\|\s*(bash|sh)",  # Echo | base64 -d | shell
+        r"base64\s+(-d|--decode).*\|\s*(bash|sh)\b",  # Decoded to shell
+        r"base64\s+(-d|--decode).*\|\s*(python[23]?|perl|ruby)\s*$",  # Decoded to bare interpreter
+        r"echo\s+.*\|\s*base64\s+(-d|--decode).*\|\s*(bash|sh)\b",  # Echo | base64 -d | shell
     ],
     "reverse_shells": [
         r"\b(nc|ncat|netcat)\b.*-e\s",  # Netcat exec (reverse shell)
@@ -440,7 +441,8 @@ def validate_mount_path(
 
     # Check system paths (prefix matching with segment boundary)
     for blocked in blocked_paths:
-        if normalized == blocked or normalized.startswith(blocked + "/"):
+        normalized_blocked = blocked.rstrip("/")
+        if normalized == normalized_blocked or normalized.startswith(normalized_blocked + "/"):
             raise UnsafeOperationError(
                 f"Mount path '{path}' is blocked. "
                 f"Matches blocklist entry: {blocked}. "
