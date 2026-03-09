@@ -361,6 +361,31 @@ def _is_named_volume(path: str) -> bool:
     return bool(re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]*$", path))
 
 
+def _contains_credential_dir(normalized: str, cred_dir: str) -> bool:
+    """Check if a normalized path contains a credential directory at a segment boundary.
+
+    Checks ALL occurrences of cred_dir in the path, not just the first,
+    to prevent bypass via earlier non-boundary substrings
+    (e.g., /data/.sshfs-mount/.ssh/id_rsa).
+
+    Args:
+        normalized: Normalized mount path
+        cred_dir: Credential directory pattern to search for
+
+    Returns:
+        True if path contains cred_dir at a segment boundary
+    """
+    search_start = 0
+    while True:
+        idx = normalized.find(cred_dir, search_start)
+        if idx == -1:
+            return False
+        end = idx + len(cred_dir)
+        if end >= len(normalized) or normalized[end] == "/":
+            return True
+        search_start = idx + 1
+
+
 def validate_mount_path(
     path: str,
     blocked_paths: list[str] | None = None,
@@ -439,19 +464,12 @@ def validate_mount_path(
     # Require segment boundary: cred_dir must be followed by '/' or end-of-string
     # to avoid false positives (e.g., /.config/gh must not match /.config/ghidra)
     for cred_dir in credential_dirs:
-        search_start = 0
-        while True:
-            idx = normalized.find(cred_dir, search_start)
-            if idx == -1:
-                break
-            end = idx + len(cred_dir)
-            if end >= len(normalized) or normalized[end] == "/":
-                raise UnsafeOperationError(
-                    f"Mount path '{path}' contains credential directory '{cred_dir}'. "
-                    "Credential directories are blocked for safety. "
-                    "Enable SAFETY_YOLO_MODE=true to bypass."
-                )
-            search_start = idx + 1
+        if _contains_credential_dir(normalized, cred_dir):
+            raise UnsafeOperationError(
+                f"Mount path '{path}' contains credential directory '{cred_dir}'. "
+                "Credential directories are blocked for safety. "
+                "Enable SAFETY_YOLO_MODE=true to bypass."
+            )
 
     # Check allowlist if specified
     if allowed_paths is not None and not any(
