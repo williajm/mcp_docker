@@ -137,7 +137,7 @@ DANGEROUS_PATTERNS_BY_CATEGORY = {
         r"\bsocat\b.*\bexec\b",  # Socat exec for shell forwarding
     ],
     "data_exfiltration": [
-        r"curl\s+.*(-X\s+POST|--data|--upload-file|-F\s+)",  # Curl POST/upload
+        r"curl\s+.*(-X\s+POST|--data|-d\s+|--upload-file|-T\s+|-F\s+|--json)",  # Curl POST/upload
         r"wget\s+.*--post-(data|file)",  # Wget POST data
     ],
 }
@@ -417,6 +417,7 @@ def validate_mount_path(
         "/.aws",  # AWS credentials
         "/.kube",  # Kubernetes config
         "/.docker",  # Docker config/auth
+        "/.dockercfg",  # Legacy Docker credentials (pre-1.7)
         "/.gnupg",  # GPG keys
         "/.config/gcloud",  # Google Cloud credentials
         "/.azure",  # Azure credentials
@@ -438,16 +439,19 @@ def validate_mount_path(
     # Require segment boundary: cred_dir must be followed by '/' or end-of-string
     # to avoid false positives (e.g., /.config/gh must not match /.config/ghidra)
     for cred_dir in credential_dirs:
-        idx = normalized.find(cred_dir)
-        if idx == -1:
-            continue
-        end = idx + len(cred_dir)
-        if end >= len(normalized) or normalized[end] == "/":
-            raise UnsafeOperationError(
-                f"Mount path '{path}' contains credential directory '{cred_dir}'. "
-                "Credential directories are blocked for safety. "
-                "Enable SAFETY_YOLO_MODE=true to bypass."
-            )
+        search_start = 0
+        while True:
+            idx = normalized.find(cred_dir, search_start)
+            if idx == -1:
+                break
+            end = idx + len(cred_dir)
+            if end >= len(normalized) or normalized[end] == "/":
+                raise UnsafeOperationError(
+                    f"Mount path '{path}' contains credential directory '{cred_dir}'. "
+                    "Credential directories are blocked for safety. "
+                    "Enable SAFETY_YOLO_MODE=true to bypass."
+                )
+            search_start = idx + 1
 
     # Check allowlist if specified
     if allowed_paths is not None and not any(

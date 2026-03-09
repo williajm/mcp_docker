@@ -254,6 +254,9 @@ class SafetyConfig(BaseSettings):
             "/etc",  # System configuration
             "/root",  # Root user home
             "/var/run/docker.sock",  # Docker socket (container escape)
+            "/run/docker.sock",  # Docker socket symlink target
+            "/var/run/docker",  # Docker runtime directory
+            "/run/docker",  # Docker runtime directory (alternate)
         ],
         description=(
             "Blocked volume mount paths (prefix matching, Linux-focused). "
