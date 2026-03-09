@@ -125,7 +125,7 @@ DANGEROUS_PATTERNS_BY_CATEGORY = {
         r"echo\s+.*\|\s*base64\s+(-d|--decode).*\|\s*(bash|sh)",  # Echo | base64 -d | shell
     ],
     "inline_code_execution": [
-        r"\bpython[23]?\s+-c\s+",  # Python inline code execution
+        r"\bpython[23]?(?:\.\d+)?\s+-c\s+",  # Python inline code execution
         r"\bperl\s+-e\s+",  # Perl inline code execution
         r"\bruby\s+-e\s+",  # Ruby inline code execution
         r"\bnode\s+-e\s+",  # Node.js inline code execution
@@ -435,8 +435,14 @@ def validate_mount_path(
             )
 
     # Check credential directories (substring matching to catch any user)
+    # Require segment boundary: cred_dir must be followed by '/' or end-of-string
+    # to avoid false positives (e.g., /.config/gh must not match /.config/ghidra)
     for cred_dir in credential_dirs:
-        if cred_dir in normalized:
+        idx = normalized.find(cred_dir)
+        if idx == -1:
+            continue
+        end = idx + len(cred_dir)
+        if end >= len(normalized) or normalized[end] == "/":
             raise UnsafeOperationError(
                 f"Mount path '{path}' contains credential directory '{cred_dir}'. "
                 "Credential directories are blocked for safety. "

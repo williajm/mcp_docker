@@ -836,6 +836,8 @@ class TestInlineCodeExecutionPatterns:
             ("python -c 'import os; os.system(\"rm -rf /\")'", "python_c"),
             ("python3 -c 'import socket'", "python3_c"),
             ("python2 -c 'print(1)'", "python2_c"),
+            ("python3.11 -c 'import os'", "python3_11_c"),
+            ("python3.12 -c 'print(1)'", "python3_12_c"),
             ("perl -e 'system(\"ls\")'", "perl_e"),
             ("ruby -e 'exec(\"ls\")'", "ruby_e"),
             ('node -e \'require("child_process").exec("ls")\'', "node_e"),
@@ -867,6 +869,20 @@ class TestInlineCodeExecutionPatterns:
         """Test that running Perl scripts from files is allowed."""
         result = sanitize_command(["perl", "script.pl"])
         assert result == ["perl", "script.pl"]
+
+    def test_case_insensitive_matching(self) -> None:
+        """Test that inline code patterns are matched case-insensitively."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("PYTHON -c 'import os'")
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command("Python3 -c 'print(1)'")
+
+    def test_python_versioned_script_allowed(self) -> None:
+        """Test that running versioned Python interpreter with scripts is allowed."""
+        result = sanitize_command(["python3.11", "script.py"])
+        assert result == ["python3.11", "script.py"]
+        result = sanitize_command(["python3.12", "-m", "pytest"])
+        assert result == ["python3.12", "-m", "pytest"]
 
 
 class TestReverseShellPatterns:
@@ -1015,3 +1031,15 @@ class TestExpandedCredentialDirs:
     def test_npm_dir_allowed(self) -> None:
         """Test that .npm cache dir (not .npmrc) is allowed."""
         validate_mount_path("/home/user/.npm")
+
+    def test_ghidra_config_allowed(self) -> None:
+        """Test that .config/ghidra is not blocked by .config/gh rule."""
+        validate_mount_path("/home/user/.config/ghidra")
+
+    def test_ghostwriter_config_allowed(self) -> None:
+        """Test that .config/ghostwriter is not blocked by .config/gh rule."""
+        validate_mount_path("/home/user/.config/ghostwriter")
+
+    def test_sshfs_dir_allowed(self) -> None:
+        """Test that .sshfs is not blocked by .ssh rule."""
+        validate_mount_path("/home/user/.sshfs")
