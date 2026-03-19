@@ -37,7 +37,8 @@ jobs:
         # Note: CI/dev dependencies in .github/requirements/ are NOT distributed with
         # the mcp-docker product and do not affect the product's MIT license.
         # All allowed licenses are permissive (no copyleft).
-        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, PSF-2.0, Unlicense, MPL-2.0
+        # Python-2.0.1: Minor variant of Python-2.0 (used by librt via compound license expression)
+        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, Python-2.0.1, PSF-2.0, Unlicense, MPL-2.0
         comment-summary-in-pr: on-failure
         # Skip license checks for packages whose metadata uses PEP 639
         # License-Expression instead of the legacy License field, causing
@@ -49,7 +50,9 @@ jobs:
         #   opentelemetry-api (Apache-2.0), pathable (Apache-2.0),
         #   ruff (MIT), sse-starlette (BSD-3-Clause), typer (MIT),
         #   uncalled-for (MIT), uvicorn (BSD-3-Clause), wrapt (BSD-2-Clause),
-        #   authlib (BSD-3-Clause), docutils (Public Domain/BSD/PSF)
+        #   authlib (BSD-3-Clause), docutils (Public Domain/BSD/PSF),
+        #   setuptools (MIT), types-cachetools (Apache-2.0),
+        #   types-docker (Apache-2.0)
         allow-dependencies-licenses: >-
           pkg:pypi/attrs,
           pkg:pypi/authlib,
@@ -66,8 +69,11 @@ jobs:
           pkg:pypi/opentelemetry-api,
           pkg:pypi/pathable,
           pkg:pypi/ruff,
+          pkg:pypi/setuptools,
           pkg:pypi/sse-starlette,
           pkg:pypi/typer,
+          pkg:pypi/types-cachetools,
+          pkg:pypi/types-docker,
           pkg:pypi/uncalled-for,
           pkg:pypi/uvicorn,
           pkg:pypi/wrapt
