@@ -1,7 +1,7 @@
 """Safety controls and validation for Docker operations."""
 
 import re
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
@@ -13,7 +13,7 @@ from mcp_docker.utils.validation import (
 logger = get_logger(__name__)
 
 
-class OperationSafety(str, Enum):
+class OperationSafety(StrEnum):
     """Classification of operation safety levels."""
 
     SAFE = "safe"  # Read-only operations (list, inspect, logs)
