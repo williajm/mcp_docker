@@ -20,7 +20,7 @@ jobs:
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
     - name: Dependency Review
-      uses: actions/dependency-review-action@3c4e3dcb1aa7874d2c16be7d79418e9b7efd6261 # v4.8.2
+      uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
       with:
         # Fail the build if vulnerabilities are found
         fail-on-severity: moderate
@@ -32,12 +32,51 @@ jobs:
         # 0BSD: Zero-clause BSD (used by typing-extensions)
         # PSF-2.0: Python Software Foundation License (used by distlib in pre-commit)
         # Unlicense: Public domain dedication (used by filelock in pre-commit)
+        # MPL-2.0: Mozilla Public License (used by hypothesis, dev-only)
         #
         # Note: CI/dev dependencies in .github/requirements/ are NOT distributed with
         # the mcp-docker product and do not affect the product's MIT license.
         # All allowed licenses are permissive (no copyleft).
-        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, PSF-2.0, Unlicense
+        # Python-2.0.1: Minor variant of Python-2.0 (used by librt via compound license expression)
+        allow-licenses: MIT, MIT-0, Apache-2.0, BSD-2-Clause, BSD-3-Clause, 0BSD, ISC, Python-2.0, Python-2.0.1, PSF-2.0, Unlicense, MPL-2.0
         comment-summary-in-pr: on-failure
+        # Skip license checks for packages whose metadata uses PEP 639
+        # License-Expression instead of the legacy License field, causing
+        # GitHub's dependency graph to report "Null". All verified permissive:
+        #   attrs (MIT), cachetools (MIT), charset-normalizer (MIT),
+        #   cyclopts (Apache-2.0), fastmcp (Apache-2.0), hypothesis (MPL-2.0),
+        #   jaraco-context (MIT), jaraco-functools (MIT),
+        #   jsonschema-path (Apache-2.0), limits (MIT),
+        #   opentelemetry-api (Apache-2.0), pathable (Apache-2.0),
+        #   ruff (MIT), sse-starlette (BSD-3-Clause), typer (MIT),
+        #   uncalled-for (MIT), uvicorn (BSD-3-Clause), wrapt (BSD-2-Clause),
+        #   authlib (BSD-3-Clause), docutils (Public Domain/BSD/PSF),
+        #   setuptools (MIT), types-cachetools (Apache-2.0),
+        #   types-docker (Apache-2.0)
+        allow-dependencies-licenses: >-
+          pkg:pypi/attrs,
+          pkg:pypi/authlib,
+          pkg:pypi/cachetools,
+          pkg:pypi/charset-normalizer,
+          pkg:pypi/cyclopts,
+          pkg:pypi/docutils,
+          pkg:pypi/fastmcp,
+          pkg:pypi/hypothesis,
+          pkg:pypi/jaraco-context,
+          pkg:pypi/jaraco-functools,
+          pkg:pypi/jsonschema-path,
+          pkg:pypi/limits,
+          pkg:pypi/opentelemetry-api,
+          pkg:pypi/pathable,
+          pkg:pypi/ruff,
+          pkg:pypi/setuptools,
+          pkg:pypi/sse-starlette,
+          pkg:pypi/typer,
+          pkg:pypi/types-cachetools,
+          pkg:pypi/types-docker,
+          pkg:pypi/uncalled-for,
+          pkg:pypi/uvicorn,
+          pkg:pypi/wrapt
         # OpenSSF Scorecard configuration
         # Set to 1.0 to allow pydantic-settings (score: 1.3) which is a well-maintained
         # transitive dependency of pydantic, used only for configuration loading

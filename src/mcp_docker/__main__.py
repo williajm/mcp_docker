@@ -5,7 +5,7 @@ This module provides the main entry point for running the MCP Docker server with
 
 import asyncio
 import os
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,7 @@ from mcp_docker.utils.logger import get_logger, setup_logger
 from mcp_docker.version import __version__
 
 
-class Transport(str, Enum):
+class Transport(StrEnum):
     """Supported transport types."""
 
     stdio = "stdio"
