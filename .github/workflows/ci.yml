@@ -278,13 +278,13 @@ jobs:
 
     - name: Run safety check
       run: |
-        uv pip install safety
+        uv pip install safety==3.7.0
         uv run safety check --json || true
       continue-on-error: true
 
     - name: Run bandit security linter
       run: |
-        uv pip install bandit
+        uv pip install bandit==1.9.4
         uv run bandit -r src/ -f json || true
       continue-on-error: true
 
