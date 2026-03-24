@@ -117,6 +117,7 @@ select = [
     "F",     # pyflakes
     "I",     # isort
     "N",     # pep8-naming
+    "S",     # flake8-bandit (security: hardcoded secrets, weak crypto, injection, etc.)
     "UP",    # pyupgrade
     "B",     # flake8-bugbear
     "C4",    # flake8-comprehensions
@@ -141,6 +142,12 @@ ignore = []
     "SIM117",   # Single with statement (separate context managers are more readable)
     "PLR0915",  # Too many statements (integration/E2E tests naturally have many steps)
     "ERA001",   # Commented code (tests sometimes keep old approaches as documentation)
+    "S101",     # assert is the standard way to write test assertions
+    "S104",     # Binding to all interfaces is intentional in server integration tests
+    "S106",     # Hardcoded passwords/tokens are test fixtures, not real credentials
+    "S108",     # /tmp paths are acceptable in test environments
+    "S110",     # try-except-pass is used for cleanup in tests
+    "S607",     # Partial executable paths are acceptable in test subprocess calls
 ]
 # Fuzz tests use Atheris conventions (TestOneInput is required entry point)
 "tests/fuzz/**/*.py" = [

@@ -37,10 +37,18 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync
+      run: |
+        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
+        uv sync --locked --exclude-newer "$EXCLUDE_DATE"
 
     - name: Build package
       run: uv build
+
+    - name: Generate CycloneDX SBOM
+      run: |
+        uvx --from cyclonedx-bom cyclonedx-py environment --output-format json --output-file dist/sbom.cdx.json
+        echo "SBOM generated:"
+        ls -lh dist/sbom.cdx.json
 
     - name: Generate artifact list
       id: artifacts
@@ -81,8 +89,17 @@ jobs:
       uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
       with:
         name: dist-packages
-        path: dist/
+        path: |
+          dist/*
+          !dist/sbom.cdx.json
         retention-days: 1
+
+    - name: Upload SBOM artifact
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      with:
+        name: sbom
+        path: dist/sbom.cdx.json
+        retention-days: 90
 
     - name: Upload Release Assets
       env:

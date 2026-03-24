@@ -36,7 +36,9 @@ jobs:
       run: uv python install ${{ matrix.python-version }}
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: |
+        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
+        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
 
     - name: Run ruff linting
       run: uv run ruff check src/ tests/
@@ -138,7 +140,9 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: |
+        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
+        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
 
     - name: Pull test images
       run: |
@@ -204,7 +208,9 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: |
+        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
+        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
 
     - name: Pull test images
       run: |
@@ -274,7 +280,9 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: |
+        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
+        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
 
     - name: Run safety check
       run: |
@@ -287,6 +295,11 @@ jobs:
         uv pip install bandit==1.9.4
         uv run bandit -r src/ -f json || true
       continue-on-error: true
+
+    - name: Run pip-audit (CVE scanning)
+      run: |
+        uv export --no-emit-project > /tmp/requirements.txt
+        uvx pip-audit --strict --desc --require-hashes -r /tmp/requirements.txt
 
   build:
     name: Build Package
@@ -308,7 +321,9 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: uv sync
+      run: |
+        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
+        uv sync --locked --exclude-newer "$EXCLUDE_DATE"
 
     - name: Build package
       run: uv build
