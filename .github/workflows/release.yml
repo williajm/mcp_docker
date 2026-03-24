@@ -37,9 +37,7 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: |
-        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
-        uv sync --locked --exclude-newer "$EXCLUDE_DATE"
+      run: uv sync --locked
 
     - name: Build package
       run: uv build

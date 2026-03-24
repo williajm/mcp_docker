@@ -36,9 +36,7 @@ jobs:
       run: uv python install ${{ matrix.python-version }}
 
     - name: Install dependencies
-      run: |
-        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
-        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
+      run: uv sync --all-extras --locked
 
     - name: Run ruff linting
       run: uv run ruff check src/ tests/
@@ -140,9 +138,7 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: |
-        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
-        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
+      run: uv sync --all-extras --locked
 
     - name: Pull test images
       run: |
@@ -208,9 +204,7 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: |
-        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
-        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
+      run: uv sync --all-extras --locked
 
     - name: Pull test images
       run: |
@@ -280,9 +274,7 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: |
-        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
-        uv sync --all-extras --locked --exclude-newer "$EXCLUDE_DATE"
+      run: uv sync --all-extras --locked
 
     - name: Run safety check
       run: |
@@ -321,9 +313,7 @@ jobs:
       run: uv python install 3.11
 
     - name: Install dependencies
-      run: |
-        EXCLUDE_DATE=$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)
-        uv sync --locked --exclude-newer "$EXCLUDE_DATE"
+      run: uv sync --locked
 
     - name: Build package
       run: uv build
