@@ -23,6 +23,10 @@ uv sync --all-extras
 
 # Install just dev dependencies
 uv sync --group dev
+
+# Update lockfile (use --exclude-newer for supply chain safety)
+# The 3-day buffer gives the community time to detect malicious uploads
+uv lock --exclude-newer "$(date -u -d '3 days ago' +%Y-%m-%dT00:00:00Z)"
 ```
 
 ### Testing
@@ -387,6 +391,7 @@ Two Claude-powered workflows are available (requires `CLAUDE_CODE_OAUTH_TOKEN` s
 - **Rate Limiting**: Prevents abuse
 - **Command Injection**: Validated via safety.py patterns
 - **Error Sanitization**: Prevents information disclosure
+- **Supply Chain**: CI uses `--locked` to enforce lockfile integrity with hashes. When updating dependencies, use `uv lock --exclude-newer` with a 3-day buffer to avoid pulling newly published (potentially malicious) packages
 
 ## Configuration
 
