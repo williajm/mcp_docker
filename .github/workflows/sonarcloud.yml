@@ -51,18 +51,24 @@ jobs:
         restore-keys: |
           sonar-${{ runner.os }}-
 
-    - name: SonarCloud Scan
-      uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7.0.0
+    - name: Install SonarScanner
+      run: |
+        wget -q https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+        echo "0b8a3049f0bd5de7abc1582c78c233960d3d4ed7cc983a1d1635e8552f8bb439  sonar-scanner-cli-6.2.1.4610-linux-x64.zip" | sha256sum -c
+        unzip -q sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+        echo "$PWD/sonar-scanner-6.2.1.4610-linux-x64/bin" >> $GITHUB_PATH
+
+    - name: Run SonarCloud Scan
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      with:
-        args: >
-          -Dsonar.organization=williajm
-          -Dsonar.projectKey=williajm_mcp_docker
-          -Dsonar.sources=src
-          -Dsonar.tests=tests
-          -Dsonar.python.coverage.reportPaths=coverage.xml
-          -Dsonar.host.url=https://sonarcloud.io
-          -Dsonar.qualitygate.wait=true
+      run: |
+        sonar-scanner \
+          -Dsonar.organization=williajm \
+          -Dsonar.projectKey=williajm_mcp_docker \
+          -Dsonar.sources=src \
+          -Dsonar.tests=tests \
+          -Dsonar.python.coverage.reportPaths=coverage.xml \
+          -Dsonar.host.url=https://sonarcloud.io \
+          -Dsonar.qualitygate.wait=true \
           -Dsonar.qualitygate.timeout=300
