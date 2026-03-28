@@ -1,8 +1,4 @@
-"""FastMCP network tools.
-
-This module contains all network tools migrated to FastMCP 2.0,
-including SAFE (read-only), MODERATE (state-changing), and DESTRUCTIVE operations.
-"""
+"""FastMCP network tools."""
 
 from typing import Any
 
@@ -17,6 +13,7 @@ from mcp_docker.tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
+    ToolSpec,
     apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
@@ -190,31 +187,13 @@ class RemoveNetworkOutput(BaseModel):
 def create_list_networks_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the list_networks FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the list_networks tool."""
 
     def list_networks(
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
-        """List Docker networks with optional filters.
-
-        Args:
-            filters: Filters to apply (e.g., {'driver': ['bridge']})
-
-        Returns:
-            Dictionary with networks list, count, and truncation info
-
-        Raises:
-            DockerOperationError: If listing fails
-        """
+        """List Docker networks with optional filters."""
         try:
             logger.info(f"Listing networks (filters={filters})")
             networks = docker_client.client.networks.list(filters=filters)
@@ -252,44 +231,24 @@ def create_list_networks_tool(
             logger.error(f"Failed to list networks: {e}")
             raise DockerOperationError(f"Failed to list networks: {e}") from e
 
-    return (
-        "docker_list_networks",
-        "List Docker networks with optional filters",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        list_networks,
+    return ToolSpec(
+        name="docker_list_networks",
+        description="List Docker networks with optional filters",
+        safety=OperationSafety.SAFE,
+        func=list_networks,
+        idempotent=True,
     )
 
 
 def create_inspect_network_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the inspect_network FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the inspect_network tool."""
 
     def inspect_network(
         network_id: str,
     ) -> dict[str, Any]:
-        """Get detailed information about a Docker network.
-
-        Args:
-            network_id: Network ID or name
-
-        Returns:
-            Dictionary with detailed network information
-
-        Raises:
-            NetworkNotFound: If network doesn't exist
-            DockerOperationError: If inspection fails
-        """
+        """Get detailed information about a Docker network."""
         try:
             logger.info(f"Inspecting network: {network_id}")
             network = docker_client.client.networks.get(network_id)
@@ -317,20 +276,19 @@ def create_inspect_network_tool(
             logger.error(f"Failed to inspect network: {e}")
             raise DockerOperationError(f"Failed to inspect network: {e}") from e
 
-    return (
-        "docker_inspect_network",
-        "Get detailed information about a Docker network",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        inspect_network,
+    return ToolSpec(
+        name="docker_inspect_network",
+        description="Get detailed information about a Docker network",
+        safety=OperationSafety.SAFE,
+        func=inspect_network,
+        idempotent=True,
     )
 
 
 def create_create_network_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the create_network FastMCP tool."""
+) -> ToolSpec:
+    """Create the create_network tool."""
 
     def create_network(  # noqa: PLR0913 - Docker API requires these parameters
         name: str,
@@ -342,24 +300,7 @@ def create_create_network_tool(
         enable_ipv6: bool = False,
         attachable: bool = False,
     ) -> dict[str, Any]:
-        """Create a new Docker network.
-
-        Args:
-            name: Network name
-            driver: Network driver (bridge, overlay, etc.)
-            options: Driver-specific options
-            ipam: IPAM configuration
-            internal: Restrict external access
-            labels: Network labels
-            enable_ipv6: Enable IPv6
-            attachable: Enable manual container attachment
-
-        Returns:
-            Dictionary with created network info
-
-        Raises:
-            DockerOperationError: If creation fails
-        """
+        """Create a new Docker network."""
         try:
             logger.info(f"Creating network: {name} (driver={driver})")
 
@@ -393,20 +334,18 @@ def create_create_network_tool(
             logger.error(f"Failed to create network: {e}")
             raise DockerOperationError(f"Failed to create network: {e}") from e
 
-    return (
-        "docker_create_network",
-        "Create a new Docker network",
-        OperationSafety.MODERATE,
-        False,  # not idempotent (creates different networks)
-        False,  # not open_world
-        create_network,
+    return ToolSpec(
+        name="docker_create_network",
+        description="Create a new Docker network",
+        safety=OperationSafety.MODERATE,
+        func=create_network,
     )
 
 
 def create_connect_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the connect_container FastMCP tool."""
+) -> ToolSpec:
+    """Create the connect_container tool."""
 
     def connect_container(  # noqa: PLR0913 - Docker API requires these parameters
         network_id: str,
@@ -416,24 +355,7 @@ def create_connect_container_tool(
         ipv6_address: str | None = None,
         links: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Connect a container to a Docker network.
-
-        Args:
-            network_id: Network ID or name
-            container_id: Container ID or name
-            aliases: Network-scoped aliases
-            ipv4_address: IPv4 address
-            ipv6_address: IPv6 address
-            links: Legacy container links
-
-        Returns:
-            Dictionary with connection status
-
-        Raises:
-            NetworkNotFound: If network doesn't exist
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If connection fails
-        """
+        """Connect a container to a Docker network."""
         try:
             logger.info(f"Connecting container {container_id} to network {network_id}")
 
@@ -486,41 +408,25 @@ def create_connect_container_tool(
             logger.error(f"Failed to connect container: {e}")
             raise DockerOperationError(f"Failed to connect container: {e}") from e
 
-    return (
-        "docker_connect_container",
-        "Connect a container to a Docker network",
-        OperationSafety.MODERATE,
-        False,  # not fully idempotent (can fail if config changes)
-        False,  # not open_world
-        connect_container,
+    return ToolSpec(
+        name="docker_connect_container",
+        description="Connect a container to a Docker network",
+        safety=OperationSafety.MODERATE,
+        func=connect_container,
     )
 
 
 def create_disconnect_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the disconnect_container FastMCP tool."""
+) -> ToolSpec:
+    """Create the disconnect_container tool."""
 
     def disconnect_container(
         network_id: str,
         container_id: str,
         force: bool = False,
     ) -> dict[str, Any]:
-        """Disconnect a container from a Docker network.
-
-        Args:
-            network_id: Network ID or name
-            container_id: Container ID or name
-            force: Force disconnection
-
-        Returns:
-            Dictionary with disconnection status
-
-        Raises:
-            NetworkNotFound: If network doesn't exist
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If disconnection fails
-        """
+        """Disconnect a container from a Docker network."""
         try:
             logger.info(f"Disconnecting container {container_id} from network {network_id}")
 
@@ -573,36 +479,24 @@ def create_disconnect_container_tool(
             logger.error(f"Failed to disconnect container: {e}")
             raise DockerOperationError(f"Failed to disconnect container: {e}") from e
 
-    return (
-        "docker_disconnect_container",
-        "Disconnect a container from a Docker network",
-        OperationSafety.MODERATE,
-        True,  # idempotent (checks if already disconnected)
-        False,  # not open_world
-        disconnect_container,
+    return ToolSpec(
+        name="docker_disconnect_container",
+        description="Disconnect a container from a Docker network",
+        safety=OperationSafety.MODERATE,
+        func=disconnect_container,
+        idempotent=True,
     )
 
 
 def create_remove_network_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the remove_network FastMCP tool."""
+) -> ToolSpec:
+    """Create the remove_network tool."""
 
     def remove_network(
         network_id: str,
     ) -> dict[str, Any]:
-        """Remove a Docker network.
-
-        Args:
-            network_id: Network ID or name
-
-        Returns:
-            Dictionary with removed network ID
-
-        Raises:
-            NetworkNotFound: If network doesn't exist
-            DockerOperationError: If removal fails
-        """
+        """Remove a Docker network."""
         try:
             logger.info(f"Removing network: {network_id}")
 
@@ -621,13 +515,11 @@ def create_remove_network_tool(
             logger.error(f"Failed to remove network: {e}")
             raise DockerOperationError(f"Failed to remove network: {e}") from e
 
-    return (
-        "docker_remove_network",
-        "Remove a Docker network",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (network is gone after first removal)
-        False,  # not open_world
-        remove_network,
+    return ToolSpec(
+        name="docker_remove_network",
+        description="Remove a Docker network",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=remove_network,
     )
 
 
@@ -636,16 +528,7 @@ def register_network_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all network tools with FastMCP.
-
-    Args:
-        app: FastMCP application instance
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        List of registered tool names
-    """
+    """Register all network tools with FastMCP."""
     tools = [
         # SAFE tools (read-only)
         create_list_networks_tool(docker_client, safety_config),

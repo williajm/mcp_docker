@@ -1,8 +1,4 @@
-"""FastMCP safety middleware.
-
-This middleware enforces safety controls for all Docker operations
-using the SafetyEnforcer class.
-"""
+"""FastMCP safety middleware."""
 
 from typing import Any
 
@@ -17,32 +13,9 @@ logger = get_logger(__name__)
 
 
 class SafetyMiddleware:
-    """FastMCP middleware for safety enforcement.
-
-    This middleware integrates with FastMCP's middleware system to enforce
-    safety controls before tool execution. It uses the SafetyEnforcer to
-    perform all safety checks.
-
-    Example:
-        ```python
-        from fastmcp import FastMCP
-        from mcp_docker.middleware import SafetyMiddleware
-
-        app = FastMCP("mcp-docker")
-        safety = SafetyMiddleware(enforcer, app)
-
-        # Register middleware
-        app.add_middleware(safety)
-        ```
-    """
+    """Enforces safety controls before tool execution via SafetyEnforcer."""
 
     def __init__(self, enforcer: SafetyEnforcer, app: Any):
-        """Initialize safety middleware.
-
-        Args:
-            enforcer: SafetyEnforcer instance for performing checks
-            app: FastMCP app instance for tool metadata lookup
-        """
         self.enforcer = enforcer
         self.app = app
         logger.info("Initialized SafetyMiddleware")
@@ -52,18 +25,7 @@ class SafetyMiddleware:
         context: MiddlewareContext[Any],
         call_next: CallNext[Any, Any],
     ) -> Any:
-        """Execute safety checks before tool execution.
-
-        Args:
-            context: FastMCP middleware context with tool information
-            call_next: Next middleware/handler in the chain
-
-        Returns:
-            Result from next handler
-
-        Raises:
-            UnsafeOperationError: If safety checks fail
-        """
+        """Execute safety checks before tool execution."""
         # Extract tool information from context
         # For tool calls, context.message is a CallToolRequestParams
         tool_name = getattr(context.message, "name", None)
@@ -90,14 +52,7 @@ class SafetyMiddleware:
         return await call_next(context)
 
     async def _get_tool_safety_level(self, tool_name: str) -> OperationSafety:
-        """Get the safety level for a tool from its metadata.
-
-        Args:
-            tool_name: Name of the tool
-
-        Returns:
-            Safety level of the tool (defaults to SAFE if not found)
-        """
+        """Get the safety level for a tool from its metadata."""
         try:
             # Get tool from FastMCP registry
             tool = await self.app.get_tool(tool_name)
@@ -127,26 +82,5 @@ class SafetyMiddleware:
 
 
 def create_safety_middleware(enforcer: SafetyEnforcer, app: Any) -> SafetyMiddleware:
-    """Factory function to create safety middleware.
-
-    Args:
-        enforcer: SafetyEnforcer instance
-        app: FastMCP app instance for tool metadata lookup
-
-    Returns:
-        Configured SafetyMiddleware instance
-
-    Example:
-        ```python
-        from fastmcp import FastMCP
-        from mcp_docker.config import Config
-        from mcp_docker.services import SafetyEnforcer
-        from mcp_docker.middleware.safety import create_safety_middleware
-
-        config = Config()
-        app = FastMCP("mcp-docker")
-        enforcer = SafetyEnforcer(config.safety)
-        middleware = create_safety_middleware(enforcer, app)
-        ```
-    """
+    """Factory function to create safety middleware."""
     return SafetyMiddleware(enforcer, app)

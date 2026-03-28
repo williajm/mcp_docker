@@ -1,7 +1,4 @@
-"""FastMCP container inspection tools (SAFE operations).
-
-This module contains read-only container inspection tools migrated to FastMCP 2.0.
-"""
+"""FastMCP container inspection tools."""
 
 from typing import Any
 
@@ -20,6 +17,7 @@ from mcp_docker.tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
+    ToolSpec,
     apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
@@ -295,33 +293,14 @@ class ExecCommandOutput(BaseModel):
 def create_list_containers_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the list_containers FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the list_containers tool."""
 
     def list_containers(
         all: bool = False,
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
-        """List Docker containers with optional filters.
-
-        Args:
-            all: Show all containers (default shows just running)
-            filters: Filters to apply (e.g., {'status': ['running']})
-
-        Returns:
-            Dictionary with containers list, count, and truncation info
-
-        Raises:
-            DockerOperationError: If listing fails
-        """
+        """List Docker containers with optional filters."""
         try:
             logger.info(f"Listing containers (all={all}, filters={filters})")
             containers = docker_client.client.containers.list(all=all, filters=filters)
@@ -363,43 +342,24 @@ def create_list_containers_tool(
             logger.error(f"Failed to list containers: {e}")
             raise DockerOperationError(f"Failed to list containers: {e}") from e
 
-    return (
-        "docker_list_containers",
-        "List Docker containers with optional filters",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        list_containers,
+    return ToolSpec(
+        name="docker_list_containers",
+        description="List Docker containers with optional filters",
+        safety=OperationSafety.SAFE,
+        func=list_containers,
+        idempotent=True,
     )
 
 
 def create_inspect_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the inspect_container FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the inspect_container tool."""
 
     def inspect_container(
         container_id: str,
     ) -> dict[str, Any]:
-        """Get detailed information about a Docker container.
-
-        Args:
-            container_id: Container ID or name
-
-        Returns:
-            Dictionary with detailed container information
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If inspection fails
-        """
+        """Get detailed information about a Docker container."""
         try:
             logger.info(f"Inspecting container: {container_id}")
             container = docker_client.client.containers.get(container_id)
@@ -427,29 +387,20 @@ def create_inspect_container_tool(
             logger.error(f"Failed to inspect container {container_id}: {e}")
             raise DockerOperationError(f"Failed to inspect container: {e}") from e
 
-    return (
-        "docker_inspect_container",
-        "Get detailed information about a Docker container",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        inspect_container,
+    return ToolSpec(
+        name="docker_inspect_container",
+        description="Get detailed information about a Docker container",
+        safety=OperationSafety.SAFE,
+        func=inspect_container,
+        idempotent=True,
     )
 
 
 def create_container_logs_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the container_logs FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the container_logs tool."""
 
     def container_logs(  # noqa: PLR0913 - Docker API requires these parameters
         container_id: str,
@@ -459,23 +410,7 @@ def create_container_logs_tool(
         timestamps: bool = False,
         follow: bool = False,
     ) -> dict[str, Any]:
-        """Get logs from a Docker container.
-
-        Args:
-            container_id: Container ID or name
-            tail: Number of lines to show from end (default: "all")
-            since: Show logs since timestamp or relative (e.g., '1h')
-            until: Show logs until timestamp
-            timestamps: Show timestamps
-            follow: Follow log output
-
-        Returns:
-            Dictionary with logs and container ID
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If log retrieval fails
-        """
+        """Get logs from a Docker container."""
         try:
             logger.info(f"Getting logs for container: {container_id}")
             container = docker_client.client.containers.get(container_id)
@@ -503,46 +438,25 @@ def create_container_logs_tool(
             logger.error(f"Failed to get container logs: {e}")
             raise DockerOperationError(f"Failed to get container logs: {e}") from e
 
-    return (
-        "docker_container_logs",
-        "Get logs from a Docker container",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        container_logs,
+    return ToolSpec(
+        name="docker_container_logs",
+        description="Get logs from a Docker container",
+        safety=OperationSafety.SAFE,
+        func=container_logs,
+        idempotent=True,
     )
 
 
 def create_container_stats_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the container_stats FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the container_stats tool."""
 
     def container_stats(
         container_id: str,
         stream: bool = False,
     ) -> dict[str, Any]:
-        """Get resource usage statistics for a Docker container.
-
-        Args:
-            container_id: Container ID or name
-            stream: Stream stats continuously (returns first snapshot)
-
-        Returns:
-            Dictionary with resource usage statistics
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If stats retrieval fails
-        """
+        """Get resource usage statistics for a Docker container."""
         try:
             logger.info(f"Getting stats for container: {container_id}")
             container = docker_client.client.containers.get(container_id)
@@ -576,13 +490,12 @@ def create_container_stats_tool(
             logger.error(f"Failed to get container stats: {e}")
             raise DockerOperationError(f"Failed to get container stats: {e}") from e
 
-    return (
-        "docker_container_stats",
-        "Get resource usage statistics for a Docker container",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        container_stats,
+    return ToolSpec(
+        name="docker_container_stats",
+        description="Get resource usage statistics for a Docker container",
+        safety=OperationSafety.SAFE,
+        func=container_stats,
+        idempotent=True,
     )
 
 
@@ -684,16 +597,8 @@ def _apply_exec_output_truncation(
 def create_exec_command_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the exec_command FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the exec_command tool."""
 
     def exec_command(  # noqa: PLR0913 - Docker API requires these parameters
         container_id: str,
@@ -703,24 +608,7 @@ def create_exec_command_tool(
         environment: dict[str, str] | None = None,
         privileged: bool = False,
     ) -> dict[str, Any]:
-        """Execute a command in a running Docker container.
-
-        Args:
-            container_id: Container ID or name
-            command: Command to execute
-            workdir: Working directory for command
-            user: User to run command as
-            environment: Environment variables for the command
-            privileged: Run with elevated privileges
-
-        Returns:
-            Dictionary with exit code, output, and truncation info
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            UnsafeOperationError: If privileged exec is not allowed
-            DockerOperationError: If command execution fails
-        """
+        """Execute a command in a running Docker container."""
         try:
             # Validate all inputs
             _validate_exec_inputs(command, environment)
@@ -764,13 +652,12 @@ def create_exec_command_tool(
             logger.error(f"Failed to execute command: {e}")
             raise DockerOperationError(f"Failed to execute command: {e}") from e
 
-    return (
-        "docker_exec_command",
-        "Execute a command in a running Docker container",
-        OperationSafety.MODERATE,
-        False,  # not idempotent (same command may have different effects)
-        True,  # open_world (commands may access external networks/APIs)
-        exec_command,
+    return ToolSpec(
+        name="docker_exec_command",
+        description="Execute a command in a running Docker container",
+        safety=OperationSafety.MODERATE,
+        func=exec_command,
+        open_world=True,
     )
 
 
@@ -779,16 +666,7 @@ def register_container_inspection_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all container inspection tools with FastMCP.
-
-    Args:
-        app: FastMCP application instance
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        List of registered tool names
-    """
+    """Register all container inspection tools with FastMCP."""
     tools = [
         create_list_containers_tool(docker_client, safety_config),
         create_inspect_container_tool(docker_client),

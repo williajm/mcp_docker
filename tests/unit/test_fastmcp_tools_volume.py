@@ -47,7 +47,7 @@ class TestVolumeNotFoundErrors:
         """Test that VolumeNotFound is raised when volume doesn't exist."""
         mock_docker_client.client.volumes.get.side_effect = NotFound("Volume not found")
 
-        *_, func = tool_creator(mock_docker_client)
+        func = tool_creator(mock_docker_client).func
 
         with pytest.raises(VolumeNotFound, match="Volume not found"):
             func(**call_kwargs)
@@ -103,9 +103,9 @@ class TestAPIErrors:
         method_mapping[setup_error_on].side_effect = APIError("API failed")
 
         if needs_safety_config:
-            *_, func = tool_creator(mock_docker_client, safety_config)
+            func = tool_creator(mock_docker_client, safety_config).func
         else:
-            *_, func = tool_creator(mock_docker_client)
+            func = tool_creator(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match=error_match):
             func(**call_kwargs)
@@ -116,7 +116,7 @@ class TestAPIErrors:
         volume.remove.side_effect = APIError("Remove failed")
         mock_docker_client.client.volumes.get.return_value = volume
 
-        *_, remove_func = create_remove_volume_tool(mock_docker_client)
+        remove_func = create_remove_volume_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to remove volume"):
             remove_func(volume_name="test-volume")
@@ -147,7 +147,7 @@ class TestListVolumesTool:
 
         mock_docker_client.client.volumes.list.return_value = [vol1, vol2]
 
-        *_, list_func = create_list_volumes_tool(mock_docker_client, safety_config)
+        list_func = create_list_volumes_tool(mock_docker_client, safety_config).func
         result = list_func()
 
         assert result["count"] == 2
@@ -161,7 +161,7 @@ class TestListVolumesTool:
         """Test volume listing with filters."""
         mock_docker_client.client.volumes.list.return_value = []
 
-        *_, list_func = create_list_volumes_tool(mock_docker_client, safety_config)
+        list_func = create_list_volumes_tool(mock_docker_client, safety_config).func
         filters = {"dangling": ["true"]}
         result = list_func(filters=filters)
 
@@ -184,7 +184,7 @@ class TestInspectVolumeTool:
         }
         mock_docker_client.client.volumes.get.return_value = volume
 
-        *_, inspect_func = create_inspect_volume_tool(mock_docker_client)
+        inspect_func = create_inspect_volume_tool(mock_docker_client).func
         result = inspect_func(volume_name="test-volume")
 
         assert result["details"]["Name"] == "test-volume"
@@ -206,7 +206,7 @@ class TestCreateVolumeTool:
         }
         mock_docker_client.client.volumes.create.return_value = volume
 
-        *_, create_func = create_create_volume_tool(mock_docker_client)
+        create_func = create_create_volume_tool(mock_docker_client).func
         result = create_func(name="test-volume")
 
         assert result["name"] == "test-volume"
@@ -220,7 +220,7 @@ class TestCreateVolumeTool:
         volume.attrs = {"Driver": "nfs", "Mountpoint": "/mnt/nfs"}
         mock_docker_client.client.volumes.create.return_value = volume
 
-        *_, create_func = create_create_volume_tool(mock_docker_client)
+        create_func = create_create_volume_tool(mock_docker_client).func
         create_func(
             name="nfs-volume",
             driver="nfs",
@@ -241,7 +241,7 @@ class TestCreateVolumeTool:
         volume.attrs = {"Driver": "local", "Mountpoint": "/var/lib/docker/volumes/..."}
         mock_docker_client.client.volumes.create.return_value = volume
 
-        *_, create_func = create_create_volume_tool(mock_docker_client)
+        create_func = create_create_volume_tool(mock_docker_client).func
         result = create_func()
 
         assert result["name"] == "auto-generated-123"
@@ -263,7 +263,7 @@ class TestRemoveVolumeTool:
         volume.remove = Mock()
         mock_docker_client.client.volumes.get.return_value = volume
 
-        *_, remove_func = create_remove_volume_tool(mock_docker_client)
+        remove_func = create_remove_volume_tool(mock_docker_client).func
         result = remove_func(volume_name="test-volume", force=force)
 
         assert result["volume_name"] == "test-volume"
@@ -281,7 +281,7 @@ class TestPruneVolumesTool:
             "SpaceReclaimed": 5000,
         }
 
-        *_, prune_func = create_prune_volumes_tool(mock_docker_client)
+        prune_func = create_prune_volumes_tool(mock_docker_client).func
         result = prune_func(force_all=False)
 
         assert result["deleted"] == ["volume1", "volume2"]
@@ -295,7 +295,7 @@ class TestPruneVolumesTool:
             "SpaceReclaimed": 0,
         }
 
-        *_, prune_func = create_prune_volumes_tool(mock_docker_client)
+        prune_func = create_prune_volumes_tool(mock_docker_client).func
         filters = {"label": ["env=test"]}
         prune_func(filters=filters, force_all=False)
 
@@ -318,7 +318,7 @@ class TestPruneVolumesTool:
 
         mock_docker_client.client.volumes.get.side_effect = get_side_effect
 
-        *_, prune_func = create_prune_volumes_tool(mock_docker_client)
+        prune_func = create_prune_volumes_tool(mock_docker_client).func
         result = prune_func(force_all=True)
 
         assert len(result["deleted"]) == 2
@@ -347,7 +347,7 @@ class TestPruneVolumesTool:
 
         mock_docker_client.client.volumes.get.side_effect = get_side_effect
 
-        *_, prune_func = create_prune_volumes_tool(mock_docker_client)
+        prune_func = create_prune_volumes_tool(mock_docker_client).func
         result = prune_func(force_all=True)
 
         assert len(result["deleted"]) == 1

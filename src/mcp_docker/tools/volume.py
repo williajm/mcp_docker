@@ -1,8 +1,4 @@
-"""FastMCP volume tools.
-
-This module contains all volume tools migrated to FastMCP 2.0,
-including SAFE (read-only), MODERATE (state-changing), and DESTRUCTIVE operations.
-"""
+"""FastMCP volume tools."""
 
 from typing import Any
 
@@ -16,6 +12,7 @@ from mcp_docker.tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
+    ToolSpec,
     apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
@@ -167,31 +164,13 @@ class PruneVolumesOutput(BaseModel):
 def create_list_volumes_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the list_volumes FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the list_volumes tool."""
 
     def list_volumes(
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
-        """List Docker volumes with optional filters.
-
-        Args:
-            filters: Filters to apply (e.g., {'dangling': ['true']})
-
-        Returns:
-            Dictionary with volumes list, count, and truncation info
-
-        Raises:
-            DockerOperationError: If listing fails
-        """
+        """List Docker volumes with optional filters."""
         try:
             logger.info(f"Listing volumes (filters={filters})")
             volumes = docker_client.client.volumes.list(filters=filters)
@@ -228,44 +207,24 @@ def create_list_volumes_tool(
             logger.error(f"Failed to list volumes: {e}")
             raise DockerOperationError(f"Failed to list volumes: {e}") from e
 
-    return (
-        "docker_list_volumes",
-        "List Docker volumes with optional filters",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        list_volumes,
+    return ToolSpec(
+        name="docker_list_volumes",
+        description="List Docker volumes with optional filters",
+        safety=OperationSafety.SAFE,
+        func=list_volumes,
+        idempotent=True,
     )
 
 
 def create_inspect_volume_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the inspect_volume FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the inspect_volume tool."""
 
     def inspect_volume(
         volume_name: str,
     ) -> dict[str, Any]:
-        """Get detailed information about a Docker volume.
-
-        Args:
-            volume_name: Volume name
-
-        Returns:
-            Dictionary with detailed volume information
-
-        Raises:
-            VolumeNotFound: If volume doesn't exist
-            DockerOperationError: If inspection fails
-        """
+        """Get detailed information about a Docker volume."""
         try:
             logger.info(f"Inspecting volume: {volume_name}")
             volume = docker_client.client.volumes.get(volume_name)
@@ -293,20 +252,19 @@ def create_inspect_volume_tool(
             logger.error(f"Failed to inspect volume: {e}")
             raise DockerOperationError(f"Failed to inspect volume: {e}") from e
 
-    return (
-        "docker_inspect_volume",
-        "Get detailed information about a Docker volume",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        inspect_volume,
+    return ToolSpec(
+        name="docker_inspect_volume",
+        description="Get detailed information about a Docker volume",
+        safety=OperationSafety.SAFE,
+        func=inspect_volume,
+        idempotent=True,
     )
 
 
 def create_create_volume_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the create_volume FastMCP tool."""
+) -> ToolSpec:
+    """Create the create_volume tool."""
 
     def create_volume(
         name: str | None = None,
@@ -314,20 +272,7 @@ def create_create_volume_tool(
         driver_opts: dict[str, str] | None = None,
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Create a new Docker volume.
-
-        Args:
-            name: Volume name (auto-generated if not set)
-            driver: Volume driver
-            driver_opts: Driver-specific options
-            labels: Volume labels
-
-        Returns:
-            Dictionary with created volume info
-
-        Raises:
-            DockerOperationError: If creation fails
-        """
+        """Create a new Docker volume."""
         try:
             logger.info(f"Creating volume: {name or '(auto-generated)'}")
 
@@ -355,38 +300,24 @@ def create_create_volume_tool(
             logger.error(f"Failed to create volume: {e}")
             raise DockerOperationError(f"Failed to create volume: {e}") from e
 
-    return (
-        "docker_create_volume",
-        "Create a new Docker volume",
-        OperationSafety.MODERATE,
-        False,  # not idempotent (creates different volumes)
-        False,  # not open_world
-        create_volume,
+    return ToolSpec(
+        name="docker_create_volume",
+        description="Create a new Docker volume",
+        safety=OperationSafety.MODERATE,
+        func=create_volume,
     )
 
 
 def create_remove_volume_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the remove_volume FastMCP tool."""
+) -> ToolSpec:
+    """Create the remove_volume tool."""
 
     def remove_volume(
         volume_name: str,
         force: bool = False,
     ) -> dict[str, Any]:
-        """Remove a Docker volume.
-
-        Args:
-            volume_name: Volume name
-            force: Force removal
-
-        Returns:
-            Dictionary with removed volume name
-
-        Raises:
-            VolumeNotFound: If volume doesn't exist
-            DockerOperationError: If removal fails
-        """
+        """Remove a Docker volume."""
         try:
             logger.info(f"Removing volume: {volume_name} (force={force})")
 
@@ -404,37 +335,24 @@ def create_remove_volume_tool(
             logger.error(f"Failed to remove volume: {e}")
             raise DockerOperationError(f"Failed to remove volume: {e}") from e
 
-    return (
-        "docker_remove_volume",
-        "Remove a Docker volume",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (volume is gone after first removal)
-        False,  # not open_world
-        remove_volume,
+    return ToolSpec(
+        name="docker_remove_volume",
+        description="Remove a Docker volume",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=remove_volume,
     )
 
 
 def create_prune_volumes_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the prune_volumes FastMCP tool."""
+) -> ToolSpec:
+    """Create the prune_volumes tool."""
 
     def prune_volumes(
         filters: dict[str, str | list[str]] | None = None,
         force_all: bool = False,
     ) -> dict[str, Any]:
-        """Prune Docker volumes (unused by default, all with force_all=true).
-
-        Args:
-            filters: Filters to apply (only when force_all=False)
-            force_all: Force remove ALL volumes
-
-        Returns:
-            Dictionary with deleted volumes and space reclaimed
-
-        Raises:
-            DockerOperationError: If pruning fails
-        """
+        """Prune Docker volumes (unused by default, all with force_all=true)."""
         try:
             logger.info(f"Pruning volumes (force_all={force_all}, filters={filters})")
 
@@ -459,13 +377,11 @@ def create_prune_volumes_tool(
             logger.error(f"Failed to prune volumes: {e}")
             raise DockerOperationError(f"Failed to prune volumes: {e}") from e
 
-    return (
-        "docker_prune_volumes",
-        "Prune Docker volumes (unused by default, all with force_all=true)",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (different volumes may be pruned each time)
-        False,  # not open_world
-        prune_volumes,
+    return ToolSpec(
+        name="docker_prune_volumes",
+        description="Prune Docker volumes (unused by default, all with force_all=true)",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=prune_volumes,
     )
 
 
@@ -474,16 +390,7 @@ def register_volume_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all volume tools with FastMCP.
-
-    Args:
-        app: FastMCP application instance
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        List of registered tool names
-    """
+    """Register all volume tools with FastMCP."""
     tools = [
         # SAFE tools (read-only)
         create_list_volumes_tool(docker_client, safety_config),

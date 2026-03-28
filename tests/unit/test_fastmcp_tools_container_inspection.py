@@ -238,25 +238,16 @@ class TestToolMetadata:
     ):
         """Test tool metadata for container inspection tools."""
         if needs_safety_config:
-            result = tool_creator(mock_docker_client, safety_config)
+            spec = tool_creator(mock_docker_client, safety_config)
         else:
-            result = tool_creator(mock_docker_client)
+            spec = tool_creator(mock_docker_client)
 
-        (
-            name,
-            description,
-            safety_level,
-            is_idempotent,
-            is_open_world,
-            func,
-        ) = result
-
-        assert name == expected_name
-        assert isinstance(description, str) and len(description) > 0
-        assert safety_level == expected_safety
-        assert is_idempotent == idempotent
-        assert is_open_world == open_world
-        assert callable(func)
+        assert spec.name == expected_name
+        assert isinstance(spec.description, str) and len(spec.description) > 0
+        assert spec.safety == expected_safety
+        assert spec.idempotent == idempotent
+        assert spec.open_world == open_world
+        assert callable(spec.func)
 
 
 class TestContainerNotFoundErrors:
@@ -287,9 +278,9 @@ class TestContainerNotFoundErrors:
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
 
         if needs_safety_config:
-            *_, func = tool_creator(mock_docker_client, safety_config)
+            func = tool_creator(mock_docker_client, safety_config).func
         else:
-            *_, func = tool_creator(mock_docker_client)
+            func = tool_creator(mock_docker_client).func
 
         with pytest.raises(ContainerNotFound):
             func(**call_kwargs)
@@ -335,9 +326,9 @@ class TestAPIErrors:
             mock_docker_client.client.containers.get.side_effect = APIError("API failed")
 
         if needs_safety_config:
-            *_, func = tool_creator(mock_docker_client, safety_config)
+            func = tool_creator(mock_docker_client, safety_config).func
         else:
-            *_, func = tool_creator(mock_docker_client)
+            func = tool_creator(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match=error_match):
             func(**call_kwargs)
@@ -348,7 +339,7 @@ class TestAPIErrors:
         mock_container.logs.side_effect = APIError("Logs failed")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
+        logs_func = create_container_logs_tool(mock_docker_client, safety_config).func
 
         with pytest.raises(DockerOperationError, match="Failed to get container logs"):
             logs_func(container_id="test")
@@ -359,7 +350,7 @@ class TestAPIErrors:
         mock_container.exec_run.side_effect = APIError("Exec failed")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, exec_func = create_exec_command_tool(mock_docker_client, safety_config)
+        exec_func = create_exec_command_tool(mock_docker_client, safety_config).func
 
         with pytest.raises(DockerOperationError, match="Failed to execute command"):
             exec_func(container_id="test", command=["ls"])
@@ -386,7 +377,7 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
+        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
         result = list_func()
 
         assert result["count"] == 1
@@ -400,7 +391,7 @@ class TestListContainersTool:
         """Test container listing with filters."""
         mock_docker_client.client.containers.list.return_value = []
 
-        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
+        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
         filters = {"status": ["running"]}
         result = list_func(filters=filters)
 
@@ -422,7 +413,7 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
+        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
         result = list_func()
 
         assert result["count"] == 1
@@ -444,7 +435,7 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        *_, list_func = create_list_containers_tool(mock_docker_client, safety_config)
+        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
         result = list_func()
 
         assert result["count"] == 1
@@ -566,7 +557,7 @@ class TestContainerLogsTool:
         mock_container.logs.return_value = mock_logs_generator
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
+        logs_func = create_container_logs_tool(mock_docker_client, safety_config).func
         result = logs_func(container_id="test-container", follow=True)
 
         assert "streaming log 1" in result["logs"]
@@ -582,7 +573,7 @@ class TestContainerLogsTool:
         mock_container.logs.return_value = b"static log content\n"
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, logs_func = create_container_logs_tool(mock_docker_client, safety_config)
+        logs_func = create_container_logs_tool(mock_docker_client, safety_config).func
         result = logs_func(container_id="test-container", follow=False)
 
         assert result["logs"] == "static log content\n"
@@ -605,7 +596,7 @@ class TestContainerStatsTool:
         mock_container.stats.return_value = mock_stats_generator
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        stats_func = create_container_stats_tool(mock_docker_client).func
         result = stats_func(container_id="test-container", stream=True)
 
         assert result["stats"]["cpu_stats"]["cpu_usage"]["total_usage"] == 123456
@@ -622,7 +613,7 @@ class TestContainerStatsTool:
         mock_container.stats.return_value = stats_data
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        stats_func = create_container_stats_tool(mock_docker_client).func
         result = stats_func(container_id="test-container", stream=False)
 
         assert result["stats"]["cpu_stats"]["cpu_usage"]["total_usage"] == 789
@@ -638,7 +629,7 @@ class TestContainerStatsTool:
         mock_container.stats.return_value = iter([stats_data])
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        stats_func = create_container_stats_tool(mock_docker_client).func
         result = stats_func(container_id="test-container", stream=False)
 
         assert result["stats"]["cpu_stats"]["cpu_usage"]["total_usage"] == 456
@@ -650,7 +641,7 @@ class TestContainerStatsTool:
         mock_container.stats.side_effect = APIError("Stats failed")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        *_, stats_func = create_container_stats_tool(mock_docker_client)
+        stats_func = create_container_stats_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to get container stats"):
             stats_func(container_id="test")

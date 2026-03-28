@@ -62,7 +62,7 @@ class TestPruneSystemTool:
             "SpaceReclaimed": 2000,
         }
 
-        *_, prune_func = create_prune_system_tool(mock_docker_client)
+        prune_func = create_prune_system_tool(mock_docker_client).func
         result = prune_func(volumes=volumes)
 
         assert result["containers_deleted"] == ["container1", "container2"]
@@ -95,7 +95,7 @@ class TestPruneSystemTool:
             "SpaceReclaimed": 0,
         }
 
-        *_, prune_func = create_prune_system_tool(mock_docker_client)
+        prune_func = create_prune_system_tool(mock_docker_client).func
         filters = {"until": "24h"}
         result = prune_func(filters=filters)
 
@@ -119,7 +119,7 @@ class TestPruneSystemTool:
             "SpaceReclaimed": 0,
         }
 
-        *_, prune_func = create_prune_system_tool(mock_docker_client)
+        prune_func = create_prune_system_tool(mock_docker_client).func
         result = prune_func()
 
         assert result["containers_deleted"] == []
@@ -132,28 +132,21 @@ class TestPruneSystemTool:
         """Test system prune with Docker API error."""
         mock_docker_client.client.api.prune_containers.side_effect = APIError("Prune failed")
 
-        *_, prune_func = create_prune_system_tool(mock_docker_client)
+        prune_func = create_prune_system_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to prune system"):
             prune_func()
 
     def test_create_prune_system_tool_metadata(self, mock_docker_client):
         """Test tool metadata is correct."""
-        (
-            name,
-            description,
-            safety_level,
-            idempotent,
-            open_world,
-            func,
-        ) = create_prune_system_tool(mock_docker_client)
+        spec = create_prune_system_tool(mock_docker_client)
 
-        assert name == "docker_prune_system"
-        assert "Prune all unused Docker resources" in description
-        assert safety_level.value == "destructive"
-        assert idempotent is False
-        assert open_world is False
-        assert callable(func)
+        assert spec.name == "docker_prune_system"
+        assert "Prune all unused Docker resources" in spec.description
+        assert spec.safety.value == "destructive"
+        assert spec.idempotent is False
+        assert spec.open_world is False
+        assert callable(spec.func)
 
 
 class TestVersionTool:
@@ -174,7 +167,7 @@ class TestVersionTool:
             ],
         }
 
-        *_, version_func = create_version_tool(mock_docker_client)
+        version_func = create_version_tool(mock_docker_client).func
         result = version_func()
 
         assert result["version"] == "24.0.7"
@@ -192,7 +185,7 @@ class TestVersionTool:
             "Version": "24.0.7",
         }
 
-        *_, version_func = create_version_tool(mock_docker_client)
+        version_func = create_version_tool(mock_docker_client).func
         result = version_func()
 
         assert result["version"] == "24.0.7"
@@ -205,28 +198,21 @@ class TestVersionTool:
         """Test version with Docker API error."""
         mock_docker_client.client.version.side_effect = APIError("Connection refused")
 
-        *_, version_func = create_version_tool(mock_docker_client)
+        version_func = create_version_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to get Docker version"):
             version_func()
 
     def test_create_version_tool_metadata(self, mock_docker_client):
         """Test tool metadata is correct."""
-        (
-            name,
-            description,
-            safety_level,
-            idempotent,
-            open_world,
-            func,
-        ) = create_version_tool(mock_docker_client)
+        spec = create_version_tool(mock_docker_client)
 
-        assert name == "docker_version"
-        assert "Docker version" in description
-        assert safety_level.value == "safe"
-        assert idempotent is True
-        assert open_world is False
-        assert callable(func)
+        assert spec.name == "docker_version"
+        assert "Docker version" in spec.description
+        assert spec.safety.value == "safe"
+        assert spec.idempotent is True
+        assert spec.open_world is False
+        assert callable(spec.func)
 
 
 class TestEventsTool:
@@ -240,7 +226,7 @@ class TestEventsTool:
         ]
         mock_docker_client.client.events.return_value = iter(mock_events)
 
-        *_, events_func = create_events_tool(mock_docker_client)
+        events_func = create_events_tool(mock_docker_client).func
         result = events_func(until="2024-01-01T12:00:00", since="2024-01-01T11:00:00")
 
         assert result["count"] == 2
@@ -259,7 +245,7 @@ class TestEventsTool:
         mock_events = [{"Type": "container", "Action": "start", "time": 1704067200}]
         mock_docker_client.client.events.return_value = iter(mock_events)
 
-        *_, events_func = create_events_tool(mock_docker_client)
+        events_func = create_events_tool(mock_docker_client).func
         filters = {"type": "container", "event": ["start", "stop"]}
         result = events_func(until="2024-01-01T12:00:00", filters=filters)
 
@@ -275,7 +261,7 @@ class TestEventsTool:
         """Test events with no results."""
         mock_docker_client.client.events.return_value = iter([])
 
-        *_, events_func = create_events_tool(mock_docker_client)
+        events_func = create_events_tool(mock_docker_client).func
         result = events_func(until="2024-01-01T12:00:00")
 
         assert result["count"] == 0
@@ -287,7 +273,7 @@ class TestEventsTool:
         mock_events = [{"Type": "container", "Action": "start", "time": i} for i in range(1500)]
         mock_docker_client.client.events.return_value = iter(mock_events)
 
-        *_, events_func = create_events_tool(mock_docker_client)
+        events_func = create_events_tool(mock_docker_client).func
         result = events_func(until="2024-01-01T12:00:00")
 
         assert result["count"] == 1000
@@ -297,25 +283,18 @@ class TestEventsTool:
         """Test events with Docker API error."""
         mock_docker_client.client.events.side_effect = APIError("Connection refused")
 
-        *_, events_func = create_events_tool(mock_docker_client)
+        events_func = create_events_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to get Docker events"):
             events_func(until="2024-01-01T12:00:00")
 
     def test_create_events_tool_metadata(self, mock_docker_client):
         """Test tool metadata is correct."""
-        (
-            name,
-            description,
-            safety_level,
-            idempotent,
-            open_world,
-            func,
-        ) = create_events_tool(mock_docker_client)
+        spec = create_events_tool(mock_docker_client)
 
-        assert name == "docker_events"
-        assert "events" in description.lower()
-        assert safety_level.value == "safe"
-        assert idempotent is False  # Events change over time
-        assert open_world is False
-        assert callable(func)
+        assert spec.name == "docker_events"
+        assert "events" in spec.description.lower()
+        assert spec.safety.value == "safe"
+        assert spec.idempotent is False  # Events change over time
+        assert spec.open_world is False
+        assert callable(spec.func)

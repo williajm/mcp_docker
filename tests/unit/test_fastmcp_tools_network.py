@@ -184,7 +184,7 @@ class TestNetworkNotFoundErrors:
         """Test that NetworkNotFound is raised when network doesn't exist."""
         mock_docker_client.client.networks.get.side_effect = NotFound("network not found")
 
-        *_, func = tool_creator(mock_docker_client)
+        func = tool_creator(mock_docker_client).func
 
         with pytest.raises(NetworkNotFound, match="Network not found"):
             func(**call_kwargs)
@@ -232,9 +232,9 @@ class TestAPIErrors:
         method_mapping[setup_error_on].side_effect = APIError("API failed")
 
         if needs_safety_config:
-            *_, func = tool_creator(mock_docker_client, safety_config)
+            func = tool_creator(mock_docker_client, safety_config).func
         else:
-            *_, func = tool_creator(mock_docker_client)
+            func = tool_creator(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match=error_match):
             func(**call_kwargs)
@@ -246,7 +246,7 @@ class TestAPIErrors:
         network.remove.side_effect = APIError("Remove failed")
         mock_docker_client.client.networks.get.return_value = network
 
-        *_, remove_func = create_remove_network_tool(mock_docker_client)
+        remove_func = create_remove_network_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to remove network"):
             remove_func(network_id="net123")
@@ -262,7 +262,7 @@ class TestAPIErrors:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, connect_func = create_connect_container_tool(mock_docker_client)
+        connect_func = create_connect_container_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to connect container"):
             connect_func(network_id="net123", container_id="con123")
@@ -278,7 +278,7 @@ class TestAPIErrors:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, disconnect_func = create_disconnect_container_tool(mock_docker_client)
+        disconnect_func = create_disconnect_container_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to disconnect container"):
             disconnect_func(network_id="net123", container_id="con123")
@@ -303,7 +303,7 @@ class TestListNetworksTool:
 
         mock_docker_client.client.networks.list.return_value = [net1, net2]
 
-        *_, list_func = create_list_networks_tool(mock_docker_client, safety_config)
+        list_func = create_list_networks_tool(mock_docker_client, safety_config).func
         result = list_func()
 
         assert result["count"] == 2
@@ -316,7 +316,7 @@ class TestListNetworksTool:
         """Test network listing with filters."""
         mock_docker_client.client.networks.list.return_value = []
 
-        *_, list_func = create_list_networks_tool(mock_docker_client, safety_config)
+        list_func = create_list_networks_tool(mock_docker_client, safety_config).func
         filters = {"driver": ["bridge"]}
         result = list_func(filters=filters)
 
@@ -341,7 +341,7 @@ class TestListNetworksTool:
 
         mock_docker_client.client.networks.list.return_value = [net1, net2]
 
-        *_, list_func = create_list_networks_tool(mock_docker_client, safety_config)
+        list_func = create_list_networks_tool(mock_docker_client, safety_config).func
         result = list_func()
 
         assert result["count"] == 2
@@ -365,7 +365,7 @@ class TestInspectNetworkTool:
         }
         mock_docker_client.client.networks.get.return_value = network
 
-        *_, inspect_func = create_inspect_network_tool(mock_docker_client)
+        inspect_func = create_inspect_network_tool(mock_docker_client).func
         result = inspect_func(network_id="my-network")
 
         assert result["details"]["Name"] == "my-network"
@@ -383,7 +383,7 @@ class TestCreateNetworkTool:
         network.name = "my-network"
         mock_docker_client.client.networks.create.return_value = network
 
-        *_, create_func = create_create_network_tool(mock_docker_client)
+        create_func = create_create_network_tool(mock_docker_client).func
         result = create_func(name="my-network")
 
         assert result["network_id"] == "abc123"
@@ -413,7 +413,7 @@ class TestCreateNetworkTool:
         network.name = "my-network"
         mock_docker_client.client.networks.create.return_value = network
 
-        *_, create_func = create_create_network_tool(mock_docker_client)
+        create_func = create_create_network_tool(mock_docker_client).func
         create_func(name="my-network", **extra_kwargs)
 
         call_kwargs = mock_docker_client.client.networks.create.call_args.kwargs
@@ -437,7 +437,7 @@ class TestConnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, connect_func = create_connect_container_tool(mock_docker_client)
+        connect_func = create_connect_container_tool(mock_docker_client).func
         result = connect_func(network_id="net123", container_id="con123")
 
         assert result["network_id"] == "net123"
@@ -457,7 +457,7 @@ class TestConnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, connect_func = create_connect_container_tool(mock_docker_client)
+        connect_func = create_connect_container_tool(mock_docker_client).func
         result = connect_func(network_id="net123", container_id="con123")
 
         assert result["status"] == "connected"
@@ -492,7 +492,7 @@ class TestConnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, connect_func = create_connect_container_tool(mock_docker_client)
+        connect_func = create_connect_container_tool(mock_docker_client).func
         connect_func(network_id="net123", container_id="con123", **extra_kwargs)
 
         network.connect.assert_called_once_with(**expected_connect_kwargs)
@@ -506,7 +506,7 @@ class TestConnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.side_effect = NotFound("container not found")
 
-        *_, connect_func = create_connect_container_tool(mock_docker_client)
+        connect_func = create_connect_container_tool(mock_docker_client).func
 
         with pytest.raises(ContainerNotFound, match="Container not found"):
             connect_func(network_id="net123", container_id="nonexistent")
@@ -528,7 +528,7 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, disconnect_func = create_disconnect_container_tool(mock_docker_client)
+        disconnect_func = create_disconnect_container_tool(mock_docker_client).func
         result = disconnect_func(network_id="net123", container_id="con123")
 
         assert result["network_id"] == "net123"
@@ -548,7 +548,7 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, disconnect_func = create_disconnect_container_tool(mock_docker_client)
+        disconnect_func = create_disconnect_container_tool(mock_docker_client).func
         result = disconnect_func(network_id="net123", container_id="con123")
 
         assert result["status"] == "disconnected"
@@ -566,7 +566,7 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, disconnect_func = create_disconnect_container_tool(mock_docker_client)
+        disconnect_func = create_disconnect_container_tool(mock_docker_client).func
         disconnect_func(network_id="net123", container_id="con123", force=True)
 
         network.disconnect.assert_called_once_with(container="con123", force=True)
@@ -580,7 +580,7 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.side_effect = NotFound("container not found")
 
-        *_, disconnect_func = create_disconnect_container_tool(mock_docker_client)
+        disconnect_func = create_disconnect_container_tool(mock_docker_client).func
         result = disconnect_func(network_id="net123", container_id="nonexistent")
 
         assert result["status"] == "disconnected"
@@ -598,7 +598,7 @@ class TestDisconnectContainerTool:
         mock_docker_client.client.networks.get.return_value = network
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, disconnect_func = create_disconnect_container_tool(mock_docker_client)
+        disconnect_func = create_disconnect_container_tool(mock_docker_client).func
 
         with pytest.raises(ContainerNotFound, match="Container not found"):
             disconnect_func(network_id="net123", container_id="con123")
@@ -614,7 +614,7 @@ class TestRemoveNetworkTool:
         network.remove = Mock()
         mock_docker_client.client.networks.get.return_value = network
 
-        *_, remove_func = create_remove_network_tool(mock_docker_client)
+        remove_func = create_remove_network_tool(mock_docker_client).func
         result = remove_func(network_id="net123")
 
         assert result["network_id"] == "net123"

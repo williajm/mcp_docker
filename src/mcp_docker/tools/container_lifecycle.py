@@ -1,7 +1,4 @@
-"""FastMCP container lifecycle tools (MODERATE and DESTRUCTIVE operations).
-
-This module contains container lifecycle management tools migrated to FastMCP 2.0.
-"""
+"""FastMCP container lifecycle tools."""
 
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -17,7 +14,7 @@ from mcp_docker.services.safety import (
     validate_environment_variable,
     validate_mount_path,
 )
-from mcp_docker.tools.common import DESC_CONTAINER_ID
+from mcp_docker.tools.common import DESC_CONTAINER_ID, ToolSpec
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
@@ -315,16 +312,8 @@ def _execute_container_action(
 def create_create_container_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the create_container FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the create_container tool."""
 
     def create_container(  # noqa: PLR0913 - Docker API requires these parameters
         image: str,
@@ -338,26 +327,7 @@ def create_create_container_tool(
         mem_limit: str | None = None,
         cpu_shares: int | None = None,
     ) -> dict[str, Any]:
-        """Create a new Docker container from an image.
-
-        Args:
-            image: Image name to create container from
-            name: Optional container name
-            command: Command to run
-            environment: Environment variables as key-value pairs
-            ports: Port mappings from container to host
-            volumes: Volume mappings from host to container
-            detach: Run container in background
-            remove: Remove container when it exits
-            mem_limit: Memory limit (e.g., '512m', '2g')
-            cpu_shares: CPU shares (relative weight)
-
-        Returns:
-            Dictionary with container ID, name, and warnings
-
-        Raises:
-            DockerOperationError: If creation fails
-        """
+        """Create a new Docker container from an image."""
         try:
             # Create input model for validation
             input_data = CreateContainerInput(
@@ -399,43 +369,23 @@ def create_create_container_tool(
             logger.error(f"Failed to create container: {e}")
             raise DockerOperationError(f"Failed to create container: {e}") from e
 
-    return (
-        "docker_create_container",
-        "Create a new Docker container from an image",
-        OperationSafety.MODERATE,
-        False,  # not idempotent (creates new container each time)
-        False,  # not open_world
-        create_container,
+    return ToolSpec(
+        name="docker_create_container",
+        description="Create a new Docker container from an image",
+        safety=OperationSafety.MODERATE,
+        func=create_container,
     )
 
 
 def create_start_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the start_container FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the start_container tool."""
 
     def start_container(
         container_id: str,
     ) -> dict[str, Any]:
-        """Start a stopped Docker container.
-
-        Args:
-            container_id: Container ID or name
-
-        Returns:
-            Dictionary with container ID and status
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If start fails
-        """
+        """Start a stopped Docker container."""
         result = _execute_container_action(
             docker_client,
             container_id,
@@ -451,45 +401,25 @@ def create_start_container_tool(
         )
         return result.model_dump()
 
-    return (
-        "docker_start_container",
-        "Start a stopped Docker container",
-        OperationSafety.MODERATE,
-        True,  # idempotent - starting converges to running state
-        False,  # not open_world
-        start_container,
+    return ToolSpec(
+        name="docker_start_container",
+        description="Start a stopped Docker container",
+        safety=OperationSafety.MODERATE,
+        func=start_container,
+        idempotent=True,
     )
 
 
 def create_stop_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the stop_container FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the stop_container tool."""
 
     def stop_container(
         container_id: str,
         timeout: int = DEFAULT_CONTAINER_TIMEOUT_SECONDS,
     ) -> dict[str, Any]:
-        """Stop a running Docker container gracefully.
-
-        Args:
-            container_id: Container ID or name
-            timeout: Timeout in seconds before killing
-
-        Returns:
-            Dictionary with container ID and status
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If stop fails
-        """
+        """Stop a running Docker container gracefully."""
         result = _execute_container_action(
             docker_client,
             container_id,
@@ -506,45 +436,25 @@ def create_stop_container_tool(
         )
         return result.model_dump()
 
-    return (
-        "docker_stop_container",
-        "Stop a running Docker container gracefully",
-        OperationSafety.MODERATE,
-        True,  # idempotent - stopping converges to stopped state
-        False,  # not open_world
-        stop_container,
+    return ToolSpec(
+        name="docker_stop_container",
+        description="Stop a running Docker container gracefully",
+        safety=OperationSafety.MODERATE,
+        func=stop_container,
+        idempotent=True,
     )
 
 
 def create_restart_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the restart_container FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the restart_container tool."""
 
     def restart_container(
         container_id: str,
         timeout: int = DEFAULT_CONTAINER_TIMEOUT_SECONDS,
     ) -> dict[str, Any]:
-        """Restart a Docker container.
-
-        Args:
-            container_id: Container ID or name
-            timeout: Timeout in seconds before killing
-
-        Returns:
-            Dictionary with container ID and status
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If restart fails
-        """
+        """Restart a Docker container."""
         result = _execute_container_action(
             docker_client,
             container_id,
@@ -559,47 +469,26 @@ def create_restart_container_tool(
         )
         return result.model_dump()
 
-    return (
-        "docker_restart_container",
-        "Restart a Docker container",
-        OperationSafety.MODERATE,
-        True,  # idempotent - restart operation can be safely retried
-        False,  # not open_world
-        restart_container,
+    return ToolSpec(
+        name="docker_restart_container",
+        description="Restart a Docker container",
+        safety=OperationSafety.MODERATE,
+        func=restart_container,
+        idempotent=True,
     )
 
 
 def create_remove_container_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the remove_container FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the remove_container tool."""
 
     def remove_container(
         container_id: str,
         force: bool = False,
         volumes: bool = False,
     ) -> dict[str, Any]:
-        """Remove a Docker container.
-
-        Args:
-            container_id: Container ID or name
-            force: Force removal of running container
-            volumes: Remove associated volumes
-
-        Returns:
-            Dictionary with container ID and removal info
-
-        Raises:
-            ContainerNotFound: If container doesn't exist
-            DockerOperationError: If removal fails
-        """
+        """Remove a Docker container."""
         try:
             logger.info(f"Removing container: {container_id} (force={force}, volumes={volumes})")
             container = docker_client.client.containers.get(container_id)
@@ -623,13 +512,11 @@ def create_remove_container_tool(
             logger.error(f"Failed to remove container: {e}")
             raise DockerOperationError(f"Failed to remove container: {e}") from e
 
-    return (
-        "docker_remove_container",
-        "Remove a Docker container",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (container is gone after first removal)
-        False,  # not open_world
-        remove_container,
+    return ToolSpec(
+        name="docker_remove_container",
+        description="Remove a Docker container",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=remove_container,
     )
 
 
@@ -638,16 +525,7 @@ def register_container_lifecycle_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all container lifecycle tools with FastMCP.
-
-    Args:
-        app: FastMCP application instance
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        List of registered tool names
-    """
+    """Register all container lifecycle tools with FastMCP."""
     tools = [
         create_create_container_tool(docker_client, safety_config),
         create_start_container_tool(docker_client),
