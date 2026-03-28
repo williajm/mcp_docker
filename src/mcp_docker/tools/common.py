@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
+from mcp_docker.services.safety import OperationSafety
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.output_limits import create_truncation_metadata
 
 logger = get_logger(__name__)
+
+
+@dataclass(slots=True, frozen=True)
+class ToolSpec:
+    """Specification for registering a FastMCP tool."""
+
+    name: str
+    description: str
+    safety: OperationSafety
+    func: Callable[..., Any]
+    idempotent: bool = field(default=False)
+    open_world: bool = field(default=False)
+
 
 # Shared field description constants (avoids duplication per SonarCloud S1192)
 DESC_TRUNCATION_INFO = "Information about output truncation if applied"

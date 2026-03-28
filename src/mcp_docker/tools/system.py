@@ -1,8 +1,4 @@
-"""FastMCP system tools.
-
-This module contains system-level Docker tools migrated to FastMCP 2.0.
-Currently includes only the prune_system DESTRUCTIVE operation.
-"""
+"""FastMCP system tools."""
 
 from typing import Any
 
@@ -11,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.services.safety import OperationSafety
+from mcp_docker.tools.common import ToolSpec
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.logger import get_logger
@@ -90,24 +87,16 @@ class SystemPruneOutput(BaseModel):
 
 def create_version_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the docker_version FastMCP tool."""
+) -> ToolSpec:
+    """Create the docker_version tool."""
 
     def version() -> dict[str, Any]:
-        """Get Docker version information.
-
-        Returns:
-            Dictionary with Docker version, API version, platform info, and components
-
-        Raises:
-            DockerOperationError: If getting version fails
-        """
+        """Get Docker version information."""
         try:
             logger.info("Getting Docker version information")
 
             version_info = docker_client.client.version()
 
-            # Extract key information
             output = VersionOutput(
                 version=version_info.get("Version", "unknown"),
                 api_version=version_info.get("ApiVersion", "unknown"),
@@ -127,20 +116,21 @@ def create_version_tool(
             logger.error(f"Failed to get Docker version: {e}")
             raise DockerOperationError(f"Failed to get Docker version: {e}") from e
 
-    return (
-        "docker_version",
-        "Get Docker version information including API version, platform, and components",
-        OperationSafety.SAFE,
-        True,  # idempotent (always returns same info)
-        False,  # not open_world
-        version,
+    return ToolSpec(
+        name="docker_version",
+        description=(
+            "Get Docker version information including API version, platform, and components"
+        ),
+        safety=OperationSafety.SAFE,
+        func=version,
+        idempotent=True,
     )
 
 
 def create_events_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the docker_events FastMCP tool."""
+) -> ToolSpec:
+    """Create the docker_events tool."""
 
     def events(
         until: str,
@@ -149,26 +139,11 @@ def create_events_tool(
     ) -> dict[str, Any]:
         """Get Docker events from the daemon.
 
-        Args:
-            until: End timestamp (REQUIRED - Unix timestamp or ISO 8601 datetime)
-            since: Start timestamp (optional - Unix timestamp or ISO 8601 datetime)
-            filters: Filters to apply (e.g., {'type': 'container', 'event': 'start'})
-
-        Returns:
-            Dictionary with list of events and count
-
-        Raises:
-            DockerOperationError: If getting events fails
-
-        Note:
-            The 'until' parameter is required to prevent infinite streaming.
-            Without it, Docker's events API will block indefinitely waiting for new events.
+        The 'until' parameter is required to prevent infinite streaming.
         """
         try:
             logger.info(f"Getting Docker events (since={since}, until={until}, filters={filters})")
 
-            # Get events from Docker API
-            # Note: This returns a generator, so we need to decode and collect events
             event_generator = docker_client.client.events(
                 since=since,
                 until=until,
@@ -176,9 +151,8 @@ def create_events_tool(
                 decode=True,
             )
 
-            # Collect events (limit to prevent excessive memory usage)
             events_list = []
-            max_events = 1000  # Safety limit
+            max_events = 1000
 
             for event in event_generator:
                 events_list.append(event)
@@ -198,42 +172,27 @@ def create_events_tool(
             logger.error(f"Failed to get Docker events: {e}")
             raise DockerOperationError(f"Failed to get Docker events: {e}") from e
 
-    return (
-        "docker_events",
-        "Get Docker events with time range and filters (requires 'until')",
-        OperationSafety.SAFE,
-        False,  # not idempotent (events change over time)
-        False,  # not open_world
-        events,
+    return ToolSpec(
+        name="docker_events",
+        description="Get Docker events with time range and filters (requires 'until')",
+        safety=OperationSafety.SAFE,
+        func=events,
     )
 
 
 def create_prune_system_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the prune_system FastMCP tool."""
+) -> ToolSpec:
+    """Create the prune_system tool."""
 
     def prune_system(
         filters: dict[str, str | list[str]] | None = None,
         volumes: bool = False,
     ) -> dict[str, Any]:
-        """Prune all unused Docker resources (containers, images, networks, volumes).
-
-        Args:
-            filters: Filters to apply (e.g., {'until': '24h'})
-            volumes: Prune volumes in addition to other resources
-
-        Returns:
-            Dictionary with deleted resources and space reclaimed
-
-        Raises:
-            DockerOperationError: If pruning fails
-        """
+        """Prune all unused Docker resources (containers, images, networks, volumes)."""
         try:
             logger.info(f"Pruning all unused resources (filters={filters}, volumes={volumes})")
 
-            # System prune removes stopped containers, unused networks,
-            # dangling images, and optionally volumes
             result = docker_client.client.api.prune_containers(  # type: ignore[no-untyped-call]
                 filters=filters
             )
@@ -247,7 +206,6 @@ def create_prune_system_tool(
             )
             networks_deleted = result_networks.get("NetworksDeleted", []) or []
 
-            # Only prune volumes if explicitly requested
             volumes_deleted: list[str] = []
             volumes_space_reclaimed = 0
             if volumes:
@@ -255,7 +213,6 @@ def create_prune_system_tool(
                 volumes_deleted = result_volumes.get("VolumesDeleted", []) or []
                 volumes_space_reclaimed = result_volumes.get("SpaceReclaimed", 0)
 
-            # Calculate total space reclaimed
             space_reclaimed = (
                 result.get("SpaceReclaimed", 0)
                 + result_images.get("SpaceReclaimed", 0)
@@ -282,13 +239,11 @@ def create_prune_system_tool(
             logger.error(f"Failed to prune system: {e}")
             raise DockerOperationError(f"Failed to prune system: {e}") from e
 
-    return (
-        "docker_prune_system",
-        "Prune all unused Docker resources (containers, images, networks, volumes)",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (different resources may be pruned each time)
-        False,  # not open_world
-        prune_system,
+    return ToolSpec(
+        name="docker_prune_system",
+        description="Prune all unused Docker resources (containers, images, networks, volumes)",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=prune_system,
     )
 
 
@@ -297,22 +252,10 @@ def register_system_tools(
     docker_client: DockerClientWrapper,
     safety_config: Any = None,
 ) -> list[str]:
-    """Register all system tools with FastMCP.
-
-    Args:
-        app: FastMCP application instance
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration (optional, for tool filtering)
-
-    Returns:
-        List of registered tool names
-    """
+    """Register all system tools with FastMCP."""
     tools = [
-        # SAFE tools (read-only)
         create_version_tool(docker_client),
         create_events_tool(docker_client),
-        # DESTRUCTIVE tools (permanent deletion)
         create_prune_system_tool(docker_client),
     ]
-
     return register_tools_with_filtering(app, tools, safety_config)

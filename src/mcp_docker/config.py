@@ -12,20 +12,7 @@ from mcp_docker.version import __version__
 
 
 def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
-    """Parse comma-separated string or JSON array into list of strings.
-
-    Supports multiple input formats:
-    - JSON array: '["value1","value2"]' or '["value1", "value2"]'
-    - Comma-separated: 'value1,value2' or 'value1, value2'
-    - Already a list: ['value1', 'value2']
-    - None or empty string: []
-
-    Args:
-        value: Input value (string, list, or None)
-
-    Returns:
-        List of strings
-    """
+    """Parse comma-separated string, JSON array, or list into list of strings."""
     if value is None or value == "":
         return []
     if isinstance(value, list):
@@ -48,13 +35,7 @@ def _parse_comma_separated_list(value: str | list[str] | None) -> list[str]:
 
 
 def _get_default_docker_socket() -> str:
-    """Detect OS and return appropriate Docker socket URL.
-
-    Returns:
-        str: Platform-specific Docker socket URL:
-            - Windows: npipe:////./pipe/docker_engine
-            - Linux/macOS/WSL: unix:///var/run/docker.sock
-    """
+    """Detect OS and return appropriate Docker socket URL."""
     system = platform.system().lower()
     if system == "windows":
         return "npipe:////./pipe/docker_engine"
@@ -277,25 +258,8 @@ class SafetyConfig(BaseSettings):
     )
     @classmethod
     def parse_volume_mount_list(cls, value: str | list[str] | None) -> list[str]:
-        """Parse list from comma-separated string or list for volume mounts.
-
-        For volume mount lists, empty string/None both mean "use defaults" (empty list).
-
-        Args:
-            value: List as string (comma-separated), list, or None
-
-        Returns:
-            Normalized list of strings (empty list if None/empty)
-        """
-        if value is None or value == "":
-            return []
-        if isinstance(value, str):
-            # Split by comma, strip whitespace, filter empty strings
-            return [item.strip() for item in value.split(",") if item.strip()]
-        if isinstance(value, list):
-            # Already a list, just filter empty strings and strip
-            return [item.strip() for item in value if item and item.strip()]
-        return []
+        """Parse volume mount list (None/empty → [])."""
+        return _parse_comma_separated_list(value)
 
     @field_validator(
         "allowed_tools",
@@ -306,38 +270,11 @@ class SafetyConfig(BaseSettings):
     )
     @classmethod
     def parse_filtering_list(cls, value: str | list[str] | None) -> list[str] | None:
-        """Parse list from comma-separated string, JSON array, or list.
-
-        Preserves None for defaults.
-
-        For all filtering lists (tools, prompts, resources), None means "allow all" (default),
-        while empty list means "block all" (explicit).
-
-        Supports multiple input formats:
-        - JSON array: '["value1","value2"]' or '["value1", "value2"]'
-        - Comma-separated: 'value1,value2' or 'value1, value2'
-        - Already a list: ['value1', 'value2']
-        - None or empty string: special handling
-
-        Args:
-            value: List as string (comma-separated or JSON), list, or None
-
-        Returns:
-            Normalized list of strings, empty list for explicit empty string, or None
-
-        Examples:
-            - Not set (None) → None → Allow all (default)
-            - Set to "" → [] → Block all (explicit)
-            - Set to "foo,bar" → ['foo', 'bar'] → Allow only those
-            - Set to '["foo","bar"]' → ['foo', 'bar'] → Allow only those (JSON format)
-        """
+        """Parse filtering list. None → None (allow all), empty → [] (block all)."""
         if value is None:
-            # Not set - return None to indicate "allow all" (default behavior)
             return None
         if value == "":
-            # Explicitly set to empty string - return [] to indicate "block all"
             return []
-        # Delegate to shared parsing function for JSON/comma-separated handling
         return _parse_comma_separated_list(value)
 
 
@@ -458,14 +395,7 @@ class SecurityConfig(BaseSettings):
     @field_validator("allowed_client_ips", "trusted_proxies", mode="before")
     @classmethod
     def parse_ip_list(cls, value: str | list[str] | None) -> list[str]:
-        """Parse list from comma-separated string or list.
-
-        Args:
-            value: List as string (comma-separated), list, or None
-
-        Returns:
-            Normalized list of strings (empty list if None/empty)
-        """
+        """Parse IP list from comma-separated string or list."""
         return _parse_comma_separated_list(value)
 
     @model_validator(mode="after")

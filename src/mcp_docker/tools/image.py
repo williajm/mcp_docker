@@ -1,24 +1,10 @@
-"""FastMCP image tools.
-
-This module contains Docker image management tools using FastMCP 3.x.
-Includes operations across all safety levels:
-- SAFE: list, inspect, history (read-only)
-- MODERATE: pull, build, push, tag (reversible)
-- DESTRUCTIVE: remove, prune (permanent)
-
-Long-running operations (pull, build, push) use both MCP protocol
-channels for real-time progress reporting:
-- Context.info() for human-readable log messages (notifications/message)
-- Context.report_progress() for structured progress (notifications/progress)
-"""
+"""FastMCP image tools."""
 
 import asyncio
-import re
 import threading
-import time
 from collections.abc import Callable
 from pathlib import Path
-from queue import Empty, Queue
+from queue import Queue
 from typing import Any
 
 from docker.errors import APIError, DockerException, NotFound
@@ -34,9 +20,16 @@ from mcp_docker.tools.common import (
     DESC_TRUNCATION_INFO,
     FiltersInput,
     PaginatedListOutput,
+    ToolSpec,
     apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
+from mcp_docker.tools.streaming import (
+    ProgressThrottler,
+    cleanup_worker_task,
+    process_build_streaming_queue,
+    process_streaming_queue,
+)
 from mcp_docker.utils.errors import DockerOperationError, ImageNotFound, ValidationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
@@ -44,53 +37,6 @@ from mcp_docker.utils.messages import ERROR_IMAGE_NOT_FOUND
 from mcp_docker.utils.validation import validate_image_name
 
 logger = get_logger(__name__)
-
-# Constants for progress message sanitization
-MAX_PROGRESS_MESSAGE_LENGTH = 200
-PROGRESS_THROTTLE_SECONDS = 0.1  # Max 10 updates per second
-# Regex to strip ANSI escape sequences
-ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
-
-
-def _check_chunk_for_error(chunk: dict[str, Any], operation: str) -> None:
-    """Check if a chunk contains an error and raise if so.
-
-    Args:
-        chunk: Streaming chunk from Docker API
-        operation: Operation name for error message (e.g., "pull", "push", "build")
-
-    Raises:
-        DockerOperationError: If chunk contains an error
-    """
-    if "error" in chunk and chunk["error"] is not None:
-        error_msg = str(chunk["error"])
-        logger.error(f"Failed to {operation} image: {error_msg}")
-        raise DockerOperationError(f"Failed to {operation} image: {error_msg}")
-
-
-def _sanitize_progress_message(message: str) -> str:
-    """Sanitize a progress message for safe display.
-
-    - Strips ANSI escape sequences
-    - Truncates to MAX_PROGRESS_MESSAGE_LENGTH
-    - Removes control characters
-
-    Args:
-        message: Raw progress message
-
-    Returns:
-        Sanitized message safe for display
-    """
-    # Strip ANSI escape sequences
-    message = ANSI_ESCAPE_PATTERN.sub("", message)
-    # Remove other control characters (except newline/tab)
-    message = "".join(c for c in message if c.isprintable() or c in "\n\t")
-    # Strip whitespace
-    message = message.strip()
-    # Truncate if too long
-    if len(message) > MAX_PROGRESS_MESSAGE_LENGTH:
-        message = message[: MAX_PROGRESS_MESSAGE_LENGTH - 3] + "..."
-    return message
 
 
 def _image_has_tag(image: str) -> bool:
@@ -133,299 +79,6 @@ def _validate_build_context_path(path: str) -> Path:
         raise ValidationError(f"Build context path must be a directory: {path}")
 
     return resolved_path
-
-
-class ProgressThrottler:
-    """Throttle progress updates to avoid overwhelming clients."""
-
-    def __init__(self, min_interval: float = PROGRESS_THROTTLE_SECONDS) -> None:
-        """Initialize throttler.
-
-        Args:
-            min_interval: Minimum seconds between updates
-        """
-        self.min_interval = min_interval
-        self.last_update_time: float = 0.0
-        self.last_message: str = ""
-
-    def should_update(self, message: str) -> bool:
-        """Check if we should send this progress update.
-
-        Args:
-            message: The message to potentially send
-
-        Returns:
-            True if update should be sent
-        """
-        now = time.monotonic()
-        # Always allow if message is different and enough time passed
-        time_elapsed = now - self.last_update_time >= self.min_interval
-        message_changed = message != self.last_message
-
-        if time_elapsed or (message_changed and "complete" in message.lower()):
-            self.last_update_time = now
-            self.last_message = message
-            return True
-        return False
-
-
-def _format_layer_message(chunk: dict[str, Any]) -> str | None:
-    """Format a progress message from a Docker streaming chunk.
-
-    Args:
-        chunk: Streaming chunk from Docker API
-
-    Returns:
-        Formatted message string or None if no message to report
-    """
-    raw_id = chunk.get("id")
-    layer_id = str(raw_id)[:12] if raw_id is not None else ""
-
-    raw_status = chunk.get("status")
-    status = str(raw_status) if raw_status is not None else ""
-
-    # Check for detailed progress info
-    detail = chunk.get("progressDetail")
-    if detail:
-        current = detail.get("current", 0) or 0
-        total = detail.get("total", 0) or 0
-        if total > 0:
-            pct = int((current / total) * 100)
-            cur_mb = current / 1024 / 1024
-            tot_mb = total / 1024 / 1024
-            return f"Layer {layer_id}: {status} {pct}% ({cur_mb:.1f}MB/{tot_mb:.1f}MB)"
-        if layer_id:
-            return f"Layer {layer_id}: {status}"
-        return None
-
-    # No detail, just format status
-    if not status:
-        return None
-    return f"Layer {layer_id}: {status}" if layer_id else status
-
-
-async def _report_layer_progress(
-    ctx: Context,
-    chunk: dict[str, Any],
-    throttler: ProgressThrottler | None = None,
-) -> str | None:
-    """Report progress for a single layer chunk and return status if present.
-
-    Uses both MCP protocol channels:
-    - ctx.info() for human-readable log messages (notifications/message)
-    - ctx.report_progress() for structured progress when byte counts
-      are available (notifications/progress)
-
-    Args:
-        ctx: FastMCP Context for progress reporting
-        chunk: Streaming chunk from Docker API
-        throttler: Optional throttler to limit update frequency
-
-    Returns:
-        Status string if present, None otherwise
-    """
-    msg = _format_layer_message(chunk)
-
-    if msg:
-        msg = _sanitize_progress_message(msg)
-        if throttler is None or throttler.should_update(msg):
-            await ctx.info(msg)
-
-    # Send structured progress when byte-level detail is available
-    detail = chunk.get("progressDetail")
-    if detail:
-        current = detail.get("current", 0) or 0
-        total = detail.get("total", 0) or 0
-        if total > 0:
-            await ctx.report_progress(current, total)
-
-    raw_status = chunk.get("status")
-    return str(raw_status) if raw_status is not None else None
-
-
-async def _cleanup_worker_task(
-    task: asyncio.Future[None],
-    chunk_queue: Queue[Any],
-) -> None:
-    """Clean up a worker task by draining its queue and awaiting completion.
-
-    This ensures the worker thread can terminate even if an error occurred
-    during processing, preventing memory leaks and thread hangs.
-
-    Args:
-        task: The executor future running the worker
-        chunk_queue: The queue the worker is writing to
-    """
-    # Drain the queue to unblock the worker if it's trying to put
-    while True:
-        try:
-            chunk = chunk_queue.get_nowait()
-            if chunk is None:
-                break
-        except Empty:
-            break
-
-    # Wait for the worker to finish (it should complete quickly now)
-    try:
-        await asyncio.wait_for(task, timeout=5.0)
-    except TimeoutError:
-        logger.warning("Worker thread did not complete within timeout")
-    except Exception as e:
-        # Worker may have already failed during streaming - log at debug level
-        logger.debug(f"Worker task cleanup: {type(e).__name__}: {e}")
-
-
-def _check_worker_error(
-    error_list: list[Exception],
-    error_event: threading.Event | None,
-) -> None:
-    """Check for errors from worker thread and raise if found.
-
-    Args:
-        error_list: List containing errors from worker thread
-        error_event: Optional threading.Event signaling an error occurred
-
-    Raises:
-        Exception: Re-raises the first error from error_list if error detected
-    """
-    # Use thread-safe event if available
-    if error_event is not None:
-        if error_event.is_set() and error_list:
-            raise error_list[0] from error_list[0]
-        return
-
-    # Fallback for backwards compatibility (no event provided)
-    if error_list:
-        raise error_list[0] from error_list[0]
-
-
-async def _process_streaming_queue(  # noqa: PLR0913 - Streaming processor needs all parameters
-    chunk_queue: Queue[Any],
-    error_list: list[Exception],
-    ctx: Context,
-    throttler: ProgressThrottler,
-    operation: str,
-    error_event: threading.Event | None = None,
-) -> str | None:
-    """Process chunks from a streaming queue with progress reporting.
-
-    Args:
-        chunk_queue: Queue containing streaming chunks (None signals completion)
-        error_list: List to check for errors from worker thread
-        ctx: FastMCP Context for progress reporting
-        throttler: Throttler for progress updates
-        operation: Operation name for error messages (e.g., "pull", "push")
-        error_event: Optional threading.Event signaling an error occurred
-
-    Returns:
-        Last status string or None
-
-    Raises:
-        DockerOperationError: If an error is found in a chunk
-
-    Note:
-        Thread safety: The error_list is written to by the worker thread (single
-        append) and read by this async function. The error_event provides explicit
-        signaling when an error occurs. The worker sets the event before appending
-        to the list, ensuring the list is populated when the event is set.
-    """
-    last_status: str | None = None
-
-    while True:
-        try:
-            chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
-        except Empty:
-            _check_worker_error(error_list, error_event)
-            continue
-
-        if chunk is None:
-            break
-
-        if isinstance(chunk, dict):
-            _check_chunk_for_error(chunk, operation)
-            status = await _report_layer_progress(ctx, chunk, throttler)
-            if status:
-                last_status = status
-
-    return last_status
-
-
-async def _report_build_progress(
-    ctx: Context,
-    chunk: dict[str, Any],
-    throttler: ProgressThrottler,
-) -> None:
-    """Report progress for a build log chunk.
-
-    Uses both MCP protocol channels:
-    - ctx.info() for human-readable log messages (notifications/message)
-    - ctx.report_progress() for structured progress when build steps
-      are parseable (notifications/progress)
-
-    Args:
-        ctx: FastMCP Context for progress reporting
-        chunk: Build log chunk from Docker API
-        throttler: Throttler for progress updates
-    """
-    stream_val = chunk.get("stream")
-    if not isinstance(stream_val, str):
-        return
-
-    msg = stream_val.strip()
-    if not msg:
-        return
-
-    sanitized_msg = _sanitize_progress_message(msg)
-    is_important = msg.startswith("Step ") or "Successfully" in msg
-    if is_important or throttler.should_update(sanitized_msg):
-        await ctx.info(f"Build: {sanitized_msg}")
-
-    # Send structured progress for "Step N/M" lines
-    if msg.startswith("Step "):
-        match = re.match(r"Step (\d+)/(\d+)", msg)
-        if match:
-            step = int(match.group(1))
-            total = int(match.group(2))
-            await ctx.report_progress(step, total)
-
-
-async def _process_build_streaming_queue(
-    chunk_queue: Queue[Any],
-    error_list: list[Exception],
-    ctx: Context,
-    throttler: ProgressThrottler,
-    error_event: threading.Event | None = None,
-) -> None:
-    """Process build log chunks from a streaming queue with progress reporting.
-
-    Args:
-        chunk_queue: Queue containing build log chunks (None signals completion)
-        error_list: List to check for errors from worker thread
-        ctx: FastMCP Context for progress reporting
-        throttler: Throttler for progress updates
-        error_event: Optional threading.Event signaling an error occurred
-
-    Raises:
-        DockerOperationError: If an error is found in a chunk
-
-    Note:
-        Thread safety: The error_list is written to by the worker thread (single
-        append) and read by this async function. The error_event provides explicit
-        signaling when an error occurs.
-    """
-    while True:
-        try:
-            chunk = await asyncio.to_thread(chunk_queue.get, True, 0.1)
-        except Empty:
-            _check_worker_error(error_list, error_event)
-            continue
-
-        if chunk is None:
-            break
-
-        if isinstance(chunk, dict):
-            _check_chunk_for_error(chunk, "build")
-            await _report_build_progress(ctx, chunk, throttler)
 
 
 def _create_pull_streaming_worker(  # noqa: PLR0913 - Factory needs all pull parameters
@@ -894,33 +547,14 @@ class PruneImagesOutput(BaseModel):
 def create_list_images_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the list_images FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the list_images tool."""
 
     def list_images(
         all: bool = False,
         filters: dict[str, str | list[str]] | None = None,
     ) -> dict[str, Any]:
-        """List Docker images with optional filters.
-
-        Args:
-            all: Show all images including intermediates
-            filters: Filters to apply (e.g., {'dangling': ['true']})
-
-        Returns:
-            Dictionary with images list, count, and truncation info
-
-        Raises:
-            DockerOperationError: If listing fails
-        """
+        """List Docker images with optional filters."""
         try:
             logger.info(f"Listing images (all={all}, filters={filters})")
             images = docker_client.client.images.list(all=all, filters=filters)
@@ -957,43 +591,24 @@ def create_list_images_tool(
             logger.error(f"Failed to list images: {e}")
             raise DockerOperationError(f"Failed to list images: {e}") from e
 
-    return (
-        "docker_list_images",
-        "List Docker images with optional filters",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        list_images,
+    return ToolSpec(
+        name="docker_list_images",
+        description="List Docker images with optional filters",
+        safety=OperationSafety.SAFE,
+        func=list_images,
+        idempotent=True,
     )
 
 
 def create_inspect_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the inspect_image FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the inspect_image tool."""
 
     def inspect_image(
         image_name: str,
     ) -> dict[str, Any]:
-        """Get detailed information about a Docker image.
-
-        Args:
-            image_name: Image name or ID
-
-        Returns:
-            Dictionary with detailed image information
-
-        Raises:
-            ImageNotFound: If image doesn't exist
-            DockerOperationError: If inspection fails
-        """
+        """Get detailed information about a Docker image."""
         try:
             logger.info(f"Inspecting image: {image_name}")
             image = docker_client.client.images.get(image_name)
@@ -1021,45 +636,25 @@ def create_inspect_image_tool(
             logger.error(f"Failed to inspect image: {e}")
             raise DockerOperationError(f"Failed to inspect image: {e}") from e
 
-    return (
-        "docker_inspect_image",
-        "Get detailed information about a Docker image",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        inspect_image,
+    return ToolSpec(
+        name="docker_inspect_image",
+        description="Get detailed information about a Docker image",
+        safety=OperationSafety.SAFE,
+        func=inspect_image,
+        idempotent=True,
     )
 
 
 def create_image_history_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the image_history FastMCP tool.
-
-    Args:
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the image_history tool."""
 
     def image_history(
         image: str,
     ) -> dict[str, Any]:
-        """View the history of a Docker image.
-
-        Args:
-            image: Image name or ID
-
-        Returns:
-            Dictionary with image layer history
-
-        Raises:
-            ImageNotFound: If image doesn't exist
-            DockerOperationError: If history retrieval fails
-        """
+        """View the history of a Docker image."""
         try:
             logger.info(f"Getting history for image: {image}")
             image_obj = docker_client.client.images.get(image)
@@ -1084,27 +679,19 @@ def create_image_history_tool(
             logger.error(f"Failed to get image history: {e}")
             raise DockerOperationError(f"Failed to get image history: {e}") from e
 
-    return (
-        "docker_image_history",
-        "View the history of a Docker image",
-        OperationSafety.SAFE,
-        True,  # idempotent
-        False,  # not open_world
-        image_history,
+    return ToolSpec(
+        name="docker_image_history",
+        description="View the history of a Docker image",
+        safety=OperationSafety.SAFE,
+        func=image_history,
+        idempotent=True,
     )
 
 
 def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the pull_image FastMCP tool with progress reporting.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the pull_image tool."""
 
     async def pull_image(  # noqa: PLR0915 - Complex streaming logic
         ctx: Context,
@@ -1113,23 +700,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         all_tags: bool = False,
         platform: str | None = None,
     ) -> dict[str, Any]:
-        """Pull a Docker image from a registry with real-time progress reporting.
-
-        Args:
-            image: Image name (e.g., 'ubuntu:22.04')
-            tag: Optional tag (if not in image name)
-            all_tags: Pull all tags (note: output will show only the primary image)
-            platform: Platform (e.g., 'linux/amd64')
-            ctx: FastMCP Context (injected by framework) for progress reporting
-
-        Returns:
-            Dictionary with image name, ID, and tags
-
-        Raises:
-            ValidationError: If image name is invalid
-            ImageNotFound: If image cannot be found after pull
-            DockerOperationError: If pull fails
-        """
+        """Pull a Docker image from a registry with real-time progress reporting."""
         # Validate tag consistency: reject if both image contains tag AND tag param provided
         if tag and _image_has_tag(image):
             raise ValidationError(
@@ -1156,7 +727,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
 
         try:
             # Process chunks as they arrive (real-time progress)
-            await _process_streaming_queue(
+            await process_streaming_queue(
                 chunk_queue, pull_error, ctx, ProgressThrottler(), "pull", error_event
             )
 
@@ -1185,29 +756,22 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             raise DockerOperationError(f"Failed to pull image: {e}") from e
         finally:
             # Ensure worker thread is cleaned up even on error
-            await _cleanup_worker_task(pull_task, chunk_queue)
+            await cleanup_worker_task(pull_task, chunk_queue)
 
-    return (
-        "docker_pull_image",
-        "Pull a Docker image from a registry",
-        OperationSafety.MODERATE,
-        True,  # idempotent
-        True,  # open_world (pulls from registry)
-        pull_image,
+    return ToolSpec(
+        name="docker_pull_image",
+        description="Pull a Docker image from a registry",
+        safety=OperationSafety.MODERATE,
+        func=pull_image,
+        idempotent=True,
+        open_world=True,
     )
 
 
 def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the build_image FastMCP tool with progress reporting.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the build_image tool."""
 
     async def build_image(  # noqa: PLR0913, PLR0912, PLR0915 - Docker API requires these params
         ctx: Context,
@@ -1219,25 +783,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         rm: bool = True,
         pull: bool = False,
     ) -> dict[str, Any]:
-        """Build a Docker image from a Dockerfile with real-time progress reporting.
-
-        Args:
-            path: Path to build context
-            tag: Tag for the image
-            dockerfile: Path to Dockerfile
-            buildargs: Build arguments as key-value pairs
-            nocache: Do not use cache
-            rm: Remove intermediate containers
-            pull: Always pull newer base images
-            ctx: FastMCP Context (injected by framework) for progress reporting
-
-        Returns:
-            Dictionary with image_id, tags, and logs
-
-        Raises:
-            ValidationError: If path or tag is invalid
-            DockerOperationError: If build fails
-        """
+        """Build a Docker image from a Dockerfile with real-time progress reporting."""
         if tag:
             validate_image_name(tag)
 
@@ -1273,7 +819,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
 
         try:
             # Process chunks as they arrive (real-time progress)
-            await _process_build_streaming_queue(
+            await process_build_streaming_queue(
                 chunk_queue, build_error, ctx, ProgressThrottler(), error_event
             )
 
@@ -1303,49 +849,27 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
             raise DockerOperationError(f"Failed to build image: {e}") from e
         finally:
             # Ensure worker thread is cleaned up even on error
-            await _cleanup_worker_task(build_task, chunk_queue)
+            await cleanup_worker_task(build_task, chunk_queue)
 
-    return (
-        "docker_build_image",
-        "Build a Docker image from a Dockerfile",
-        OperationSafety.MODERATE,
-        False,  # not idempotent (creates different images)
-        True,  # open_world (may pull base images)
-        build_image,
+    return ToolSpec(
+        name="docker_build_image",
+        description="Build a Docker image from a Dockerfile",
+        safety=OperationSafety.MODERATE,
+        func=build_image,
     )
 
 
 def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires many statements
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the push_image FastMCP tool with progress reporting.
-
-    Args:
-        docker_client: Docker client wrapper
-
-    Returns:
-        Tuple of (name, description, safety_level, idempotent, open_world, function)
-    """
+) -> ToolSpec:
+    """Create the push_image tool."""
 
     async def push_image(  # noqa: PLR0915 - Complex streaming logic
         ctx: Context,
         image: str,
         tag: str | None = None,
     ) -> dict[str, Any]:
-        """Push a Docker image to a registry with real-time progress reporting.
-
-        Args:
-            image: Image name to push
-            tag: Optional tag
-            ctx: FastMCP Context (injected by framework) for progress reporting
-
-        Returns:
-            Dictionary with image name and status
-
-        Raises:
-            ImageNotFound: If image doesn't exist locally
-            DockerOperationError: If push fails
-        """
+        """Push a Docker image to a registry with real-time progress reporting."""
         validate_image_name(image)
         logger.info(f"Pushing image: {image}")
 
@@ -1365,7 +889,7 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
 
         try:
             # Process chunks as they arrive (real-time progress)
-            last_status = await _process_streaming_queue(
+            last_status = await process_streaming_queue(
                 chunk_queue, push_error, ctx, ProgressThrottler(), "push", error_event
             )
 
@@ -1392,22 +916,21 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
             raise DockerOperationError(f"Failed to push image: {e}") from e
         finally:
             # Ensure worker thread is cleaned up even on error
-            await _cleanup_worker_task(push_task, chunk_queue)
+            await cleanup_worker_task(push_task, chunk_queue)
 
-    return (
-        "docker_push_image",
-        "Push a Docker image to a registry",
-        OperationSafety.MODERATE,
-        False,  # not idempotent (may push to different registries)
-        True,  # open_world (pushes to registry)
-        push_image,
+    return ToolSpec(
+        name="docker_push_image",
+        description="Push a Docker image to a registry",
+        safety=OperationSafety.MODERATE,
+        func=push_image,
+        open_world=True,
     )
 
 
 def create_tag_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the tag_image FastMCP tool."""
+) -> ToolSpec:
+    """Create the tag_image tool."""
 
     def tag_image(
         image: str,
@@ -1434,20 +957,19 @@ def create_tag_image_tool(
             logger.error(f"Failed to tag image: {e}")
             raise DockerOperationError(f"Failed to tag image: {e}") from e
 
-    return (
-        "docker_tag_image",
-        "Tag a Docker image",
-        OperationSafety.MODERATE,
-        True,  # idempotent (tagging with same tag overwrites)
-        False,  # not open_world
-        tag_image,
+    return ToolSpec(
+        name="docker_tag_image",
+        description="Tag a Docker image with a new name",
+        safety=OperationSafety.MODERATE,
+        func=tag_image,
+        idempotent=True,
     )
 
 
 def create_remove_image_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the remove_image FastMCP tool."""
+) -> ToolSpec:
+    """Create the remove_image tool."""
 
     def remove_image(
         image: str,
@@ -1470,20 +992,18 @@ def create_remove_image_tool(
             logger.error(f"Failed to remove image: {e}")
             raise DockerOperationError(f"Failed to remove image: {e}") from e
 
-    return (
-        "docker_remove_image",
-        "Remove a Docker image",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (image is gone after first removal)
-        False,  # not open_world
-        remove_image,
+    return ToolSpec(
+        name="docker_remove_image",
+        description="Remove a Docker image",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=remove_image,
     )
 
 
 def create_prune_images_tool(
     docker_client: DockerClientWrapper,
-) -> tuple[str, str, OperationSafety, bool, bool, Any]:
-    """Create the prune_images FastMCP tool."""
+) -> ToolSpec:
+    """Create the prune_images tool."""
 
     def prune_images(
         all: bool = False,
@@ -1522,13 +1042,11 @@ def create_prune_images_tool(
             logger.error(f"Failed to prune images: {e}")
             raise DockerOperationError(f"Failed to prune images: {e}") from e
 
-    return (
-        "docker_prune_images",
-        "Prune Docker images (unused by default, all with force_all=true)",
-        OperationSafety.DESTRUCTIVE,
-        False,  # not idempotent (different images may be pruned each time)
-        False,  # not open_world
-        prune_images,
+    return ToolSpec(
+        name="docker_prune_images",
+        description="Prune Docker images (unused by default, all with force_all=true)",
+        safety=OperationSafety.DESTRUCTIVE,
+        func=prune_images,
     )
 
 
@@ -1537,16 +1055,7 @@ def register_image_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all image tools with FastMCP.
-
-    Args:
-        app: FastMCP application instance
-        docker_client: Docker client wrapper
-        safety_config: Safety configuration
-
-    Returns:
-        List of registered tool names
-    """
+    """Register all image tools with FastMCP."""
     tools = [
         # SAFE tools
         create_list_images_tool(docker_client, safety_config),

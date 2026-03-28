@@ -197,15 +197,11 @@ class TestToolMetadata:
     ):
         """Test tool metadata for container lifecycle, image, and network tools."""
         if needs_safety_config:
-            name, description, safety_level, idempotent, open_world, func = tool_creator(
-                mock_docker_client, safety_config
-            )
+            spec = tool_creator(mock_docker_client, safety_config)
         else:
-            name, description, safety_level, idempotent, open_world, func = tool_creator(
-                mock_docker_client
-            )
+            spec = tool_creator(mock_docker_client)
 
-        assert name == expected_name
-        assert isinstance(description, str) and len(description) > 0
-        assert safety_level == expected_safety
-        assert callable(func)
+        assert spec.name == expected_name
+        assert isinstance(spec.description, str) and len(spec.description) > 0
+        assert spec.safety == expected_safety
+        assert callable(spec.func)

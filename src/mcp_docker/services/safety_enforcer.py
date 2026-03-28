@@ -1,11 +1,4 @@
-"""Framework-agnostic safety enforcement for Docker operations.
-
-This module provides a centralized SafetyEnforcer class that can be used
-with any MCP framework (legacy SDK or FastMCP). It extracts safety logic
-from BaseTool to enable middleware-based enforcement.
-
-This is the core safety abstraction created in Phase 2 of the FastMCP migration.
-"""
+"""Centralized safety enforcement for Docker operations."""
 
 from typing import Any
 
@@ -23,50 +16,14 @@ logger = get_logger(__name__)
 
 
 class SafetyEnforcer:
-    """Framework-agnostic safety enforcement for Docker operations.
-
-    This class centralizes all safety checks and can be used by both
-    the legacy MCP SDK implementation and FastMCP middleware.
-
-    Example:
-        ```python
-        # In middleware
-        enforcer = SafetyEnforcer(config.safety)
-
-        # Check if tool is allowed
-        allowed, reason = enforcer.is_tool_allowed("docker_remove_container")
-
-        # Check operation safety
-        enforcer.check_operation_safety(
-            "docker_remove_container",
-            OperationSafety.DESTRUCTIVE
-        )
-        ```
-    """
+    """Centralized safety enforcement for Docker operations."""
 
     def __init__(self, safety_config: SafetyConfig):
-        """Initialize safety enforcer with configuration.
-
-        Args:
-            safety_config: Safety configuration from Config
-        """
         self.config = safety_config
         logger.debug(f"Initialized SafetyEnforcer with config: {safety_config}")
 
     def is_tool_allowed(self, tool_name: str) -> tuple[bool, str]:
-        """Check if a tool is allowed based on allow/deny lists.
-
-        Enforcement order:
-        1. Deny list (takes precedence)
-        2. Allow list (if non-empty, tool must be in it)
-        3. Default allow
-
-        Args:
-            tool_name: Name of the tool to check
-
-        Returns:
-            Tuple of (allowed: bool, reason: str)
-        """
+        """Check if a tool is allowed based on allow/deny lists."""
         # Deny list takes precedence
         # None = no deny list, [] = deny all, ['foo'] = deny only foo
         if self.config.denied_tools is not None:
@@ -89,15 +46,7 @@ class SafetyEnforcer:
         tool_name: str,
         safety_level: OperationSafety,
     ) -> None:
-        """Check if an operation is allowed based on its safety level.
-
-        Args:
-            tool_name: Name of the tool
-            safety_level: Safety classification of the operation
-
-        Raises:
-            UnsafeOperationError: If operation is not allowed
-        """
+        """Check if an operation is allowed based on its safety level."""
         # Check moderate operations (for read-only mode)
         if safety_level == OperationSafety.MODERATE and not self.config.allow_moderate_operations:
             raise UnsafeOperationError(
@@ -120,18 +69,7 @@ class SafetyEnforcer:
         tool_name: str,
         safety_level: OperationSafety,
     ) -> None:
-        """Combined check for tool allowance and safety level.
-
-        This is a convenience method that combines is_tool_allowed()
-        and check_operation_safety() into a single check.
-
-        Args:
-            tool_name: Name of the tool
-            safety_level: Safety classification of the operation
-
-        Raises:
-            UnsafeOperationError: If tool is not allowed or unsafe
-        """
+        """Combined check for tool allowance and safety level."""
         # Check allow/deny lists
         allowed, reason = self.is_tool_allowed(tool_name)
         if not allowed:
@@ -141,25 +79,11 @@ class SafetyEnforcer:
         self.check_operation_safety(tool_name, safety_level)
 
     def validate_privileged_mode(self, privileged: bool) -> None:
-        """Validate if privileged mode is allowed.
-
-        Args:
-            privileged: Whether privileged mode is requested
-
-        Raises:
-            UnsafeOperationError: If privileged mode is not allowed
-        """
+        """Validate if privileged mode is allowed."""
         check_privileged_mode(privileged, self.config.allow_privileged_containers)
 
     def validate_mount_path_safe(self, path: str) -> None:
-        """Validate that a mount path is safe.
-
-        Args:
-            path: Mount path to validate
-
-        Raises:
-            UnsafeOperationError: If mount path is unsafe
-        """
+        """Validate that a mount path is safe."""
         # Config validators ensure these are always lists, safe to cast
         blocklist = (
             list(self.config.volume_mount_blocklist) if self.config.volume_mount_blocklist else []
@@ -175,14 +99,7 @@ class SafetyEnforcer:
         )
 
     def validate_command_safe(self, command: str | list[str]) -> None:
-        """Validate that a command is safe to execute.
-
-        Args:
-            command: Command to validate
-
-        Raises:
-            UnsafeOperationError: If command contains dangerous patterns
-        """
+        """Validate that a command is safe to execute."""
         validate_command_safety(command)
 
     def enforce_all_checks(
@@ -191,19 +108,7 @@ class SafetyEnforcer:
         safety_level: OperationSafety,
         arguments: dict[str, Any] | None = None,
     ) -> None:
-        """Perform all safety checks for a tool execution.
-
-        This is the main enforcement method that should be called
-        before executing any tool.
-
-        Args:
-            tool_name: Name of the tool
-            safety_level: Safety classification of the operation
-            arguments: Tool arguments (optional, for argument-specific checks)
-
-        Raises:
-            UnsafeOperationError: If any safety check fails
-        """
+        """Perform all safety checks for a tool execution."""
         # Log the enforcement attempt
         logger.debug(f"Enforcing safety for '{tool_name}' with level {safety_level.value}")
 

@@ -1,7 +1,4 @@
-"""MCP Docker server entry point.
-
-This module provides the main entry point for running the MCP Docker server with FastMCP 2.0.
-"""
+"""MCP Docker server entry point."""
 
 import asyncio
 import os
@@ -24,8 +21,26 @@ class Transport(StrEnum):
     http = "http"
 
 
-# Logging Constants
-SHUTDOWN_COMPLETE_MSG = "MCP server shutdown complete"
+def _run_transport(
+    logger: Any,
+    fastmcp_docker_server: FastMCPDockerServer,
+    fastmcp_app: Any,
+    **run_kwargs: Any,
+) -> None:
+    """Run the server with startup/shutdown lifecycle around fastmcp_app.run()."""
+
+    async def _startup() -> None:
+        await fastmcp_docker_server.start()
+
+    async def _shutdown() -> None:
+        await fastmcp_docker_server.stop()
+        logger.info("MCP server shutdown complete")
+
+    asyncio.run(_startup())
+    try:
+        fastmcp_app.run(**run_kwargs)
+    finally:
+        asyncio.run(_shutdown())
 
 
 def run_stdio(
@@ -35,25 +50,7 @@ def run_stdio(
 ) -> None:
     """Run the MCP server with stdio transport."""
     logger.info("Starting FastMCP server with stdio transport")
-
-    # FastMCP's run() is synchronous and handles async internally
-    # We need to run initialization in an async context first
-    async def _startup() -> None:
-        await fastmcp_docker_server.start()
-
-    async def _shutdown() -> None:
-        await fastmcp_docker_server.stop()
-        logger.info(SHUTDOWN_COMPLETE_MSG)
-
-    # Run startup
-    asyncio.run(_startup())
-
-    try:
-        # Run FastMCP with stdio transport (synchronous call)
-        fastmcp_app.run(transport="stdio")
-    finally:
-        # Run shutdown
-        asyncio.run(_shutdown())
+    _run_transport(logger, fastmcp_docker_server, fastmcp_app, transport="stdio")
 
 
 def run_http(  # noqa: PLR0913
@@ -64,22 +61,9 @@ def run_http(  # noqa: PLR0913
     fastmcp_docker_server: FastMCPDockerServer,
     fastmcp_app: Any,
 ) -> None:
-    """Run the MCP server with HTTP transport.
-
-    Note: FastMCP's HTTP transport runs plain HTTP. For HTTPS in production,
-    use a reverse proxy (NGINX, Caddy, etc.) for TLS termination.
-
-    Args:
-        host: Host to bind the server to
-        port: Port to bind the server to
-        config: Server configuration
-        logger: Logger instance
-        fastmcp_docker_server: FastMCP Docker server instance
-        fastmcp_app: FastMCP application instance
-    """
+    """Run the MCP server with HTTP transport."""
     logger.info(f"Starting FastMCP server with HTTP transport on http://{host}:{port}")
 
-    # Log security warnings for non-localhost deployments
     is_localhost = host in ["127.0.0.1", "localhost", "::1"]
     if not is_localhost:
         logger.warning(
@@ -113,29 +97,9 @@ def run_http(  # noqa: PLR0913
             "Or bind to localhost only: --host 127.0.0.1"
         )
 
-    # FastMCP's run() is synchronous and handles async internally
-    # We need to run initialization in an async context first
-    async def _startup() -> None:
-        await fastmcp_docker_server.start()
-
-    async def _shutdown() -> None:
-        await fastmcp_docker_server.stop()
-        logger.info(SHUTDOWN_COMPLETE_MSG)
-
-    # Run startup
-    asyncio.run(_startup())
-
-    try:
-        # Run FastMCP with HTTP transport (synchronous call)
-        # FastMCP 2.0 native HTTP support (plain HTTP, use reverse proxy for HTTPS)
-        fastmcp_app.run(
-            transport="http",
-            host=host,
-            port=port,
-        )
-    finally:
-        # Run shutdown
-        asyncio.run(_shutdown())
+    _run_transport(
+        logger, fastmcp_docker_server, fastmcp_app, transport="http", host=host, port=port
+    )
 
 
 app = typer.Typer(

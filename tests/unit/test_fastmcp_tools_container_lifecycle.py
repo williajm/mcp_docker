@@ -248,7 +248,7 @@ class TestContainerNotFoundErrors:
     def test_container_not_found(self, mock_docker_client, tool_creator, call_kwargs):
         """Test that ContainerNotFound is raised when container doesn't exist."""
         mock_docker_client.client.containers.get.side_effect = NotFound("Container not found")
-        *_, func = tool_creator(mock_docker_client)
+        func = tool_creator(mock_docker_client).func
 
         with pytest.raises(ContainerNotFound, match="Container not found"):
             func(**call_kwargs)
@@ -286,10 +286,10 @@ class TestAPIErrors:
             mock_docker_client.client.containers.get.return_value = container
 
         if needs_safety_config:
-            *_, func = tool_creator(mock_docker_client, safety_config)
+            func = tool_creator(mock_docker_client, safety_config).func
             call_kwargs = {"image": "nginx"} if container_method == "create" else {}
         else:
-            *_, func = tool_creator(mock_docker_client)
+            func = tool_creator(mock_docker_client).func
             call_kwargs = {"container_id": "abc123"}
 
         with pytest.raises(DockerOperationError, match=error_match):
@@ -306,7 +306,7 @@ class TestCreateContainerTool:
         container.name = "my-nginx"
         mock_docker_client.client.containers.create.return_value = container
 
-        *_, create_func = create_create_container_tool(mock_docker_client, safety_config)
+        create_func = create_create_container_tool(mock_docker_client, safety_config).func
         result = create_func(image="nginx")
 
         assert result["container_id"] == "abc123"
@@ -341,7 +341,7 @@ class TestCreateContainerTool:
         container.name = "my-nginx"
         mock_docker_client.client.containers.create.return_value = container
 
-        *_, create_func = create_create_container_tool(mock_docker_client, safety_config)
+        create_func = create_create_container_tool(mock_docker_client, safety_config).func
         create_func(image="nginx", **extra_kwargs)
 
         call_kwargs = mock_docker_client.client.containers.create.call_args.kwargs
@@ -360,7 +360,7 @@ class TestStartContainerTool:
         container.reload = Mock(side_effect=lambda: setattr(container, "status", "running"))
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, start_func = create_start_container_tool(mock_docker_client)
+        start_func = create_start_container_tool(mock_docker_client).func
         result = start_func(container_id="abc123")
 
         assert result["container_id"] == "abc123"
@@ -374,7 +374,7 @@ class TestStartContainerTool:
         container.status = "running"
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, start_func = create_start_container_tool(mock_docker_client)
+        start_func = create_start_container_tool(mock_docker_client).func
         result = start_func(container_id="abc123")
 
         assert result["status"] == "running"
@@ -391,7 +391,7 @@ class TestStopContainerTool:
         container.reload = Mock(side_effect=lambda: setattr(container, "status", "exited"))
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, stop_func = create_stop_container_tool(mock_docker_client)
+        stop_func = create_stop_container_tool(mock_docker_client).func
         result = stop_func(container_id="abc123")
 
         assert result["status"] == "exited"
@@ -405,7 +405,7 @@ class TestStopContainerTool:
         container.reload = Mock(side_effect=lambda: setattr(container, "status", "exited"))
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, stop_func = create_stop_container_tool(mock_docker_client)
+        stop_func = create_stop_container_tool(mock_docker_client).func
         stop_func(container_id="abc123", timeout=30)
 
         container.stop.assert_called_once_with(timeout=30)
@@ -418,7 +418,7 @@ class TestStopContainerTool:
         container.status = status
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, stop_func = create_stop_container_tool(mock_docker_client)
+        stop_func = create_stop_container_tool(mock_docker_client).func
         result = stop_func(container_id="abc123")
 
         assert result["status"] == status
@@ -434,7 +434,7 @@ class TestRestartContainerTool:
         container.status = "running"
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, restart_func = create_restart_container_tool(mock_docker_client)
+        restart_func = create_restart_container_tool(mock_docker_client).func
         result = restart_func(container_id="abc123")
 
         assert result["status"] == "running"
@@ -447,7 +447,7 @@ class TestRestartContainerTool:
         container.status = "running"
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, restart_func = create_restart_container_tool(mock_docker_client)
+        restart_func = create_restart_container_tool(mock_docker_client).func
         restart_func(container_id="abc123", timeout=30)
 
         container.restart.assert_called_once_with(timeout=30)
@@ -462,7 +462,7 @@ class TestRemoveContainerTool:
         container.id = "abc123"
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, remove_func = create_remove_container_tool(mock_docker_client)
+        remove_func = create_remove_container_tool(mock_docker_client).func
         result = remove_func(container_id="abc123")
 
         assert result["container_id"] == "abc123"
@@ -483,7 +483,7 @@ class TestRemoveContainerTool:
         container.id = "abc123"
         mock_docker_client.client.containers.get.return_value = container
 
-        *_, remove_func = create_remove_container_tool(mock_docker_client)
+        remove_func = create_remove_container_tool(mock_docker_client).func
         remove_func(container_id="abc123", **kwargs)
 
         container.remove.assert_called_once_with(**expected_call)
