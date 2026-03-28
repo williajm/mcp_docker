@@ -8,45 +8,25 @@
 | **Package** | [![GitHub release](https://img.shields.io/github/v/release/williajm/mcp_docker)](https://github.com/williajm/mcp_docker/releases) [![PyPI version](https://img.shields.io/pypi/v/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) [![PyPI status](https://img.shields.io/pypi/status/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) [![PyPI downloads](https://static.pepy.tech/personalized-badge/mcp-docker?period=total&units=none&left_color=grey&right_color=blue&left_text=downloads)](https://pepy.tech/project/mcp-docker) |
 | **Technology** | [![Python 3.11-3.14](https://img.shields.io/badge/python-3.11--3.14-blue.svg)](https://www.python.org/downloads/) [![Docker](https://img.shields.io/badge/Docker-Management-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff) [![type-checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue.svg)](https://mypy-lang.org/) [![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io) |
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants like Claude. Manage containers, images, networks, and volumes through a type-safe, documented API with safety controls.
+A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants. Manage containers, images, networks, and volumes through a type-safe API with configurable safety controls.
 
-**Quick Start:**
+**33 tools** | **5 AI prompts** | **2 resource templates** | stdio and HTTP transports
 
-- **Claude Code (stdio)**: `claude mcp add --transport stdio docker uvx mcp-docker@latest`
-- **Codex (stdio)**: `codex mcp add docker -- uvx mcp-docker@latest`
+## Quick Start
 
-## Features
-
-- **33 Docker Tools**: Individually optional via config. Complete container, image, network, volume, and system management
-- **5 AI Prompts**: Intelligent troubleshooting, optimization, networking debug, and security analysis
-- **2 Resource Templates**: Parameterized access to container logs and stats (via `resources/templates/list`)
-- **2 Transport Options**: stdio (local) and HTTP (network deployments)
-- **Type Safety**: Full type hints with Pydantic validation and mypy strict mode
-- **Safety Controls**: Three-tier safety system (safe/moderate/destructive) with configurable restrictions
-- **Comprehensive Testing**: Extensive test coverage with unit, integration, E2E, and fuzz tests
-- **Continuous Fuzzing**: ClusterFuzzLite integration for security and robustness (OpenSSF Scorecard compliant)
-- **Modern Python**: Built with Python 3.11+, uv package manager, and async-first design
-
-## Install Instructions
-
-### Prerequisites
-
-- Python 3.11+ and Docker installed
-- [uv](https://github.com/astral-sh/uv) package manager (automatically installed by `uvx`)
-
-### Installation with Claude Code
-
-Run this command in your terminal:
+**Claude Code:**
 
 ```bash
 claude mcp add --transport stdio docker uvx mcp-docker@latest
 ```
 
-That's it! The Docker socket is auto-detected for your OS (Windows, Linux, macOS, WSL).
+**Codex:**
 
-### Installation with Claude Desktop
+```bash
+codex mcp add docker -- uvx mcp-docker@latest
+```
 
-Add to your `claude_desktop_config.json`:
+**Claude Desktop** — add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -59,376 +39,222 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-**Note:** No additional configuration needed for local use. The Docker socket is automatically detected based on your operating system.
+No additional configuration needed for local use. The Docker socket is auto-detected for your OS.
 
-**Getting Updates:** `uvx` caches packages and won't automatically update. To get the latest version:
+> `uvx` caches packages. Use `uvx mcp-docker@latest` or `uv cache prune` to get updates.
 
-```bash
-# Run the latest version (recommended - no caching)
-uvx mcp-docker@latest
+### HTTP Transport
 
-# Or clear all cached tool environments
-uv cache prune
-```
-
-### Advanced Usage
-
-#### HTTP Transport
-
-For network-accessible deployments, use HTTP transport:
+For network deployments:
 
 ```bash
-# Run with HTTP transport
 mcp-docker --transport http --host 127.0.0.1 --port 8000
 ```
 
-**Production Deployment:**
+For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentication, and rate limiting.
 
-For production use, deploy behind a reverse proxy (NGINX, Caddy) that provides:
+## Tools
 
-- HTTPS/TLS termination
-- OAuth/authentication
-- Rate limiting
-- IP filtering
+### Container (10 tools)
 
-Command-line options: `--transport` (stdio/http), `--host`, `--port`
+| Tool | Description | Safety |
+| ---- | ----------- | ------ |
+| `docker_list_containers` | List containers with filters | Safe |
+| `docker_inspect_container` | Detailed container info | Safe |
+| `docker_container_logs` | Get container logs | Safe |
+| `docker_container_stats` | Resource usage stats | Safe |
+| `docker_create_container` | Create new container | Moderate |
+| `docker_start_container` | Start container | Moderate |
+| `docker_stop_container` | Stop container gracefully | Moderate |
+| `docker_restart_container` | Restart container | Moderate |
+| `docker_exec_command` | Execute command in container | Moderate |
+| `docker_remove_container` | Remove container | Destructive |
 
-## Security
+### Image (9 tools)
 
-The MCP Docker server provides security for production deployments with rate limiting, audit logging, and safety controls.
+| Tool | Description | Safety |
+| ---- | ----------- | ------ |
+| `docker_list_images` | List images | Safe |
+| `docker_inspect_image` | Image details | Safe |
+| `docker_image_history` | View layer history | Safe |
+| `docker_pull_image` | Pull from registry | Moderate |
+| `docker_build_image` | Build from Dockerfile | Moderate |
+| `docker_push_image` | Push to registry | Moderate |
+| `docker_tag_image` | Tag image | Moderate |
+| `docker_remove_image` | Remove image | Destructive |
+| `docker_prune_images` | Clean unused images | Destructive |
 
-**⚠️ Important**: Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for threat model and mitigations.
+### Network (6 tools)
 
-**For production deployment**, see [SECURITY.md](SECURITY.md) for:
+| Tool | Description | Safety |
+| ---- | ----------- | ------ |
+| `docker_list_networks` | List networks | Safe |
+| `docker_inspect_network` | Network details | Safe |
+| `docker_create_network` | Create network | Moderate |
+| `docker_connect_container` | Connect container to network | Moderate |
+| `docker_disconnect_container` | Disconnect from network | Moderate |
+| `docker_remove_network` | Remove network | Destructive |
 
-- Complete security feature guide (OAuth, TLS, IP filtering, rate limiting, audit logging)
-- Production deployment checklist
-- Threat model and mitigation strategies
-- Security best practices
+### Volume (5 tools)
 
-### Configuration
+| Tool | Description | Safety |
+| ---- | ----------- | ------ |
+| `docker_list_volumes` | List volumes | Safe |
+| `docker_inspect_volume` | Volume details | Safe |
+| `docker_create_volume` | Create volume | Moderate |
+| `docker_remove_volume` | Remove volume | Destructive |
+| `docker_prune_volumes` | Clean unused volumes | Destructive |
 
-All environment variables (safety, server, transports, OAuth, rate limits, CORS) are documented in
-[CONFIGURATION.md](CONFIGURATION.md). Production hardening steps, threat models, and deployment
-checklists live in [SECURITY.md](SECURITY.md).
+### System (3 tools)
 
-**Documentation:**
-
-- [CONFIGURATION.md](CONFIGURATION.md) - Complete configuration reference (all options)
-- [SECURITY.md](SECURITY.md) - Security features and production guidelines
-
-## Tools Overview
-
-The server provides 33 tools organized into 5 categories:
-
-### Container Management (10 tools)
-
-- `docker_list_containers` - List containers with filters
-- `docker_inspect_container` - Get detailed container info
-- `docker_create_container` - Create new container
-- `docker_start_container` - Start container
-- `docker_stop_container` - Stop container gracefully
-- `docker_restart_container` - Restart container
-- `docker_remove_container` - Remove container
-- `docker_container_logs` - Get container logs
-- `docker_exec_command` - Execute command in container
-- `docker_container_stats` - Get resource usage stats
-
-### Image Management (9 tools)
-
-- `docker_list_images` - List images
-- `docker_inspect_image` - Get image details
-- `docker_pull_image` - Pull from registry
-- `docker_build_image` - Build from Dockerfile
-- `docker_push_image` - Push to registry
-- `docker_tag_image` - Tag image
-- `docker_remove_image` - Remove image
-- `docker_prune_images` - Clean unused images
-- `docker_image_history` - View layer history
-
-### Network Management (6 tools)
-
-- `docker_list_networks` - List networks
-- `docker_inspect_network` - Get network details
-- `docker_create_network` - Create network
-- `docker_connect_container` - Connect container to network
-- `docker_disconnect_container` - Disconnect from network
-- `docker_remove_network` - Remove network
-
-### Volume Management (5 tools)
-
-- `docker_list_volumes` - List volumes
-- `docker_inspect_volume` - Get volume details
-- `docker_create_volume` - Create volume
-- `docker_remove_volume` - Remove volume
-- `docker_prune_volumes` - Clean unused volumes
-
-### System Tools (3 tools)
-
-- `docker_version` - Get Docker version info
-- `docker_events` - Get Docker events with optional time range and filters
-- `docker_prune_system` - Clean all unused resources
+| Tool | Description | Safety |
+| ---- | ----------- | ------ |
+| `docker_version` | Docker version info | Safe |
+| `docker_events` | Docker events with filters | Safe |
+| `docker_prune_system` | Clean all unused resources | Destructive |
 
 ## Prompts
 
-Five prompts help AI assistants work with Docker:
-
-- **troubleshoot_container** - Diagnose container issues with logs and configuration analysis
-- **optimize_container** - Get optimization suggestions for resource usage and security
-- **generate_compose** - Generate docker-compose.yml from containers or descriptions
-- **debug_networking** - Deep-dive analysis of container networking problems with systematic L3-L7 troubleshooting
-- **security_audit** - Comprehensive security analysis following CIS Docker Benchmark with compliance mapping
+| Prompt | Purpose |
+| ------ | ------- |
+| `troubleshoot_container` | Diagnose container issues with logs and config analysis |
+| `optimize_container` | Resource usage and security optimization suggestions |
+| `generate_compose` | Generate docker-compose.yml from containers or descriptions |
+| `debug_networking` | Systematic L3-L7 network troubleshooting |
+| `security_audit` | CIS Docker Benchmark security analysis |
 
 ## Resource Templates
 
-Two resource templates provide parameterized access to container data (discoverable via `resources/templates/list`):
+Discoverable via `resources/templates/list`:
 
-- **container://logs/{container_id}** - Retrieve container logs (last 100 lines)
-- **container://stats/{container_id}** - Get real-time resource usage statistics (CPU, memory, network, I/O)
-
-Resource templates use URI parameters to dynamically generate resources. Clients can provide a `container_id` to access specific container data through the `resources/read` endpoint.
+- **`container://logs/{container_id}`** — Last 100 lines of container logs
+- **`container://stats/{container_id}`** — Real-time resource usage (CPU, memory, network, I/O)
 
 ## Safety System
 
-The server implements a three-tier safety system with configurable operation modes and fine-grained tool filtering:
+Three-tier classification controls what operations are permitted:
 
-### Operation Safety Levels
+| Level | Description | Default | Examples |
+| ----- | ----------- | ------- | -------- |
+| **Safe** | Read-only operations | Always allowed | list, inspect, logs, stats |
+| **Moderate** | Reversible state changes | Allowed | create, start, stop, pull |
+| **Destructive** | Permanent changes | Blocked | remove, prune |
 
-1. **SAFE** - Read-only operations (list, inspect, logs, stats)
-   - Examples: `docker_list_containers`, `docker_inspect_image`, `docker_container_logs`
-
-2. **MODERATE** - State-changing but reversible (start, stop, create)
-   - Can modify system state
-   - Controlled by `SAFETY_ALLOW_MODERATE_OPERATIONS` (default: `true`)
-   - Examples: `docker_create_container`, `docker_start_container`, `docker_pull_image`
-
-3. **DESTRUCTIVE** - Permanent changes (remove, prune)
-   - Cannot be easily undone
-   - Requires `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true`
-   - Can require confirmation
-   - Examples: `docker_remove_container`, `docker_prune_images`, `docker_system_prune`
-
-### Tool Filtering (Allow/Deny Lists)
-
-In addition to safety levels, you can control exactly which tools are available using allow and deny lists:
-
-**Deny List** - Block specific tools (takes precedence over allow list)
+### Configuration
 
 ```bash
-# Block destructive operations by tool name
-SAFETY_DENIED_TOOLS="docker_remove_container,docker_prune_images,docker_system_prune"
+# Control operation levels
+SAFETY_ALLOW_MODERATE_OPERATIONS=true      # default: true
+SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # default: false
+
+# Fine-grained tool filtering
+SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_inspect_container"  # whitelist (empty = all)
+SAFETY_DENIED_TOOLS="docker_prune_system"                               # blacklist (takes precedence)
 ```
 
-**Allow List** - Only permit specific tools (empty = allow all based on safety level)
+Deny list is checked before allow list. Both apply on top of the safety level gates.
 
-```bash
-# Only allow read-only monitoring tools
-SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_inspect_container,docker_container_logs,docker_container_stats,docker_version"
-```
+### Preset Modes
 
-**How it works:**
-
-1. Safety level restrictions apply first (MODERATE/DESTRUCTIVE settings)
-2. Deny list blocks specific tools regardless of safety level
-3. Allow list (if non-empty) restricts to only listed tools
-4. Tools are filtered in both `list_tools()` and at execution time
-
-**Use cases:**
-
-- Restrict AI agents to read-only operations for monitoring
-- Block specific dangerous tools while allowing others at same safety level
-- Create custom tool subsets for different user roles or environments
-- Prevent accidental execution of critical operations
-
-### Safety Modes
-
-Configure the safety mode using environment variables:
-
-**Read-Only Mode (Safest)** - Monitoring and observability only
+**Read-only** — monitoring and observability only:
 
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-
-# Optional: Explicitly allow only monitoring tools
-SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_list_images,docker_inspect_container,docker_inspect_image,docker_container_logs,docker_container_stats,docker_version,docker_system_info"
 ```
 
-- ✅ List, inspect, logs, stats
-- ❌ Create, start, stop, pull
-- ❌ Remove, prune
-
-**Default Mode (Balanced)** - Development and operations
+**Balanced** (default) — development and operations:
 
 ```bash
-SAFETY_ALLOW_MODERATE_OPERATIONS=true  # or omit (default)
+SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-
-# Optional: Deny only the most dangerous operations
-SAFETY_DENIED_TOOLS="docker_system_prune,docker_prune_volumes"
 ```
 
-- ✅ List, inspect, logs, stats
-- ✅ Create, start, stop, pull
-- ❌ Remove, prune
-
-**Full Mode (Least Restrictive)** - Infrastructure management
+**Full access** — infrastructure management:
 
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
 ```
 
-- ✅ List, inspect, logs, stats
-- ✅ Create, start, stop, pull
-- ✅ Remove, prune
+## Security
 
-> **Note:** Read-only mode is ideal for monitoring, auditing, and observability use cases where no changes to Docker state should be allowed.
+Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for the full threat model.
 
-## MCP Server vs. Docker CLI
+Built-in security features: rate limiting, audit logging, IP filtering, OAuth support, error sanitization, and command injection validation.
 
-| Feature | Docker CLI Directly | MCP Docker Server |
-| --------- | ------------------- | ------------------- |
-| **Claude Desktop** | ❌ No CLI access | ✅ **Required** (only option) |
-| **Claude Code** | ✅ Works immediately | ✅ Optional (adds safety) |
-| **Setup** | None needed | Install & configure |
-| **Safety Controls** | ❌ None | ✅ Read-only mode, operation blocking |
-| **Data Format** | Text (requires parsing) | Structured JSON |
-| **Audit Logging** | Manual setup | ✅ Built-in |
-| **Rate Limiting** | ❌ None | ✅ Configurable |
-| **Input Validation** | ❌ None | ✅ Pydantic schemas |
-| **Docker Coverage** | 100% (all features) | 33 core operations |
-| **Complexity** | Low (standard commands) | Medium (MCP protocol) |
+For complete configuration reference, see [CONFIGURATION.md](CONFIGURATION.md).
 
-**When to use MCP Server:**
+## MCP Server vs Docker CLI
 
-- **Required:** Claude Desktop (no other option)
-- **Recommended:** Production automation, compliance requirements, multi-user access, safety controls needed
+| Aspect | Docker CLI | MCP Server |
+| ------ | ---------- | ---------- |
+| Claude Desktop | No CLI access | Required (only option) |
+| Claude Code | Works directly | Optional (adds safety) |
+| Safety controls | None | Three-tier with filtering |
+| Data format | Text (needs parsing) | Structured JSON |
+| Audit logging | Manual | Built-in |
+| Rate limiting | None | Configurable |
+| Input validation | None | Pydantic schemas |
+| Docker coverage | Full | 33 core operations |
 
-**When to use CLI directly:**
+**Use MCP Server** for Claude Desktop (required), production automation, compliance, or when you need safety controls.
 
-- **Best for:** Claude Code with simple tasks, advanced Docker features, minimal setup
-
-**Hybrid approach:** Use MCP for common operations + CLI for advanced features.
-
-## Documentation
-
-- [Security Guide](SECURITY.md) - Security features, TLS/HTTPS, authentication, production checklist
+**Use CLI directly** in Claude Code for simple tasks or features beyond the 33 tools.
 
 ## Development
 
-### Setup Development Environment
+### Setup
 
 ```bash
-# Clone repository
 git clone https://github.com/williajm/mcp_docker.git
 cd mcp_docker
-
-# Install dependencies
 uv sync --group dev
-
-# Run tests
-uv run pytest
-
-# Run linting
-uv run ruff check src tests
-uv run ruff format src tests
-
-# Run type checking
-uv run mypy src tests
 ```
 
-### Running Tests
+### Testing
 
-The project includes four levels of testing: unit, integration, end-to-end (E2E), and fuzz tests.
-
-#### Test Level Comparison
-
-| Aspect | Unit Tests | Integration Tests | E2E Tests | Fuzz Tests |
-| -------- | ----------- | ------------------- | ----------- | ------------ |
-| **Docker Daemon** | ❌ Not required | ✅ Required | ✅ Required | ❌ Not required |
-| **Docker Operations** | ❌ None | ✅ Real operations | ✅ Real operations | ❌ None |
-| **Server Instance** | ❌ None / Mocked | ✅ Real MCPDockerServer | ✅ Real MCPDockerServer | ❌ Component-level |
-| **MCP Client** | ❌ None | ❌ Direct server calls | ✅ Real ClientSession | ❌ None |
-| **Transport Layer** | ❌ None | ❌ Bypassed | ✅ Real stdio/SSE | ❌ None |
-| **Purpose** | Logic/validation | Component integration | Full workflows | Security/robustness |
-| **Speed** | ⚡ Very fast (<5s) | ⚡ Fast (~10s) | 🐌 Slower (~30-60s) | ⚡ Continuous (CI) |
-
-#### Running Different Test Levels
+Four test levels: unit (no Docker, ~5s), integration (Docker, ~10s), E2E (Docker, ~60s), and fuzz (security).
 
 ```bash
-# Run all tests with coverage
-uv run pytest --cov=mcp_docker --cov-report=html
-
-# Run unit tests only (fast, no Docker required)
-uv run pytest tests/unit/ -v
-
-# Run integration tests (requires Docker)
-uv run pytest tests/integration/ -v -m integration
-
-# Run E2E tests (requires Docker, comprehensive)
-uv run pytest tests/e2e/ -v -m e2e
-
-# Run E2E tests excluding stress tests
-uv run pytest tests/e2e/ -v -m "e2e and not stress"
-
-# Run fuzz tests locally (requires atheris)
-python3 tests/fuzz/fuzz_validation.py -atheris_runs=10000
+uv run pytest --cov=mcp_docker --cov-report=html   # All tests with coverage
+uv run pytest tests/unit/ -v                         # Unit only
+uv run pytest tests/integration/ -v -m integration   # Integration
+uv run pytest tests/e2e/ -v -m "e2e and not stress"  # E2E (no stress)
 ```
 
-#### Fuzzing
+### Linting and Type Checking
 
-The project uses [ClusterFuzzLite](https://google.github.io/clusterfuzzlite/) for continuous fuzzing to meet [OpenSSF Scorecard](https://github.com/ossf/scorecard) requirements. Fuzz tests run automatically in CI/CD to discover security vulnerabilities and edge cases.
+```bash
+uv run ruff check src/ tests/       # Lint
+uv run ruff format --check src/ tests/  # Format check
+uv run mypy src/mcp_docker/         # Type check (strict)
+```
 
 ### Project Structure
 
 ```text
-mcp_docker/
-├── src/
-│   └── mcp_docker/
-│       ├── __main__.py          # Entry point (transport selection)
-│       ├── config.py            # Configuration management
-│       ├── server/              # MCP server, prompts, resources
-│       ├── tools/               # MCP tool implementations
-│       ├── docker/              # Docker SDK wrapper
-│       ├── services/            # Core services (audit, rate limiting, safety)
-│       ├── middleware/          # Auth, safety, rate limiting middleware
-│       └── utils/               # Validation, helpers, errors
-├── tests/                       # Test suite
-├── docs/                        # Documentation
-└── pyproject.toml              # Project configuration
+src/mcp_docker/
+├── __main__.py          # Entry point (transport selection)
+├── config.py            # Pydantic settings (env vars)
+├── server/              # MCP server, prompts, resources
+├── tools/               # Tool implementations by category
+├── docker/              # Docker SDK wrapper
+├── services/            # Audit, rate limiting, safety
+├── middleware/           # Auth, safety, rate limiting
+└── utils/               # Validation, helpers, errors
 ```
 
 ## Requirements
 
-- **Python**: 3.11 or higher
-- **Docker**: Any recent version (tested with 20.10+)
-- **Dependencies**:
-  - `mcp>=1.2.0` - MCP SDK
-  - `docker>=7.1.0` - Docker SDK for Python
-  - `pydantic>=2.0.0` - Data validation
-  - `loguru>=0.7.0` - Logging
-  - `secure>=1.0.1` - Security headers
-  - `authlib>=1.6.5` - OAuth/OIDC authentication (JWT validation)
-  - `httpx>=0.28.1` - HTTP client for OAuth token introspection
-  - `limits>=5.6.0` - Rate limiting
-  - `cachetools>=6.2.1` - JWKS caching
-
-### Code Standards
-
-- Follow PEP 8 style guidelines
-- Use type hints for all functions
-- Write docstrings (Google style)
-- Maintain high test coverage
-- Pass all linting and type checking
+- Python 3.11+
+- Docker 20.10+
+- Key dependencies: `mcp>=1.2.0`, `docker>=7.1.0`, `pydantic>=2.0.0`, `loguru`, `authlib`, `limits`
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Links
 
-- [PyPI Download Stats](https://pypi.kopdog.com/package/?name=mcp-docker)
-- Built with the [Model Context Protocol](https://modelcontextprotocol.io) by Anthropic
-- Uses the official [Docker SDK for Python](https://docker-py.readthedocs.io/)
-- Powered by modern Python tooling: [uv](https://github.com/astral-sh/uv), [ruff](https://github.com/astral-sh/ruff), [mypy](https://mypy-lang.org/), [pytest](https://pytest.org/)
+- [PyPI Stats](https://pypi.kopdog.com/package/?name=mcp-docker) | [Model Context Protocol](https://modelcontextprotocol.io) | [Docker SDK](https://docker-py.readthedocs.io/)
