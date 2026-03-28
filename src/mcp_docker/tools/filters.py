@@ -52,8 +52,8 @@ def register_tools_with_filtering(
         annotations["openWorldInteraction"] = spec.open_world
 
         # Attach safety metadata for middleware BEFORE decoration
-        spec.func._safety_level = spec.safety  # type: ignore[attr-defined]
-        spec.func._tool_name = spec.name  # type: ignore[attr-defined]
+        spec.func._safety_level = spec.safety  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
+        spec.func._tool_name = spec.name  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
         app.tool(
             name=spec.name,

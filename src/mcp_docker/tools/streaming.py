@@ -1,4 +1,9 @@
-"""Shared streaming helpers for Docker image operations (pull, build, push)."""
+"""Shared streaming helpers for Docker image operations (pull, build, push).
+
+TODO: Add dedicated unit tests for streaming helpers (ProgressThrottler,
+sanitize_progress_message, format_layer_message, check_chunk_for_error).
+Currently exercised indirectly through image tool tests.
+"""
 
 import asyncio
 import re

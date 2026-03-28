@@ -12,12 +12,13 @@ import atheris
 # Import without instrumentation to avoid complex dependencies
 from mcp_docker.services.safety import (
     check_privileged_mode,
-    sanitize_command,
+    validate_command_safety,
     validate_environment_variable,
     validate_mount_path,
     validate_port_binding,
 )
 from mcp_docker.utils.errors import UnsafeOperationError, ValidationError
+from mcp_docker.utils.validation import sanitize_command
 
 # Instrument all code after imports
 atheris.instrument_all()
@@ -38,8 +39,8 @@ def fuzz_command_sanitization(data: bytes) -> None:
     cmd_str = fdp.ConsumeUnicodeNoSurrogates(200)
     try:
         result = sanitize_command(cmd_str)
-        # Should return a list
         assert isinstance(result, list)
+        validate_command_safety(cmd_str)
     except (ValueError, ValidationError, UnsafeOperationError, AssertionError):
         # Expected for dangerous commands
         pass
@@ -49,6 +50,7 @@ def fuzz_command_sanitization(data: bytes) -> None:
     try:
         result = sanitize_command(cmd_parts)
         assert isinstance(result, list)
+        validate_command_safety(cmd_parts)
     except (ValueError, ValidationError, UnsafeOperationError, AssertionError):
         pass
 
@@ -87,7 +89,7 @@ def fuzz_dangerous_patterns(data: bytes) -> None:
 
         try:
             sanitize_command(test_cmd)
-            # Should raise an error for dangerous commands
+            validate_command_safety(test_cmd)
         except (ValueError, ValidationError, UnsafeOperationError):
             # Expected - command was blocked
             pass
