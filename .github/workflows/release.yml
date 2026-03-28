@@ -48,6 +48,14 @@ jobs:
         echo "SBOM generated:"
         ls -lh dist/sbom.cdx.json
 
+    - name: Generate SHA256 checksums
+      run: |
+        cd dist
+        sha256sum *.whl *.tar.gz > SHA256SUMS.txt
+        echo "SHA256 checksums:"
+        cat SHA256SUMS.txt
+        cd ..
+
     - name: Generate artifact list
       id: artifacts
       run: |
@@ -90,6 +98,7 @@ jobs:
         path: |
           dist/*
           !dist/sbom.cdx.json
+          !dist/SHA256SUMS.txt
         retention-days: 1
 
     - name: Upload SBOM artifact
@@ -122,6 +131,10 @@ jobs:
           fi
         done
 
+        # Upload SHA256 checksums
+        echo "Uploading SHA256SUMS.txt..."
+        gh release upload "$TAG" dist/SHA256SUMS.txt --clobber
+
         echo "✅ All assets uploaded successfully"
 
     - name: Generate Release Summary
@@ -144,19 +157,24 @@ jobs:
         ls -lh attestations/ >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### SHA256 Checksums" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat dist/SHA256SUMS.txt >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Verification" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "All artifacts have been signed with SLSA provenance attestations." >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Verify using GitHub CLI:**" >> $GITHUB_STEP_SUMMARY
+        echo "**Verify checksums:**" >> $GITHUB_STEP_SUMMARY
         echo '```bash' >> $GITHUB_STEP_SUMMARY
-        echo 'gh attestation verify <artifact> --owner williajm' >> $GITHUB_STEP_SUMMARY
+        echo 'sha256sum -c SHA256SUMS.txt' >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Verify using attestation bundle:**" >> $GITHUB_STEP_SUMMARY
+        echo "**Verify provenance (GitHub CLI):**" >> $GITHUB_STEP_SUMMARY
         echo '```bash' >> $GITHUB_STEP_SUMMARY
-        echo '# Download both the artifact and its .intoto.jsonl attestation bundle' >> $GITHUB_STEP_SUMMARY
-        echo '# Then verify with your preferred SLSA verifier tool' >> $GITHUB_STEP_SUMMARY
+        echo 'gh attestation verify <artifact> --owner williajm' >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
 
   publish-pypi:
