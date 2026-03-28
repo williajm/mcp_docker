@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.8] - 2026-03-28
+
+### Added
+- **Tool Timeouts**: Per-tool execution timeouts via FastMCP's `timeout` parameter
+  - Default: 30s (configurable via `SAFETY_DEFAULT_TOOL_TIMEOUT`, 0 = no timeout)
+  - Medium tier (60s): logs, events, exec, prune operations
+  - Slow tier (300s): pull, build, push (network I/O)
+  - Prevents hung Docker operations from blocking indefinitely
+- **ResponseLimitingMiddleware**: Global response size safety net via FastMCP built-in middleware
+  - Configurable via `SAFETY_MAX_RESPONSE_BYTES` (default: 1MB, 0 = no limit)
+  - Truncates oversized tool responses with UTF-8-safe byte slicing
+  - Added as innermost middleware in the chain
+
+### Changed
+- **Simplified output limiting**: Replaced per-tool truncation logic with single global `ResponseLimitingMiddleware`
+  - Removed `_apply_log_truncation`, `_apply_exec_output_truncation`, `apply_list_pagination` functions
+  - Removed `truncation_info` fields from all tool output models
+  - Removed `PaginatedListOutput` base class (list outputs use plain `BaseModel` with `count` field)
+  - Container logs resource uses hardcoded `tail=1000` pre-fetch limit instead of configurable `max_log_lines`
+- **Middleware order updated**: Added `response_limiting` as innermost middleware
+  - debug → error_handler → audit → pre_auth_rate_limit → auth → safety → rate_limit → response_limiting
+
+### Removed
+- **Config fields**: `SAFETY_MAX_LOG_LINES`, `SAFETY_MAX_EXEC_OUTPUT_BYTES`, `SAFETY_MAX_LIST_RESULTS` (replaced by `SAFETY_MAX_RESPONSE_BYTES`)
+- **`humanfriendly` dependency**: No longer needed after removing per-tool output limiting
+- **`output_limits.py` module**: `truncate_text`, `truncate_lines`, `create_truncation_metadata` functions removed
+
 ### Security
 - **authlib CVE-2026-28802**: Updated authlib 1.6.6 → 1.6.9 (HIGH severity)
   - Fixes `alg: none` JWT signature verification bypass
@@ -14,6 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Our code was mitigated by explicit algorithm restriction, but upgraded for defense in depth
   - Added regression test for alg:none bypass
   - Also includes authlib 1.6.8 (EdDSA default) and 1.6.9 (header jwk, cek fixes)
+- **Supply chain hardening**: Pinned CI dependencies, gated PyPI publishing behind environment approval
+- **Upgraded FastMCP** 2.x → 3.1.1
+
+### Documentation
+- Updated CONFIGURATION.md with new config variables
+- Updated CLAUDE.md architecture sections for tool timeouts and middleware changes
+- Reduced boilerplate and dead code (-1,234 LOC) in prior refactor
 
 ## [1.2.7] - 2026-02-11
 

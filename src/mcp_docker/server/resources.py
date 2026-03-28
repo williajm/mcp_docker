@@ -6,11 +6,10 @@ This module provides Docker resources using FastMCP's @mcp.resource() decorator:
 """
 
 import asyncio
-from typing import Any, Literal
+from typing import Any
 
 from docker.errors import APIError, NotFound
 
-from mcp_docker.config import SafetyConfig
 from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.utils.errors import ContainerNotFound, MCPDockerError
 from mcp_docker.utils.logger import get_logger
@@ -48,17 +47,19 @@ def _decode_docker_logs(logs: bytes | Any) -> str:
 
 def create_container_logs_resource(
     docker_client: DockerClientWrapper,
-    max_log_lines: int = 100,
 ) -> tuple[str, Any]:
     """Create the container logs FastMCP resource.
 
     Args:
         docker_client: Docker client wrapper
-        max_log_lines: Maximum number of log lines to return (from SafetyConfig)
 
     Returns:
         Tuple of (uri_template, async_function)
     """
+    # Hardcoded tail limit prevents Docker from streaming unlimited logs into memory.
+    # This is a pre-fetch safety limit, not output truncation — the ResponseLimitingMiddleware
+    # handles response size enforcement globally.
+    resource_log_tail: int = 1000
 
     async def get_container_logs(container_id: str) -> str:
         """Get logs from a Docker container.
@@ -74,19 +75,15 @@ def create_container_logs_resource(
             MCPDockerError: If logs cannot be retrieved
         """
         try:
-            # Offload blocking Docker I/O to thread pool
-            # Apply max_log_lines limit from SafetyConfig (0 = unlimited)
-            # Type: Literal["all"] | int to match Docker SDK expectations
-            tail_limit: int | Literal["all"] = max_log_lines if max_log_lines > 0 else "all"
 
             def _fetch_logs() -> str:
                 container = docker_client.client.containers.get(container_id)
-                logs = container.logs(tail=tail_limit, follow=False)
+                logs = container.logs(tail=resource_log_tail, follow=False)
                 return _decode_docker_logs(logs)
 
             log_text = await asyncio.to_thread(_fetch_logs)
 
-            logger.debug(f"Retrieved logs for container {container_id} (limit={tail_limit})")
+            logger.debug(f"Retrieved logs for container {container_id} (tail={resource_log_tail})")
             return log_text
 
         except NotFound as e:
@@ -186,7 +183,6 @@ def register_all_resources(
     app: Any,
     docker_client: DockerClientWrapper,
     allowed_resources: list[str] | None = None,
-    safety_config: SafetyConfig | None = None,
 ) -> dict[str, list[str]]:
     """Register all Docker resources with FastMCP.
 
@@ -194,7 +190,6 @@ def register_all_resources(
         app: FastMCP application instance
         docker_client: Docker client wrapper
         allowed_resources: Optional list of allowed resource names (None = allow all)
-        safety_config: Optional safety configuration for output limits
 
     Returns:
         Dictionary mapping category names to lists of registered resource URIs
@@ -203,13 +198,9 @@ def register_all_resources(
 
     registered: dict[str, list[str]] = {"container": []}
 
-    # Get output limits from safety config (use SafetyConfig defaults if not provided)
-    # SafetyConfig.max_log_lines defaults to 10000
-    max_log_lines = safety_config.max_log_lines if safety_config else SafetyConfig().max_log_lines
-
     # Define all available resources with their names
     all_resources = [
-        ("container_logs", create_container_logs_resource(docker_client, max_log_lines)),
+        ("container_logs", create_container_logs_resource(docker_client)),
         ("container_stats", create_container_stats_resource(docker_client)),
     ]
 

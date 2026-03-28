@@ -162,6 +162,7 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - **registration.py**: Central registration of all tool categories
    - Six categories: container_inspection, container_lifecycle, image, network, volume, system
    - Each tool has a safety level: SAFE (read-only), MODERATE (reversible), DESTRUCTIVE (permanent)
+   - **Tool Timeouts**: Per-tool execution timeouts via FastMCP's `timeout` parameter. Default 30s (`SAFETY_DEFAULT_TOOL_TIMEOUT`), with 60s for logs/exec/prune and 300s for pull/build/push.
    - Tools are organized by category in separate modules (container_inspection.py, container_lifecycle.py, etc.)
    - **MCP Annotations**: Tools expose four standard MCP annotations to help clients make decisions:
      - `readOnly`: Tool only reads data without modification (auto-set for SAFE tools)
@@ -197,7 +198,8 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
    - **AuthMiddleware**: OAuth/IP allowlist authentication
    - **SafetyMiddleware**: Enforces safety levels and tool filtering
    - **RateLimitMiddleware**: Request throttling to prevent abuse
-   - Middleware executes in order: debug → audit → auth → safety → rate_limit
+   - **ResponseLimitingMiddleware** (FastMCP built-in): Global safety net that truncates oversized tool responses (`SAFETY_MAX_RESPONSE_BYTES`)
+   - Middleware executes in order: debug → error_handler → audit → pre_auth_rate_limit → auth → safety → rate_limit → response_limiting
 
 7. **Docker Wrapper** (`src/mcp_docker/docker/client.py`)
    - Wraps Docker SDK with error handling and timeout management

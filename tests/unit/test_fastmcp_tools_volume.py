@@ -59,7 +59,7 @@ class TestAPIErrors:
     @pytest.mark.parametrize(
         "tool_creator,needs_safety_config,call_kwargs,error_match,setup_error_on",
         [
-            (create_list_volumes_tool, True, {}, "Failed to list volumes", "volumes.list"),
+            (create_list_volumes_tool, False, {}, "Failed to list volumes", "volumes.list"),
             (
                 create_inspect_volume_tool,
                 False,
@@ -125,7 +125,7 @@ class TestAPIErrors:
 class TestListVolumesTool:
     """Test docker_list_volumes tool."""
 
-    def test_list_volumes_success(self, mock_docker_client, safety_config):
+    def test_list_volumes_success(self, mock_docker_client):
         """Test successful volume listing."""
         vol1 = Mock()
         vol1.name = "volume1"
@@ -147,7 +147,7 @@ class TestListVolumesTool:
 
         mock_docker_client.client.volumes.list.return_value = [vol1, vol2]
 
-        list_func = create_list_volumes_tool(mock_docker_client, safety_config).func
+        list_func = create_list_volumes_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 2
@@ -157,11 +157,11 @@ class TestListVolumesTool:
         assert result["volumes"][0]["labels"] == {"env": "test"}
         assert result["volumes"][1]["name"] == "volume2"
 
-    def test_list_volumes_with_filters(self, mock_docker_client, safety_config):
+    def test_list_volumes_with_filters(self, mock_docker_client):
         """Test volume listing with filters."""
         mock_docker_client.client.volumes.list.return_value = []
 
-        list_func = create_list_volumes_tool(mock_docker_client, safety_config).func
+        list_func = create_list_volumes_tool(mock_docker_client).func
         filters = {"dangling": ["true"]}
         result = list_func(filters=filters)
 

@@ -160,24 +160,26 @@ class SafetyConfig(BaseSettings):
         description="Allow creating privileged containers",
     )
 
-    # Output size limits (prevent resource exhaustion and token limit issues)
-    max_log_lines: int = Field(
-        default=10000,
-        description="Maximum number of log lines to return from containers (0 = unlimited)",
+    # Tool execution limits
+    default_tool_timeout: float = Field(
+        default=30.0,
+        description=(
+            "Default timeout in seconds for tool execution (0 = no timeout). "
+            "Individual tools may override this with longer timeouts for slow operations."
+        ),
         ge=0,
-        le=100000,
+        le=3600,  # 1 hour max
     )
-    max_exec_output_bytes: int = Field(
+
+    # Response size limit (global safety net via FastMCP ResponseLimitingMiddleware)
+    max_response_bytes: int = Field(
         default=1048576,  # 1 MB
-        description="Maximum bytes of output from exec commands (0 = unlimited)",
+        description=(
+            "Maximum response size in bytes for tool results (0 = no limit). "
+            "Global safety net; truncates oversized responses before they reach the client."
+        ),
         ge=0,
         le=10485760,  # 10 MB max
-    )
-    max_list_results: int = Field(
-        default=1000,
-        description="Maximum number of items to return from list operations (0 = unlimited)",
-        ge=0,
-        le=10000,
     )
 
     # Tool filtering (works alongside safety level restrictions)

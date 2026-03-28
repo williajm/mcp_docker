@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.services.safety import OperationSafety
-from mcp_docker.tools.common import ToolSpec
+from mcp_docker.tools.common import TIMEOUT_MEDIUM, ToolSpec
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError
 from mcp_docker.utils.logger import get_logger
@@ -177,6 +177,7 @@ def create_events_tool(
         description="Get Docker events with time range and filters (requires 'until')",
         safety=OperationSafety.SAFE,
         func=events,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 
@@ -244,6 +245,7 @@ def create_prune_system_tool(
         description="Prune all unused Docker resources (containers, images, networks, volumes)",
         safety=OperationSafety.DESTRUCTIVE,
         func=prune_system,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 

@@ -148,8 +148,6 @@ def test_registration_with_custom_safety_config(
     """Test registration with custom safety configuration."""
     # Create custom safety config with limits
     custom_config = SafetyConfig(
-        max_list_results=50,
-        max_log_lines=500,
         allow_moderate_operations=True,
         allow_destructive_operations=True,
     )

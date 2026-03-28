@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.2.8.dev0"
+version = "1.2.8"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -49,7 +49,6 @@ dependencies = [
     "authlib>=1.6.9",
     "httpx>=0.28.1",
     "typer>=0.24.1",
-    "humanfriendly>=10.0",
     "python-multipart>=0.0.22",  # CVE-2026-24486: Path traversal fix
 ]
 

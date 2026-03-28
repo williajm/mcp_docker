@@ -8,6 +8,7 @@ use_fastmcp feature flag is enabled.
 import asyncio
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware.response_limiting import ResponseLimitingMiddleware
 
 from mcp_docker.config import Config
 from mcp_docker.docker.client import DockerClientWrapper
@@ -96,6 +97,14 @@ class FastMCPDockerServer:
         self.rate_limit_middleware = RateLimitMiddleware(self.rate_limiter)
         self.audit_middleware = AuditMiddleware(self.audit_logger)
 
+        # Response limiting middleware (global safety net for oversized tool responses)
+        if config.safety.max_response_bytes > 0:
+            self.response_limiting_middleware: ResponseLimitingMiddleware | None = (
+                ResponseLimitingMiddleware(max_size=config.safety.max_response_bytes)
+            )
+        else:
+            self.response_limiting_middleware = None
+
         # CRITICAL: Attach middleware to FastMCP app
         # Middleware execution order: first added = outermost wrapper
         # SECURITY: Split rate limiting - prevents brute force + allows higher limits post-auth
@@ -105,7 +114,8 @@ class FastMCPDockerServer:
         # - PreAuthRateLimitMiddleware: IP-based limit BEFORE auth (prevents brute force)
         # - AuthMiddleware: Validates OAuth/IP allowlist
         # - SafetyMiddleware: Validates operations against safety policies
-        # - RateLimitMiddleware: INNERMOST - global limit after auth (prevents abuse)
+        # - RateLimitMiddleware: Global limit after auth (prevents abuse)
+        # - ResponseLimitingMiddleware: INNERMOST - truncates oversized tool responses
         logger.info("Attaching middleware to FastMCP app")
         # NOTE: Middleware classes are protocol-compatible but don't inherit from base class
         self.app.add_middleware(self.debug_middleware)  # type: ignore[arg-type]
@@ -115,9 +125,12 @@ class FastMCPDockerServer:
         self.app.add_middleware(self.auth_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.safety_middleware)  # type: ignore[arg-type]
         self.app.add_middleware(self.rate_limit_middleware)  # type: ignore[arg-type]
+        if self.response_limiting_middleware is not None:
+            self.app.add_middleware(self.response_limiting_middleware)
         logger.info(
             "Middleware attached successfully "
-            "(debug, error_handler, audit, pre_auth_rate_limit, auth, safety, rate_limit)"
+            "(debug, error_handler, audit, pre_auth_rate_limit, auth, safety, "
+            "rate_limit, response_limiting)"
         )
 
         # Register all tools with middleware integration
@@ -131,7 +144,7 @@ class FastMCPDockerServer:
             else None
         )
         registered_resources = register_all_resources(
-            self.app, self.docker_client, allowed_resources, safety_config=config.safety
+            self.app, self.docker_client, allowed_resources
         )
         total_resources = sum(len(resources) for resources in registered_resources.values())
 

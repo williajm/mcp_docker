@@ -1,4 +1,4 @@
-"""Tool filtering utilities for registration."""
+"""Tool filtering and registration utilities."""
 
 from typing import Any
 
@@ -35,6 +35,32 @@ def should_register_tool(tool_name: str, safety_config: SafetyConfig) -> bool:
     return True
 
 
+def _resolve_timeout(
+    tool_timeout: float | None,
+    safety_config: SafetyConfig | None,
+) -> float | None:
+    """Resolve effective timeout for a tool.
+
+    Priority: tool-level override > config default.
+    A value of 0 means no timeout (returns None for FastMCP).
+
+    Args:
+        tool_timeout: Per-tool timeout override (None = use config default)
+        safety_config: Safety configuration with default timeout
+
+    Returns:
+        Timeout in seconds, or None for no timeout
+    """
+    if tool_timeout is not None:
+        return None if tool_timeout == 0 else tool_timeout
+
+    if safety_config is not None:
+        default = safety_config.default_tool_timeout
+        return None if default == 0 else default
+
+    return None
+
+
 def register_tools_with_filtering(
     app: Any,
     tools: list[ToolSpec],
@@ -55,13 +81,20 @@ def register_tools_with_filtering(
         spec.func._safety_level = spec.safety  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
         spec.func._tool_name = spec.name  # type: ignore[attr-defined]  # pyright: ignore[reportAttributeAccessIssue]
 
+        # Resolve effective timeout: per-tool override > config default
+        effective_timeout = _resolve_timeout(spec.timeout, safety_config)
+
         app.tool(
             name=spec.name,
             description=spec.description,
             annotations=annotations,
+            timeout=effective_timeout,
         )(spec.func)
 
         registered_names.append(spec.name)
-        logger.debug(f"Registered FastMCP tool: {spec.name} (safety: {spec.safety.value})")
+        logger.debug(
+            f"Registered FastMCP tool: {spec.name} "
+            f"(safety: {spec.safety.value}, timeout: {effective_timeout})"
+        )
 
     return registered_names

@@ -246,34 +246,20 @@ class TestCreateContainerStatsResourceApiError:
             await stats_func("test-container")
 
 
-class TestContainerLogsMaxLines:
-    """Test container logs max_log_lines limit."""
+class TestContainerLogsResourceTailLimit:
+    """Test container logs resource uses hardcoded tail limit."""
 
     @pytest.mark.asyncio
-    async def test_logs_with_max_lines_limit(self, mock_docker_client, mock_container):
-        """Test that max_log_lines limit is passed to Docker."""
+    async def test_logs_uses_hardcoded_tail_limit(self, mock_docker_client, mock_container):
+        """Test that resource uses hardcoded tail=1000 for pre-fetch safety."""
         mock_docker_client.client.containers.get = Mock(return_value=mock_container)
 
-        # Create resource with custom max_log_lines
-        _, logs_func = create_container_logs_resource(mock_docker_client, max_log_lines=50)
+        _, logs_func = create_container_logs_resource(mock_docker_client)
 
         await logs_func("test-container")
 
-        # Verify logs was called with the correct tail limit
-        mock_container.logs.assert_called_once_with(tail=50, follow=False)
-
-    @pytest.mark.asyncio
-    async def test_logs_with_zero_max_lines_is_unlimited(self, mock_docker_client, mock_container):
-        """Test that max_log_lines=0 means unlimited (uses 'all')."""
-        mock_docker_client.client.containers.get = Mock(return_value=mock_container)
-
-        # Create resource with max_log_lines=0 (unlimited)
-        _, logs_func = create_container_logs_resource(mock_docker_client, max_log_lines=0)
-
-        await logs_func("test-container")
-
-        # Verify logs was called with tail="all" for unlimited
-        mock_container.logs.assert_called_once_with(tail="all", follow=False)
+        # Verify logs was called with the hardcoded tail limit
+        mock_container.logs.assert_called_once_with(tail=1000, follow=False)
 
 
 class TestRegisterAllResources:
@@ -293,19 +279,6 @@ class TestRegisterAllResources:
 
         # Verify app.resource was called twice
         assert app.resource.call_count == 2
-
-    def test_registers_with_safety_config(self, mock_docker_client):
-        """Test that safety_config max_log_lines is used."""
-        from mcp_docker.config import SafetyConfig
-
-        app = Mock()
-        app.resource = Mock(return_value=lambda f: f)
-
-        safety_config = SafetyConfig(max_log_lines=500)
-
-        registered = register_all_resources(app, mock_docker_client, safety_config=safety_config)
-
-        assert len(registered["container"]) == 2
 
     def test_registers_with_allowed_resources_filter(self, mock_docker_client):
         """Test that allowed_resources filters registered resources."""
