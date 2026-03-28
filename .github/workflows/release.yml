@@ -169,7 +169,7 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Verify checksums:**" >> $GITHUB_STEP_SUMMARY
         echo '```bash' >> $GITHUB_STEP_SUMMARY
-        echo 'sha256sum -c SHA256SUMS.txt' >> $GITHUB_STEP_SUMMARY
+        echo 'sha256sum --ignore-missing -c SHA256SUMS.txt' >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Verify provenance (GitHub CLI):**" >> $GITHUB_STEP_SUMMARY

@@ -496,21 +496,14 @@ git commit -m "chore: Prepare vX.Y.Z release"
 # are uploaded automatically by the release workflow)
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
-gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes "$(cat <<'NOTES'
-## Changes
-- ...
+gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes "Release notes here"
 
-## Verification
-Verify artifact integrity:
-```bash
-# SHA256 checksums
-sha256sum -c SHA256SUMS.txt
-
-# SLSA provenance (requires GitHub CLI)
-gh attestation verify <artifact> --owner williajm
-```
-NOTES
-)"
+# The release workflow automatically uploads SHA256SUMS.txt and SLSA
+# attestation bundles. Include a verification section in release notes:
+#
+#   ## Verification
+#   sha256sum --ignore-missing -c SHA256SUMS.txt
+#   gh attestation verify <artifact> --owner williajm
 
 # 6. Immediately bump to next dev version (via PR, not direct to main)
 # Edit pyproject.toml: version = "X.Y.(Z+1).dev0"
