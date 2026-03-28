@@ -15,16 +15,19 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes 
 ## Quick Start
 
 **Claude Code:**
+
 ```bash
 claude mcp add --transport stdio docker uvx mcp-docker@latest
 ```
 
 **Codex:**
+
 ```bash
 codex mcp add docker -- uvx mcp-docker@latest
 ```
 
 **Claude Desktop** — add to `claude_desktop_config.json`:
+
 ```json
 {
   "mcpServers": {
@@ -55,7 +58,7 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 ### Container (10 tools)
 
 | Tool | Description | Safety |
-|------|-------------|--------|
+| ---- | ----------- | ------ |
 | `docker_list_containers` | List containers with filters | Safe |
 | `docker_inspect_container` | Detailed container info | Safe |
 | `docker_container_logs` | Get container logs | Safe |
@@ -70,7 +73,7 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 ### Image (9 tools)
 
 | Tool | Description | Safety |
-|------|-------------|--------|
+| ---- | ----------- | ------ |
 | `docker_list_images` | List images | Safe |
 | `docker_inspect_image` | Image details | Safe |
 | `docker_image_history` | View layer history | Safe |
@@ -84,7 +87,7 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 ### Network (6 tools)
 
 | Tool | Description | Safety |
-|------|-------------|--------|
+| ---- | ----------- | ------ |
 | `docker_list_networks` | List networks | Safe |
 | `docker_inspect_network` | Network details | Safe |
 | `docker_create_network` | Create network | Moderate |
@@ -95,7 +98,7 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 ### Volume (5 tools)
 
 | Tool | Description | Safety |
-|------|-------------|--------|
+| ---- | ----------- | ------ |
 | `docker_list_volumes` | List volumes | Safe |
 | `docker_inspect_volume` | Volume details | Safe |
 | `docker_create_volume` | Create volume | Moderate |
@@ -105,7 +108,7 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 ### System (3 tools)
 
 | Tool | Description | Safety |
-|------|-------------|--------|
+| ---- | ----------- | ------ |
 | `docker_version` | Docker version info | Safe |
 | `docker_events` | Docker events with filters | Safe |
 | `docker_prune_system` | Clean all unused resources | Destructive |
@@ -113,7 +116,7 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 ## Prompts
 
 | Prompt | Purpose |
-|--------|---------|
+| ------ | ------- |
 | `troubleshoot_container` | Diagnose container issues with logs and config analysis |
 | `optimize_container` | Resource usage and security optimization suggestions |
 | `generate_compose` | Generate docker-compose.yml from containers or descriptions |
@@ -132,7 +135,7 @@ Discoverable via `resources/templates/list`:
 Three-tier classification controls what operations are permitted:
 
 | Level | Description | Default | Examples |
-|-------|-------------|---------|----------|
+| ----- | ----------- | ------- | -------- |
 | **Safe** | Read-only operations | Always allowed | list, inspect, logs, stats |
 | **Moderate** | Reversible state changes | Allowed | create, start, stop, pull |
 | **Destructive** | Permanent changes | Blocked | remove, prune |
@@ -154,18 +157,21 @@ Deny list is checked before allow list. Both apply on top of the safety level ga
 ### Preset Modes
 
 **Read-only** — monitoring and observability only:
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
 **Balanced** (default) — development and operations:
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
 **Full access** — infrastructure management:
+
 ```bash
 SAFETY_ALLOW_MODERATE_OPERATIONS=true
 SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
@@ -182,7 +188,7 @@ For complete configuration reference, see [CONFIGURATION.md](CONFIGURATION.md).
 ## MCP Server vs Docker CLI
 
 | Aspect | Docker CLI | MCP Server |
-|--------|-----------|------------|
+| ------ | ---------- | ---------- |
 | Claude Desktop | No CLI access | Required (only option) |
 | Claude Code | Works directly | Optional (adds safety) |
 | Safety controls | None | Three-tier with filtering |
@@ -227,7 +233,7 @@ uv run mypy src/mcp_docker/         # Type check (strict)
 
 ### Project Structure
 
-```
+```text
 src/mcp_docker/
 ├── __main__.py          # Entry point (transport selection)
 ├── config.py            # Pydantic settings (env vars)
