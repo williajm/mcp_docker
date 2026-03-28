@@ -491,9 +491,19 @@ git add -A
 git commit -m "chore: Prepare vX.Y.Z release"
 
 # 5. After merge, tag and create GitHub release
+# Include a verification section in the release notes so users know
+# how to verify artifact integrity (SHA256 checksums and SLSA provenance
+# are uploaded automatically by the release workflow)
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 gh release create vX.Y.Z --title "vX.Y.Z - Title" --notes "Release notes here"
+
+# The release workflow automatically uploads SHA256SUMS.txt and SLSA
+# attestation bundles. Include a verification section in release notes:
+#
+#   ## Verification
+#   sha256sum --ignore-missing -c SHA256SUMS.txt
+#   gh attestation verify <artifact> --owner williajm
 
 # 6. Immediately bump to next dev version (via PR, not direct to main)
 # Edit pyproject.toml: version = "X.Y.(Z+1).dev0"
