@@ -239,7 +239,7 @@ def create_list_containers_tool(
 
     def list_containers(
         all: bool = False,
-        filters: dict[str, str | list[str]] | None = None,
+        filters: dict[str, str | list[str] | bool] | None = None,
     ) -> dict[str, Any]:
         """List Docker containers with optional filters."""
         try:
