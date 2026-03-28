@@ -244,10 +244,7 @@ def create_list_containers_tool(
         """List Docker containers with optional filters."""
         try:
             logger.info(f"Listing containers (all={all}, filters={filters})")
-            containers = docker_client.client.containers.list(
-                all=all,
-                filters=filters,  # type: ignore[arg-type]  # MCP exposes str|list[str]; Docker SDK also accepts bool
-            )
+            containers = docker_client.client.containers.list(all=all, filters=filters)
 
             container_list = [
                 {
