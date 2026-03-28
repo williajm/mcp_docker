@@ -14,22 +14,15 @@ from mcp_docker.services.safety import (
 )
 from mcp_docker.tools.common import (
     DESC_CONTAINER_ID,
-    DESC_TRUNCATION_INFO,
+    TIMEOUT_MEDIUM,
     FiltersInput,
-    PaginatedListOutput,
     ToolSpec,
-    apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
 from mcp_docker.utils.json_parsing import parse_json_string_field
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
-from mcp_docker.utils.output_limits import (
-    create_truncation_metadata,
-    truncate_lines,
-    truncate_text,
-)
 from mcp_docker.utils.validation import validate_command
 
 logger = get_logger(__name__)
@@ -68,46 +61,6 @@ def _build_logs_kwargs(
     if until:
         kwargs["until"] = until
     return kwargs
-
-
-def _apply_log_truncation(
-    logs_str: str,
-    follow: bool,
-    safety_config: SafetyConfig,
-) -> tuple[str, dict[str, Any]]:
-    """Apply truncation limits to logs if needed.
-
-    Args:
-        logs_str: Log string to potentially truncate
-        follow: Whether in follow mode
-        safety_config: Safety configuration with max_log_lines
-
-    Returns:
-        Tuple of (truncated_logs, truncation_info_dict)
-    """
-    truncation_info: dict[str, Any] = {}
-
-    if not follow and safety_config.max_log_lines > 0:
-        original_lines = len(logs_str.splitlines())
-        truncation_msg = (
-            f"\n[Output truncated: showing first {safety_config.max_log_lines} of "
-            f"{original_lines} lines. "
-            f"Set SAFETY_MAX_LOG_LINES=0 to disable limit.]"
-        )
-        logs_str, was_truncated = truncate_lines(
-            logs_str,
-            safety_config.max_log_lines,
-            truncation_message=truncation_msg,
-        )
-
-        if was_truncated:
-            truncation_info = create_truncation_metadata(
-                was_truncated=True,
-                original_count=original_lines,
-                truncated_count=safety_config.max_log_lines,
-            )
-
-    return logs_str, truncation_info
 
 
 def _decode_static_logs(logs: bytes | str) -> str:
@@ -192,10 +145,11 @@ class ListContainersInput(FiltersInput):
     all: bool = Field(default=False, description="Show all containers (default shows just running)")
 
 
-class ListContainersOutput(PaginatedListOutput):
+class ListContainersOutput(BaseModel):
     """Output for listing containers."""
 
     containers: list[dict[str, Any]] = Field(description="List of containers")
+    count: int = Field(description="Total number of containers found")
 
 
 class InspectContainerInput(BaseModel):
@@ -208,10 +162,6 @@ class InspectContainerOutput(BaseModel):
     """Output for inspecting a container."""
 
     container_info: dict[str, Any] = Field(description="Detailed container information")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class ContainerLogsInput(BaseModel):
@@ -232,10 +182,6 @@ class ContainerLogsOutput(BaseModel):
 
     logs: str = Field(description="Container logs")
     container_id: str = Field(description="Container ID")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class ContainerStatsInput(BaseModel):
@@ -281,10 +227,6 @@ class ExecCommandOutput(BaseModel):
 
     exit_code: int = Field(description="Command exit code")
     output: str = Field(description="Command output (stdout and stderr combined)")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 # FastMCP Tool Functions
@@ -292,7 +234,6 @@ class ExecCommandOutput(BaseModel):
 
 def create_list_containers_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> ToolSpec:
     """Create the list_containers tool."""
 
@@ -303,7 +244,10 @@ def create_list_containers_tool(
         """List Docker containers with optional filters."""
         try:
             logger.info(f"Listing containers (all={all}, filters={filters})")
-            containers = docker_client.client.containers.list(all=all, filters=filters)
+            containers = docker_client.client.containers.list(
+                all=all,
+                filters=filters,  # type: ignore[arg-type]  # MCP exposes str|list[str]; Docker SDK also accepts bool
+            )
 
             container_list = [
                 {
@@ -321,19 +265,11 @@ def create_list_containers_tool(
                 for c in containers
             ]
 
-            container_list, truncation_info, original_count = apply_list_pagination(
-                container_list,
-                safety_config,
-                "containers",
-            )
+            logger.info(f"Found {len(container_list)} containers")
 
-            logger.info(f"Found {len(container_list)} containers (total: {original_count})")
-
-            # Convert to output model for validation
             output = ListContainersOutput(
                 containers=container_list,
-                count=original_count,
-                truncation_info=truncation_info,
+                count=len(container_list),
             )
 
             return output.model_dump()
@@ -365,18 +301,9 @@ def create_inspect_container_tool(
             container = docker_client.client.containers.get(container_id)
             container_info = container.attrs
 
-            # Apply output limits (truncate large fields)
-            truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
-
             logger.info(f"Successfully inspected container: {container_id}")
 
-            # Convert to output model for validation
-            output = InspectContainerOutput(
-                container_info=container_info,
-                truncation_info=truncation_info,
-            )
+            output = InspectContainerOutput(container_info=container_info)
 
             return output.model_dump()
 
@@ -398,7 +325,6 @@ def create_inspect_container_tool(
 
 def create_container_logs_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> ToolSpec:
     """Create the container_logs tool."""
 
@@ -418,15 +344,11 @@ def create_container_logs_tool(
             # Retrieve and process logs (handles streaming vs static mode)
             logs_str = _retrieve_and_process_logs(container, tail, since, until, timestamps, follow)
 
-            # Apply output limits (non-streaming logs only)
-            logs_str, truncation_info = _apply_log_truncation(logs_str, follow, safety_config)
-
             logger.info(f"Successfully retrieved logs for container: {container_id}")
 
             output = ContainerLogsOutput(
                 logs=logs_str,
                 container_id=str(container.id),
-                truncation_info=truncation_info,
             )
 
             return output.model_dump()
@@ -444,6 +366,7 @@ def create_container_logs_tool(
         safety=OperationSafety.SAFE,
         func=container_logs,
         idempotent=True,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 
@@ -556,44 +479,6 @@ def _build_exec_kwargs(
     return kwargs
 
 
-def _apply_exec_output_truncation(
-    output_str: str,
-    safety_config: SafetyConfig,
-) -> tuple[str, dict[str, Any]]:
-    """Apply truncation limits to exec output if needed.
-
-    Args:
-        output_str: Raw command output
-        safety_config: Safety configuration with limits
-
-    Returns:
-        Tuple of (truncated_output, truncation_metadata)
-    """
-    truncation_info: dict[str, Any] = {}
-
-    if safety_config.max_exec_output_bytes > 0:
-        original_bytes = len(output_str.encode("utf-8"))
-        truncation_msg = (
-            f"\n[Output truncated: showing first "
-            f"{safety_config.max_exec_output_bytes} bytes of {original_bytes} bytes. "
-            f"Set SAFETY_MAX_EXEC_OUTPUT_BYTES=0 to disable limit.]"
-        )
-        output_str, was_truncated = truncate_text(
-            output_str,
-            safety_config.max_exec_output_bytes,
-            truncation_message=truncation_msg,
-        )
-
-        if was_truncated:
-            truncation_info = create_truncation_metadata(
-                was_truncated=True,
-                original_size=original_bytes,
-                truncated_size=safety_config.max_exec_output_bytes,
-            )
-
-    return output_str, truncation_info
-
-
 def create_exec_command_tool(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
@@ -626,21 +511,19 @@ def create_exec_command_tool(
 
             # Build kwargs and execute command
             kwargs = _build_exec_kwargs(command, privileged, workdir, user, environment)
-            exit_code, output = container.exec_run(**kwargs)
+            raw_exit_code, output = container.exec_run(**kwargs)
 
             # Convert bytes to string
             output_str = output.decode("utf-8") if isinstance(output, bytes) else str(output)
 
-            # Apply output limits
-            output_str, truncation_info = _apply_exec_output_truncation(output_str, safety_config)
-
             logger.info(f"Successfully executed command in container: {container_id}")
 
-            # Convert to output model for validation
+            # Docker SDK returns int | None; treat None as -1 (unknown)
+            exit_code: int = raw_exit_code if raw_exit_code is not None else -1
+
             output_model = ExecCommandOutput(
                 exit_code=exit_code,
                 output=output_str,
-                truncation_info=truncation_info,
             )
 
             return output_model.model_dump()
@@ -658,6 +541,7 @@ def create_exec_command_tool(
         safety=OperationSafety.MODERATE,
         func=exec_command,
         open_world=True,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 
@@ -668,9 +552,9 @@ def register_container_inspection_tools(
 ) -> list[str]:
     """Register all container inspection tools with FastMCP."""
     tools = [
-        create_list_containers_tool(docker_client, safety_config),
+        create_list_containers_tool(docker_client),
         create_inspect_container_tool(docker_client),
-        create_container_logs_tool(docker_client, safety_config),
+        create_container_logs_tool(docker_client),
         create_container_stats_tool(docker_client),
         create_exec_command_tool(docker_client, safety_config),
     ]

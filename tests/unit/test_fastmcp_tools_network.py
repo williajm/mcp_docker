@@ -196,7 +196,7 @@ class TestAPIErrors:
     @pytest.mark.parametrize(
         "tool_creator,needs_safety_config,call_kwargs,error_match,setup_error_on",
         [
-            (create_list_networks_tool, True, {}, "Failed to list networks", "networks.list"),
+            (create_list_networks_tool, False, {}, "Failed to list networks", "networks.list"),
             (
                 create_inspect_network_tool,
                 False,
@@ -287,7 +287,7 @@ class TestAPIErrors:
 class TestListNetworksTool:
     """Test docker_list_networks tool."""
 
-    def test_list_networks_success(self, mock_docker_client, safety_config):
+    def test_list_networks_success(self, mock_docker_client):
         """Test successful network listing."""
         net1 = Mock()
         net1.id = "net1id"
@@ -303,7 +303,7 @@ class TestListNetworksTool:
 
         mock_docker_client.client.networks.list.return_value = [net1, net2]
 
-        list_func = create_list_networks_tool(mock_docker_client, safety_config).func
+        list_func = create_list_networks_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 2
@@ -312,42 +312,36 @@ class TestListNetworksTool:
         assert result["networks"][1]["name"] == "my-network"
         assert result["networks"][1]["labels"] == {"env": "test"}
 
-    def test_list_networks_with_filters(self, mock_docker_client, safety_config):
+    def test_list_networks_with_filters(self, mock_docker_client):
         """Test network listing with filters."""
         mock_docker_client.client.networks.list.return_value = []
 
-        list_func = create_list_networks_tool(mock_docker_client, safety_config).func
+        list_func = create_list_networks_tool(mock_docker_client).func
         filters = {"driver": ["bridge"]}
         result = list_func(filters=filters)
 
         mock_docker_client.client.networks.list.assert_called_once_with(filters=filters)
         assert result["count"] == 0
 
-    def test_list_networks_with_truncation(self, mock_docker_client):
-        """Test network listing with output truncation."""
-        safety_config = SafetyConfig(max_list_results=1)
+    def test_list_networks_returns_all_results(self, mock_docker_client):
+        """Test that all networks are returned without truncation."""
+        networks = []
+        for i in range(10):
+            net = Mock()
+            net.id = f"net{i}id"
+            net.short_id = f"net{i}"
+            net.name = f"network-{i}"
+            net.attrs = {"Driver": "bridge", "Scope": "local", "Labels": {}}
+            networks.append(net)
 
-        net1 = Mock()
-        net1.id = "net1id"
-        net1.short_id = "net1"
-        net1.name = "bridge"
-        net1.attrs = {"Driver": "bridge", "Scope": "local", "Labels": {}}
+        mock_docker_client.client.networks.list.return_value = networks
 
-        net2 = Mock()
-        net2.id = "net2id"
-        net2.short_id = "net2"
-        net2.name = "my-network"
-        net2.attrs = {"Driver": "bridge", "Scope": "local", "Labels": {}}
-
-        mock_docker_client.client.networks.list.return_value = [net1, net2]
-
-        list_func = create_list_networks_tool(mock_docker_client, safety_config).func
+        list_func = create_list_networks_tool(mock_docker_client).func
         result = list_func()
 
-        assert result["count"] == 2
-        assert len(result["networks"]) == 1
-        assert result["truncation_info"]["truncated"] is True
-        assert "message" in result["truncation_info"]
+        assert result["count"] == 10
+        assert len(result["networks"]) == 10
+        assert "truncation_info" not in result
 
 
 class TestInspectNetworkTool:

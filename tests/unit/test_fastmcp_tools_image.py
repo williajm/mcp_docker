@@ -77,7 +77,7 @@ class TestImageNotFoundErrors:
         [
             (create_inspect_image_tool, False, {"image_name": "nonexistent"}, DockerImageNotFound),
             (create_inspect_image_tool, False, {"image_name": "nonexistent"}, NotFound),
-            (create_image_history_tool, True, {"image": "nonexistent"}, DockerImageNotFound),
+            (create_image_history_tool, False, {"image": "nonexistent"}, DockerImageNotFound),
             (
                 create_tag_image_tool,
                 False,
@@ -128,7 +128,7 @@ class TestAPIErrors:
     @pytest.mark.parametrize(
         "tool_creator,needs_safety_config,call_kwargs,error_match,setup_error_on",
         [
-            (create_list_images_tool, True, {}, "Failed to list images", "images.list"),
+            (create_list_images_tool, False, {}, "Failed to list images", "images.list"),
             (
                 create_inspect_image_tool,
                 False,
@@ -196,13 +196,13 @@ class TestAPIErrors:
         with pytest.raises(DockerOperationError, match="Failed to push image"):
             await func(image="myrepo/app", ctx=mock_context)
 
-    def test_history_api_error(self, mock_docker_client, safety_config):
+    def test_history_api_error(self, mock_docker_client):
         """Test image history API error after getting image."""
         image = Mock()
         image.history.side_effect = APIError("History failed")
         mock_docker_client.client.images.get.return_value = image
 
-        history_func = create_image_history_tool(mock_docker_client, safety_config).func
+        history_func = create_image_history_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to get image history"):
             history_func(image="ubuntu:22.04")
@@ -231,7 +231,7 @@ class TestAPIErrors:
 class TestListImagesTool:
     """Test docker_list_images tool."""
 
-    def test_list_images_success(self, mock_docker_client, safety_config):
+    def test_list_images_success(self, mock_docker_client):
         """Test successful image listing."""
         img1 = Mock()
         img1.id = "sha256:abc123"
@@ -249,7 +249,7 @@ class TestListImagesTool:
 
         mock_docker_client.client.images.list.return_value = [img1, img2]
 
-        list_func = create_list_images_tool(mock_docker_client, safety_config).func
+        list_func = create_list_images_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 2
@@ -268,22 +268,18 @@ class TestListImagesTool:
             ),
         ],
     )
-    def test_list_images_with_options(
-        self, mock_docker_client, safety_config, kwargs, expected_call_kwargs
-    ):
+    def test_list_images_with_options(self, mock_docker_client, kwargs, expected_call_kwargs):
         """Test image listing with various options."""
         mock_docker_client.client.images.list.return_value = []
 
-        list_func = create_list_images_tool(mock_docker_client, safety_config).func
+        list_func = create_list_images_tool(mock_docker_client).func
         result = list_func(**kwargs)
 
         mock_docker_client.client.images.list.assert_called_once_with(**expected_call_kwargs)
         assert result["count"] == 0
 
-    def test_list_images_with_truncation(self, mock_docker_client):
-        """Test image listing with output truncation."""
-        safety_config = SafetyConfig(max_list_results=1)
-
+    def test_list_images_returns_all_results(self, mock_docker_client):
+        """Test image listing returns all results without truncation."""
         img1 = Mock()
         img1.id = "sha256:abc123"
         img1.short_id = "abc123"
@@ -300,13 +296,12 @@ class TestListImagesTool:
 
         mock_docker_client.client.images.list.return_value = [img1, img2]
 
-        list_func = create_list_images_tool(mock_docker_client, safety_config).func
+        list_func = create_list_images_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 2
-        assert len(result["images"]) == 1
-        assert result["truncation_info"]["truncated"] is True
-        assert "message" in result["truncation_info"]
+        assert len(result["images"]) == 2
+        assert "truncation_info" not in result
 
 
 class TestInspectImageTool:
@@ -335,7 +330,7 @@ class TestInspectImageTool:
 class TestImageHistoryTool:
     """Test docker_image_history tool."""
 
-    def test_image_history_success(self, mock_docker_client, safety_config):
+    def test_image_history_success(self, mock_docker_client):
         """Test successful image history retrieval."""
         image = Mock()
         history_data = [
@@ -345,7 +340,7 @@ class TestImageHistoryTool:
         image.history.return_value = history_data
         mock_docker_client.client.images.get.return_value = image
 
-        history_func = create_image_history_tool(mock_docker_client, safety_config).func
+        history_func = create_image_history_tool(mock_docker_client).func
         result = history_func(image="ubuntu:22.04")
 
         assert len(result["history"]) == 2
@@ -353,10 +348,8 @@ class TestImageHistoryTool:
         assert result["history"][1]["Id"] == "layer2"
         mock_docker_client.client.images.get.assert_called_once_with("ubuntu:22.04")
 
-    def test_image_history_with_truncation(self, mock_docker_client):
-        """Test image history with output truncation."""
-        safety_config = SafetyConfig(max_list_results=1)
-
+    def test_image_history_returns_all_results(self, mock_docker_client):
+        """Test image history returns all results without truncation."""
         image = Mock()
         history_data = [
             {"Id": "layer1", "Created": 1234567890, "Size": 100},
@@ -365,12 +358,12 @@ class TestImageHistoryTool:
         image.history.return_value = history_data
         mock_docker_client.client.images.get.return_value = image
 
-        history_func = create_image_history_tool(mock_docker_client, safety_config).func
+        history_func = create_image_history_tool(mock_docker_client).func
         result = history_func(image="ubuntu:22.04")
 
-        assert len(result["history"]) == 1
-        assert result["truncation_info"]["truncated"] is True
-        assert "message" in result["truncation_info"]
+        assert result["count"] == 2
+        assert len(result["history"]) == 2
+        assert "truncation_info" not in result
 
 
 class TestPullImageTool:

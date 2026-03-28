@@ -64,7 +64,7 @@ class TestInputOutputModels:
             (
                 ListContainersOutput,
                 {"containers": [{"id": "abc123"}], "count": 1},
-                {"containers": [{"id": "abc123"}], "count": 1, "truncation_info": {}},
+                {"containers": [{"id": "abc123"}], "count": 1},
             ),
             # InspectContainerInput tests
             (
@@ -76,7 +76,7 @@ class TestInputOutputModels:
             (
                 InspectContainerOutput,
                 {"container_info": {"Id": "abc123"}},
-                {"container_info": {"Id": "abc123"}, "truncation_info": {}},
+                {"container_info": {"Id": "abc123"}},
             ),
             # ContainerLogsInput defaults
             (
@@ -115,7 +115,7 @@ class TestInputOutputModels:
             (
                 ContainerLogsOutput,
                 {"logs": "test logs", "container_id": "abc123"},
-                {"logs": "test logs", "container_id": "abc123", "truncation_info": {}},
+                {"logs": "test logs", "container_id": "abc123"},
             ),
             # ContainerStatsInput tests
             (
@@ -166,7 +166,7 @@ class TestInputOutputModels:
             (
                 ExecCommandOutput,
                 {"exit_code": 0, "output": "success"},
-                {"exit_code": 0, "output": "success", "truncation_info": {}},
+                {"exit_code": 0, "output": "success"},
             ),
         ],
     )
@@ -189,7 +189,7 @@ class TestToolMetadata:
                 OperationSafety.SAFE,
                 True,
                 False,
-                True,
+                False,
             ),
             (
                 create_inspect_container_tool,
@@ -205,7 +205,7 @@ class TestToolMetadata:
                 OperationSafety.SAFE,
                 True,
                 False,
-                True,
+                False,
             ),
             (
                 create_container_stats_tool,
@@ -257,7 +257,7 @@ class TestContainerNotFoundErrors:
         "tool_creator,needs_safety_config,call_kwargs",
         [
             (create_inspect_container_tool, False, {"container_id": "nonexistent"}),
-            (create_container_logs_tool, True, {"container_id": "nonexistent"}),
+            (create_container_logs_tool, False, {"container_id": "nonexistent"}),
             (create_container_stats_tool, False, {"container_id": "nonexistent"}),
             (
                 create_exec_command_tool,
@@ -294,7 +294,7 @@ class TestAPIErrors:
         [
             (
                 create_list_containers_tool,
-                True,
+                False,
                 {},
                 "Failed to list containers",
                 "containers.list",
@@ -333,13 +333,13 @@ class TestAPIErrors:
         with pytest.raises(DockerOperationError, match=error_match):
             func(**call_kwargs)
 
-    def test_logs_api_error(self, mock_docker_client, safety_config):
+    def test_logs_api_error(self, mock_docker_client):
         """Test logs API error after getting container."""
         mock_container = Mock()
         mock_container.logs.side_effect = APIError("Logs failed")
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        logs_func = create_container_logs_tool(mock_docker_client, safety_config).func
+        logs_func = create_container_logs_tool(mock_docker_client).func
 
         with pytest.raises(DockerOperationError, match="Failed to get container logs"):
             logs_func(container_id="test")
@@ -359,7 +359,7 @@ class TestAPIErrors:
 class TestListContainersTool:
     """Test docker_list_containers tool functionality."""
 
-    def test_list_containers_success(self, mock_docker_client, safety_config):
+    def test_list_containers_success(self, mock_docker_client):
         """Test successful container listing."""
         # Mock image object
         mock_image = Mock()
@@ -377,7 +377,7 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
+        list_func = create_list_containers_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 1
@@ -387,11 +387,11 @@ class TestListContainersTool:
         assert result["containers"][0]["image"] == "nginx:latest"
         assert result["containers"][0]["status"] == "running"
 
-    def test_list_containers_with_filters(self, mock_docker_client, safety_config):
+    def test_list_containers_with_filters(self, mock_docker_client):
         """Test container listing with filters."""
         mock_docker_client.client.containers.list.return_value = []
 
-        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
+        list_func = create_list_containers_tool(mock_docker_client).func
         filters = {"status": ["running"]}
         result = list_func(filters=filters)
 
@@ -400,7 +400,7 @@ class TestListContainersTool:
         )
         assert result["count"] == 0
 
-    def test_list_containers_with_none_image(self, mock_docker_client, safety_config):
+    def test_list_containers_with_none_image(self, mock_docker_client):
         """Test container listing when container.image is None."""
         # Mock container with no image
         mock_container = Mock()
@@ -413,13 +413,13 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
+        list_func = create_list_containers_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 1
         assert result["containers"][0]["image"] == "unknown"
 
-    def test_list_containers_with_empty_image_tags(self, mock_docker_client, safety_config):
+    def test_list_containers_with_empty_image_tags(self, mock_docker_client):
         """Test container listing when container.image has no tags."""
         mock_image = Mock()
         mock_image.tags = []  # Empty tags list
@@ -435,7 +435,7 @@ class TestListContainersTool:
 
         mock_docker_client.client.containers.list.return_value = [mock_container]
 
-        list_func = create_list_containers_tool(mock_docker_client, safety_config).func
+        list_func = create_list_containers_tool(mock_docker_client).func
         result = list_func()
 
         assert result["count"] == 1
@@ -544,7 +544,7 @@ class TestLogHelperFunctions:
 class TestContainerLogsTool:
     """Test docker_container_logs tool functionality."""
 
-    def test_logs_follow_mode(self, mock_docker_client, safety_config):
+    def test_logs_follow_mode(self, mock_docker_client):
         """Test getting logs in follow (streaming) mode."""
         mock_logs_generator = Mock()
         mock_logs_generator.__iter__ = Mock(
@@ -557,7 +557,7 @@ class TestContainerLogsTool:
         mock_container.logs.return_value = mock_logs_generator
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        logs_func = create_container_logs_tool(mock_docker_client, safety_config).func
+        logs_func = create_container_logs_tool(mock_docker_client).func
         result = logs_func(container_id="test-container", follow=True)
 
         assert "streaming log 1" in result["logs"]
@@ -566,14 +566,14 @@ class TestContainerLogsTool:
         # Verify generator cleanup
         mock_logs_generator.close.assert_called_once()
 
-    def test_logs_static_mode(self, mock_docker_client, safety_config):
+    def test_logs_static_mode(self, mock_docker_client):
         """Test getting logs in static (non-follow) mode."""
         mock_container = Mock()
         mock_container.id = "container123"
         mock_container.logs.return_value = b"static log content\n"
         mock_docker_client.client.containers.get.return_value = mock_container
 
-        logs_func = create_container_logs_tool(mock_docker_client, safety_config).func
+        logs_func = create_container_logs_tool(mock_docker_client).func
         result = logs_func(container_id="test-container", follow=False)
 
         assert result["logs"] == "static log content\n"

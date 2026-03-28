@@ -17,11 +17,10 @@ from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.services.safety import OperationSafety
 from mcp_docker.tools.common import (
     DESC_IMAGE_ID,
-    DESC_TRUNCATION_INFO,
+    TIMEOUT_MEDIUM,
+    TIMEOUT_SLOW,
     FiltersInput,
-    PaginatedListOutput,
     ToolSpec,
-    apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.tools.streaming import (
@@ -370,10 +369,11 @@ class ListImagesInput(FiltersInput):
     all: bool = Field(default=False, description="Show all images including intermediates")
 
 
-class ListImagesOutput(PaginatedListOutput):
+class ListImagesOutput(BaseModel):
     """Output for listing images."""
 
     images: list[dict[str, Any]] = Field(description="List of images with basic info")
+    count: int = Field(description="Total number of images found")
 
 
 class InspectImageInput(BaseModel):
@@ -386,10 +386,6 @@ class InspectImageOutput(BaseModel):
     """Output for inspecting an image."""
 
     details: dict[str, Any] = Field(description="Detailed image information")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class ImageHistoryInput(BaseModel):
@@ -402,10 +398,7 @@ class ImageHistoryOutput(BaseModel):
     """Output for viewing image history."""
 
     history: list[dict[str, Any]] = Field(description="Image layer history")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
+    count: int = Field(description="Total number of history entries")
 
 
 class PullImageInput(BaseModel):
@@ -546,7 +539,6 @@ class PruneImagesOutput(BaseModel):
 
 def create_list_images_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> ToolSpec:
     """Create the list_images tool."""
 
@@ -570,19 +562,11 @@ def create_list_images_tool(
                 for img in images
             ]
 
-            image_list, truncation_info, original_count = apply_list_pagination(
-                image_list,
-                safety_config,
-                "images",
-            )
+            logger.info(f"Found {len(image_list)} images")
 
-            logger.info(f"Found {len(image_list)} images (total: {original_count})")
-
-            # Convert to output model for validation
             output = ListImagesOutput(
                 images=image_list,
-                count=original_count,
-                truncation_info=truncation_info,
+                count=len(image_list),
             )
 
             return output.model_dump()
@@ -614,18 +598,9 @@ def create_inspect_image_tool(
             image = docker_client.client.images.get(image_name)
             details = image.attrs
 
-            # Apply output limits (truncate large fields)
-            truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
-
             logger.info(f"Successfully inspected image: {image_name}")
 
-            # Convert to output model for validation
-            output = InspectImageOutput(
-                details=details,
-                truncation_info=truncation_info,
-            )
+            output = InspectImageOutput(details=details)
 
             return output.model_dump()
 
@@ -647,7 +622,6 @@ def create_inspect_image_tool(
 
 def create_image_history_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> ToolSpec:
     """Create the image_history tool."""
 
@@ -660,14 +634,11 @@ def create_image_history_tool(
             image_obj = docker_client.client.images.get(image)
             history = image_obj.history()
 
-            history, truncation_info, _ = apply_list_pagination(history, safety_config, "layers")
-
             logger.info(f"Successfully retrieved history for image: {image}")
 
-            # Convert to output model for validation
             output = ImageHistoryOutput(
                 history=history,
-                truncation_info=truncation_info,
+                count=len(history),
             )
 
             return output.model_dump()
@@ -765,6 +736,7 @@ def create_pull_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         func=pull_image,
         idempotent=True,
         open_world=True,
+        timeout=TIMEOUT_SLOW,
     )
 
 
@@ -856,6 +828,7 @@ def create_build_image_tool(  # noqa: PLR0915 - Complex streaming logic requires
         description="Build a Docker image from a Dockerfile",
         safety=OperationSafety.MODERATE,
         func=build_image,
+        timeout=TIMEOUT_SLOW,
     )
 
 
@@ -924,6 +897,7 @@ def create_push_image_tool(  # noqa: PLR0915 - Complex streaming logic requires 
         safety=OperationSafety.MODERATE,
         func=push_image,
         open_world=True,
+        timeout=TIMEOUT_SLOW,
     )
 
 
@@ -997,6 +971,7 @@ def create_remove_image_tool(
         description="Remove a Docker image",
         safety=OperationSafety.DESTRUCTIVE,
         func=remove_image,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 
@@ -1047,6 +1022,7 @@ def create_prune_images_tool(
         description="Prune Docker images (unused by default, all with force_all=true)",
         safety=OperationSafety.DESTRUCTIVE,
         func=prune_images,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 
@@ -1058,9 +1034,9 @@ def register_image_tools(
     """Register all image tools with FastMCP."""
     tools = [
         # SAFE tools
-        create_list_images_tool(docker_client, safety_config),
+        create_list_images_tool(docker_client),
         create_inspect_image_tool(docker_client),
-        create_image_history_tool(docker_client, safety_config),
+        create_image_history_tool(docker_client),
         # MODERATE tools
         create_pull_image_tool(docker_client),
         create_build_image_tool(docker_client),

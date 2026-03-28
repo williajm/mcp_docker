@@ -10,11 +10,8 @@ from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.services.safety import OperationSafety
 from mcp_docker.tools.common import (
     DESC_NETWORK_ID,
-    DESC_TRUNCATION_INFO,
     FiltersInput,
-    PaginatedListOutput,
     ToolSpec,
-    apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import (
@@ -67,10 +64,11 @@ class ListNetworksInput(FiltersInput):
     """Input for listing networks."""
 
 
-class ListNetworksOutput(PaginatedListOutput):
+class ListNetworksOutput(BaseModel):
     """Output for listing networks."""
 
     networks: list[dict[str, Any]] = Field(description="List of networks with basic info")
+    count: int = Field(description="Total number of networks found")
 
 
 class InspectNetworkInput(BaseModel):
@@ -83,10 +81,6 @@ class InspectNetworkOutput(BaseModel):
     """Output for inspecting a network."""
 
     details: dict[str, Any] = Field(description="Detailed network information")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class CreateNetworkInput(BaseModel):
@@ -186,7 +180,6 @@ class RemoveNetworkOutput(BaseModel):
 
 def create_list_networks_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> ToolSpec:
     """Create the list_networks tool."""
 
@@ -210,19 +203,11 @@ def create_list_networks_tool(
                 for net in networks
             ]
 
-            network_list, truncation_info, original_count = apply_list_pagination(
-                network_list,
-                safety_config,
-                "networks",
-            )
+            logger.info(f"Found {len(network_list)} networks")
 
-            logger.info(f"Found {len(network_list)} networks (total: {original_count})")
-
-            # Convert to output model for validation
             output = ListNetworksOutput(
                 networks=network_list,
-                count=original_count,
-                truncation_info=truncation_info,
+                count=len(network_list),
             )
 
             return output.model_dump()
@@ -254,18 +239,9 @@ def create_inspect_network_tool(
             network = docker_client.client.networks.get(network_id)
             details = network.attrs
 
-            # Apply output limits (truncate large fields)
-            truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
-
             logger.info(f"Successfully inspected network: {network_id}")
 
-            # Convert to output model for validation
-            output = InspectNetworkOutput(
-                details=details,
-                truncation_info=truncation_info,
-            )
+            output = InspectNetworkOutput(details=details)
 
             return output.model_dump()
 
@@ -531,7 +507,7 @@ def register_network_tools(
     """Register all network tools with FastMCP."""
     tools = [
         # SAFE tools (read-only)
-        create_list_networks_tool(docker_client, safety_config),
+        create_list_networks_tool(docker_client),
         create_inspect_network_tool(docker_client),
         # MODERATE tools (state-changing)
         create_create_network_tool(docker_client),

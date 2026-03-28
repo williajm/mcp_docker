@@ -41,9 +41,8 @@ Controls which operations are allowed and safety limits.
 | `SAFETY_ALLOW_MODERATE_OPERATIONS` | `true` | Allow reversible operations (start/stop containers) |
 | `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS` | `false` | Allow permanent operations (delete containers/images) |
 | `SAFETY_ALLOW_PRIVILEGED_CONTAINERS` | `false` | Allow creating privileged containers |
-| `SAFETY_MAX_LOG_LINES` | `10000` | Maximum log lines to return |
-| `SAFETY_MAX_EXEC_OUTPUT_BYTES` | `1048576` | Maximum exec command output (1 MB) |
-| `SAFETY_MAX_LIST_RESULTS` | `1000` | Maximum items in list results |
+| `SAFETY_DEFAULT_TOOL_TIMEOUT` | `30` | Default timeout in seconds for tool execution (0 = no timeout). Slow tools (pull/build/push) have built-in longer timeouts. |
+| `SAFETY_MAX_RESPONSE_BYTES` | `1048576` | Maximum response size in bytes for tool results (0 = no limit). Global safety net for oversized responses. |
 | `SAFETY_ALLOWED_TOOLS` | `null` | Comma-separated list of allowed tools (null = all based on safety level)<br>Example: `docker_list_containers,docker_inspect_container` |
 | `SAFETY_DENIED_TOOLS` | `null` | Comma-separated list of denied tools (takes precedence over allowed)<br>Example: `docker_system_prune,docker_remove_container` |
 | `SAFETY_ALLOWED_PROMPTS` | `null` | Comma-separated list of allowed prompts (null = all)<br>Example: `troubleshoot_container,optimize_container` |

@@ -97,7 +97,7 @@ class TestToolMetadata:
                 create_list_images_tool,
                 "docker_list_images",
                 OperationSafety.SAFE,
-                True,
+                False,
             ),
             (
                 create_inspect_image_tool,
@@ -109,7 +109,7 @@ class TestToolMetadata:
                 create_image_history_tool,
                 "docker_image_history",
                 OperationSafety.SAFE,
-                True,
+                False,
             ),
             (
                 create_pull_image_tool,
@@ -152,7 +152,7 @@ class TestToolMetadata:
                 create_list_networks_tool,
                 "docker_list_networks",
                 OperationSafety.SAFE,
-                True,
+                False,
             ),
             (
                 create_inspect_network_tool,

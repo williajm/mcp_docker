@@ -9,11 +9,9 @@ from mcp_docker.config import SafetyConfig
 from mcp_docker.docker.client import DockerClientWrapper
 from mcp_docker.services.safety import OperationSafety
 from mcp_docker.tools.common import (
-    DESC_TRUNCATION_INFO,
+    TIMEOUT_MEDIUM,
     FiltersInput,
-    PaginatedListOutput,
     ToolSpec,
-    apply_list_pagination,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
 from mcp_docker.utils.errors import DockerOperationError, VolumeNotFound
@@ -57,10 +55,11 @@ class ListVolumesInput(FiltersInput):
     """Input for listing volumes."""
 
 
-class ListVolumesOutput(PaginatedListOutput):
+class ListVolumesOutput(BaseModel):
     """Output for listing volumes."""
 
     volumes: list[dict[str, Any]] = Field(description="List of volumes with basic info")
+    count: int = Field(description="Total number of volumes found")
 
 
 class InspectVolumeInput(BaseModel):
@@ -73,10 +72,6 @@ class InspectVolumeOutput(BaseModel):
     """Output for inspecting a volume."""
 
     details: dict[str, Any] = Field(description="Detailed volume information")
-    truncation_info: dict[str, Any] = Field(
-        default_factory=dict,
-        description=DESC_TRUNCATION_INFO,
-    )
 
 
 class CreateVolumeInput(BaseModel):
@@ -163,7 +158,6 @@ class PruneVolumesOutput(BaseModel):
 
 def create_list_volumes_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
 ) -> ToolSpec:
     """Create the list_volumes tool."""
 
@@ -186,19 +180,11 @@ def create_list_volumes_tool(
                 for vol in volumes
             ]
 
-            volume_list, truncation_info, original_count = apply_list_pagination(
-                volume_list,
-                safety_config,
-                "volumes",
-            )
+            logger.info(f"Found {len(volume_list)} volumes")
 
-            logger.info(f"Found {len(volume_list)} volumes (total: {original_count})")
-
-            # Convert to output model for validation
             output = ListVolumesOutput(
                 volumes=volume_list,
-                count=original_count,
-                truncation_info=truncation_info,
+                count=len(volume_list),
             )
 
             return output.model_dump()
@@ -230,18 +216,9 @@ def create_inspect_volume_tool(
             volume = docker_client.client.volumes.get(volume_name)
             details = volume.attrs
 
-            # Apply output limits (truncate large fields)
-            truncation_info: dict[str, Any] = {}
-            # Note: truncate_dict_fields would be imported if we use it
-            # For now, returning full info
-
             logger.info(f"Successfully inspected volume: {volume_name}")
 
-            # Convert to output model for validation
-            output = InspectVolumeOutput(
-                details=details,
-                truncation_info=truncation_info,
-            )
+            output = InspectVolumeOutput(details=details)
 
             return output.model_dump()
 
@@ -382,6 +359,7 @@ def create_prune_volumes_tool(
         description="Prune Docker volumes (unused by default, all with force_all=true)",
         safety=OperationSafety.DESTRUCTIVE,
         func=prune_volumes,
+        timeout=TIMEOUT_MEDIUM,
     )
 
 
@@ -393,7 +371,7 @@ def register_volume_tools(
     """Register all volume tools with FastMCP."""
     tools = [
         # SAFE tools (read-only)
-        create_list_volumes_tool(docker_client, safety_config),
+        create_list_volumes_tool(docker_client),
         create_inspect_volume_tool(docker_client),
         # MODERATE tools (state-changing)
         create_create_volume_tool(docker_client),
