@@ -104,6 +104,9 @@ exclude = [
     "CLAUDE.md",
 ]
 
+[tool.uv]
+exclude-newer = "P3D"  # Supply chain safety: avoid packages published < 3 days ago
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
