@@ -46,10 +46,10 @@ dependencies = [
     "limits>=5.8.0",
     "cachetools>=7.0.5",
     "secure>=1.0.1",
-    "authlib>=1.6.9",
+    "authlib>=1.6.11",  # GHSA-jj8c-mmj3-mmgv
     "httpx>=0.28.1",
     "typer>=0.24.1",
-    "python-multipart>=0.0.22",  # CVE-2026-24486: Path traversal fix
+    "python-multipart>=0.0.26",  # CVE-2026-24486 / CVE-2026-40347: Path traversal fix
 ]
 
 [project.optional-dependencies]
