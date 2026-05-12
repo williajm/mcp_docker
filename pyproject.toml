@@ -49,8 +49,8 @@ dependencies = [
     "authlib>=1.6.11",  # GHSA-jj8c-mmj3-mmgv
     "httpx>=0.28.1",
     "typer>=0.24.1",
-    "python-multipart>=0.0.26",  # CVE-2026-24486 / CVE-2026-40347: Path traversal fix
-    "urllib3>=2.7.0",  # CVE-2026-44431 / GHSA-qccp-gfcp-xxvc: Sensitive headers forwarded across origins in proxied low-level redirects
+    "python-multipart>=0.0.27",  # CVE-2026-24486 / CVE-2026-40347 / GHSA-pp6c-gr5w-3c5g: Path traversal + unbounded part-header DoS
+    "urllib3>=2.7.0",  # GHSA-qccp-gfcp-xxvc + GHSA-mf9v-mfxr-j63j: cross-origin header leak in proxied redirects + decompression-bomb safeguard bypass
 ]
 
 [project.optional-dependencies]
