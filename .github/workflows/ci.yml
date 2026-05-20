@@ -291,10 +291,11 @@ jobs:
     - name: Run pip-audit (CVE scanning)
       run: |
         uv export --no-emit-project > /tmp/requirements.txt
-        # TODO: Remove --ignore-vuln once pygments releases a fix for CVE-2026-4539
-        # (ReDoS in AdlLexer, local access only, no fix available as of 2026-03-26)
+        # TODO: Remove --ignore-vuln PYSEC-2025-183 once pyjwt addresses it or
+        # the advisory is withdrawn. Disputed by supplier — key strength is the
+        # consumer's responsibility; no fix version available as of 2026-05-20.
         uvx pip-audit --strict --desc --require-hashes -r /tmp/requirements.txt \
-          --ignore-vuln CVE-2026-4539
+          --ignore-vuln PYSEC-2025-183
 
   build:
     name: Build Package
