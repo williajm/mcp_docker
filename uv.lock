@@ -2,9 +2,6 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 
-[options]
-exclude-newer = "2026-05-17T00:00:00Z"
-
 [[package]]
 name = "aiofile"
 version = "3.9.0"
@@ -1038,7 +1035,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "atheris", marker = "extra == 'dev'", specifier = ">=3.0.0" },
-    { name = "authlib", specifier = ">=1.6.11" },
+    { name = "authlib", specifier = ">=1.7.1" },
     { name = "cachetools", specifier = ">=7.0.5" },
     { name = "docker", specifier = ">=7.1.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },
