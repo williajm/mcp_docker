@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "1.2.9.dev0"
+version = "2.0.0"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -41,16 +41,6 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "loguru>=0.7.3",
-    "starlette>=0.52.1",
-    "uvicorn>=0.42.0",
-    "limits>=5.8.0",
-    "cachetools>=7.0.5",
-    "secure>=1.0.1",
-    "authlib>=1.7.1",  # GHSA-jj8c-mmj3-mmgv + GHSA-r95x-qfjj-fjj2 (CVE-2026-44681)
-    "httpx>=0.28.1",
-    "typer>=0.24.1",
-    "python-multipart>=0.0.27",  # CVE-2026-24486 / CVE-2026-40347 / GHSA-pp6c-gr5w-3c5g: Path traversal + unbounded part-header DoS
-    "urllib3>=2.7.0",  # GHSA-qccp-gfcp-xxvc + GHSA-mf9v-mfxr-j63j: cross-origin header leak in proxied redirects + decompression-bomb safeguard bypass
 ]
 
 [project.optional-dependencies]
@@ -62,8 +52,6 @@ dev = [
     "mypy>=1.19.1",
     "ruff>=0.15.7",
     "types-docker>=7.1.0.20260109",
-    "httpx>=0.28.1",
-    "httpx-sse>=0.4.3",
     "hypothesis>=6.151.9",
     "atheris>=3.0.0",  # Fuzzing with ClusterFuzzLite (Apache-2.0)
 ]
@@ -78,7 +66,7 @@ Changelog = "https://github.com/williajm/mcp_docker/releases"
 Stats = "https://pypi.kopdog.com/package/?name=mcp-docker"
 
 [project.scripts]
-mcp-docker = "mcp_docker.__main__:app"
+mcp-docker = "mcp_docker.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -199,43 +187,11 @@ module = "fastmcp.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "starlette.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "uvicorn.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 module = "hypothesis.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "atheris.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "limits.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "secure.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "authlib.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "httpx.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "cachetools.*"
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = "typer.*"
 ignore_missing_imports = true
 
 # Relax strict typing for test files (Mock objects, test fixtures, etc.)
@@ -282,7 +238,6 @@ exclude_lines = [
 dev = [
     "atheris>=3.0.0",
     "coverage>=7.13.5",
-    "cryptography>=46.0.7", # Needed for TLS certificate generation in E2E tests; 46.0.7 fixes CVE-2026-39892
     "flake8-cognitive-complexity>=0.1.0",
     "hypothesis>=6.151.9",
     "mypy>=1.19.1",
@@ -291,8 +246,5 @@ dev = [
     "pytest-cov>=7.0.0",
     "pytest-docker>=3.2.5",
     "ruff>=0.15.7",
-    "types-cachetools>=6.2.0.20260317",
     "types-docker>=7.1.0.20260109",
-    "types-paramiko>=4.0.0.20250822",
-    "types-requests>=2.32.4.20260107",
 ]

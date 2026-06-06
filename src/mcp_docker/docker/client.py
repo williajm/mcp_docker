@@ -76,25 +76,10 @@ class DockerClientWrapper:
                         f"Check file permissions and user group membership (docker group)."
                     )
 
-            # Build TLS configuration if enabled
-            tls_config = None
-            if self.config.tls_verify:
-                tls_config = docker.tls.TLSConfig(
-                    client_cert=(
-                        str(self.config.tls_client_cert),
-                        str(self.config.tls_client_key),
-                    )
-                    if self.config.tls_client_cert and self.config.tls_client_key
-                    else None,
-                    ca_cert=str(self.config.tls_ca_cert) if self.config.tls_ca_cert else None,
-                    verify=True,
-                )
-
             # Create client
             self._client = docker.DockerClient(
                 base_url=self.config.base_url,
                 timeout=self.config.timeout,
-                tls=tls_config,
             )
 
             # Health check

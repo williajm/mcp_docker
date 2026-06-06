@@ -3,15 +3,11 @@
 from typing import Any
 
 from docker.errors import APIError, NotFound
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 from mcp_docker.config import SafetyConfig
 from mcp_docker.docker.client import DockerClientWrapper
-from mcp_docker.services.safety import (
-    OperationSafety,
-    validate_command_safety,
-    validate_environment_variable,
-)
+from mcp_docker.services.safety import OperationSafety
 from mcp_docker.tools.common import (
     DESC_CONTAINER_ID,
     TIMEOUT_MEDIUM,
@@ -19,11 +15,9 @@ from mcp_docker.tools.common import (
     ToolSpec,
 )
 from mcp_docker.tools.filters import register_tools_with_filtering
-from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError, UnsafeOperationError
-from mcp_docker.utils.json_parsing import parse_json_string_field
+from mcp_docker.utils.errors import ContainerNotFound, DockerOperationError
 from mcp_docker.utils.logger import get_logger
 from mcp_docker.utils.messages import ERROR_CONTAINER_NOT_FOUND
-from mcp_docker.utils.validation import validate_command
 
 logger = get_logger(__name__)
 
@@ -196,37 +190,6 @@ class ContainerStatsOutput(BaseModel):
 
     stats: dict[str, Any] = Field(description="Container resource usage statistics")
     container_id: str = Field(description="Container ID")
-
-
-class ExecCommandInput(BaseModel):
-    """Input for executing a command in a container."""
-
-    container_id: str = Field(description=DESC_CONTAINER_ID)
-    command: str | list[str] = Field(description="Command to execute")
-    workdir: str | None = Field(default=None, description="Working directory for command")
-    user: str | None = Field(default=None, description="User to run command as")
-    environment: dict[str, str] | str | None = Field(
-        default=None,
-        description=(
-            "Environment variables for the command as key-value pairs. "
-            "Example: {'PATH': '/usr/local/bin:/usr/bin', 'MY_VAR': 'value'}"
-        ),
-    )
-    privileged: bool = Field(default=False, description="Run with elevated privileges")
-
-    @field_validator("environment", mode="before")
-    @classmethod
-    def parse_environment_json(cls, v: Any, info: Any) -> Any:
-        """Parse JSON strings to objects (workaround for MCP client serialization bug)."""
-        field_name = info.field_name if hasattr(info, "field_name") else "environment"
-        return parse_json_string_field(v, field_name)
-
-
-class ExecCommandOutput(BaseModel):
-    """Output for executing a command in a container."""
-
-    exit_code: int = Field(description="Command exit code")
-    output: str = Field(description="Command output (stdout and stderr combined)")
 
 
 # FastMCP Tool Functions
@@ -419,129 +382,6 @@ def create_container_stats_tool(
     )
 
 
-def _validate_exec_inputs(
-    command: str | list[str],
-    environment: dict[str, str] | None,
-) -> None:
-    """Validate command and environment inputs for exec.
-
-    Args:
-        command: Command to validate
-        environment: Environment variables to validate
-
-    Raises:
-        ValidationError: If command or environment is invalid
-    """
-    # Validate command - SECURITY: Check for dangerous patterns
-    validate_command_safety(command)
-    validate_command(command)
-
-    # Validate environment variables - SECURITY: Prevent command injection
-    if environment:
-        for key, value in environment.items():
-            validate_environment_variable(key, value)
-
-
-def _build_exec_kwargs(
-    command: str | list[str],
-    privileged: bool,
-    workdir: str | None,
-    user: str | None,
-    environment: dict[str, str] | None,
-) -> dict[str, Any]:
-    """Build kwargs dict for container.exec_run() call.
-
-    Args:
-        command: Command to execute
-        privileged: Run with elevated privileges
-        workdir: Working directory for command
-        user: User to run command as
-        environment: Environment variables for the command
-
-    Returns:
-        Kwargs dictionary for exec_run
-    """
-    kwargs: dict[str, Any] = {
-        "cmd": command,
-        "privileged": privileged,
-    }
-
-    if workdir:
-        kwargs["workdir"] = workdir
-    if user:
-        kwargs["user"] = user
-    if environment:
-        kwargs["environment"] = environment
-
-    return kwargs
-
-
-def create_exec_command_tool(
-    docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
-) -> ToolSpec:
-    """Create the exec_command tool."""
-
-    def exec_command(  # noqa: PLR0913 - Docker API requires these parameters
-        container_id: str,
-        command: str | list[str],
-        workdir: str | None = None,
-        user: str | None = None,
-        environment: dict[str, str] | None = None,
-        privileged: bool = False,
-    ) -> dict[str, Any]:
-        """Execute a command in a running Docker container."""
-        try:
-            # Validate all inputs
-            _validate_exec_inputs(command, environment)
-
-            # Check if privileged exec is allowed
-            if privileged and not safety_config.allow_privileged_containers:
-                logger.warning("Privileged exec command blocked by safety config")
-                raise UnsafeOperationError(
-                    "Privileged containers are not allowed. "
-                    "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
-                )
-
-            logger.info(f"Executing command in container: {container_id}, command: {command}")
-            container = docker_client.client.containers.get(container_id)
-
-            # Build kwargs and execute command
-            kwargs = _build_exec_kwargs(command, privileged, workdir, user, environment)
-            raw_exit_code, output = container.exec_run(**kwargs)
-
-            # Convert bytes to string
-            output_str = output.decode("utf-8") if isinstance(output, bytes) else str(output)
-
-            logger.info(f"Successfully executed command in container: {container_id}")
-
-            # Docker SDK returns int | None; treat None as -1 (unknown)
-            exit_code: int = raw_exit_code if raw_exit_code is not None else -1
-
-            output_model = ExecCommandOutput(
-                exit_code=exit_code,
-                output=output_str,
-            )
-
-            return output_model.model_dump()
-
-        except NotFound as e:
-            logger.error(f"Container not found: {container_id}")
-            raise ContainerNotFound(ERROR_CONTAINER_NOT_FOUND.format(container_id)) from e
-        except APIError as e:
-            logger.error(f"Failed to execute command: {e}")
-            raise DockerOperationError(f"Failed to execute command: {e}") from e
-
-    return ToolSpec(
-        name="docker_exec_command",
-        description="Execute a command in a running Docker container",
-        safety=OperationSafety.MODERATE,
-        func=exec_command,
-        open_world=True,
-        timeout=TIMEOUT_MEDIUM,
-    )
-
-
 def register_container_inspection_tools(
     app: Any,
     docker_client: DockerClientWrapper,
@@ -553,7 +393,6 @@ def register_container_inspection_tools(
         create_inspect_container_tool(docker_client),
         create_container_logs_tool(docker_client),
         create_container_stats_tool(docker_client),
-        create_exec_command_tool(docker_client, safety_config),
     ]
 
     return register_tools_with_filtering(app, tools, safety_config)
