@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-06
+
+This is a major release that narrows mcp-docker to a **local, stdio-only Docker
+MCP server** with a focused 12-tool read-only and reversible-lifecycle surface.
+The network-service stack and all destructive/build operations have been
+removed. For network deployments or destructive operations, pin to the 1.x line.
+
+### Removed
+- **HTTP transport** and the entire network-service security stack: OAuth
+  authentication, IP/proxy allowlisting, rate limiting (pre- and post-auth),
+  and audit logging.
+- **AI prompts** (5) and **resource templates** (2).
+- **Destructive tools**: container remove, image remove/prune, network remove,
+  volume remove/prune, system prune.
+- **Write/build tools beyond reversible lifecycle**: container create, exec;
+  image pull/build/push/tag; network create/connect/disconnect; volume create.
+- **Tool allow/deny filtering** (`SAFETY_ALLOWED_TOOLS` / `SAFETY_DENIED_TOOLS`)
+  and the associated configuration.
+- HTTP example launchers and `.env` scenario files.
+- Dependencies no longer needed: `starlette` (direct), `uvicorn`, `typer`,
+  `authlib`, `httpx`, `httpx-sse`, `python-multipart`, `limits`, `cachetools`,
+  `secure`.
+
+### Changed
+- **Tool surface reduced from 33 to 12**: read-only visibility
+  (list/inspect/logs/stats for containers, list/inspect images, list networks,
+  list volumes, version) plus reversible container lifecycle
+  (start/stop/restart).
+- **CLI** rewritten from Typer to argparse; stdio is the only transport, so
+  `--transport`, `--host`, and `--port` are gone (`--version`/`-v` remains).
+- **Configuration** shrunk to Docker connection, moderate-operation gating
+  (`SAFETY_ALLOW_MODERATE_OPERATIONS`), response/tool limits, and logging.
+- Updated README, CONFIGURATION.md, and docs to describe the slim package.
+
+### Security
+- Bump `starlette` 1.0.0 → 1.2.1 (GHSA-86qp-5c8j-p5mr: Host-header validation
+  bypass; the package survived transitively via fastmcp/sse-starlette).
+- Bump `pyjwt` 2.12.1 → 2.13.0 (PYSEC-2026-175/177/178/179).
+- Bump `authlib` → 1.7.2 and `idna` → 3.15 (CVE-2026-44681, CVE-2026-45409).
+- Bump `urllib3` → 2.7.0 and `python-multipart` → 0.0.28 (3 high-severity
+  Dependabot alerts).
+- Removing the HTTP-stack dependencies eliminates their attack surface
+  entirely.
+
+### Internal
+- Deleted dead code left by the scope reduction (~2,700 lines): the
+  unregistered tool builders and their models/helpers, plus the orphaned
+  `tools/streaming.py` module.
+- Added execution-path unit tests for all 12 tools; coverage restored to ~95%.
+
 ## [1.2.8] - 2026-03-28
 
 ### Added

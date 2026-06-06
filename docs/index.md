@@ -66,7 +66,7 @@ For complete details, see [README.md](https://github.com/williajm/mcp_docker/blo
 
 ---
 
-**Version**: 1.2.9.dev0
+**Version**: 2.0.0
 **Last Updated**: 2026-06-06
 **Python**: 3.11+
 **Docker**: API version 1.41+
