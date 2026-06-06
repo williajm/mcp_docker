@@ -29,7 +29,6 @@ class SafetyMiddleware:
         # Extract tool information from context
         # For tool calls, context.message is a CallToolRequestParams
         tool_name = getattr(context.message, "name", None)
-        arguments = getattr(context.message, "arguments", {}) or {}
 
         if not tool_name:
             # This is not a tool call - it's an MCP protocol operation (tools/list, etc.)
@@ -45,7 +44,7 @@ class SafetyMiddleware:
 
         # Perform safety checks
         logger.debug(f"SafetyMiddleware: Checking {tool_name} (level: {safety_level.value})")
-        self.enforcer.enforce_all_checks(tool_name, safety_level, arguments)
+        self.enforcer.enforce_all_checks(tool_name, safety_level)
 
         # Safety checks passed, proceed to next handler
         logger.debug(f"SafetyMiddleware: Approved {tool_name}")

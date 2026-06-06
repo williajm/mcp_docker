@@ -1,7 +1,5 @@
 """Safety enforcement for the slim MCP Docker server."""
 
-from typing import Any
-
 from mcp_docker.config import SafetyConfig
 from mcp_docker.services.safety import OperationSafety
 from mcp_docker.utils.errors import UnsafeOperationError
@@ -43,7 +41,6 @@ class SafetyEnforcer:
         self,
         tool_name: str,
         safety_level: OperationSafety,
-        arguments: dict[str, Any] | None = None,  # noqa: ARG002
     ) -> None:
         """Perform safety checks for a tool execution."""
         logger.debug(f"Enforcing safety for '{tool_name}' with level {safety_level.value}")
