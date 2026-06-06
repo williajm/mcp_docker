@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an MCP (Model Context Protocol) server that exposes Docker functionality to AI assistants. It provides 33 Docker tools, 5 AI prompts, and 2 resource templates for managing containers, images, networks, and volumes with comprehensive safety controls.
+This is a **local, stdio-only** MCP (Model Context Protocol) server that exposes read-only Docker visibility plus reversible container lifecycle control to AI assistants. It provides **12 Docker tools** for inspecting containers, images, networks, and volumes and for starting/stopping/restarting containers, with safety controls. It is intentionally *not* a network-exposed Docker administration service: there is no HTTP transport, no authentication stack, and no destructive or build operations.
 
 **Key Technologies:**
 - Python 3.11+ with strict type checking (mypy)
@@ -12,7 +12,7 @@ This is an MCP (Model Context Protocol) server that exposes Docker functionality
 - Docker SDK for Python (>=7.1.0)
 - Pydantic for validation and settings
 - uv for package management
-- Supports two transports: stdio (local) and HTTP (network)
+- Single transport: stdio (local only)
 
 ## Development Commands
 
@@ -88,17 +88,14 @@ uv run mypy src/mcp_docker/
 ### Running the Server
 
 ```bash
-# Run server with stdio transport (local, default)
+# Run server (stdio transport, the only transport)
 uv run mcp-docker
 
-# Run server with HTTP transport (for network deployments)
-uv run mcp-docker --transport http --host 127.0.0.1 --port 8000
+# Show version and exit
+uv run mcp-docker --version
 
 # Run directly via Python module
 uv run python -m mcp_docker
-
-# Note: For production HTTP deployments, use a reverse proxy (NGINX, Caddy)
-# for HTTPS/TLS termination, authentication, and rate limiting
 ```
 
 ### Building and Publishing
@@ -152,110 +149,101 @@ This project follows [PEP 440](https://peps.python.org/pep-0440/) versioning wit
 
 1. **FastMCPDockerServer** (`src/mcp_docker/server/server.py`)
    - Main MCP server implementation using FastMCP 3.x
-   - Wraps FastMCP app with middleware and configuration
-   - Manages security (auth, rate limiting, audit logging) via middleware
-   - Handles concurrency with semaphores in safety middleware
-   - Coordinates tools, resources, prompts, and safety enforcement
+   - Wraps the FastMCP app with two middleware (error handling, safety) plus the
+     built-in response limiter, and with configuration
+   - Coordinates tool registration and safety enforcement
 
 2. **Tool System** (`src/mcp_docker/tools/`)
-   - **FastMCP Decorator Pattern**: Tools use `@mcp.tool()` decorator
+   - **FastMCP Decorator Pattern**: Tools registered via `app.tool(...)` from `ToolSpec`s
    - **registration.py**: Central registration of all tool categories
-   - Six categories: container_inspection, container_lifecycle, image, network, volume, system
-   - Each tool has a safety level: SAFE (read-only), MODERATE (reversible), DESTRUCTIVE (permanent)
-   - **Tool Timeouts**: Per-tool execution timeouts via FastMCP's `timeout` parameter. Default 30s (`SAFETY_DEFAULT_TOOL_TIMEOUT`), with 60s for logs/exec/prune and 300s for pull/build/push.
-   - Tools are organized by category in separate modules (container_inspection.py, container_lifecycle.py, etc.)
-   - **MCP Annotations**: Tools expose four standard MCP annotations to help clients make decisions:
+   - Six category modules: container_inspection, container_lifecycle, image, network, volume, system
+   - The 12 exposed tools: list/inspect/logs/stats containers, start/stop/restart
+     containers, list/inspect images, list networks, list volumes, version
+   - Each tool has a safety level: SAFE (read-only) or MODERATE (reversible).
+     DESTRUCTIVE is still defined in the enum for fail-closed defaults but no
+     destructive tool is registered.
+   - **Tool Timeouts**: Per-tool execution timeouts via FastMCP's `timeout` parameter. Default 30s (`SAFETY_DEFAULT_TOOL_TIMEOUT`), with 60s (`TIMEOUT_MEDIUM`) for container logs.
+   - **MCP Annotations**: Tools expose standard MCP annotations to help clients make decisions:
      - `readOnly`: Tool only reads data without modification (auto-set for SAFE tools)
-     - `destructive`: Tool permanently deletes data (auto-set for DESTRUCTIVE tools)
-     - `idempotent`: Tool can be safely retried with same parameters (e.g., start/stop/restart containers, pull images)
-     - `openWorldInteraction`: Tool communicates with external systems (e.g., pull/push images from registries)
+     - `idempotent`: Tool can be safely retried with same parameters (e.g., start/stop/restart containers)
+     - `openWorldInteraction`: Tool communicates with external systems
 
-3. **Safety System** (`src/mcp_docker/services/safety.py`, `config.py`)
-   - **Three-tier classification**: SAFE/MODERATE/DESTRUCTIVE
-   - **Tool filtering**: Allow/deny lists via `SAFETY_ALLOWED_TOOLS`/`SAFETY_DENIED_TOOLS`
-   - **Operation gating**: `SAFETY_ALLOW_MODERATE_OPERATIONS`, `SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS`
-   - **Command validation**: Detects dangerous commands (rm -rf /, dd if=/dev/zero, fork bombs)
-   - **Concurrency limiting**: Max concurrent operations via semaphore
-   - **Enforcement flow**: Safety level → Deny list → Allow list → Execute
+3. **Safety System** (`src/mcp_docker/services/safety.py`, `services/safety_enforcer.py`, `config.py`)
+   - **Classification**: SAFE / MODERATE / DESTRUCTIVE (`OperationSafety`)
+   - **Operation gating**: `SafetyEnforcer.check_operation_safety` allows SAFE always,
+     MODERATE when `SAFETY_ALLOW_MODERATE_OPERATIONS=true` (the default), and always
+     rejects DESTRUCTIVE ("not available in this slim package")
+   - `services/safety.py` retains reusable validation primitives
+     (command/mount/port checks) used by tests and available for future tools
+   - **Enforcement flow**: SAFE → allow; MODERATE → allow if enabled; DESTRUCTIVE → reject
 
-4. **Security Features** (`src/mcp_docker/services/`, `src/mcp_docker/middleware/`)
-   - **IP Filtering** (`middleware/auth.py`): Network-level access control via IP allowlist
-   - **Rate Limiting** (`services/rate_limiter.py`): Per-client request throttling
-   - **Audit Logging** (`services/audit.py`): Operation tracking with client IPs
-   - **Error Sanitization** (`utils/error_sanitizer.py`): Prevents information disclosure
-   - **TLS/HTTPS**: Use reverse proxy (NGINX, Caddy) for production HTTP deployments
+4. **Error Handling** (`src/mcp_docker/middleware/error_handler.py`, `utils/error_sanitizer.py`)
+   - **Error Sanitization**: Prevents information disclosure when `debug_mode=False`
 
 5. **Configuration** (`src/mcp_docker/config.py`)
    - Pydantic Settings with environment variable support
-   - Four config sections: DockerConfig, SafetyConfig, SecurityConfig, ServerConfig
+   - Three config sections: DockerConfig, SafetyConfig, ServerConfig
+   - SafetyConfig fields: `allow_moderate_operations`, `default_tool_timeout`, `max_response_bytes`
    - Auto-detects Docker socket based on OS (Windows npipe, Linux/macOS/WSL unix socket)
-   - Validates Docker TLS certificates
-   - Env prefix: `DOCKER_*`, `SAFETY_*`, `SECURITY_*`, `MCP_*`
+   - Env prefix: `DOCKER_*`, `SAFETY_*`, `MCP_*`
 
 6. **Middleware System** (`src/mcp_docker/middleware/`)
-   - **DebugLoggingMiddleware**: Logs all MCP requests/responses at DEBUG level
-   - **AuditMiddleware**: Logs all operations for compliance and audit trail
-   - **AuthMiddleware**: OAuth/IP allowlist authentication
-   - **SafetyMiddleware**: Enforces safety levels and tool filtering
-   - **RateLimitMiddleware**: Request throttling to prevent abuse
+   - **ErrorHandlerMiddleware**: Sanitizes errors before the client sees them (when `debug_mode=False`)
+   - **SafetyMiddleware**: Validates operations against safety levels (fails closed to DESTRUCTIVE for unknown tools)
    - **ResponseLimitingMiddleware** (FastMCP built-in): Global safety net that truncates oversized tool responses (`SAFETY_MAX_RESPONSE_BYTES`)
-   - Middleware executes in order: debug → error_handler → audit → pre_auth_rate_limit → auth → safety → rate_limit → response_limiting
+   - Middleware executes in order: error_handler → safety → response_limiting
 
 7. **Docker Wrapper** (`src/mcp_docker/docker/client.py`)
    - Wraps Docker SDK with error handling and timeout management
    - Provides async-friendly interfaces to synchronous Docker SDK
    - Handles connection lifecycle and cleanup
 
-8. **Transport Implementations** (`src/mcp_docker/__main__.py`)
-   - **stdio**: Local process-to-process communication (default, no network)
-   - **HTTP**: FastMCP native HTTP transport
-     - Plain HTTP (use reverse proxy for HTTPS in production)
-     - Single unified endpoint
-     - Built-in session management
+8. **Transport** (`src/mcp_docker/__main__.py`)
+   - **stdio only**: Local process-to-process communication, no network. The CLI
+     is argparse-based and takes only `--version`/`-v`.
 
 ### Adding New Tools
 
-Tools use FastMCP's decorator pattern. To add a new tool:
+Tools are built as `ToolSpec`s and registered via `register_tools_with_filtering`.
+To add a new tool:
 
-1. Add tool to appropriate module in `src/mcp_docker/tools/` (choose by category or safety level)
-2. Define Pydantic input/output models for type safety
-3. Use `@mcp.tool()` decorator with annotations from `get_mcp_annotations()`
-4. Register in the category's `register_*_tools()` function
+1. Add a `create_*_tool` factory to the appropriate module in `src/mcp_docker/tools/`
+2. Define Pydantic input/output models for type safety if needed
+3. Return a `ToolSpec` with the right `safety` level (SAFE or MODERATE)
+4. Add the spec to the category's `register_*_tools()` list
 5. Category registration is called from `register_all_tools()` in `registration.py`
+
+Tool functions are plain (synchronous) functions; FastMCP runs them. The Docker
+SDK is synchronous and called directly inside them.
 
 Example:
 ```python
 # In src/mcp_docker/tools/container_lifecycle.py
-from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
 from mcp_docker.services.safety import OperationSafety
+from mcp_docker.tools.common import ToolSpec
 
-def register_container_lifecycle_tools(
-    mcp: Any,
-    docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
-) -> list[str]:
-    """Register container lifecycle tools."""
 
-    # Define your tool using decorator pattern
-    @mcp.tool(annotations=get_mcp_annotations(OperationSafety.MODERATE))
-    async def docker_my_operation(container_id: str) -> dict[str, Any]:
+def create_my_operation_tool(docker_client: DockerClientWrapper) -> ToolSpec:
+    """Create the my_operation tool."""
+
+    def my_operation(container_id: str) -> dict[str, Any]:
         """My tool description.
 
         Args:
             container_id: Container ID or name
 
         Returns:
-            Operation result with status and data
+            Operation result
         """
-        # Use asyncio.to_thread for blocking Docker SDK calls
-        def _do_operation():
-            container = docker_client.client.containers.get(container_id)
-            return container.some_operation()
+        container = docker_client.client.containers.get(container_id)
+        return {"status": "success", "data": container.some_operation()}
 
-        result = await asyncio.to_thread(_do_operation)
-        return {"status": "success", "data": result}
-
-    return ["docker_my_operation"]  # Return list of registered tool names
+    return ToolSpec(
+        name="docker_my_operation",
+        description="My tool description",
+        safety=OperationSafety.MODERATE,
+        func=my_operation,
+    )
 ```
 
 ### Test Structure
@@ -266,7 +254,7 @@ def register_container_lifecycle_tools(
 - **tests/integration/**: Real Docker operations, requires daemon, tests component integration
   - `test_fastmcp_server.py`: FastMCP server integration tests
 - **tests/e2e/**: Full workflow tests with real MCP protocol
-  - `test_stdio_transport_e2e.py`: stdio transport E2E tests
+  - `test_protocol_validation_e2e.py`: stdio MCP protocol E2E tests
 - **tests/fuzz/**: ClusterFuzzLite fuzz tests for security (validation, JSON parsing)
 - **tests/conftest.py**: Shared pytest fixtures (mock Docker client, config, etc.)
 
@@ -284,72 +272,71 @@ When adding tests:
 - **Pydantic validation**: Use Pydantic models for tool input parameters (automatic validation)
 - **Error handling**: Raise exceptions for errors; FastMCP handles conversion to MCP error responses
 - **Logging**: Use `loguru` via `get_logger(__name__)`, never print statements
-- **Async where needed**: All tool functions are async, Docker SDK is sync (use `asyncio.to_thread()`)
+- **Tool functions are synchronous**: tools are plain functions wrapped in `ToolSpec`; the Docker SDK (sync) is called directly
 - **Security first**: Validate all user input, sanitize errors, avoid information disclosure
 
 ## Common Patterns
 
 ### Tool Function Pattern
 ```python
-@mcp.tool(annotations=get_mcp_annotations(OperationSafety.SAFE))
-async def docker_my_tool(container_id: str) -> dict[str, Any]:
-    """Tool description.
+def create_my_tool(docker_client: DockerClientWrapper) -> ToolSpec:
+    """Create the my_tool tool."""
 
-    Args:
-        container_id: Container ID or name
+    def my_tool(container_id: str) -> dict[str, Any]:
+        """Tool description.
 
-    Returns:
-        Operation result
-    """
-    def _sync_operation():
-        # Docker SDK call (synchronous)
-        return docker_client.client.containers.get(container_id)
+        Args:
+            container_id: Container ID or name
 
-    # Wrap sync Docker calls in asyncio.to_thread
-    result = await asyncio.to_thread(_sync_operation)
-    return {"status": "success", "data": result}
+        Returns:
+            Operation result
+        """
+        result = docker_client.client.containers.get(container_id)
+        return {"status": "success", "data": result}
+
+    return ToolSpec(
+        name="docker_my_tool",
+        description="Tool description",
+        safety=OperationSafety.SAFE,
+        func=my_tool,
+        idempotent=True,
+    )
 ```
 
 ### Input Validation Pattern
+Tool functions take individual typed parameters; FastMCP derives the schema and
+validates inputs from those annotations. Pydantic models in the tool modules are
+used for output shaping and for parsing/validating complex fields:
+
 ```python
 from pydantic import BaseModel, Field
 
-class MyToolParams(BaseModel):
-    """Pydantic model for input validation."""
-    container_id: str = Field(..., min_length=1, max_length=255)
-    force: bool = Field(default=False)
+class MyToolOutput(BaseModel):
+    """Pydantic model for output shaping."""
+    container_id: str = Field(description="Container ID")
+    status: str = Field(description="Container status")
 
-@mcp.tool()
-async def docker_my_tool(params: MyToolParams) -> dict[str, Any]:
-    # FastMCP automatically validates params using Pydantic
-    container_id = params.container_id
-    force = params.force
+def my_tool(container_id: str, force: bool = False) -> dict[str, Any]:
+    # `container_id` / `force` are validated by FastMCP from the annotations
     ...
+    return MyToolOutput(container_id=container_id, status="ok").model_dump()
 ```
 
-### Safety Annotations Pattern
-```python
-from mcp_docker.utils.fastmcp_helpers import get_mcp_annotations
-from mcp_docker.services.safety import OperationSafety
+### Safety Levels
+The safety level is set on the `ToolSpec`, not via a decorator. Annotations are
+derived from it by `register_tools_with_filtering` (`get_mcp_annotations`):
 
+```python
 # SAFE tool (read-only)
-@mcp.tool(annotations=get_mcp_annotations(OperationSafety.SAFE))
-async def docker_list_containers() -> list[dict[str, Any]]:
-    """List all containers (read-only)."""
-    ...
+ToolSpec(name="docker_list_containers", description="...",
+         safety=OperationSafety.SAFE, func=list_containers, idempotent=True)
 
 # MODERATE tool (reversible changes)
-@mcp.tool(annotations=get_mcp_annotations(OperationSafety.MODERATE))
-async def docker_start_container(container_id: str) -> dict[str, Any]:
-    """Start a container (reversible)."""
-    ...
+ToolSpec(name="docker_start_container", description="...",
+         safety=OperationSafety.MODERATE, func=start_container, idempotent=True)
 
-# DESTRUCTIVE tool (permanent changes)
-annotations = get_mcp_annotations(OperationSafety.DESTRUCTIVE)
-@mcp.tool(annotations=annotations)
-async def docker_remove_container(container_id: str) -> dict[str, Any]:
-    """Remove a container (permanent)."""
-    ...
+# NOTE: OperationSafety.DESTRUCTIVE exists in the enum (for the fail-closed
+# default), but this package does not register any destructive tools.
 ```
 
 ## CI/CD
@@ -386,13 +373,11 @@ Two Claude-powered workflows are available (requires `CLAUDE_CODE_OAUTH_TOKEN` s
 
 ## Security Considerations
 
+- **Local-only by design**: stdio transport, no network listener, no auth stack. Run it as a local subprocess of the MCP client; do not expose it as a network service.
 - **RADE Risk**: Container logs may contain malicious prompts (treat as untrusted input)
 - **Docker Socket Access**: Equivalent to root access on host
-- **HTTPS Required**: Use reverse proxy (NGINX, Caddy) for production HTTP deployments
-- **Auth Required**: For network-accessible deployments
-- **Rate Limiting**: Prevents abuse
-- **Command Injection**: Validated via safety.py patterns
-- **Error Sanitization**: Prevents information disclosure
+- **No destructive operations**: remove/prune/build/push/exec and container creation are not exposed; the surface is read-only plus reversible start/stop/restart
+- **Error Sanitization**: Prevents information disclosure (`ErrorHandlerMiddleware` when `debug_mode=False`)
 - **Supply Chain**: CI uses `--locked` to enforce lockfile integrity with hashes. When updating dependencies, use `uv lock --exclude-newer` with a 3-day buffer to avoid pulling newly published (potentially malicious) packages
 
 ## Configuration
@@ -402,14 +387,14 @@ All configuration is via environment variables. For complete reference of all op
 **Quick examples:**
 
 ```bash
-# Safety - Control operations
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-SAFETY_ALLOWED_TOOLS=docker_list_containers,docker_inspect_container
+# Docker connection (auto-detected if unset)
+DOCKER_BASE_URL=unix:///var/run/docker.sock
 
-# Security
-SECURITY_OAUTH_ENABLED=true
-SECURITY_RATE_LIMIT_RPM=60
-SECURITY_ALLOWED_CLIENT_IPS='["127.0.0.1"]'
+# Safety - gate reversible lifecycle tools (read-only mode when false)
+SAFETY_ALLOW_MODERATE_OPERATIONS=true
+
+# Logging
+MCP_LOG_LEVEL=INFO
 ```
 
 See [CONFIGURATION.md](CONFIGURATION.md) for all available options and common scenarios.
@@ -419,18 +404,18 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all available options and common sc
 ### Adding a new Docker operation
 1. Choose appropriate category module in `src/mcp_docker/tools/`
    - `container_inspection.py`: SAFE (read-only) container tools
-   - `container_lifecycle.py`: MODERATE container tools (start/stop/create)
-   - `image.py`: Image management (pull/build/push/remove)
-   - `network.py`: Network management
-   - `volume.py`: Volume management
-   - `system.py`: System-level operations
-2. Add tool function with `@mcp.tool()` decorator
+   - `container_lifecycle.py`: MODERATE container tools (start/stop/restart)
+   - `image.py`: SAFE image tools (list/inspect)
+   - `network.py`: SAFE network tools (list)
+   - `volume.py`: SAFE volume tools (list)
+   - `system.py`: SAFE system tools (version)
+2. Build a `ToolSpec` and add it to the module's `register_*_tools()` list
 3. Define Pydantic models for input validation if needed
-4. Set proper safety level via `get_mcp_annotations(OperationSafety.SAFE/MODERATE/DESTRUCTIVE)`
-5. Add tool name to return list in `register_*_tools()` function
-6. Add unit tests in `tests/unit/`
-7. Add integration tests in `tests/integration/`
-8. Update tool count in README.md if needed
+4. Set the safety level on the `ToolSpec` (`OperationSafety.SAFE` or `MODERATE`;
+   DESTRUCTIVE tools are not exposed by this package)
+5. Add unit tests in `tests/unit/` (see `test_fastmcp_tool_execution.py` for the pattern)
+6. Add integration tests in `tests/integration/` if Docker behavior needs coverage
+7. Update tool count in README.md and the Project Overview above if it changed
 
 ### Debugging test failures
 ```bash
@@ -471,7 +456,7 @@ uv run pytest tests/unit/ --cov=mcp_docker --cov-report=term-missing
    - `**Version**: X.Y.Z`
    - `**Last Updated**: YYYY-MM-DD`
 
-4. **README.md** - Update if tool/prompt/resource counts changed
+4. **README.md** - Update if the tool count changed
 
 **Release checklist:**
 ```bash
