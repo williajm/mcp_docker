@@ -478,7 +478,7 @@ def _build_exec_kwargs(
 
 def create_exec_command_tool(
     docker_client: DockerClientWrapper,
-    safety_config: SafetyConfig,
+    safety_config: SafetyConfig,  # noqa: ARG001
 ) -> ToolSpec:
     """Create the exec_command tool."""
 
@@ -496,11 +496,10 @@ def create_exec_command_tool(
             _validate_exec_inputs(command, environment)
 
             # Check if privileged exec is allowed
-            if privileged and not safety_config.allow_privileged_containers:
+            if privileged:
                 logger.warning("Privileged exec command blocked by safety config")
                 raise UnsafeOperationError(
-                    "Privileged containers are not allowed. "
-                    "Set SAFETY_ALLOW_PRIVILEGED_CONTAINERS=true to enable."
+                    "Privileged exec commands are not available in this slim package."
                 )
 
             logger.info(f"Executing command in container: {container_id}, command: {command}")
@@ -553,7 +552,6 @@ def register_container_inspection_tools(
         create_inspect_container_tool(docker_client),
         create_container_logs_tool(docker_client),
         create_container_stats_tool(docker_client),
-        create_exec_command_tool(docker_client, safety_config),
     ]
 
     return register_tools_with_filtering(app, tools, safety_config)

@@ -1031,20 +1031,10 @@ def register_image_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all image tools with FastMCP."""
+    """Register read-only image tools with FastMCP."""
     tools = [
-        # SAFE tools
         create_list_images_tool(docker_client),
         create_inspect_image_tool(docker_client),
-        create_image_history_tool(docker_client),
-        # MODERATE tools
-        create_pull_image_tool(docker_client),
-        create_build_image_tool(docker_client),
-        create_push_image_tool(docker_client),
-        create_tag_image_tool(docker_client),
-        # DESTRUCTIVE tools
-        create_remove_image_tool(docker_client),
-        create_prune_images_tool(docker_client),
     ]
 
     return register_tools_with_filtering(app, tools, safety_config)

@@ -64,8 +64,8 @@ class SafetyMiddleware:
                 logger.debug(f"Retrieved safety level for {tool_name}: {safety_level.value}")
                 return safety_level
 
-            # SECURITY: Fail closed - default to DESTRUCTIVE if no metadata found
-            # This ensures unknown tools require explicit allow_destructive_operations=true
+            # SECURITY: Fail closed - default to DESTRUCTIVE if no metadata found.
+            # Destructive operations are not available in the slim package.
             logger.warning(
                 f"No safety level metadata found for {tool_name}, "
                 "defaulting to DESTRUCTIVE (fail closed)"

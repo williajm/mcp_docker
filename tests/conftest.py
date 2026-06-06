@@ -24,21 +24,13 @@ def docker_config() -> DockerConfig:
 @pytest.fixture
 def safety_config() -> SafetyConfig:
     """Create test safety configuration."""
-    return SafetyConfig(
-        allow_moderate_operations=True,
-        allow_destructive_operations=True,
-        allow_privileged_containers=False,
-    )
+    return SafetyConfig(allow_moderate_operations=True)
 
 
 @pytest.fixture
 def read_only_safety_config() -> SafetyConfig:
     """Create read-only mode safety configuration (blocks MODERATE operations)."""
-    return SafetyConfig(
-        allow_moderate_operations=False,
-        allow_destructive_operations=False,
-        allow_privileged_containers=False,
-    )
+    return SafetyConfig(allow_moderate_operations=False)
 
 
 @pytest.fixture
@@ -155,6 +147,4 @@ def integration_test_config() -> Config:
     test_config = Config()
     # Override settings for integration tests
     test_config.safety.allow_moderate_operations = True
-    test_config.safety.allow_destructive_operations = True
-    test_config.safety.allow_privileged_containers = True
     return test_config

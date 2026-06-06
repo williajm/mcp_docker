@@ -190,7 +190,7 @@ def _validate_port_mappings(ports: dict[str, int | tuple[str, int] | None]) -> N
 
 def _validate_volume_mounts(
     volumes: dict[str, dict[str, str]],
-    safety_config: SafetyConfig,
+    safety_config: SafetyConfig,  # noqa: ARG001
 ) -> None:
     """Validate volume mounts.
 
@@ -199,23 +199,7 @@ def _validate_volume_mounts(
         safety_config: Safety configuration for mount validation
     """
     for mount_path in volumes:
-        # Config validators ensure these are always lists, safe to cast
-        blocklist = (
-            list(safety_config.volume_mount_blocklist)
-            if safety_config.volume_mount_blocklist
-            else []
-        )
-        allowlist = (
-            list(safety_config.volume_mount_allowlist)
-            if safety_config.volume_mount_allowlist
-            else None
-        )
-        validate_mount_path(
-            mount_path,
-            blocked_paths=blocklist,
-            allowed_paths=allowlist,
-            yolo_mode=safety_config.yolo_mode,
-        )
+        validate_mount_path(mount_path)
 
 
 def _validate_environment_vars(environment: dict[str, str]) -> None:
@@ -525,13 +509,11 @@ def register_container_lifecycle_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all container lifecycle tools with FastMCP."""
+    """Register reversible container lifecycle tools with FastMCP."""
     tools = [
-        create_create_container_tool(docker_client, safety_config),
         create_start_container_tool(docker_client),
         create_stop_container_tool(docker_client),
         create_restart_container_tool(docker_client),
-        create_remove_container_tool(docker_client),
     ]
 
     return register_tools_with_filtering(app, tools, safety_config)

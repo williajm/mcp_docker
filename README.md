@@ -2,15 +2,14 @@
 
 | Category | Status |
 | --- | --- |
-| **Build & CI** | [![CI](https://github.com/williajm/mcp_docker/actions/workflows/ci.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/ci.yml) [![CodeQL](https://github.com/williajm/mcp_docker/actions/workflows/codeql.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/codeql.yml) [![Pre-commit](https://github.com/williajm/mcp_docker/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/pre-commit.yml) [![Dependency Review](https://github.com/williajm/mcp_docker/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/dependency-review.yml) [![License Compliance](https://github.com/williajm/mcp_docker/actions/workflows/license-compliance.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/license-compliance.yml) [![Documentation](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml) [![codecov](https://codecov.io/gh/williajm/mcp_docker/branch/main/graph/badge.svg)](https://codecov.io/gh/williajm/mcp_docker) |
-| **SonarQube** | [![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=williajm_mcp_docker&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=williajm_mcp_docker) [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=williajm_mcp_docker&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=williajm_mcp_docker) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=williajm_mcp_docker&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=williajm_mcp_docker) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=williajm_mcp_docker&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=williajm_mcp_docker) |
-| **Security** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/williajm/mcp_docker/badge)](https://scorecard.dev/viewer/?uri=github.com/williajm/mcp_docker) [![Bandit](https://github.com/williajm/mcp_docker/actions/workflows/bandit.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/bandit.yml) [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot) [![Fuzzing](https://github.com/williajm/mcp_docker/actions/workflows/cflite.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/cflite.yml) |
-| **Package** | [![GitHub release](https://img.shields.io/github/v/release/williajm/mcp_docker)](https://github.com/williajm/mcp_docker/releases) [![PyPI version](https://img.shields.io/pypi/v/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) [![PyPI status](https://img.shields.io/pypi/status/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) [![PyPI downloads](https://static.pepy.tech/personalized-badge/mcp-docker?period=total&units=none&left_color=grey&right_color=blue&left_text=downloads)](https://pepy.tech/project/mcp-docker) |
-| **Technology** | [![Python 3.11-3.14](https://img.shields.io/badge/python-3.11--3.14-blue.svg)](https://www.python.org/downloads/) [![Docker](https://img.shields.io/badge/Docker-Management-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff) [![type-checked: mypy](https://img.shields.io/badge/type--checked-mypy-blue.svg)](https://mypy-lang.org/) [![MCP](https://img.shields.io/badge/MCP-1.2.0+-5865F2.svg)](https://modelcontextprotocol.io) |
+| **Build & CI** | [![CI](https://github.com/williajm/mcp_docker/actions/workflows/ci.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/ci.yml) [![CodeQL](https://github.com/williajm/mcp_docker/actions/workflows/codeql.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/codeql.yml) [![Pre-commit](https://github.com/williajm/mcp_docker/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/pre-commit.yml) [![Documentation](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/docs.yml) [![codecov](https://codecov.io/gh/williajm/mcp_docker/branch/main/graph/badge.svg)](https://codecov.io/gh/williajm/mcp_docker) |
+| **Security** | [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/williajm/mcp_docker/badge)](https://scorecard.dev/viewer/?uri=github.com/williajm/mcp_docker) [![Bandit](https://github.com/williajm/mcp_docker/actions/workflows/bandit.yml/badge.svg)](https://github.com/williajm/mcp_docker/actions/workflows/bandit.yml) [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-blue.svg?logo=dependabot)](https://github.com/williajm/mcp_docker/security/dependabot) |
+| **Package** | [![GitHub release](https://img.shields.io/github/v/release/williajm/mcp_docker)](https://github.com/williajm/mcp_docker/releases) [![PyPI version](https://img.shields.io/pypi/v/mcp-docker.svg)](https://pypi.org/project/mcp-docker/) |
+| **Technology** | [![Python 3.11-3.14](https://img.shields.io/badge/python-3.11--3.14-blue.svg)](https://www.python.org/downloads/) [![Docker](https://img.shields.io/badge/Docker-Management-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff) |
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes Docker functionality to AI assistants. Manage containers, images, networks, and volumes through a type-safe API with configurable safety controls.
+A local [Model Context Protocol](https://modelcontextprotocol.io) server for Docker visibility and light lifecycle control.
 
-**33 tools** | **5 AI prompts** | **2 resource templates** | stdio and HTTP transports
+**12 tools** | **stdio transport only** | **no destructive Docker operations**
 
 ## Quick Start
 
@@ -39,23 +38,11 @@ codex mcp add docker -- uvx mcp-docker@latest
 }
 ```
 
-No additional configuration needed for local use. The Docker socket is auto-detected for your OS.
-
-> `uvx` caches packages. Use `uvx mcp-docker@latest` or `uv cache prune` to get updates.
-
-### HTTP Transport
-
-For network deployments:
-
-```bash
-mcp-docker --transport http --host 127.0.0.1 --port 8000
-```
-
-For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentication, and rate limiting.
+The Docker socket is auto-detected for your OS. This package intentionally runs over stdio only; it is not a network-exposed Docker administration service.
 
 ## Tools
 
-### Container (10 tools)
+### Container
 
 | Tool | Description | Safety |
 | ---- | ----------- | ------ |
@@ -63,198 +50,75 @@ For production, deploy behind a reverse proxy (NGINX, Caddy) for TLS, authentica
 | `docker_inspect_container` | Detailed container info | Safe |
 | `docker_container_logs` | Get container logs | Safe |
 | `docker_container_stats` | Resource usage stats | Safe |
-| `docker_create_container` | Create new container | Moderate |
 | `docker_start_container` | Start container | Moderate |
 | `docker_stop_container` | Stop container gracefully | Moderate |
 | `docker_restart_container` | Restart container | Moderate |
-| `docker_exec_command` | Execute command in container | Moderate |
-| `docker_remove_container` | Remove container | Destructive |
 
-### Image (9 tools)
+### Image
 
 | Tool | Description | Safety |
 | ---- | ----------- | ------ |
 | `docker_list_images` | List images | Safe |
 | `docker_inspect_image` | Image details | Safe |
-| `docker_image_history` | View layer history | Safe |
-| `docker_pull_image` | Pull from registry | Moderate |
-| `docker_build_image` | Build from Dockerfile | Moderate |
-| `docker_push_image` | Push to registry | Moderate |
-| `docker_tag_image` | Tag image | Moderate |
-| `docker_remove_image` | Remove image | Destructive |
-| `docker_prune_images` | Clean unused images | Destructive |
 
-### Network (6 tools)
+### Network
 
 | Tool | Description | Safety |
 | ---- | ----------- | ------ |
 | `docker_list_networks` | List networks | Safe |
-| `docker_inspect_network` | Network details | Safe |
-| `docker_create_network` | Create network | Moderate |
-| `docker_connect_container` | Connect container to network | Moderate |
-| `docker_disconnect_container` | Disconnect from network | Moderate |
-| `docker_remove_network` | Remove network | Destructive |
 
-### Volume (5 tools)
+### Volume
 
 | Tool | Description | Safety |
 | ---- | ----------- | ------ |
 | `docker_list_volumes` | List volumes | Safe |
-| `docker_inspect_volume` | Volume details | Safe |
-| `docker_create_volume` | Create volume | Moderate |
-| `docker_remove_volume` | Remove volume | Destructive |
-| `docker_prune_volumes` | Clean unused volumes | Destructive |
 
-### System (3 tools)
+### System
 
 | Tool | Description | Safety |
 | ---- | ----------- | ------ |
 | `docker_version` | Docker version info | Safe |
-| `docker_events` | Docker events with filters | Safe |
-| `docker_prune_system` | Clean all unused resources | Destructive |
 
-## Prompts
+## Safety
 
-| Prompt | Purpose |
-| ------ | ------- |
-| `troubleshoot_container` | Diagnose container issues with logs and config analysis |
-| `optimize_container` | Resource usage and security optimization suggestions |
-| `generate_compose` | Generate docker-compose.yml from containers or descriptions |
-| `debug_networking` | Systematic L3-L7 network troubleshooting |
-| `security_audit` | CIS Docker Benchmark security analysis |
-
-## Resource Templates
-
-Discoverable via `resources/templates/list`:
-
-- **`container://logs/{container_id}`** — Last 100 lines of container logs
-- **`container://stats/{container_id}`** — Real-time resource usage (CPU, memory, network, I/O)
-
-## Safety System
-
-Three-tier classification controls what operations are permitted:
-
-| Level | Description | Default | Examples |
-| ----- | ----------- | ------- | -------- |
-| **Safe** | Read-only operations | Always allowed | list, inspect, logs, stats |
-| **Moderate** | Reversible state changes | Allowed | create, start, stop, pull |
-| **Destructive** | Permanent changes | Blocked | remove, prune |
-
-### Configuration
+Safe tools are read-only and always allowed. Moderate tools are reversible lifecycle operations and are allowed by default.
 
 ```bash
-# Control operation levels
-SAFETY_ALLOW_MODERATE_OPERATIONS=true      # default: true
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false  # default: false
-
-# Fine-grained tool filtering
-SAFETY_ALLOWED_TOOLS="docker_list_containers,docker_inspect_container"  # whitelist (empty = all)
-SAFETY_DENIED_TOOLS="docker_prune_system"                               # blacklist (takes precedence)
-```
-
-Deny list is checked before allow list. Both apply on top of the safety level gates.
-
-### Preset Modes
-
-**Read-only** — monitoring and observability only:
-
-```bash
+# Read-only mode: list, inspect, logs, stats, version only
 SAFETY_ALLOW_MODERATE_OPERATIONS=false
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
 ```
 
-**Balanced** (default) — development and operations:
+The package does not expose destructive tools such as remove, prune, build, push, or exec.
 
-```bash
-SAFETY_ALLOW_MODERATE_OPERATIONS=true
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=false
-```
+## Configuration
 
-**Full access** — infrastructure management:
-
-```bash
-SAFETY_ALLOW_MODERATE_OPERATIONS=true
-SAFETY_ALLOW_DESTRUCTIVE_OPERATIONS=true
-```
-
-## Security
-
-Container logs may contain malicious prompts (RADE risk). See [SECURITY.md](SECURITY.md) for the full threat model.
-
-Built-in security features: rate limiting, audit logging, IP filtering, OAuth support, error sanitization, and command injection validation.
-
-For complete configuration reference, see [CONFIGURATION.md](CONFIGURATION.md).
-
-## MCP Server vs Docker CLI
-
-| Aspect | Docker CLI | MCP Server |
-| ------ | ---------- | ---------- |
-| Claude Desktop | No CLI access | Required (only option) |
-| Claude Code | Works directly | Optional (adds safety) |
-| Safety controls | None | Three-tier with filtering |
-| Data format | Text (needs parsing) | Structured JSON |
-| Audit logging | Manual | Built-in |
-| Rate limiting | None | Configurable |
-| Input validation | None | Pydantic schemas |
-| Docker coverage | Full | 33 core operations |
-
-**Use MCP Server** for Claude Desktop (required), production automation, compliance, or when you need safety controls.
-
-**Use CLI directly** in Claude Code for simple tasks or features beyond the 33 tools.
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| `DOCKER_BASE_URL` | Auto-detected | Docker daemon socket URL |
+| `DOCKER_TIMEOUT` | `60` | Docker operation timeout in seconds |
+| `SAFETY_ALLOW_MODERATE_OPERATIONS` | `true` | Allow reversible start/stop/restart tools |
+| `SAFETY_DEFAULT_TOOL_TIMEOUT` | `30` | Tool timeout in seconds, `0` disables |
+| `SAFETY_MAX_RESPONSE_BYTES` | `1048576` | Maximum tool response size, `0` disables |
+| `MCP_LOG_LEVEL` | `INFO` | Logging level |
+| `MCP_JSON_LOGGING` | `false` | Emit JSON logs |
+| `MCP_DEBUG_MODE` | `false` | Show unsanitized errors for local debugging |
 
 ## Development
 
-### Setup
-
 ```bash
-git clone https://github.com/williajm/mcp_docker.git
-cd mcp_docker
 uv sync --group dev
-```
-
-### Testing
-
-Four test levels: unit (no Docker, ~5s), integration (Docker, ~10s), E2E (Docker, ~60s), and fuzz (security).
-
-```bash
-uv run pytest --cov=mcp_docker --cov-report=html   # All tests with coverage
-uv run pytest tests/unit/ -v                         # Unit only
-uv run pytest tests/integration/ -v -m integration   # Integration
-uv run pytest tests/e2e/ -v -m "e2e and not stress"  # E2E (no stress)
-```
-
-### Linting and Type Checking
-
-```bash
-uv run ruff check src/ tests/       # Lint
-uv run ruff format --check src/ tests/  # Format check
-uv run mypy src/mcp_docker/         # Type check (strict)
-```
-
-### Project Structure
-
-```text
-src/mcp_docker/
-├── __main__.py          # Entry point (transport selection)
-├── config.py            # Pydantic settings (env vars)
-├── server/              # MCP server, prompts, resources
-├── tools/               # Tool implementations by category
-├── docker/              # Docker SDK wrapper
-├── services/            # Audit, rate limiting, safety
-├── middleware/           # Auth, safety, rate limiting
-└── utils/               # Validation, helpers, errors
+uv run pytest tests/unit/ -v
+uv run ruff check src/ tests/
+uv run ruff format --check src/ tests/
+uv run mypy src/mcp_docker/
 ```
 
 ## Requirements
 
 - Python 3.11+
 - Docker 20.10+
-- Key dependencies: `mcp>=1.2.0`, `docker>=7.1.0`, `pydantic>=2.0.0`, `loguru`, `authlib`, `limits`
+- Key dependencies: `fastmcp`, `docker`, `pydantic`, `pydantic-settings`, `loguru`
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-## Links
-
-- [PyPI Stats](https://pypi.kopdog.com/package/?name=mcp-docker) | [Model Context Protocol](https://modelcontextprotocol.io) | [Docker SDK](https://docker-py.readthedocs.io/)

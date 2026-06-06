@@ -207,45 +207,6 @@ class TestDockerClientWrapper:
         assert "connected" in repr_str
 
     @patch("mcp_docker.docker.client.docker.DockerClient")
-    @patch("mcp_docker.docker.client.docker.tls.TLSConfig")
-    def test_tls_connection_with_certs(
-        self,
-        mock_tls_config: MagicMock,
-        mock_docker_class: MagicMock,
-        docker_config: DockerConfig,
-        mock_docker_client: MagicMock,
-    ) -> None:
-        """Test TLS connection with client certificates."""
-        import tempfile
-        from pathlib import Path
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ca_cert = Path(tmpdir) / "ca.pem"
-            client_cert = Path(tmpdir) / "cert.pem"
-            client_key = Path(tmpdir) / "key.pem"
-
-            ca_cert.touch()
-            client_cert.touch()
-            client_key.touch()
-
-            docker_config.tls_verify = True
-            docker_config.tls_ca_cert = ca_cert
-            docker_config.tls_client_cert = client_cert
-            docker_config.tls_client_key = client_key
-
-            mock_docker_class.return_value = mock_docker_client
-
-            wrapper = DockerClientWrapper(docker_config)
-            _ = wrapper.client
-
-            # Verify TLSConfig was called with certs
-            mock_tls_config.assert_called_once()
-            call_kwargs = mock_tls_config.call_args[1]
-            assert call_kwargs["verify"] is True
-            assert call_kwargs["client_cert"] == (str(client_cert), str(client_key))
-            assert call_kwargs["ca_cert"] == str(ca_cert)
-
-    @patch("mcp_docker.docker.client.docker.DockerClient")
     def test_connection_unexpected_error(
         self, mock_docker_class: MagicMock, docker_config: DockerConfig
     ) -> None:

@@ -41,12 +41,12 @@ async def send_raw_jsonrpc_request(request_data: str | dict[str, Any]) -> tuple[
     """
     # Start the server process
     proc = subprocess.Popen(
-        ["python", "-m", "mcp_docker", "--transport", "stdio"],
+        ["python", "-m", "mcp_docker"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        env={**os.environ, "SECURITY_OAUTH_ENABLED": "false"},
+        env={**os.environ},
     )
 
     try:

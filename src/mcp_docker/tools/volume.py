@@ -368,16 +368,9 @@ def register_volume_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all volume tools with FastMCP."""
+    """Register read-only volume tools with FastMCP."""
     tools = [
-        # SAFE tools (read-only)
         create_list_volumes_tool(docker_client),
-        create_inspect_volume_tool(docker_client),
-        # MODERATE tools (state-changing)
-        create_create_volume_tool(docker_client),
-        # DESTRUCTIVE tools (permanent deletion)
-        create_remove_volume_tool(docker_client),
-        create_prune_volumes_tool(docker_client),
     ]
 
     return register_tools_with_filtering(app, tools, safety_config)

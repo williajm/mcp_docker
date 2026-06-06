@@ -254,10 +254,8 @@ def register_system_tools(
     docker_client: DockerClientWrapper,
     safety_config: Any = None,
 ) -> list[str]:
-    """Register all system tools with FastMCP."""
+    """Register read-only system tools with FastMCP."""
     tools = [
         create_version_tool(docker_client),
-        create_events_tool(docker_client),
-        create_prune_system_tool(docker_client),
     ]
     return register_tools_with_filtering(app, tools, safety_config)

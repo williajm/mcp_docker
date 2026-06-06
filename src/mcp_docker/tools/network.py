@@ -504,17 +504,9 @@ def register_network_tools(
     docker_client: DockerClientWrapper,
     safety_config: SafetyConfig,
 ) -> list[str]:
-    """Register all network tools with FastMCP."""
+    """Register read-only network tools with FastMCP."""
     tools = [
-        # SAFE tools (read-only)
         create_list_networks_tool(docker_client),
-        create_inspect_network_tool(docker_client),
-        # MODERATE tools (state-changing)
-        create_create_network_tool(docker_client),
-        create_connect_container_tool(docker_client),
-        create_disconnect_container_tool(docker_client),
-        # DESTRUCTIVE tools (permanent deletion)
-        create_remove_network_tool(docker_client),
     ]
 
     return register_tools_with_filtering(app, tools, safety_config)

@@ -15,7 +15,6 @@ def fastmcp_config() -> Config:
     """Create a test configuration for FastMCP server."""
     config = Config()
     config.safety.allow_moderate_operations = True
-    config.safety.allow_destructive_operations = True
     return config
 
 
@@ -30,14 +29,10 @@ def test_fastmcp_server_initialization(fastmcp_config: Config) -> None:
     assert server.docker_client is not None
     assert server.app is not None
     assert server.safety_enforcer is not None
-    assert server.rate_limiter is not None
-    assert server.audit_logger is not None
 
     # Verify middleware instances
+    assert server.error_handler_middleware is not None
     assert server.safety_middleware is not None
-    assert server.rate_limit_middleware is not None
-    assert server.audit_middleware is not None
-    assert server.auth_middleware is not None
 
 
 @pytest.mark.integration
@@ -54,10 +49,9 @@ def test_fastmcp_server_get_app(fastmcp_config: Config) -> None:
 
 
 @pytest.mark.integration
-def test_fastmcp_server_with_safety_disabled(fastmcp_config: Config) -> None:
-    """Test FastMCP server with destructive operations disabled."""
-    # Disable destructive operations
-    fastmcp_config.safety.allow_destructive_operations = False
+def test_fastmcp_server_with_read_only_mode(fastmcp_config: Config) -> None:
+    """Test FastMCP server with moderate operations disabled."""
+    fastmcp_config.safety.allow_moderate_operations = False
 
     # Create server
     server = FastMCPDockerServer(fastmcp_config)
@@ -85,24 +79,3 @@ async def test_fastmcp_server_start_stop(fastmcp_config: Config) -> None:
         if "Docker daemon" in str(e) or "Cannot connect" in str(e):
             pytest.skip("Docker daemon not available in test environment")
         raise
-
-
-@pytest.mark.integration
-def test_fastmcp_server_with_destructive_operations_enabled(
-    fastmcp_config: Config,
-) -> None:
-    """Test that server initializes successfully with destructive operations enabled.
-
-    Note: The server logs a warning when destructive operations are enabled,
-    which can be verified in the pytest captured output.
-    """
-    # Enable destructive operations
-    fastmcp_config.safety.allow_destructive_operations = True
-
-    # Create server (should succeed and log warning)
-    server = FastMCPDockerServer(fastmcp_config)
-
-    # Verify server initialized successfully
-    assert server is not None
-    assert server.config.safety.allow_destructive_operations is True
-    assert server.app is not None
