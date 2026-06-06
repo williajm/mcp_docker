@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "2.0.0"
+version = "2.0.1.dev0"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -140,11 +140,6 @@ ignore = []
 # Fuzz tests use Atheris conventions (TestOneInput is required entry point)
 "tests/fuzz/**/*.py" = [
     "N802",     # TestOneInput function name is required by Atheris fuzzing framework
-]
-# Main entry point has Typer CLI setup
-"src/mcp_docker/__main__.py" = [
-    "PLR0915",  # Too many statements (main function sets up config and server)
-    "B008",     # Typer.Option in defaults is the standard Typer pattern
 ]
 
 [tool.mypy]
