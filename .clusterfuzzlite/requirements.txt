@@ -23,8 +23,8 @@ pydantic-settings==2.6.1 \
 loguru==0.7.3 \
     --hash=sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c
 
-cryptography==46.0.7 \
-    --hash=sha256:5ad9ef796328c5e3c4ceed237a183f5d41d21150f972455a9d926593a1dcb308
+cryptography==49.0.0 \
+    --hash=sha256:0e959b578856a3924bc0cbb710fc12c387b9412a951389f3ca61704a9e25f325
 
 # OAuth/OIDC authentication dependencies (added in v1.1.0)
 authlib==1.7.2 \
