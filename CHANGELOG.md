@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PyPI download stats links now point to [pyrank.org](https://pyrank.org/package/mcp-docker/).
 - Refreshed all locked dependencies (notable: docker 7.2.0, fastmcp 3.4.4,
   mcp 1.28.1, pydantic 2.13.4).
+- The `dev` extra now installs `atheris` only on Python 3.12+, since atheris
+  3.1.0 dropped Python 3.11 support. This affects the fuzzing dev dependency
+  only; ClusterFuzzLite pins its own atheris and is unaffected.
 
 ## [2.0.0] - 2026-06-06
 
