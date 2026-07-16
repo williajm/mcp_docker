@@ -1,6 +1,6 @@
 [project]
 name = "mcp-docker"
-version = "2.0.1.dev0"
+version = "2.0.1"
 description = "Model Context Protocol server for Docker management with AI assistants"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -53,7 +53,11 @@ dev = [
     "ruff>=0.15.7",
     "types-docker>=7.1.0.20260109",
     "hypothesis>=6.151.9",
-    "atheris>=3.0.0",  # Fuzzing with ClusterFuzzLite (Apache-2.0)
+    # Fuzzing with ClusterFuzzLite (Apache-2.0).
+    # atheris 3.1.0 dropped its cp311 wheel and ships no sdist, so it cannot be
+    # installed on 3.11 even though this project still supports it. ClusterFuzzLite
+    # pins its own atheris in .clusterfuzzlite/requirements.txt and is unaffected.
+    "atheris>=3.0.0; python_version >= '3.12'",
 ]
 
 [project.urls]
@@ -63,7 +67,7 @@ Repository = "https://github.com/williajm/mcp_docker"
 PyPI = "https://pypi.org/project/mcp-docker/"
 Issues = "https://github.com/williajm/mcp_docker/issues"
 Changelog = "https://github.com/williajm/mcp_docker/releases"
-Stats = "https://pypi.kopdog.com/package/?name=mcp-docker"
+Stats = "https://pyrank.org/package/mcp-docker/"
 
 [project.scripts]
 mcp-docker = "mcp_docker.__main__:main"
@@ -231,7 +235,8 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
-    "atheris>=3.0.0",
+    # See the dev extra above for why atheris is gated to Python 3.12+.
+    "atheris>=3.0.0; python_version >= '3.12'",
     "coverage>=7.13.5",
     "flake8-cognitive-complexity>=0.1.0",
     "hypothesis>=6.151.9",

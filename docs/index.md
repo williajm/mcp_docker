@@ -62,11 +62,11 @@ For complete details, see [README.md](https://github.com/williajm/mcp_docker/blo
 
 - **Issues**: [GitHub Issues](https://github.com/williajm/mcp_docker/issues)
 - **MCP Documentation**: [modelcontextprotocol.io](https://modelcontextprotocol.io)
-- **PyPI Download Stats**: [pypi.kopdog.com](https://pypi.kopdog.com/package/?name=mcp-docker)
+- **PyPI Download Stats**: [pyrank.org](https://pyrank.org/package/mcp-docker/)
 
 ---
 
-**Version**: 2.0.0
-**Last Updated**: 2026-06-06
+**Version**: 2.0.1
+**Last Updated**: 2026-07-16
 **Python**: 3.11+
 **Docker**: API version 1.41+
