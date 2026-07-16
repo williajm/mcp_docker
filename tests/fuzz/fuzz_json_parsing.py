@@ -32,7 +32,7 @@ def fuzz_json_parse(data: bytes) -> None:
         result = json.loads(data)
         # If successful, verify we got valid JSON types
         assert isinstance(result, (dict, list, str, int, float, bool, type(None)))
-    except (json.JSONDecodeError, ValueError, UnicodeDecodeError, AssertionError):
+    except (json.JSONDecodeError, ValueError, UnicodeDecodeError):
         # Expected for malformed JSON
         pass
 
@@ -42,7 +42,7 @@ def fuzz_json_parse(data: bytes) -> None:
         result = parse_json_string_field(json_str, "test_field")
         if result is not None:
             assert isinstance(result, (dict, list, str, int, float, bool))
-    except (ValueError, UnicodeDecodeError, json.JSONDecodeError, AssertionError):
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
         pass
 
 
@@ -65,7 +65,7 @@ def fuzz_json_field_parsing(data: bytes) -> None:
         # Verify result structure if parsing succeeds
         if result is not None:
             assert isinstance(result, (dict, list, str, int, float, bool))
-    except (json.JSONDecodeError, ValueError, KeyError, TypeError, AssertionError):
+    except (json.JSONDecodeError, ValueError, KeyError, TypeError):
         # Expected for invalid JSON or type errors
         pass
 
@@ -104,7 +104,7 @@ def fuzz_nested_json(data: bytes) -> None:
         # Parse back
         result = json.loads(json_str)
         assert result == nested
-    except (RecursionError, MemoryError, AssertionError):
+    except (RecursionError, MemoryError):
         # Expected for extremely deep nesting
         pass
 
@@ -158,15 +158,18 @@ def fuzz_unicode_json(data: bytes) -> None:
 
     fdp = atheris.FuzzedDataProvider(data)
 
-    # Create JSON with Unicode
-    unicode_str = fdp.ConsumeUnicode(100)
+    # Create JSON with Unicode. Surrogates are excluded because the round-trip
+    # below is not identity for them: json.dumps escapes lone surrogates
+    # individually and json.loads recombines adjacent high+low escape pairs
+    # into a single astral character, so equality would legitimately fail.
+    unicode_str = fdp.ConsumeUnicodeNoSurrogates(100)
     test_obj = {"key": unicode_str, "nested": {"value": unicode_str}}
 
     try:
         json_str = json.dumps(test_obj)
         result = json.loads(json_str)
         assert result == test_obj
-    except (UnicodeDecodeError, UnicodeEncodeError, AssertionError):
+    except (UnicodeDecodeError, UnicodeEncodeError):
         pass
 
 

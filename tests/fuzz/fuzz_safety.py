@@ -41,7 +41,7 @@ def fuzz_command_sanitization(data: bytes) -> None:
         result = sanitize_command(cmd_str)
         assert isinstance(result, list)
         validate_command_safety(cmd_str)
-    except (ValueError, ValidationError, UnsafeOperationError, AssertionError):
+    except (ValueError, ValidationError, UnsafeOperationError):
         # Expected for dangerous commands
         pass
 
@@ -51,7 +51,7 @@ def fuzz_command_sanitization(data: bytes) -> None:
         result = sanitize_command(cmd_parts)
         assert isinstance(result, list)
         validate_command_safety(cmd_parts)
-    except (ValueError, ValidationError, UnsafeOperationError, AssertionError):
+    except (ValueError, ValidationError, UnsafeOperationError):
         pass
 
 
@@ -109,8 +109,8 @@ def fuzz_mount_path_validation(data: bytes) -> None:
 
     try:
         validate_mount_path(path)
-    except (ValueError, ValidationError):
-        # Expected for sensitive paths
+    except (ValueError, ValidationError, UnsafeOperationError):
+        # Expected for sensitive or traversal-prone paths
         pass
 
 
@@ -212,7 +212,7 @@ def fuzz_environment_variable(data: bytes) -> None:
         # If validation succeeds, verify the results are strings
         assert isinstance(result_key, str)
         assert isinstance(result_value, str)
-    except (ValueError, ValidationError, AssertionError):
+    except (ValueError, ValidationError):
         # Expected for dangerous characters or empty keys
         pass
 

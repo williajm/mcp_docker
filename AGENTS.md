@@ -447,16 +447,18 @@ uv run pytest tests/unit/ --cov=mcp_docker --cov-report=term-missing
 
 1. **`pyproject.toml`** - Remove `.dev0` suffix from version (e.g., `1.2.3.dev0` → `1.2.3`)
 
-2. **`CHANGELOG.md`** - Add release section with:
+2. **`sonar-project.properties`** - Update `sonar.projectVersion` to match the release version
+
+3. **`CHANGELOG.md`** - Add release section with:
    - New version header with date: `## [X.Y.Z] - YYYY-MM-DD`
    - Review git log since last release: `git log v{last_version}..HEAD --oneline`
    - Categorize changes: Added, Changed, Fixed, Security, Documentation, Deprecated, Removed
 
-3. **`docs/index.md`** - Update footer:
+4. **`docs/index.md`** - Update footer:
    - `**Version**: X.Y.Z`
    - `**Last Updated**: YYYY-MM-DD`
 
-4. **README.md** - Update if the tool count changed
+5. **README.md** - Update if the tool count changed
 
 **Release checklist:**
 ```bash
