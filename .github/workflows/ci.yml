@@ -23,6 +23,15 @@ jobs:
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
 
+    # The repo's .python-version file (3.11, for local dev) would otherwise win
+    # interpreter selection for every uv sync/run in this job, silently pinning
+    # all matrix jobs to 3.11 (issue #227). UV_PYTHON overrides it for uv
+    # project commands, and a job-level env covers every step, unlike a
+    # --python flag on uv sync alone (a later bare `uv run` would re-sync the
+    # venv back to 3.11).
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -37,6 +46,14 @@ jobs:
 
     - name: Install dependencies
       run: uv sync --all-extras --locked
+
+    - name: Verify matrix Python version is in use
+      # Regression check for issue #227: fail loudly if the venv interpreter
+      # does not match the matrix entry this job claims to test.
+      run: |
+        uv run python -c 'import sys
+        actual = f"{sys.version_info[0]}.{sys.version_info[1]}"
+        assert actual == "${{ matrix.python-version }}", f"venv runs {actual}, matrix expects ${{ matrix.python-version }}"'
 
     - name: Run ruff linting
       run: uv run ruff check src/ tests/

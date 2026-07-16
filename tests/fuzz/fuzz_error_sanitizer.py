@@ -51,23 +51,20 @@ def fuzz_sanitize_error(data: bytes) -> None:
     ]
 
     for exc_type in exception_types:
-        try:
-            error = exc_type(error_msg)
-            sanitized_msg, error_type = sanitize_error_for_client(error, operation)
+        error = exc_type(error_msg)
+        sanitized_msg, error_type = sanitize_error_for_client(error, operation)
 
-            # Verify return types
-            assert isinstance(sanitized_msg, str)
-            assert isinstance(error_type, str)
+        # Verify return types
+        assert isinstance(sanitized_msg, str)
+        assert isinstance(error_type, str)
 
-            # Verify sensitive info is not leaked
-            # The original error message should NOT appear in sanitized output
-            # for unknown exception types
-            if exc_type not in (UnsafeOperationError, ValidationError):
-                # These generic errors should return generic messages
-                assert error_msg not in sanitized_msg or len(error_msg) < 5
-        except AssertionError:
-            # Test failure - sensitive info may have leaked
-            pass
+        # None of these generic exception types are on the sanitizer's safe
+        # list, so the sanitized output must not depend on the original error
+        # message at all. Compare against a baseline built from a fixed
+        # message: any difference means the fuzzed message leaked through.
+        baseline_msg, baseline_type = sanitize_error_for_client(exc_type("baseline"), operation)
+        assert sanitized_msg == baseline_msg
+        assert error_type == baseline_type
 
 
 def fuzz_custom_exceptions(data: bytes) -> None:
